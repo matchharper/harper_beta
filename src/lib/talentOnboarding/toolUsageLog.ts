@@ -54,14 +54,19 @@ export async function insertTalentToolFailureLog(args: {
   admin: TalentAdminClient;
   name: string;
   userId?: string | null;
+  /** Kept with the record: runtime logs are retained for only a day. */
+  error?: unknown;
 }) {
   const userId = String(args.userId ?? "").trim();
   if (!userId) return false;
+  const errorText = args.error === undefined ? ""
+    : (args.error instanceof Error ? args.error.message : String(args.error)).slice(0, 2000);
 
   try {
     const { error } = await args.admin.from("logs").insert({
       type: buildTalentToolFailureLogType(args.name),
       user_id: userId,
+      ...(errorText ? { meta_data: { error: errorText } } : {}),
     });
 
     if (error) {

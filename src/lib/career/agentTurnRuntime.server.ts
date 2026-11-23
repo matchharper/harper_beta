@@ -13,7 +13,8 @@ export { CareerAgentReplyUnavailable } from "./agentReplyError";
 import { createCareerCapabilityTurn } from "./capabilities/server";
 import { CareerReplyContinuation, type CareerAgentRuntimeState, type CareerReplyCheckpoint } from "./capabilities/runtime";
 import { careerCheckpointIsReady } from "./agentContinuation";
-import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
+import { formatTalentMessageContentForModel } from "./messageForModel";
+import { fitCareerInputForModel } from "./modelInputFit";
 import { formatLlmDateTime, PROMPT_TIME_ZONE } from "@/lib/llm/promptDateTime";
 import { normalizeCareerHandbookLeases } from "./handbooks/registry";
 import { matchingIndexForTurn, selectedMatchingForMessages, prepareMatchingWorkContext } from "./matching/workContext";
@@ -77,8 +78,8 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
       // Ordinary user prose is immutable evidence. Artifact clicks use the
       // shared projection, which preserves the exact selected action and values.
       const content = row.message_type === "chat" || row.message_type === "mail"
-        ? [row.content ?? "", formatCareerActionItemResponse(row.payload), ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
-        : formatTalentMessageContentForLlmPrompt(row, {
+        ? [fitCareerInputForModel(row.content ?? ""), formatCareerActionItemResponse(row.payload), ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
+        : formatTalentMessageContentForModel(row, {
             includeCreatedAt: false, timeZone: args.promptArgs.timeZone,
             preferredLocale: args.promptArgs.currentPreferences?.preferredLocale,
           });

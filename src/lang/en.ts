@@ -8,6 +8,7 @@ export const en = {
 
 
   "career.chat.stopped": "Stopped",
+  "career.chat.turn_failed": "I couldn't finish a reply to this. Send it again and I'll start over.",
   "career.chat.stop": "Stop",
 
   auth: {
@@ -900,6 +901,7 @@ export const en = {
     "career.chat.queued_messages.title": "Sends when this reply finishes",
     "career.chat.stop": "Stop",
     "career.chat.stopped": "Stopped",
+    "career.chat.turn_failed": "I couldn't finish a reply to this. Send it again and I'll start over.",
     "career.chat.tool.internal_role_priority_review.start": "I'm checking the internal opportunities you're interested in.",
     "career.chat.tool.list_documents.start": "Checking your saved documents.",
     "career.chat.tool.open_url.host": "Reading {host}",

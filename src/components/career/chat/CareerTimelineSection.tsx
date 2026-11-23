@@ -239,7 +239,7 @@ type TimelineMessageRowProps = Omit<
   isSimulationMode: boolean;
   suppressRolePreviews: boolean;
   turnStartedAt?: string;
-  stopDisplay?: "label" | "search";
+  stopDisplay?: "label" | "search" | "failed";
   dateLabel: string;
   dateAriaPrefix: string;
   simulationSession?: CareerMessage["simulationSession"];
@@ -287,6 +287,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
     splitRecommendJobPostingStatusLogs(
       followingAssistantThinkingLogs ?? EMPTY_THINKING_LOGS
     ).latestStatus?.state === "stopped";
+  const failedLabel = t("career.chat.turn_failed", "답을 만들지 못했어요. 같은 내용을 다시 보내면 처음부터 다시 할게요.");
   const isRunningRecommendationSearch = latestStatus?.state === "running";
   const isActivity = message.messageType === "career_turn_activity";
   const stoppedLabel = t("career.chat.stopped", "중단됨");
@@ -541,13 +542,18 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
         )}
       {stopDisplay === "label" && (
         <div role="status" className="text-[12px] text-neutral-muted">
+      {stopDisplay === "failed" && (
+        <div role="status" className="text-[12px] text-neutral-muted">
+          {failedLabel}
+        </div>
+      )}
           {stoppedLabel}
         </div>
       )}
       <CareerMessageActions
         message={message}
         copyText={isActivity
-          ? displayEvents?.map(event => event.text).join("\n\n") || textLogs.join("\n\n") || (stopDisplay ? stoppedLabel : message.content)
+          ? displayEvents?.map(event => event.text).join("\n\n") || textLogs.join("\n\n") || (stopDisplay === "failed" ? failedLabel : stopDisplay ? stoppedLabel : message.content)
           : undefined}
         onDeleteMessage={onDeleteMessage}
       />
@@ -624,15 +630,18 @@ export const TimelineMessageList = memo(function TimelineMessageList({
         )
     );
   }
+  let turnFailed = false;
   let turnStart = 0;
   let previousDateKey = "";
   let turnStopped = false;
   let turnHasStoppedSearch = false;
   const rows: React.ReactNode[] = [];
   for (let index = 0; index < messages.length; index++) {
+      turnFailed = false;
     const message = messages[index];
     if (message.role === "user") {
       turnStopped = false;
+    turnFailed ||= Boolean(message.turnFailed);
       turnHasStoppedSearch = false;
     }
     turnStopped ||= Boolean(message.turnStopped);
@@ -647,7 +656,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
         ? formatChatDateDividerLabel(message.createdAt, locale)
         : "";
     if (messageDateKey) previousDateKey = messageDateKey;
-    const stopDisplay = turnHasStoppedSearch ? "search" : turnStopped ? "label" : undefined;
+    const stopDisplay = turnHasStoppedSearch ? "search" : turnStopped ? "label" : turnFailed ? "failed" : undefined;
     // A previous user message is not an execution start: autonomous greetings
     // and resumed work may arrive much later. Only measured timing can supply
     // a duration; message chronology must not manufacture hours of work.

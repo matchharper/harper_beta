@@ -531,6 +531,7 @@ export type CareerMessage = {
   thinkingLogs?: string[];
   workBackgroundLogs?: string[];
   turnStopped?: boolean;
+  turnFailed?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
   typing?: boolean;
@@ -578,6 +579,7 @@ export type CareerMessagePayload = {
   thinkingLogs?: string[];
   workBackgroundLogs?: string[];
   turnStopped?: boolean;
+  turnFailed?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
 };

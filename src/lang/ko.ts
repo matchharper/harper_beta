@@ -7,6 +7,7 @@ export const ko = {
     "간단하게라도 어떤 일을 해오셨는지 알려주세요",
 
   "career.chat.stopped": "중단됨",
+  "career.chat.turn_failed": "답을 만들지 못했어요. 같은 내용을 다시 보내면 처음부터 다시 할게요.",
   "career.chat.stop": "중단",
   auth: {
     login: "로그인",
@@ -918,6 +919,7 @@ export const ko = {
     "career.chat.queued_messages.title": "답변이 끝나면 보낼 메시지",
     "career.chat.stop": "중단",
     "career.chat.stopped": "중단됨",
+    "career.chat.turn_failed": "답을 만들지 못했어요. 같은 내용을 다시 보내면 처음부터 다시 할게요.",
     "career.chat.tool.internal_role_priority_review.start": "관심 있는 내부 기회를 확인하고 있습니다.",
     "career.chat.tool.list_documents.start": "저장된 문서를 확인하고 있습니다.",
     "career.chat.tool.open_url.host": "{host} 읽는 중",

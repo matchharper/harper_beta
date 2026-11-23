@@ -303,6 +303,7 @@ async function insertToolUsageLogFromContext(args: {
 async function insertToolFailureLogFromContext(args: {
   context?: TalentToolExecutionContext;
   name: string;
+  error?: unknown;
 }) {
   const admin = args.context?.admin;
   if (!admin) return;
@@ -311,6 +312,7 @@ async function insertToolFailureLogFromContext(args: {
     admin: admin as TalentAdminClient,
     name: args.name,
     userId: args.context?.userId,
+    error: args.error,
   });
 }
 
@@ -4685,6 +4687,7 @@ export async function executeTalentTool(args: {
       name: tool.name,
     });
     if (shouldLog) {
+      error,
       logTalentToolError({
         durationMs: Date.now() - startedAt,
         error,

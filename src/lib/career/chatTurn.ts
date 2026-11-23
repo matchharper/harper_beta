@@ -1,6 +1,8 @@
 import { formatCareerApplicationEvent } from "./background/prompt";
 import { isTestTalentAccount, TEST_ACCOUNT_OUTWARD_ACTION_REFUSAL } from "@/lib/testAccounts";
 import { projectCareerConversationHistory } from "@/lib/talentOnboarding/conversationSummary";
+import { formatTalentMessageContentForModel } from "./messageForModel";
+import { fitCareerHistoryToModel } from "./modelInputFit";
 import { selectCareerPreloads, type CareerPreviousTurn } from "./capabilities/decisions";
 import { CAREER_BACKGROUND_PRELOAD } from "./background/scheduledModel";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
@@ -17,7 +19,7 @@ import { formatCareerInboxMessages } from "./work/inbox";
 import { readWorkContext } from "./work/store";
 import { listCareerActionItems } from "./actionItems.server";
 import { prepareCareerAgentTurn, readCareerAgentResourceContext } from "./agentTurnRuntime.server";
-import { readCareerSourceTextChatModel, resolveCareerTextChatModel, type CareerTextChatModelId } from "./textChatModelConfig";
+import { DEFAULT_CAREER_TEXT_CHAT_MODEL, readCareerSourceTextChatModel, resolveCareerTextChatModel, type CareerTextChatModelId } from "./textChatModelConfig";
 import { readCareerConversationTextChatModel } from "./conversationTextChatModel.server";
 import { CareerCapabilityRuntime, CareerReplyContinuation, type CareerReplyCheckpoint } from "./capabilities/runtime";
 import { throwIfToolControlError } from "@/lib/llm/toolError";
@@ -553,7 +555,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
           userId, conversationId, sourceMessageId: existingSourceMessage.id }, () => selectCareerPreloads({
           eligibleNames: new Set(eligible.toolNames), eligibleTools: eligible.tools,
           input: { messages: [...history.filter(row => row.message_type !== "conversation_summary")
-            .map(row => ({ role: row.role, content: formatTalentMessageContentForLlmPrompt(row, { preserveUserText: true }) }))
+            .map(row => ({ role: row.role, content: formatTalentMessageContentForModel(row, { preserveUserText: true }) }))
             .filter(row => row.content.trim()),
             { role: "user", content: formatCareerInboxMessages(args.initialInboxSnapshot?.messages ?? [existingSourceMessage], { preferredLocale: setting.preferred_locale, timeZone: args.timeZone }) }], previous: args.previousTurn },
           activeHandbooks: args.previousHandbooks?.filter(book => book.id !== "proactive_career"), signal: args.abortSignal, scheduleAfter,
@@ -844,7 +846,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     )
     .map((item) => ({
       role: item.role as "user" | "assistant",
-      content: formatTalentMessageContentForLlmPrompt(item, {
+      content: formatTalentMessageContentForModel(item, {
         includeCreatedAt: item.message_type !== "conversation_summary",
         preferredLocale: responseLocale,
         timeZone: args.timeZone,
@@ -1224,6 +1226,19 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
       toolRuntime,
       hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message"))),
+  // Older history yields first when the whole request would exceed the
+  // model's documented input limit; within it nothing changes.
+  const fittedHistory = fitCareerHistoryToModel({
+    model: assistantModel ?? DEFAULT_CAREER_TEXT_CHAT_MODEL,
+    systemText: systemBlocks.map(block => block.text).join("\n"),
+    toolsText: JSON.stringify(toolDefinitions),
+    messages: llmMessages,
+    isSummary: message => message === llmMessages[0] && sourceWindow[0]?.message_type === "conversation_summary",
+  });
+  if (fittedHistory.omitted > 0) {
+    console.warn("[career-input-fit] history reduced", { userId, conversationId, omitted: fittedHistory.omitted });
+    llmMessages.splice(0, llmMessages.length, ...fittedHistory.messages);
+  }
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
         const visibleText = normalizeNoMessageContent(text, noMessageMarker);
         if (!visibleText) return;

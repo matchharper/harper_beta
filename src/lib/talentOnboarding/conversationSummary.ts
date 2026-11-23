@@ -19,6 +19,7 @@ import {
 } from "@/lib/talentOnboarding/messageStore";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
 import { formatTalentMessageContentForLlmPrompt, formatTalentMessageReferenceForLlm } from "@/lib/career/opportunityFeedbackNote";
+import { formatTalentMessageContentForModel } from "@/lib/career/messageForModel";
 import { buildConversationSummaryBatch } from "@/lib/talentOnboarding/conversationSummaryPolicy";
 
 const SUMMARY_MESSAGE_TYPE = "conversation_summary";
@@ -110,7 +111,7 @@ function formatMessageForSummary(message: TalentMessageRow) {
   const reference = formatTalentMessageReferenceForLlm(message);
   const role = reference ? "Displayed interface item" : message.role === "assistant" ? "Harper" : "User";
   const date = formatMessageDateForSummary(message);
-  const content = (reference || formatTalentMessageContentForLlmPrompt(message))
+  const content = (reference || formatTalentMessageContentForModel(message))
     .replace(/\s+/g, " ")
     .trim();
   return `[${message.id} | date=${date} KST] ${role}: ${content}`;

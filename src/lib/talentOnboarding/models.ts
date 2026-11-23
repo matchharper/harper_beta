@@ -1,6 +1,6 @@
 import { readCareerTurnEvents, type CareerTurnEvent } from "@/lib/career/turnDisplay";
 import { readCareerTurnPlan, type CareerTurnPlanItem } from "@/lib/career/turnPlan";
-import { isCareerTurnStopped } from "@/lib/career/turnCancellation";
+import { isCareerTurnFailed, isCareerTurnStopped } from "@/lib/career/turnCancellation";
 import { parseCareerForm, parseCareerFormResponse, parseCareerFormResponses, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
 import { parseApplicationDraft, type ApplicationDraft } from "@/lib/career/simulation/preparation";
 import {parseApplicationStartOffer,type ApplicationStartOffer} from "@/lib/career/simulation/startOffer";
@@ -154,6 +154,7 @@ export type TalentMessageResponse = {
   workPending?: boolean;
   thinkingLogs: string[];
   turnStopped?: boolean;
+  turnFailed?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
 };
@@ -224,6 +225,7 @@ export function toTalentMessageResponse(
     thinkingLogs: normalizeTalentMessageThinkingLogs(item.thinking_logs),
     clientRequestId: item.payload && typeof item.payload === "object" && !Array.isArray(item.payload) && typeof item.payload.clientRequestId === "string" ? item.payload.clientRequestId : undefined,
     turnStopped: isCareerTurnStopped(item.payload),
+    turnFailed: isCareerTurnFailed(item.payload),
   };
 }
 

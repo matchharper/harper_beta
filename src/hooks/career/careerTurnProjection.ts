@@ -19,7 +19,7 @@ export function projectCareerInputDelivery(messages: CareerMessage[], snapshot?:
     const id = Number(message.id);
     const covered = snapshot?.pendingInputMessageIds !== undefined &&
       Number.isFinite(id) && id <= (snapshot.latestMessageId ?? 0);
-    const inputPending = !message.turnStopped && (pendingIds.has(id) ||
+    const inputPending = !message.turnStopped && !message.turnFailed && (pendingIds.has(id) ||
       (!covered && Boolean(message.inputPending)));
     return inputPending === Boolean(message.inputPending) ? message : { ...message, inputPending };
   });

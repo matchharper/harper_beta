@@ -1,4 +1,6 @@
 import { careerDocumentImages } from "@/lib/talentOnboarding/documentImages.server";
+import { saveOversizedChatInputAsDocument } from "@/lib/career/pastedInputDocument.server";
+import { formatTalentMessageContentForModel } from "@/lib/career/messageForModel";
 import { readOwnedMatchingId } from "@/lib/career/matching/focus";
 import { readCareerChatInputs } from "@/lib/career/chatInputCache.server";
 import { hasDeliveredCareerContact } from "@/lib/career/background/contactHistory";
@@ -681,6 +683,20 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    // Text larger than one model input arrives like an attached file: the
+    // original is stored, the model reads it with read_document, and the
+    // message keeps a preview.
+    const pastedDocument = message && !skipConversationWrites
+      ? await saveOversizedChatInputAsDocument({
+          admin, userId: user.id, text: message, locale: responseLocale,
+          requestKey: body.clientRequestId ?? crypto.randomUUID(),
+        })
+      : null;
+    if (pastedDocument) {
+      message = pastedDocument.preview;
+      if (!uploadedDocuments.some(document => document.id === pastedDocument.document.id))
+        uploadedDocuments.push(pastedDocument.document);
+    }
     if (!message && uploadedDocuments.length > 0) {
       message = uploadedDocuments
         .map((document) => document.file_name)
@@ -1105,7 +1121,7 @@ export async function POST(req: NextRequest) {
       .map((item) => ({
         role: item.role as "user" | "assistant",
         ...(item.id === insertedUserMessage.id && uploadedDocuments.length ? { careerImages: careerDocumentImages(uploadedDocuments) } : {}),
-        content: formatTalentMessageContentForLlmPrompt(item, {
+        content: formatTalentMessageContentForModel(item, {
           includeCreatedAt: item.message_type !== "conversation_summary",
           preferredLocale: responseLocale,
           timeZone: promptTimeZone,
@@ -1115,7 +1131,7 @@ export async function POST(req: NextRequest) {
 
     if (savedInternalCallAnswers) llmMessages.push({
       role: "user",
-      content: formatTalentMessageContentForLlmPrompt(savedInternalCallAnswers.message, {
+      content: formatTalentMessageContentForModel(savedInternalCallAnswers.message, {
         includeCreatedAt: true, preferredLocale: responseLocale, timeZone: promptTimeZone,
       }),
     });

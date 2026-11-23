@@ -1,6 +1,6 @@
 import {renderResourceInteraction} from "./resources/interactionContext";
 import { parseCareerFormResponses } from "./forms/schema";
-import { CAREER_TURN_STOP_FACT, isCareerTurnStopped } from "./turnCancellation";
+import { CAREER_TURN_FAILED_FACT, CAREER_TURN_STOP_FACT, isCareerTurnFailed, isCareerTurnStopped } from "./turnCancellation";
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { stripOpportunityRunMarkers } from "@/lib/opportunityDiscovery/messageMarker";
 import { formatCareerOpportunityMentionsForLlm } from "@/lib/career/opportunityMentionText";
@@ -233,6 +233,8 @@ export function formatTalentMessageContentForLlmPrompt(
   const createdAt = message.created_at ?? message.createdAt;
   if (!options?.includeCreatedAt || !createdAt) return formattedContent;
 
+  else if (isCareerTurnFailed(payload))
+    formattedContent += `\n${CAREER_TURN_FAILED_FACT}`;
   const createdAtLabel = formatCareerPromptMessageTimeLabel(createdAt, options);
   if (!createdAtLabel) return formattedContent;
   return `[${createdAtLabel}]\n${formattedContent}`;
