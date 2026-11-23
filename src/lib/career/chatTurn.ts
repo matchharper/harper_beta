@@ -939,7 +939,8 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       userChatTurnCount: isOnboardingActiveForTurn ? userTurnCount : await countUserChatTurns({ admin, conversationId }),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
-      officialJobSignupIntentPrompt: isOnboardingActiveForTurn
+      // A Harper outreach mail's entry record is read after onboarding too (its first chat turns, conversationPlan.ts).
+      officialJobSignupIntentPrompt: isOnboardingActiveForTurn || entrySource.fromMail
         ? entrySource.intentSummary
         : null,
       opportunityStatus,
