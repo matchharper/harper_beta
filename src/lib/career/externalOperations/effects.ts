@@ -2,6 +2,7 @@ import { createOperation, readOperation, type ExternalToolContext, type External
 import { resourceDb, databaseError } from "../resources/types";
 import { readWork } from "../work/store";
 import { readOpportunity } from "../opportunities/store";
+import { browserRunSubmission } from "../browser/submissionReceipt";
 
 export const effectReferenceProperties={
   responsibility_ref:{type:"object",properties:{id:{type:"string"},revision:{type:"integer"}},required:["id","revision"],additionalProperties:false,
@@ -54,8 +55,22 @@ export async function reserveWorkEffect(context: ExternalToolContext, key: strin
     });
     if (error) throw error;
     effect = (await readOperation(context, effect.id))!;
+  } else if (bound && unsubmittedApplicationRun(bound)) {
+    // The same application can run again after a run that stopped before submitting. The database rechecks the run.
+    const { data, error } = await (context.admin.rpc as any)("release_unsubmitted_career_effect_v1", {
+      p_user_id: context.userId, p_effect_id: effect.id, p_operation_id: bound.id,
+    });
+    if (error) throw error;
+    if (data === true) effect = (await readOperation(context, effect.id))!;
   }
   return effect;
+}
+
+/** A finished web application run whose own receipt says it did not submit. */
+export function unsubmittedApplicationRun(run: ExternalOperation) {
+  const roles = run.request.role_refs;
+  return run.kind === "browser_run" && run.status === "completed" && browserRunSubmission(run.result) === "no"
+    && Array.isArray(roles) && roles.length > 0;
 }
 
 export async function readBoundEffect(context: ExternalToolContext, effect?: ExternalOperation) {

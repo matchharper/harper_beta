@@ -116,3 +116,33 @@ test("save_login without the user's agreement message is refused before any brow
   assert.deepEqual(calls, []);
   assert.equal(tables.talent_external_operations.length, 0);
 });
+
+test("checking keep-signed-in in the viewer is the consent: it turns saved login on, then returns control to Harper", async (t) => {
+  const { turnOnSavedLoginFromViewer, formatBrowserControlReturn } = await import("./control");
+  const calls = provider(t);
+  const session = (status: string, revision: number, provider_refs: Record<string, unknown> = {}) => ({ id: id(5), user_id: userId,
+    conversation_id: id(99), parent_id: null, kind: "browser_session", status, revision, idempotency_key: "s", request: {},
+    result: {}, provider_refs: { workspace_id: "ws", ...provider_refs }, created_at: "", updated_at: "" });
+  // Control already moved on, a stale card, or a browser that already keeps sign-ins: nothing changes.
+  for (const row of [session("idle", 3), session("human", 4), session("human", 3, { profile_id: profileId })]) {
+    const tables = { talent_external_operations: [row] };
+    const scope = context(tables);
+    assert.equal((await turnOnSavedLoginFromViewer(scope, id(5), 3)).id, id(5));
+    assert.equal(await readSavedLogin(scope), null);
+  }
+  assert.deepEqual(calls, []);
+  const tables = { talent_external_operations: [session("human", 3)] };
+  const scope = context(tables);
+  // The fixture stops at the control-return RPC: consent is recorded before control goes back to Harper.
+  await assert.rejects(turnOnSavedLoginFromViewer(scope, id(5), 3), /reached return_career_browser_control/);
+  const saved = await readSavedLogin(scope);
+  assert.equal(savedLoginProfileId(saved), profileId);
+  assert.deepEqual([saved?.result.consent_source, saved?.result.consent_session_id, saved?.result.consent_message_id],
+    ["browser_viewer", id(5), null]);
+  const event = formatBrowserControlReturn(session("idle", 4) as any, [{ id: id(6), kind: "browser_run", parent_id: id(5), status: "completed",
+    result: { url: "https://jobs.example.test/login", needsUser: true }, request: {}, provider_refs: {} } as any], 4, { savedLoginTurnedOn: true });
+  assert.match(event, /checked "keep me signed in/);
+  assert.match(event, /page waiting for sign-in was https:\/\/jobs\.example\.test\/login/);
+  assert.match(event, /has not signed in yet/);
+  assert.doesNotMatch(event, /selected Done/);
+});

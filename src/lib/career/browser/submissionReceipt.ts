@@ -35,5 +35,5 @@ export async function markSubmittedApplications(
     .map((row) => ({ recommendationId: row.id, savedStage: "applied" }));
   if (!items.length) return [];
   const { setOpportunityStages } = await import("../matching/opportunityStages");
-  return (await setOpportunityStages({ admin: context.admin as any, userId: context.userId, items })).stageUpdates;
+  return (await setOpportunityStages({ admin: context.admin as any, userId: context.userId, items, actor: "harper_submission" })).stageUpdates;
 }

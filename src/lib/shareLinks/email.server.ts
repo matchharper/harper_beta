@@ -3,7 +3,7 @@ import "server-only";
 import type { z } from "zod";
 import { readJdFromUrl } from "@/lib/gtmPlays/jd.server";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
-import { plainMailHtml, shareLinkMailHtml } from "./mailBlock";
+import { shareLinkMailPs } from "./mailBlock";
 import { createShareLink, ShareLinkUnavailableError } from "./server";
 import type { emailProfileLinkSchema } from "./emailParam";
 import { isPersonalMailDomain, shareLinkDomain, type ShareLinkPosting } from "./shared";
@@ -17,10 +17,10 @@ const SKIPPED = {
 } as const;
 
 /**
- * The approved body with the candidate summary box (후보자 링크) at the end, for the company the mail goes to. The
- * box is HTML, so a plain-text body goes out as HTML with its words unchanged (`isHtml`). The same candidate,
- * company and posting reuse one link, so a retried send has the same body. When the link cannot be made the body
- * goes out as approved without it, and `note` says why.
+ * The approved body with the candidate summary link (후보자 링크) as a P.S. under the signature, for the company the
+ * mail goes to. The body keeps its format: a plain mail stays plain text. The same candidate, company and posting
+ * reuse one link, so a retried send has the same body. When the link cannot be made the body goes out as approved
+ * without it, and `note` says why.
  */
 export async function appendEmailProfileLink(args: {
   talentId: string;
@@ -53,11 +53,11 @@ export async function appendEmailProfileLink(args: {
       source: "mail_application",
       consentedAt: new Date().toISOString(),
     });
-    const box = { snapshot: link.snapshot, url: linkUrl, language: link.language };
+    const ps = shareLinkMailPs({ snapshot: link.snapshot, url: linkUrl, language: link.language });
     return {
-      body: `${args.isHtml ? args.body : plainMailHtml(args.body)}\n${shareLinkMailHtml(box)}`,
-      isHtml: true,
-      note: "Candidate summary link added at the end of the email.",
+      body: args.isHtml ? `${args.body}\n${ps.html}` : `${args.body.trimEnd()}\n\n${ps.text}`,
+      isHtml: args.isHtml,
+      note: "Candidate summary link added as a P.S. under the signature.",
     };
   } catch (error) {
     if (error instanceof ShareLinkUnavailableError) return unchanged(SKIPPED[error.reason]);

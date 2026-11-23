@@ -19,8 +19,8 @@ test("closing uses the owned Jobs stage executor without changing candidate feed
   const c = client();
   const result = await setOpportunityStages({ admin: c.admin, userId: "owner", items: [{ roleId: "role", savedStage: "closed" }] });
   assert.deepEqual(c.filters, [["talent_id", "owner"], ["role_id", "role"]]);
-  assert.deepEqual(c.writes.at(-1), { name: "move_talent_role_saved_stage_v1", input: {
-    p_record_activity: true, p_recommendation_id: "rec", p_saved_stage: "closed", p_talent_id: "owner",
+  assert.deepEqual(c.writes.at(-1), { name: "move_talent_role_saved_stage_v2", input: {
+    p_actor: "harper", p_record_activity: true, p_recommendation_id: "rec", p_saved_stage: "closed", p_talent_id: "owner",
   } });
   assert.match(formatCareerMatchingResult(result), /saved stage closed/);
 });
@@ -30,6 +30,6 @@ test("missing ownership and superseded recommendations cannot be moved", async (
     const result = await setOpportunityStages({ admin: c.admin, userId: "owner", items: [{ recommendationId: "rec", savedStage: "closed" }] });
     assert.ok(result.stageUpdates[0].error);
     assert.equal(result.status, "failed");
-    assert.equal(c.writes.some(w => w.name === "move_talent_role_saved_stage_v1"), false);
+    assert.equal(c.writes.some(w => w.name === "move_talent_role_saved_stage_v2"), false);
   }
 });

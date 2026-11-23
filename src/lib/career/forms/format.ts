@@ -1,4 +1,5 @@
 import {
+  emptyRequiredItems,
   findCareerFormAction,
   getCareerFormContent,
   isCareerActionChecklist,
@@ -25,7 +26,7 @@ export function formatCareerFormForModel(form: CareerForm): string {
     ...(form.state ? [`Response state: ${form.state}`] : []),
   ];
   for (const item of form.items) {
-    lines.push(`- ${item.id} | ${item.label} | ${item.type}`);
+    lines.push(`- ${item.id} | ${item.label} | ${item.type}${item.required ? " | required" : ""}`);
     if (item.description) lines.push(`  Description: ${item.description}`);
     const content = getCareerFormContent(item);
     for (const [key, value] of Object.entries(content))
@@ -102,8 +103,10 @@ export function formatCareerFormResponseForModel(
     response.actionId,
     response.itemId
   );
+  const emptyRequired = response.itemId ? [] : emptyRequiredItems(response.formSnapshot, response.values);
   return [
     `User ${response.skipped ? "skipped" : response.actionId ? "selected" : "answered"} form ${response.formId}, revision ${response.revision}${response.itemId ? `, item ${response.itemId}` : ""}${response.actionId ? `, action ${response.actionId}${action ? ` (${action.label})` : ""}` : ""}.`,
+    ...(emptyRequired.length ? [`Required answers left empty: ${emptyRequired.map(item => `${item.label} [${item.id}]`).join(", ")}`] : []),
     ...selectedFiles,
     ...(action ? [`User message: ${action.message}`] : []),
     ...(response.message !== undefined
