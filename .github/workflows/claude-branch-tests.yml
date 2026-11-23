@@ -40,7 +40,7 @@ jobs:
           echo "exit=$?"
           cat out.txt
           # Annotation messages are cut at 4 KB: send the output in numbered chunks, newlines kept.
-          grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ' | sed 's/^/::warning title=${{ matrix.ref }} counts::/'; echo
+          echo "::warning title=${{ matrix.ref }} counts::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
           grep -B2 -A25 '^✖ failing tests' out.txt > fail.txt || true
           split -C 3000 -d fail.txt part_
           for f in part_*; do echo "::warning title=${{ matrix.ref }} ${f}::$(sed 's/%/%25/g; s/\r//g' $f | sed ':a;N;$!ba;s/\n/%0A/g')"; done
