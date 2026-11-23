@@ -1397,6 +1397,7 @@ export const en = {
     "career.followup.close": "Close",
     "career.forms.action_requested": "Requested",
     "career.forms.answered": "Answers sent.",
+    "career.forms.approve_all": "Approve all ({count})",
     "career.forms.batch_failed": "Your answers could not be confirmed. Check the latest questions and try again. Your draft is saved.",
     "career.forms.changed": "The questions have changed. Review the latest version.",
     "career.forms.clearSelection": "Clear selection",

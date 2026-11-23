@@ -1415,6 +1415,7 @@ export const ko = {
     "career.followup.close": "닫기",
     "career.forms.action_requested": "요청됨",
     "career.forms.answered": "답변을 보냈어요.",
+    "career.forms.approve_all": "모두 승인 ({count})",
     "career.forms.batch_failed": "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.",
     "career.forms.changed": "질문이 변경됐어요. 최신 내용을 확인해 주세요.",
     "career.forms.clearSelection": "선택 지우기",

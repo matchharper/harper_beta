@@ -127,3 +127,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **2026-11-22** — Ashley 답장은 확인하고, 쓰고, 바로 보낸다. 지금 보낼 수 없는 답장은 미리 써 두지 않고 다음 보내는 날 다시 쓴다(보내다 끊긴 답장만 같은 키로 다시 보낸다). Ashley 답장에 드는 비용은 하루 비용 한도에 넣지 않는다. 한도는 첫 메일·회사 메일 일에만 쓴다.
 - **2026-11-22** — /ops 설정에서 '답장 에이전트' 스위치와 '넘길 사람 Slack' 칸을 뺐다. 위쪽 켜짐/꺼짐 하나가 Ashley 답장까지 켜고 끈다. 넘길 사람은 DB 값만 쓴다.
 - **2026-11-22** — 하루 처리량은 지금 구조(Resend, 회사 본 도메인)에서 100통을 유지한다. Gmail 스팸 비율은 Google Postmaster Tools에서 읽어 /ops 숫자표의 '반송/스팸신고/수신거부' 합계 칸 아래에 보여 준다(도메인 전체 값, 보통 1~2일 늦음, 양이 적으면 숫자 없음). [postmaster.ts](src/lib/gtmPlays/agent/postmaster.ts)
+- **2026-11-23** — 여러 지원을 함께 맡기면 Harper가 모두 준비한 뒤 검토를 한데 모아 보여 주고, 사용자는 "모두 승인" 한 번으로 승인할 수 있어야 한다. 지원마다 준비→확인→실행을 반복하게 하지 않는다. [지침 기록](docs/agent-guidance/career-guidance-selection.md)

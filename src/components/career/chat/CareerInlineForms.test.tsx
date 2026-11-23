@@ -137,6 +137,56 @@ test("inline groups retain drafts and reviewed revisions, then submit once witho
   }
 });
 
+test("모두 승인 sends every review in the group with its own approval and keeps a chosen decline", async t => {
+  const dom = installFormDom(t);
+  const review = (id: number): CareerForm => ({ formId: id, revision: 1, kind: "form", state: "open", title: `지원 ${id}`,
+    items: [{ id: "experience", label: "경험", type: "textarea", content: "" }],
+    negative: { id: `hold-${id}`, label: "보류", message: "보류할게" },
+    positive: { id: `submit-${id}`, label: "이 내용으로 지원", message: "이 내용으로 지원해줘" } });
+  const forms: CareerForm[] = [review(40), review(50), review(60),
+    { formId: 70, revision: 1, kind: "form", state: "open", title: "질문", items: [{ id: "note", label: "메모", type: "textarea", content: "" }] }];
+  const posts: any[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    if (init?.method !== "POST") {
+      const form = forms.find(form => form.formId === Number(new URL(String(url), "http://localhost").searchParams.get("formId")));
+      return Response.json({ form, responses: [] });
+    }
+    const input = JSON.parse(String(init.body)); posts.push(input);
+    return Response.json({ message: { id: 100, content: "", formResponses: [] } });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const button = (text: string) => [...dom.window.document.querySelectorAll("button")].find(b => b.textContent === text);
+  const field = (id: number) => dom.window.document.querySelector<HTMLTextAreaElement>(`[data-career-form-id="${id}"] textarea`)!;
+  const props = (element: HTMLElement) => (element as any)[Object.keys(element).find(key => key.startsWith("__reactProps$"))!];
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  const render = (ids: number[]) => act(async () => root.render(<QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+      <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}>
+        <CareerInlineForms key={ids.join(",")} formIds={ids} grouped />
+      </CareerChatPanelProvider>
+    </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+  try {
+    await render([40, 70]);
+    await settle();
+    await act(async () => button("질문 2개 보기")!.click());
+    assert.equal(button("모두 승인 (1)"), undefined, "one review needs no approve-all");
+    await render([40, 50, 60, 70]);
+    await settle();
+    await act(async () => button("질문 4개 보기")!.click());
+    assert.ok(button("모두 승인 (3)"), "the count is the reviews that will be approved");
+    await act(async () => props(field(40)).onChange({ target: { value: "고친 경험" } }));
+    await act(async () => dom.window.document.querySelector<HTMLInputElement>('[data-career-form-id="60"] input[type="radio"]')!.click());
+    assert.equal(button("모두 승인 (3)"), undefined);
+    await act(async () => button("모두 승인 (2)")!.click());
+    await settle();
+    assert.equal(posts.length, 1, "one request carries every review");
+    assert.deepEqual(posts[0].responses.map((r: any) => [r.formId, r.values.experience ?? r.values.note, r.actionId]),
+      [[40, "고친 경험", "submit-40"], [50, "", "submit-50"], [60, "", "hold-60"], [70, "", undefined]]);
+  } finally {
+    await act(async () => root.unmount()); client.clear();
+  }
+});
+
 test("each checklist row submits alone, retains its check after reload and leaves siblings available", async t => {
   const dom = installFormDom(t);
   const form: CareerForm = {

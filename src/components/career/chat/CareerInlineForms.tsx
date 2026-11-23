@@ -19,6 +19,15 @@ type Draft = { form: CareerForm; values: Record<string, CareerFormValue>; action
 const isDraft = (value: unknown): value is Draft => Boolean(value && typeof value === "object" &&
   parseCareerForm((value as Draft).form) && (value as Draft).values && typeof (value as Draft).values === "object");
 
+/**
+ * The action "모두 승인" sends for a form: its own approval, unless the person already chose to decline it. A form
+ * without an approval keeps the person's own choice.
+ */
+export function approvedAction(form: CareerForm, chosen?: string) {
+  if (chosen && chosen === form.negative?.id) return chosen;
+  return form.positive?.id ?? chosen;
+}
+
 /** A reference reads existing forms. It never creates, reopens or submits one. */
 export function CareerInlineForms({ formIds, grouped = false, origin, onOriginChange }: {
   formIds: number[];
@@ -73,6 +82,9 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
   const changed = editable.some(form => drafts[form.formId] && drafts[form.formId].form.revision !== form.revision);
   const unavailable = !conversationId || queries.some((query, index) => ownsForm(formIds[index]) && (query.isError || !query.data));
   const failed = failedForms.some(formId => !latest.some(form => form.formId === formId && form.state === "answered"));
+  // Several reviews in one reply (for example applications prepared together) can be approved with one press.
+  const approvable = editable.filter(form => form.positive);
+  const approving = approvable.filter(form => approvedAction(form, drafts[form.formId]?.actionId) === form.positive?.id).length;
   const update = (form: CareerForm, values: Record<string, CareerFormValue>, actionId?: string) => {
     setDrafts(current => ({ ...current, [form.formId]: { form, values, ...(actionId ? { actionId } : {}) } }));
   };
@@ -102,13 +114,14 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
         void client.invalidateQueries({ queryKey: [key, conversationId] });
     }
   };
-  const submit = async (singleAction?: string) => {
+  const submit = async (singleAction?: string, approveAll = false) => {
     if (!conversationId || lock.current || changed || unavailable || !editable.length) return;
     const submittedDrafts = { ...drafts };
-    const responses = editable.map(form => ({ formId: form.formId, revision: form.revision,
-      values: drafts[form.formId]?.values ?? getCareerFormInitialValues(form),
-      ...((singleAction ?? drafts[form.formId]?.actionId) ? { actionId: singleAction ?? drafts[form.formId]?.actionId } : {}),
-    }));
+    const responses = editable.map(form => {
+      const actionId = approveAll ? approvedAction(form, drafts[form.formId]?.actionId) : singleAction ?? drafts[form.formId]?.actionId;
+      return { formId: form.formId, revision: form.revision,
+        values: drafts[form.formId]?.values ?? getCareerFormInitialValues(form), ...(actionId ? { actionId } : {}) };
+    });
     const signature = JSON.stringify(responses);
     if (request.current?.signature !== signature) request.current = { signature, id: crypto.randomUUID() };
     const requestId = request.current.id;
@@ -213,10 +226,15 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
         })}
       </div>
       {failed && <p role="alert" className="text-sm text-critical">{t("career.forms.batch_failed", "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.")}</p>}
-      {editable.length > 0 && (grouped || !shown[0]?.positive && !shown[0]?.negative) &&
+      {editable.length > 0 && (grouped || !shown[0]?.positive && !shown[0]?.negative) && <div className="flex flex-wrap gap-2">
         <MuteButton variant="dark" disabled={pending || changed || unavailable} onClick={() => void submit()}>
           {t("career.forms.send_answers", "답변 보내기")}
-        </MuteButton>}
+        </MuteButton>
+        {grouped && approvable.length > 1 &&
+          <MuteButton variant="dark" disabled={pending || changed || unavailable || !approving} onClick={() => void submit(undefined, true)}>
+            {t("career.forms.approve_all", "모두 승인 ({count})").replace("{count}", String(approving))}
+          </MuteButton>}
+      </div>}
     </div>}
   </section>;
 }
