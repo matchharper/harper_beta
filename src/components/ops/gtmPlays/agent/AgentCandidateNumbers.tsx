@@ -11,7 +11,7 @@ import {
   type NumbersAllTime, type NumbersPick, type NumbersRow, type NumbersRows,
 } from "@/lib/gtmPlays/agent/numbers";
 import { kstDay, type AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
-import { gmailSpamLine } from "@/lib/gtmPlays/agent/postmaster";
+import { gmailSpamDayLine, gmailSpamLine } from "@/lib/gtmPlays/agent/postmaster";
 import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentFunnel, AgentNumbers } from "@/lib/gtmPlays/agent/views.server";
 import { useGtmAction } from "../api";
@@ -481,7 +481,8 @@ export default function AgentCandidateNumbers(props: AgentCandidateNumbersProps)
             {runText(row.run) ?? <span className="text-neutral-muted">실행 없음</span>}
           </td>
         ) : null}
-        {cells(row, ctxOf(row, false))}
+        {/* That day's Gmail spam rate, when Google gave one (Shaun 11/23 13:02: 합계 the period, a day its own). */}
+        {cells(row, ctxOf(row, false), gmailSpamDayLine(funnel?.gmailSpam, key))}
       </tr>
     );
   };
