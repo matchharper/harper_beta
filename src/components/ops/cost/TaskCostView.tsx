@@ -50,7 +50,7 @@ const sourceLabels: Record<string, string> = {
   "org/intro-email": "Intro 이메일",
   "org/auto-intro": "자동 Intro",
   "org/slack-router": "Slack 요청 분류",
-  "gtm-agent": "후보자 소싱 에이전트",
+  "gtm-agent": "GTM Agent",
   "career_tool:recommend_job_postings": "채용공고 추천",
   "career_tool:update_talent_profile": "프로필 갱신",
   "career_tool:research_company": "회사 조사",

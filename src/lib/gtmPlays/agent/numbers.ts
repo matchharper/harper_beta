@@ -1,6 +1,8 @@
 /**
  * #5 수치 · 후보 (Shaun 11/22: one panel instead of 수치 and 하루별 성능): the period's people and searches as rows by
- * 찾은 곳 (source), 날짜 (the KST day they were found) or 검색어 (the search query that found them), 합계 first. Every
+ * 찾은 곳 (source), 날짜 (the KST day they were found), 검색어 (the search query that found them) or 채널 (where × why
+ * they wrote, agent/channels.ts channelOf; 11/23), 합계 first. Givers are no row's (funnel.ts isGiver): the 합계 only
+ * counts them apart (numbers.givers), with their own spend left out of every row. Every
  * row carries what the four views read (사람 흐름, 검색 수율, 추천 품질, 답장), grouped once by daily.ts agentRowsByKey
  * with 수치's own predicates (funnel.ts), so the rows of every kind add up to the same 합계 and a number opens exactly
  * its people in the log. Pure: the server, the screen and the tests share it.
@@ -8,19 +10,26 @@
  * 검색 수율 by row kind: a 날짜 row reads the runs of that day (as 하루별 성능 did), a 찾은 곳 row its own search counts
  * (search_attempts_<id>, searches_<id>, signal_cost_<id> …), a 검색어 row the runs' search records of that wording
  * (gtm_agent_runs.signal_log.<source>.yields[]). A search's cost is the search's as a whole (its queries share the
- * plan and the judge calls), so a 검색어 row has no cost.
+ * plan and the judge calls), so a 검색어 row has no cost. One search finds people of several channels (a LinkedIn search
+ * finds job and career-help posts alike), so a 채널 row has neither searches nor their cost, and the 채널 view's 합계
+ * cost is its people's own (the other views' 합계 less the search cost; the screen's ⓘ says so). The GitHub API pull
+ * (githubSource.server.ts) is GitHub's search and the LinkedIn 상담 글·이벤트 글 searches LinkedIn's; the company
+ * hiring-post search is no candidate row's (its cost is 수치 · 회사's 회사 소싱, signals.ts candidateSearchPlace).
  */
 import { applicantListCompany } from "./applicantList";
+import { CANDIDATE_CHANNELS, channelOf, type AgentCandidateChannel, type AgentFoundAs, type AgentIntent } from "./channels";
 import {
-  agentRowsByKey, dayRunOf, periodDaysNewestFirst, runCountsBySource, runCountsForConfig, runSearchCostUsd, searchConfigOf,
+  agentRowsByKey, dayRunOf, periodDaysNewestFirst, runCountsByPlace, runCountsBySource, runCountsForConfig, runSearchCostUsd, searchConfigOf,
   type AgentDayConfigStart, type AgentDayPerson, type AgentDayRun, type AgentDayRunFacts, type AgentKeyRow,
 } from "./daily";
+import { isGiver } from "./funnel";
+import { candidateSearchPlace } from "./signals";
 import { addDays, AGENT_PERIOD_MAX_DAYS, periodDate } from "./period";
 import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
 import type { AgentSpendStep } from "./spend";
 
-/** What a row is: where the people were found, the day they were found, or the query that found them. */
-export const NUMBERS_ROWS = ["source", "day", "query"] as const;
+/** What a row is: where the people were found, the day they were found, the query that found them, or their channel. */
+export const NUMBERS_ROWS = ["source", "day", "query", "channel"] as const;
 export type NumbersRows = (typeof NUMBERS_ROWS)[number];
 
 /** The 검색어 row of the people no search found (the uploaded applicant files): the log reads "" as "no query". */
@@ -29,7 +38,16 @@ export const NO_QUERY = "";
 /** 검색어 rows shown before "검색어 N개 더 보기". */
 export const QUERY_ROWS_SHOWN = 30;
 
-export type NumbersPerson = AgentDayPerson & { personId: string; searchQuery?: string | null };
+export type NumbersPerson = AgentDayPerson & {
+  personId: string; searchQuery?: string | null;
+  /** What channelOf reads (with source): how they were found, why they wrote, author or commenter. */
+  method?: string | null; intent?: AgentIntent | null; foundAs?: AgentFoundAs | null;
+};
+
+/** A person's channel (agent/channels.ts channelOf): the 채널 row they are in, and the log's 채널 filter. */
+export function channelOfPerson(person: Pick<NumbersPerson, "source" | "method" | "intent" | "foundAs">): AgentCandidateChannel {
+  return channelOf({ source: person.source, method: person.method ?? "", intent: person.intent ?? null, foundAs: person.foundAs ?? null });
+}
 
 /** One person's own spend on one step (not the searches, which are the runs'). */
 export type NumbersSpend = { personId: string; step: AgentSpendStep; usd: number };
@@ -79,32 +97,42 @@ export type NumbersRunRead = {
 export function numbersRunOf(run: NumbersRunRead, filter: { source: string | null; configId: string | null }): NumbersRun | null {
   const { source, configId } = filter;
   if (source && run.kind === "import" && source !== "linkedin") return null;
-  const counts = source ? runCountsBySource(run.counts ?? {}).get(source) ?? {} : run.counts ?? {};
-  const yields = yieldsOfSignalLog(run.yields).filter((item) => !source || item.source === source);
-  if (!configId) return { day: run.day, kind: run.kind, counts, searchCostUsd: runSearchCostUsd(counts), yields };
   const configs = { searchConfigs: run.searchConfigs ?? {}, configIds: run.configIds ?? [] };
-  if (run.kind === "import") return configs.configIds[0] === configId ? { day: run.day, kind: run.kind, counts: {}, searchCostUsd: 0, yields: [] } : null;
-  const under = runCountsForConfig(counts, configs, configId);
-  return {
-    day: run.day, kind: run.kind, counts: under, searchCostUsd: runSearchCostUsd(under),
-    yields: yields.filter((item) => searchConfigOf(item.source, configs) === configId),
-  };
+  if (configId && run.kind === "import") {
+    return configs.configIds[0] === configId ? { day: run.day, kind: run.kind, counts: {}, searchCostUsd: 0, yields: [] } : null;
+  }
+  // Each search's 설정 묶음 is under its own id, so that filter goes first. The company search is never the candidates'
+  // (its cost is 회사 소싱's); with a 찾은 곳, a goal search counts as its place's (signals.ts candidateSearchPlace).
+  const under = configId ? runCountsForConfig(run.counts ?? {}, configs, configId) : run.counts ?? {};
+  const counts = source
+    ? runCountsBySource(runCountsByPlace(under, candidateSearchPlace)).get(source) ?? {}
+    : runCountsByPlace(under, (id) => (candidateSearchPlace(id) === null ? null : id));
+  const yields = yieldsOfSignalLog(run.yields).filter((item) => {
+    const place = candidateSearchPlace(item.source);
+    return place !== null && (!source || place === source) && (!configId || searchConfigOf(item.source, configs) === configId);
+  });
+  return { day: run.day, kind: run.kind, counts, searchCostUsd: runSearchCostUsd(counts), yields };
 }
 
 /** The row a person is in. */
-export function numbersKeyOf(kind: NumbersRows, person: Pick<NumbersPerson, "source" | "foundDay" | "searchQuery">): string {
+export function numbersKeyOf(
+  kind: NumbersRows, person: Pick<NumbersPerson, "source" | "foundDay" | "searchQuery" | "method" | "intent" | "foundAs">,
+): string {
   if (kind === "source") return person.source;
   if (kind === "day") return person.foundDay;
+  if (kind === "channel") return channelOfPerson(person);
   return person.searchQuery ?? NO_QUERY;
 }
 
-/** A run's part in each row: its day; each source it searched; each query it ran. */
+/** A run's part in each row: its day; each source it searched; each query it ran; nothing of a channel's. */
 function runParts(kind: NumbersRows, run: NumbersRun): Array<{ key: string; run: Partial<AgentDayRun>; searchCostUsd: number }> {
+  if (kind === "channel") return [];
   if (kind === "day") return [{ key: run.day, run: dayRunOf(run), searchCostUsd: run.searchCostUsd }];
   if (kind === "query") {
     return (run.yields ?? []).map((item) => ({ key: item.query, run: { searches: 1, newPeople: item.kept, knownPeople: item.known }, searchCostUsd: 0 }));
   }
-  return [...runCountsBySource(run.counts)].flatMap(([source, counts]) => {
+  // A goal search is its place's row: its people are that place's (signals.ts candidateSearchPlace).
+  return [...runCountsBySource(runCountsByPlace(run.counts, candidateSearchPlace))].flatMap(([source, counts]) => {
     const part = { ...dayRunOf({ kind: run.kind, counts }), files: 0 };
     const searchCostUsd = runSearchCostUsd(counts);
     const any = searchCostUsd || part.searchedSources || part.skippedBudget || part.searches || part.newPeople || part.knownPeople;
@@ -115,7 +143,8 @@ function runParts(kind: NumbersRows, run: NumbersRun): Array<{ key: string; run:
 /**
  * The rows of one kind and the 합계 (the same people and searches whatever the kind). 날짜: every day of the period,
  * newest first. 찾은 곳: `always` first (the sources turned on, so an empty one still shows), then the others, most
- * people first. 검색어: most people first, the uploaded-file people one row (NO_QUERY).
+ * people first. 검색어: most people first, the uploaded-file people one row (NO_QUERY). 채널: the channels anyone was
+ * found in, in the queue's order (agent/channels.ts CANDIDATE_CHANNELS).
  */
 export function agentNumbersRows(args: {
   kind: NumbersRows; from: string; to: string;
@@ -128,7 +157,10 @@ export function agentNumbersRows(args: {
 }): { total: NumbersRow; rows: NumbersRow[] } {
   const { kind } = args;
   const inPeriod = (day: string) => day >= args.from && day <= args.to;
-  const people = args.people.filter((person) => inPeriod(person.foundDay));
+  const found = args.people.filter((person) => inPeriod(person.foundDay));
+  // Givers are in no row (a row of only givers would be a row of zeros) and their spend in no row's cost.
+  const people = found.filter((person) => !isGiver(person));
+  const givers = found.length - people.length;
   const keyOf = new Map(people.map((person) => [person.personId, numbersKeyOf(kind, person)]));
   // Summed per row and step first, so a row's cost is rounded once per step (as the spend log sums it).
   const spend = new Map<string, { key: string; step: AgentSpendStep; usd: number }>();
@@ -146,7 +178,7 @@ export function agentNumbersRows(args: {
     people: people.map((person) => ({ key: numbersKeyOf(kind, person), person })),
     spend: [...spend.values()],
     runs: runs.flatMap((run) => runParts(kind, run)),
-    searchPeople: (args.searchPeople ?? []).filter((item) => inPeriod(item.day)).map((item) => ({
+    searchPeople: (kind === "channel" ? [] : args.searchPeople ?? []).filter((item) => inPeriod(item.day)).map((item) => ({
       key: kind === "day" ? item.day : kind === "source" ? item.source : item.query ?? NO_QUERY,
       found: item.found, contactable: item.contactable,
     })),
@@ -169,16 +201,21 @@ export function agentNumbersRows(args: {
       ? [...(places.get(row.key as string) ?? new Map<string, number>())].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([source]) => source)
       : [],
   }));
+  const totalRow: NumbersRow = { ...total, numbers: { ...total.numbers, givers }, sources: [] };
   if (kind === "source") {
     const always = new Set(args.always ?? []);
     const rest = out.filter((row) => !always.has(row.key as string))
       .sort((a, b) => b.numbers.found - a.numbers.found || b.numbers.costUsd - a.numbers.costUsd || String(a.key).localeCompare(String(b.key)));
-    return { total: { ...total, sources: [] }, rows: [...out.filter((row) => always.has(row.key as string)), ...rest] };
+    return { total: totalRow, rows: [...out.filter((row) => always.has(row.key as string)), ...rest] };
   }
   if (kind === "query") {
     out.sort((a, b) => b.numbers.found - a.numbers.found || b.run.searches - a.run.searches || String(a.key).localeCompare(String(b.key)));
   }
-  return { total: { ...total, sources: [] }, rows: out };
+  if (kind === "channel") {
+    const order = (key: string | null) => CANDIDATE_CHANNELS.indexOf(key as AgentCandidateChannel);
+    out.sort((a, b) => order(a.key) - order(b.key));
+  }
+  return { total: totalRow, rows: out };
 }
 
 /**
@@ -198,19 +235,24 @@ export function noSearchRecord(
   kind: NumbersRows, row: Pick<NumbersRow, "key" | "run" | "numbers">, filters: { source: string | null },
 ): NoSearchRecord | null {
   if (row.run.searches) return null;
-  if (applicantListCompany(kind === "source" ? row.key : filters.source)) return "not_searched";
+  // Uploaded applicant files and the bought list (dbSource.server.ts, source "db") are never searched.
+  const place = kind === "source" ? row.key : filters.source;
+  if (applicantListCompany(place) || place === "db") return "not_searched";
   if (kind !== "query" || row.key === null) return null;
   if (row.key === NO_QUERY) return "not_searched";
   return row.numbers.found ? "no_record" : null;
 }
 
 /** What a number click takes to the log (AgentTab): the row's key in its field and the panel's filters. */
-export type NumbersPick = { source: string | null; day: string | null; query: string | null; config: string | null };
+export type NumbersPick = {
+  source: string | null; day: string | null; query: string | null; config: string | null; channel: AgentCandidateChannel | null;
+};
 
 /**
- * The people behind a number of the row `key` (null: 합계): the row's own source, day or query, with the panel's 찾은
- * 곳 (not on 찾은 곳 rows, where the row is the source) and 설정 묶음. The log filters by exactly these (views.server.ts
- * listAgentPeopleLog: source, the day as the period, search_query, config_id), so its people are the number's.
+ * The people behind a number of the row `key` (null: 합계): the row's own source, day, query or channel, with the
+ * panel's 찾은 곳 (not on 찾은 곳 rows, where the row is the source) and 설정 묶음. The log filters by exactly these
+ * (views.server.ts listAgentPeopleLog: source, the day as the period, search_query, config_id, channelOfPerson), so
+ * its people are the number's.
  */
 export function numbersPick(kind: NumbersRows, key: string | null, filters: { source: string | null; config: string | null }): NumbersPick {
   return {
@@ -218,6 +260,7 @@ export function numbersPick(kind: NumbersRows, key: string | null, filters: { so
     day: kind === "day" ? key : null,
     query: kind === "query" ? key : null,
     config: filters.config,
+    channel: kind === "channel" ? key as AgentCandidateChannel | null : null,
   };
 }
 

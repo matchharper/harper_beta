@@ -111,7 +111,7 @@ function dropParam(mailId: string) {
   try {
     const url = new URL(window.location.href);
     if (url.searchParams.get(PARAM) === mailId) {
-      for (const key of [PARAM, "next", "posting", "question"]) url.searchParams.delete(key);
+      for (const key of [PARAM, "gtm_open", "next", "posting", "question"]) url.searchParams.delete(key);
       window.history.replaceState(window.history.state, "", url.toString());
     }
   } catch {

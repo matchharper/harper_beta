@@ -12,7 +12,7 @@ import { kstClock } from "./people";
  * new postings (the same matcher, grader and mail lines: agent/followup.ts; the follow-up's words are fixed copy). */
 /** reply: Ashley deciding on and writing a reply, and a re-search for it (agent/ashleyAgent.ts). Not under the daily cap:
  * Ashley's replies have none (Shaun 11/22; store.server.ts agentCostToday leaves them out). */
-export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup" | "reply";
+export type AgentSpendStep = "search" | "profile" | "lookup" | "match" | "review" | "compose" | "followup" | "reply" | "events";
 
 /** The Korea-time day (YYYY-MM-DD) money spent at `at` counts on. */
 export function spendDay(at: Date): string {

@@ -137,3 +137,21 @@ test("a mailed person's furthest step", () => {
   assert.equal(contactOutcome({ status: "ended", eventKinds: ["sent", "followup_sent", "ended"] }), "ended");
   assert.equal(contactOutcome({ status: "ended", eventKinds: ["sent", "unsubscribed"] }), "unsubscribed");
 });
+
+test("the log leaves the givers out of every candidate number's people, and shows them alone or in an explicit set", () => {
+  const givers = [
+    { ...base, status: "excluded" as const, excludeReason: "giver" as const, giverKind: "coach", eventKinds: ["found", "excluded"] },
+    { ...base, status: "excluded" as const, excludeReason: "giver" as const, giverKind: "event_host", eventKinds: ["found", "excluded"] },
+  ];
+  const rows = [...people, ...givers];
+  // Every candidate number (찾음 too) is still exactly its people with the givers there.
+  assertCellsMatch(rows);
+  const numbers = tallyAgentPeople(rows);
+  assert.equal(numbers.givers, givers.length);
+  assert.equal(rows.filter((row) => logFiltersMatch({ side: "givers" }, row)).length, numbers.givers);
+  assert.deepEqual(rows.filter((row) => logFiltersMatch({ side: "givers" }, row)), givers);
+  assert.equal(rows.filter((row) => logFiltersMatch({ side: "any" }, row)).length, rows.length);
+  assert.equal(rows.filter((row) => logFiltersMatch({ stage: "excluded" }, row)).length, numbers.excluded);
+  // Not 처리 중 either: 찾음 = 처리 중 + 제외 + 연락 holds without them.
+  assert.ok(givers.every((row) => !AGENT_STAGES.some((stage) => inStage(stage, row))));
+});

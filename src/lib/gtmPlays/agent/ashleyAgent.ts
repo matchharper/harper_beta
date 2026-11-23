@@ -35,6 +35,7 @@
  *   given back to the company (its credit back, a notice in its hiring conversation that says no why) when the
  *   candidate cannot be reached (opted out, bounced, or the second send failed) (tellCompanyIntroAsk, Shaun 11/22).
  */
+import { storedOffer } from "./channels";
 import { checkBeforeSend, type PreSendResult } from "./ashleyCheck";
 import {
   ASHLEY_COPY, ashleySignupLink, companyLandingLink, gmailThreadSearchLink, handoffSlackText, harperChatLink, listUnsubscribeHeaders,
@@ -94,7 +95,7 @@ export type AshleyPerson = Pick<
   AgentPerson,
   "id" | "name" | "headline" | "location" | "currentCompany" | "profileText" | "source" | "language" | "email" | "postings"
   | "mailId" | "followupMailId" | "sentAt" | "isTest" | "events"
->;
+> & Partial<Pick<AgentPerson, "messageKind" | "offerEvents">>;
 
 type Tool = (typeof WRITER_TOOLS)[number];
 
@@ -636,7 +637,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
         case "read_outreach":
           return outreachText({
             person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
-            followupSent: Boolean(person.followupMailId), now,
+            followupSent: Boolean(person.followupMailId), now, offer: storedOffer(person.messageKind), events: person.offerEvents ?? [],
           });
         case "read_posting": {
           if (!item) return `No posting with that label. Labels: ${[...labels.keys()].join(", ")}.`;

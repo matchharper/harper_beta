@@ -158,7 +158,7 @@ test("persists reported routing cost and duration, and marks missing usage as un
   assert.equal(unknown.cost_status, "unpriced");
 });
 
-test("후보자 소싱 에이전트 calls (gtm-agent:<step>) reach llm_logs like other model calls", { timeout: 1000 }, async (t) => {
+test("gtm agent calls (gtm-agent:<step>) reach llm_logs like other model calls", { timeout: 1000 }, async (t) => {
   const envNames = ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"] as const;
   const original = envNames.map((name) => process.env[name]);
   process.env.NEXT_PUBLIC_SUPABASE_URL = "http://127.0.0.1:54321";

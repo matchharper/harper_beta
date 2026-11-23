@@ -20,13 +20,12 @@ import {
   attachCompanyContextToCards, roleCard, type RawRoleRow, type RoleCard,
 } from "@/lib/talentOnboarding/jobPostingRecommendations";
 import { runTalentAssistantCompletion } from "@/lib/talentOnboarding/llm";
-import { GTM_ROLE_PURPOSE, GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "../constants";
+import { HARPER_WORKSPACE_ID } from "../constants";
 import { gtmRead } from "../db.server";
-import { cleanPublicDescription } from "../shared";
 import {
   GRADE_CANDIDATES, MIN_FITS, PUBLIC_READ_MAX, publicBatchWorthReading, byRankScore, detectLanguage, fitClears, outreachPlanPrompts,
   fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields, postingExcluded,
-  personFacts, postingsFromSelection, reviseEvidence, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
+  personFacts, postingsFromSelection, reviseEvidence, withFitScores, withOutreachRecency, type AgentPlanStep,
   type InternalCandidate, type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import { mailPersonName } from "./mailRules";
@@ -79,46 +78,33 @@ async function searchPublicPostings(
 
 /**
  * Open Roles a mail can propose besides public postings, with their full text: customers' own Roles (as #4 ③, the
- * customer's name) and saved GTM Roles (as #4 ②, "Harper 고객사(<설명>)"; never the real company). A Role's text is
- * its description only: a customer's brief (company_internal_roles.request) is private and a GTM Role's request names
- * the real company, so a Role without a description is left out (internalCandidate).
+ * customer's name). A Role's text is its description only: a customer's brief (company_internal_roles.request) is
+ * private, so a Role without a description is left out (internalCandidate).
  */
 export async function internalRoles(): Promise<InternalCandidate[]> {
   const rows = await gtmRead((sql) => sql<InternalRoleSource[]>`
     select r.role_id::text as role_id,
-      case when w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid then 'gtm' else 'customer' end as kind,
       r.name, r.company_workspace_id::text as company_workspace_id,
-      case when w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid then w.company_name
-        else coalesce(nullif(btrim(w.published_name), ''), w.company_name) end as company_name,
+      coalesce(nullif(btrim(w.published_name), ''), w.company_name) as company_name,
       w.company_name as workspace_name,
       nullif(btrim(r.description), '') as description,
       r.location_text, r.work_mode, r.type, r.posted_at::text as posted_at, r.seniority_level, r.summary,
       r.salary_min::float8 as salary_min, r.salary_max::float8 as salary_max, r.salary_currency, r.salary_period, r.salary_range,
       w.company_description, cd.short_description as company_db_short_description,
       cd.employee_count_range as company_db_employee_count_range, cd.founded_year as company_db_founded_year,
-      cd.location as company_db_location,
-      r.information->'gtm'->>'publicDescription' as public_description,
-      r.information->'gtm'->>'companyName' as gtm_company,
-      r.information->'gtm'->>'opsName' as gtm_ops_name,
-      -- A GTM Role made from a customer's own Role: that customer's names are the real company's too.
-      array_remove(array[sw.company_name, nullif(btrim(sw.published_name), '')], null) as gtm_source_names
+      cd.location as company_db_location
     from public.company_roles r
     join public.company_workspace w on w.company_workspace_id = r.company_workspace_id
-    left join public.company_workspace sw on w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid
-      and sw.company_workspace_id::text = r.information->'gtm'->>'sourceWorkspaceId'
     left join public.company_db cd on cd.id = w.company_db_id
     where r.source_type = 'internal' and r.status in ('active', 'top_priority')
       -- As the worker's scheduled search: only Roles with a matching slot (internal_fit.py refresh_internal_opportunity_fits).
       and public.role_matching_slot_type_v1(r.role_id, now()) in ('free', 'paid')
-      and (
-        (w.is_internal is true and w.company_workspace_id <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
-          and coalesce(lower(btrim(r.information->>'testOnly')), '') not in ('true', '1', 'yes', 'on'))
-        or (w.company_workspace_id = ${GTM_WORKSPACE_ID}::uuid and r.information->>'purpose' = ${GTM_ROLE_PURPOSE})
-      )
+      and w.is_internal is true and w.company_workspace_id <> ${HARPER_WORKSPACE_ID}::uuid
+      and coalesce(lower(btrim(r.information->>'testOnly')), '') not in ('true', '1', 'yes', 'on')
     order by r.updated_at desc nulls last
     limit 400
   `);
-  return rows.flatMap((row) => internalCandidate(row, cleanPublicDescription) ?? []);
+  return rows.flatMap((row) => internalCandidate(row) ?? []);
 }
 
 /** Where candidates come from and what the pick may write (tests and measurements swap them). */
@@ -150,14 +136,13 @@ export type AgentMatch = {
   /** The search plans the pick used, in order (the second only when the first found fewer than 2 fits). */
   plans: AgentPlanStep[];
   /**
-   * Each picked posting's own text, in the postings' order (a GTM Role's with its real company's names replaced), for
-   * the separate grader (agent/review.server.ts); never stored. null: no text.
+   * Each picked posting's own text, in the postings' order, for the separate grader (agent/review.server.ts); never
+   * stored. null: no text.
    */
   postingTexts: Array<string | null>;
   /**
    * The mail lines (후보자 링크 frame: what the company needs → the person's experience → so they fit) for the postings
-   * the grader kept, written from the same posting text; a GTM Role's real company never comes back. Written after the
-   * grading so the postings it leaves out cost nothing (the pick hands it up to GRADE_CANDIDATES). A posting without a
+   * the grader kept, written from the same posting text. Written after the grading so the postings it leaves out cost nothing (the pick hands it up to GRADE_CANDIDATES). A posting without a
    * frame keeps the pick's why; costUsd is what the writing cost.
    */
   frame: (postings: readonly AgentPosting[]) => Promise<{ postings: AgentPosting[]; costUsd: number }>;
@@ -168,8 +153,8 @@ const noFrames: AgentMatch["frame"] = async (postings) => ({ postings: [...posti
 
 /**
  * One outside person → 1-3 fitting postings, the way Career picks postings for members: Career's planner writes a
- * search plan from the person's public facts (and says whether they are looking at all), every open customer / GTM
- * Role and the shared search's public postings (in its order, until enough fit) are scored on their full JD with
+ * search plan from the person's public facts (and says whether they are looking at all), every open customer Role
+ * and the shared search's public postings (in its order, until enough fit) are scored on their full JD with
  * Career's fit rubric, and Career's selector picks among the ones that fit, one ranking for both, writing the why.
  * Fewer than MIN_FITS fitting companies after the first search → the planner revises the plan once from what came
  * back, and only the new candidates are scored. Never a posting at their current company (or `excludeCompanyNames`).
@@ -210,7 +195,8 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const firstRaw = await pickJsonCall(prompts.plan, planInput({}), "plan");
   const first = outreachPlanFields(firstRaw);
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
-  const language = hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko";
+  // A language the source knew (the DB's Korean people) first; else what they wrote.
+  const language = person.language ?? (hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko");
   if (!first.jobSeeking) {
     return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [], frame: noFrames };
   }
@@ -238,7 +224,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
     const publicCards = rows.map(roleCard)
       .filter((card) => card.roleId && card.roleName && !cards.has(card.roleId) && !isExcludedCompany(card.companyName ?? "", excluded))
       .slice(0, PUBLIC_READ_MAX);
-    // Every customer and GTM Role not scored yet (the revised search scores only new public postings).
+    // Every customer Role not scored yet (the revised search scores only new public postings).
     const internalLeft = internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded));
     const fresh = [...internalLeft.map((item) => roleCard(item.row)), ...await sources.companyContext(publicCards)];
     for (const card of publicCards) {
@@ -260,7 +246,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
         publicScored: publicScored.length,
       };
     };
-    // Customer and GTM Roles always; public postings while they are still worth reading.
+    // Customer Roles always; public postings while they are still worth reading.
     const scoredNow = await scoreCards(fresh, context, language, fits, addUsd, (batch) => !batch.every(isPublic) || publicBatchWorthReading(now()));
     read += scoredNow;
     plans.push({
@@ -293,7 +279,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   }
 
   // Career's selector reads each candidate's neutral summary: write the missing ones (public postings' go to the
-  // shared cache, customer and GTM Roles' stay in memory), then let it pick.
+  // shared cache, customer Roles' stay in memory), then let it pick.
   const ranked = fitting.map((item) => ({ card: cards.get(item.roleId)!, fit: item.fit, score: rankScore(item.fit) }));
   const engine = (dryRun: boolean): EngineArgs => ({
     admin: getTalentSupabaseAdmin(), userId: randomUUID(), surface: "daily", language, targetCount: GRADE_CANDIDATES, dryRun,
@@ -314,17 +300,12 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const selected = await rerankCandidates(engine(true), { ...context, current_search_scope: plans.at(-1)!.plan }, ranked, pickJsonCall);
   // The why keeps only the fit (Shaun 11/17: the picker's "다만 …" caveats are not needed for GTM, on the mail or the log).
   const picked = postingsFromSelection(selected.map((item) => ({ roleId: item.card.roleId, note: mailWhy(item.recommendationNote ?? "") })), metaByRoleId, excluded);
-  // A GTM Role's text and words never name its real company.
-  const scrub = (posting: AgentPosting, text: string) => {
-    const hide = posting.roleId ? metaByRoleId.get(posting.roleId)?.hide : undefined;
-    return hide ? withoutNames(text, hide.names, hide.replacement) : text;
-  };
   // The posting text the frame writer and the grader both read: the whole posting as plain text (review.ts
   // reviewPostingText; 11/18: the first 3,000 raw characters were mostly page markup and left out where and at what
   // level the role is worked).
   const postingText = (posting: AgentPosting) => {
     const row = posting.roleId ? cards.get(posting.roleId)?.row : undefined;
-    return row ? reviewPostingText(row, (text) => scrub(posting, text)) : null;
+    return row ? reviewPostingText(row) : null;
   };
   const frame: AgentMatch["frame"] = async (kept) => {
     if (!kept.length) return { postings: [], costUsd: 0 };
@@ -338,7 +319,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
       costUsd: framed.costUsd,
       postings: kept.map((posting, index) => {
         const lines = framed.frames[index];
-        return lines ? { ...posting, summary: scrub(posting, lines.summary), fit: lines.fit.map((line) => scrub(posting, line)) } : posting;
+        return lines ? { ...posting, summary: lines.summary, fit: lines.fit } : posting;
       }),
     };
   };

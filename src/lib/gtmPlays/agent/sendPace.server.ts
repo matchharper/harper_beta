@@ -1,11 +1,12 @@
 import "server-only";
 
+import { byQueueOrder, channelOf, channelRoomLeft, type AgentChannelKey } from "./channels";
 import { countAgentMailsToday } from "./send.server";
 import {
   hoursFromSignal, nextOpenTick, paceForTick, planSends, remainingOpenTicks, sendWindowOpen, signalDelayLabel,
   type SendWindow,
 } from "./sendTiming";
-import { listAgentSendQueue, readAgentPerson } from "./store.server";
+import { channelUseToday, listAgentSendQueue, readAgentPerson } from "./store.server";
 import type { AgentPerson, AgentSettings } from "./types";
 
 /**
@@ -47,17 +48,52 @@ export function spendTickMail(budget: TickMailBudget) {
 }
 
 /**
- * The approved people to send to in this tick, in order (newest signal first; the 24-hour rule's first, over the
- * pace): none when the window is closed or today's cap is used up. `max`: paced mails in one tick at most.
+ * Each channel's mails today (first mails and follow-ups), counted once per tick and kept up as the tick sends: how
+ * many more a channel may send today (none while it is off; no limit but the shared cap for the existing channels).
+ */
+export type ChannelRoom = { left: (channel: AgentChannelKey) => number; spend: (channel: AgentChannelKey) => void };
+
+const rooms = new WeakMap<Date, ChannelRoom>();
+
+export async function channelRoomToday(settings: AgentSettings, now: Date): Promise<ChannelRoom> {
+  const known = rooms.get(now);
+  if (known) return known;
+  const used = new Map((await channelUseToday(now)).sent);
+  const room: ChannelRoom = {
+    left: (channel) => channelRoomLeft(settings.channels[channel], used.get(channel) ?? 0),
+    spend: (channel) => { used.set(channel, (used.get(channel) ?? 0) + 1); },
+  };
+  rooms.set(now, room);
+  return room;
+}
+
+/** The person's channel (agent/channels.ts channelOf). */
+export const personChannel = (person: Pick<AgentPerson, "source" | "method" | "intent" | "foundAs">) => channelOf(person);
+
+/**
+ * The approved people to send to in this tick, in the queue's order (agent/channels.ts: the existing channels' dated
+ * people, the new channels' dated people, the applicant file, the DB; newest signal first in each; the 24-hour rule's
+ * first, over the pace): none when the window is closed or today's cap is used up. A channel that is off or at its
+ * daily max waits (at most its room is planned). `max`: paced mails in one tick at most.
  */
 export async function mailsToSendNow(settings: AgentSettings, now: Date, max: number): Promise<Array<{ person: AgentPerson; due: boolean }>> {
   const window = sendWindowOf(settings);
   if (!sendWindowOpen(now, window)) return [];
   const budget = await tickMailBudget(settings, now);
   if (budget.quota <= 0) return [];
-  const plan = planSends(await listAgentSendQueue(QUEUE_LOOKAHEAD), {
+  const room = await channelRoomToday(settings, now);
+  const queue = (await listAgentSendQueue(QUEUE_LOOKAHEAD)).sort(byQueueOrder);
+  // At most each channel's room left today is planned (the plan never takes more than these, in this order).
+  const planned = new Map<AgentChannelKey, number>();
+  const open = queue.filter((person) => {
+    const taken = planned.get(person.channel) ?? 0;
+    if (taken >= room.left(person.channel)) return false;
+    planned.set(person.channel, taken + 1);
+    return true;
+  });
+  const plan = planSends(open, {
     now, nextOpen: nextOpenTick(now, window), pace: Math.min(budget.left, budget.quota), max,
-    dueMax: Math.min(DUE_MAX, budget.quota),
+    dueMax: Math.min(DUE_MAX, budget.quota), order: byQueueOrder,
   });
   const people: Array<{ person: AgentPerson; due: boolean }> = [];
   for (const item of plan) {

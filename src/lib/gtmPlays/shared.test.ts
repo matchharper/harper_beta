@@ -5,7 +5,6 @@ import {
   cleanPublicDescription,
   companyDomain,
   extractEmails,
-  gtmCandidateCompanyLabel,
   gtmFromHeader,
   gtmMailLinkOrigin,
   gtmMailWentOut,
@@ -68,9 +67,7 @@ test("mail links go to matchharper.com unless a local server names its own loopb
   assert.equal(gtmMailLinkOrigin({ GTM_MAIL_LINK_ORIGIN: "http://127.0.0.1.evil.example" }), "https://matchharper.com");
 });
 
-test("a GTM Role's company reads to candidates by its description, never its name", () => {
-  assert.equal(gtmCandidateCompanyLabel("Harper 고객사", "결제 스타트업"), "Harper 고객사(결제 스타트업)");
-  assert.equal(gtmCandidateCompanyLabel("Harper 고객사", " "), "Harper 고객사");
+test("a company's description is cleaned and its name taken out of what candidates read", () => {
   assert.equal(cleanPublicDescription("\"결제 스타트업\""), "결제 스타트업");
   assert.equal(withoutCompanyName("A+B Labs (A+B)", "A+B", "X"), "X Labs (X)");
   assert.equal(withoutCompanyName("text", null, "X"), "text");

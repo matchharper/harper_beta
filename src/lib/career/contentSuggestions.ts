@@ -77,6 +77,29 @@ export function readCareerContentSuggestionRow(
   });
 }
 
+const DAY_MS = 86_400_000;
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * An event whose page gives a date and no time is kept as whole UTC days: from 00:00Z of its first day to 00:00Z
+ * after its last (careerContentDateOnly reads it back, so the card shows the date alone, never a made-up time).
+ */
+export function careerContentWholeDays(startDate: string, endDate?: string | null) {
+  const start = Date.parse(`${startDate}T00:00:00.000Z`);
+  const last = endDate && DATE_ONLY.test(endDate) ? Date.parse(`${endDate}T00:00:00.000Z`) : start;
+  return {
+    startsAt: new Date(start).toISOString(),
+    endsAt: new Date(Math.max(start, Number.isFinite(last) ? last : start) + DAY_MS).toISOString(),
+  };
+}
+
+/** Kept as whole UTC days (careerContentWholeDays): the event has a date and no time. */
+export function careerContentDateOnly(item: Pick<CareerContentSuggestion, "startsAt" | "endsAt">) {
+  const start = Date.parse(item.startsAt ?? "");
+  const end = Date.parse(item.endsAt ?? "");
+  return Number.isFinite(start) && Number.isFinite(end) && start % DAY_MS === 0 && end % DAY_MS === 0 && end > start;
+}
+
 export function isCareerContentSuggestionVisible(
   item: Pick<CareerContentSuggestion, "status" | "expiresAt">,
   now = Date.now()
@@ -111,7 +134,9 @@ export function formatCareerContentSuggestion(item: CareerContentSuggestion) {
     `URL: ${item.url}`,
     item.source ? `Source: ${item.source}` : "",
     item.startsAt
-      ? `When: ${item.startsAt}${item.endsAt ? ` to ${item.endsAt}` : ""}`
+      ? careerContentDateOnly(item)
+        ? `When: ${item.startsAt.slice(0, 10)} (date only, no time given)`
+        : `When: ${item.startsAt}${item.endsAt ? ` to ${item.endsAt}` : ""}`
       : "",
     item.location ? `Where: ${item.location}` : "",
     item.deadline ? `Deadline: ${item.deadline}` : "",

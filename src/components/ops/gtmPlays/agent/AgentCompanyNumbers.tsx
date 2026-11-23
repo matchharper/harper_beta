@@ -3,11 +3,13 @@ import type { ReactNode } from "react";
 import { cx } from "@/components/ops/theme";
 import type { AgentPeriodInput } from "@/lib/gtmPlays/agent/period";
 import type {
-  CompanyCell, CompanyRow, CompanyTable, CustomerColumn, OutsideColumn,
+  CompanyCell, CompanyRow, CompanyTable, CustomerColumn, OutsideColumn, SourcingLine, SourcingNumbers,
 } from "@/lib/gtmPlays/agent/companyNumbers";
+import { ratePercent } from "@/lib/gtmPlays/rate";
 import type { AgentCompanyNumbers as CompanyNumbersResult } from "@/lib/gtmPlays/agent/companyNumbers.server";
 import { useGtmAction } from "../api";
 import { ErrorNotice, Hint } from "../ui";
+import { SOURCING_WAY_LABEL, usd } from "./labels";
 import { Count, HeaderLabel } from "./numberCells";
 
 /**
@@ -34,6 +36,22 @@ const HINTS = {
   delivery: "반송 / 스팸 신고 / 수신 거부된 회사 메일 수예요. 스팸 신고가 한 건이라도 오면 회사 메일을 모두 멈춰요.",
   customerInterested: "이 회사 공고를 하퍼에서 저장하거나 지원한 후보 수예요(회사 연결까지 간 후보 포함).",
   messages: "후보 → 회사 / 회사 → 후보 메시지 수예요(이 칸만 후보 수가 아니에요). 취소된 건 빼요.",
+} as const;
+
+/** 회사 소싱 (11/23): every number here counts companies (one hiring post each), not candidates or mails. */
+const SOURCING_HINTS = {
+  sourcing: "채용 글을 올린 회사를 찾아 그 회사의 대표·리더에게 보낸 회사 메일이에요. 숫자는 모두 회사 수예요.",
+  way: "회사를 찾은 길이에요. LinkedIn 채용 글은 회사를 찾는 검색, 후보 검색에서 찾은 대표는 후보를 찾다 만난 채용 중인 대표·리더예요.",
+  found: "고른 기간에 찾은 회사예요(채용 글 하나에 한 번).",
+  excluded: "메일을 보내지 않기로 한 회사예요(하퍼 고객사, 30일 안에 연락한 회사, 맞는 회원 0명 등). 이유별 수는 마우스를 올리면 보여요.",
+  contacted: "회사 메일이 나간 회사예요.",
+  clicked: "회사가 메일 버튼으로 하퍼 페이지를 1초 넘게 본 회사예요(가입 포함).",
+  signedUp: "회사가 메일 버튼으로 하퍼에 가입한 회사예요. 괄호 안은 가입 ÷ 연락이에요.",
+  companyRequested: "하퍼에서 후보에게 연결을 요청한 회사예요.",
+  connected: "연결을 요청한 후보와 연결된 회사예요. 가장 중요한 숫자예요.",
+  replied: "회사 메일에 답장한 회사예요.",
+  delivery: "회사 메일이 반송 / 스팸 신고 / 수신 거부된 회사예요.",
+  cost: "채용 글 검색부터 메일 쓰기까지 든 비용이에요. 채용 글 검색 비용은 'LinkedIn 채용 글' 줄과 합계에 들어가요. '후보 검색에서 찾은 대표' 줄은 그 회사에 든 비용만이에요(그 검색은 후보를 찾으려고 한 것이라 수치 · 후보의 사이트별에 한 번만 들어가요).",
 } as const;
 
 type Pick = (ids: string[], label: string) => void;
@@ -189,6 +207,72 @@ function CustomerTable({ table, onPick }: { table: CompanyTable<CustomerColumn>;
   );
 }
 
+const COMPANIES_TITLE = "눌러서 이 회사들 보기";
+const companiesTitle = (cell: CompanyCell) => `회사 ${cell.n}곳 · ${COMPANIES_TITLE}`;
+
+/**
+ * 회사 소싱: 합계 first, then a row per way the companies were found (agent/companyNumbers.ts tallySourcing). Every number
+ * opens exactly its rows (the hiring posts' people) in the log.
+ */
+function SourcingTable({ numbers, onPick }: { numbers: SourcingNumbers; onPick: Pick }) {
+  const lines: Array<{ key: string; label: string; line: SourcingLine; strong: boolean }> = [
+    { key: "total", label: "합계", line: numbers.total, strong: true },
+    ...numbers.rows.map((line) => ({ key: line.way ?? "", label: line.way ? SOURCING_WAY_LABEL[line.way] : "", line, strong: false })),
+  ];
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1000px] text-sm">
+        <thead className="text-left text-[12px] text-neutral-muted">
+          <tr>
+            <th className="py-1.5 pr-3 font-normal"><HeaderLabel label="찾은 곳" hint={SOURCING_HINTS.way} align="left" /></th>
+            {th("찾음", SOURCING_HINTS.found)}
+            {th("제외", SOURCING_HINTS.excluded)}
+            {th("연락", SOURCING_HINTS.contacted)}
+            {th("클릭", SOURCING_HINTS.clicked)}
+            {th("가입 (가입률)", SOURCING_HINTS.signedUp)}
+            {th("회사가 연결 요청", SOURCING_HINTS.companyRequested)}
+            {th("회사 연결", SOURCING_HINTS.connected)}
+            {th("답장", SOURCING_HINTS.replied)}
+            {th("반송/스팸 신고/수신 거부", SOURCING_HINTS.delivery)}
+            {th("비용", SOURCING_HINTS.cost)}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-1000-a05">
+          {lines.map(({ key, label, line, strong }) => {
+            const { cells } = line;
+            const name = strong ? "회사 소싱 합계" : `회사 소싱 · ${label}`;
+            const reasons = Object.entries(line.excludedBy).sort(([, a], [, b]) => b - a).map(([reason, n]) => `${reason} ${n}`).join(" · ");
+            return (
+              <tr key={key} className={cx(strong && "bg-bg-weak font-medium")}>
+                <td className="py-1.5 pr-3">{label}</td>
+                <PickCell cell={cells.found} label={`${name} · 찾음`} onPick={onPick} title={companiesTitle(cells.found)} strong={strong} />
+                <PickCell cell={cells.excluded} label={`${name} · 제외`} onPick={onPick} title={reasons || companiesTitle(cells.excluded)} />
+                <PickCell cell={cells.contacted} label={`${name} · 연락`} onPick={onPick} title={companiesTitle(cells.contacted)} />
+                <PickCell cell={cells.clicked} label={`${name} · 클릭`} onPick={onPick} title={companiesTitle(cells.clicked)} />
+                <td className="whitespace-nowrap px-2 py-1.5 text-right align-top">
+                  <PickNumber cell={cells.signedUp} label={`${name} · 가입`} onPick={onPick} title={companiesTitle(cells.signedUp)}>
+                    <span className="font-medium tabular-nums">{cells.signedUp.n}</span>
+                    {cells.contacted.n ? <span className="ml-1 text-[12px] text-neutral-muted">({ratePercent(cells.signedUp.n, cells.contacted.n)})</span> : null}
+                  </PickNumber>
+                </td>
+                <PickCell cell={cells.companyRequested} label={`${name} · 회사가 연결 요청`} onPick={onPick} title={companiesTitle(cells.companyRequested)} />
+                <PickCell cell={cells.connected} label={`${name} · 회사 연결`} onPick={onPick} title={companiesTitle(cells.connected)} strong />
+                <PickCell cell={cells.replied} label={`${name} · 답장`} onPick={onPick} title={companiesTitle(cells.replied)} />
+                <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums" title="반송 / 스팸 신고 / 수신 거부 (회사 수)">
+                  <PickNumber cell={cells.bounced} label={`${name} · 반송`} onPick={onPick} title={companiesTitle(cells.bounced)} />/
+                  <PickNumber cell={cells.complained} label={`${name} · 스팸 신고`} onPick={onPick} title={companiesTitle(cells.complained)} />/
+                  <PickNumber cell={cells.unsubscribed} label={`${name} · 수신 거부`} onPick={onPick} title={companiesTitle(cells.unsubscribed)} />
+                </td>
+                <td className="whitespace-nowrap px-2 py-1.5 text-right align-top tabular-nums text-neutral-muted">{usd(line.costUsd)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
   return (
     <div>
@@ -199,7 +283,8 @@ function Section({ title, hint, children }: { title: string; hint: string; child
 }
 
 /**
- * #5 수치 · 회사 (Shaun 11/22): what the period's candidates led to on the company side. 하퍼 밖 회사 (Ashley's company
+ * #5 수치 · 회사 (Shaun 11/22): what the period's candidates led to on the company side. First 회사 소싱 (11/23: the
+ * companies found by their hiring posts and mailed by the company step, counted as companies), then 하퍼 밖 회사 (Ashley's company
  * mails to companies not on Harper, and what came of them) and 하퍼 고객사 (everything inside Harper between the
  * candidate's side and the customer), each 합계 first and then a row per company (agent/companyNumbers.ts). Every number
  * opens the people behind it in the log (`onPick` with their ids and a label for the log's chip). The panel around it
@@ -222,6 +307,15 @@ export default function AgentCompanyNumbers({ period, refreshKey, onPick }: {
       <ErrorNotice message={numbers.error} />
       {data ? (
         <div className="space-y-5">
+          <Section title="회사 소싱" hint={SOURCING_HINTS.sourcing}>
+            {data.sourcing.total.cells.found.n
+              ? <SourcingTable numbers={data.sourcing} onPick={onPick} />
+              : (
+                <p className="text-[12px] text-neutral-muted">
+                  이 기간에 찾은 채용 글이 없어요{data.sourcing.total.costUsd ? ` · 검색 비용 ${usd(data.sourcing.total.costUsd)}` : ""}
+                </p>
+              )}
+          </Section>
           <Section title="하퍼 밖 회사" hint={HINTS.outside}>
             {data.outside.companies.length
               ? <OutsideTable table={data.outside} onPick={onPick} />

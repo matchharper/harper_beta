@@ -3,8 +3,8 @@ import test from "node:test";
 import { ashleyCostUsd, cappedCostBy, cappedCostPerContact, cappedCostUsd } from "./daily";
 import { columnCount, FUNNEL_COLUMNS, inFunnelColumn } from "./funnel";
 import {
-  agentNumbersRows, allTimeFrom, costPerSignup, dayLines, isQuietDay, NO_QUERY, noSearchRecord, NUMBERS_ROWS, numbersPick, numbersRunOf,
-  signupsPerDay, yieldsOfSignalLog,
+  agentNumbersRows, allTimeFrom, channelOfPerson, costPerSignup, dayLines, isQuietDay, NO_QUERY, noSearchRecord, NUMBERS_ROWS, numbersKeyOf,
+  numbersPick, numbersRunOf, signupsPerDay, yieldsOfSignalLog,
   type NumbersPerson, type NumbersPick, type NumbersRows, type NumbersRun,
 } from "./numbers";
 import { periodLength, resolveAgentPeriod } from "./period";
@@ -86,10 +86,14 @@ const rowsOf = (kind: NumbersRows) => agentNumbersRows({
   configStarts: [{ day: "2026-11-17", id: "aaaaaaaaaaaa" }],
 });
 
-/** What the log keeps for a pick (views.server.ts listAgentPeopleLog's SQL: source, the day as the period, search_query). */
+/**
+ * What the log keeps for a pick (views.server.ts listAgentPeopleLog: source, the day as the period, search_query in its
+ * SQL; the channel by channelOfPerson).
+ */
 const inPick = (pick: NumbersPick, row: Person) => (!pick.source || row.source === pick.source)
   && (!pick.day || row.foundDay === pick.day) && row.foundDay >= FROM && row.foundDay <= TO
-  && (pick.query === null || (pick.query === NO_QUERY ? row.searchQuery == null : row.searchQuery === pick.query));
+  && (pick.query === null || (pick.query === NO_QUERY ? row.searchQuery == null : row.searchQuery === pick.query))
+  && (!pick.channel || channelOfPerson(row) === pick.channel);
 
 test("every row kind adds up to the same 합계, for every people column", () => {
   const totals = NUMBERS_ROWS.map((kind) => rowsOf(kind).total.numbers);
@@ -135,12 +139,16 @@ test("a number's people in the log are exactly the people it counts, in every ro
 
 test("a number click carries the row's key in its own field and the panel's filters", () => {
   const filters = { source: "hn", config: "aaaaaaaaaaaa" };
-  assert.deepEqual(numbersPick("day", "2026-11-18", filters), { source: "hn", day: "2026-11-18", query: null, config: filters.config });
-  assert.deepEqual(numbersPick("query", NO_QUERY, filters), { source: "hn", day: null, query: "", config: filters.config });
+  const none = { source: null, day: null, query: null, config: null, channel: null };
+  assert.deepEqual(numbersPick("day", "2026-11-18", filters), { ...none, source: "hn", day: "2026-11-18", config: filters.config });
+  assert.deepEqual(numbersPick("query", NO_QUERY, filters), { ...none, source: "hn", query: "", config: filters.config });
   // 찾은 곳 rows: the row is the source, the 합계 every source.
-  assert.deepEqual(numbersPick("source", "linkedin", filters), { source: "linkedin", day: null, query: null, config: filters.config });
-  assert.deepEqual(numbersPick("source", null, filters), { source: null, day: null, query: null, config: filters.config });
-  assert.deepEqual(numbersPick("query", null, { source: null, config: null }), { source: null, day: null, query: null, config: null });
+  assert.deepEqual(numbersPick("source", "linkedin", filters), { ...none, source: "linkedin", config: filters.config });
+  assert.deepEqual(numbersPick("source", null, filters), { ...none, config: filters.config });
+  assert.deepEqual(numbersPick("query", null, { source: null, config: null }), none);
+  // 채널 rows: the channel with the panel's 찾은 곳; the 합계 every channel.
+  assert.deepEqual(numbersPick("channel", "comment", filters), { ...none, source: "hn", config: filters.config, channel: "comment" });
+  assert.deepEqual(numbersPick("channel", null, filters), { ...none, source: "hn", config: filters.config });
 });
 
 test("찾은 곳 rows: turned-on sources first (even empty), then the rest by people; each source's own searches and cost", () => {
@@ -326,4 +334,106 @@ test("지금까지 starts on the first day, cut to 365 days back as the log's pe
     assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }, [0, 1, 2, 3, 4, 5, 6]).days, 365, first);
     assert.equal(signupsPerDay({ from, to: today, signedUp: 365 }).days, 260, first);
   }
+});
+
+test("채널 rows: where × why each person wrote, in the queue's order; each number opens exactly its people; givers apart", () => {
+  const day = "2026-11-18";
+  const found: Person[] = [
+    mailed(day, { source: "linkedin", method: "signal_post", intent: "job", clickedAt: `${day}T03:00:00Z` }),
+    mailed(day, { source: "linkedin", method: "signal_post", intent: "coaching", signedUpAt: `${day}T04:00:00Z` }),
+    person(day, { source: "linkedin", method: "signal_post", intent: "event", status: "excluded", excludeReason: "no_email" }),
+    replied(day, { source: "linkedin", method: "signal_post", intent: "job", foundAs: "commenter" }),
+    // A Hacker News thread's commenters stay job seekers (that thread is a job-seeking list).
+    mailed(day, { source: "hn", method: "signal_post", foundAs: "commenter" }),
+    person(day, { source: "github", method: "open_to_work_profile", status: "approved" }),
+    mailed(day, { source: "harper", method: "db", searchQuery: null }),
+    person(day, { source: "applicants-acme", method: "applicant", searchQuery: null, status: "excluded", excludeReason: "member" }),
+    person(day, { source: "linkedin", method: "layoff_company" }),
+    // Givers: in no row (a commenter recruiter would make a 댓글 row of zeros), counted apart on the 합계.
+    person(day, { source: "linkedin", method: "signal_post", foundAs: "commenter", status: "excluded", excludeReason: "giver", giverKind: "recruiter" }),
+    person(day, { source: "linkedin", method: "signal_post", intent: "event", status: "excluded", excludeReason: "giver", giverKind: "event_host" }),
+  ];
+  const giverSpend = [{ personId: found[9].personId, step: "lookup" as const, usd: 0.12 }];
+  const { total, rows } = agentNumbersRows({ kind: "channel", from: FROM, to: TO, people: found, spend: giverSpend, runs, searchPeople });
+  assert.deepEqual(rows.map((row) => row.key), ["job", "layoff", "applicant", "coaching_post", "event_post", "comment", "github", "db"]);
+  const by = Object.fromEntries(rows.map((row) => [row.key, row]));
+  assert.deepEqual([by.job.numbers.found, by.comment.numbers.found, by.coaching_post.numbers.signedUp], [2, 1, 1]);
+  assert.equal(total.numbers.found, 9);
+  assert.equal(total.numbers.givers, 2);
+  assert.ok(rows.every((row) => row.numbers.givers === 0));
+  // No searches and no search cost on a channel row; the givers' own spend is no row's.
+  assert.ok([total, ...rows].every((row) => !row.run.searches && !row.costBy.search && !row.search.found));
+  assert.equal(total.numbers.costUsd, 0);
+  // The row's key is the log's channel filter: every number is exactly its people.
+  for (const row of [total, ...rows]) {
+    const pick = numbersPick("channel", row.key, { source: null, config: null });
+    for (const column of FUNNEL_COLUMNS) {
+      const shown = found.filter((item) => inPick(pick, item) && logFiltersMatch(filtersForColumn(column), item));
+      assert.equal(shown.length, columnCount(row.numbers, column), `${row.key} ${column}`);
+    }
+  }
+  assert.ok(found.every((item) => numbersKeyOf("channel", item) === channelOfPerson(item)));
+  // The 돕는 쪽 line opens exactly the givers it counts.
+  assert.equal(found.filter((item) => inPick(numbersPick("channel", null, { source: null, config: null }), item)
+    && logFiltersMatch({ side: "givers" }, item)).length, total.numbers.givers);
+});
+
+test("givers are no row's in any row kind, and the 합계 counts them apart the same", () => {
+  const withGivers = [
+    ...people,
+    person("2026-11-18", { status: "excluded", excludeReason: "giver", giverKind: "hiring_leader", searchQuery: "hiring backend" }),
+  ];
+  for (const kind of NUMBERS_ROWS) {
+    const plain = rowsOf(kind);
+    const view = agentNumbersRows({ kind, from: FROM, to: TO, people: withGivers, spend, runs, searchPeople, always: ["linkedin", "threads"] });
+    assert.equal(view.total.numbers.givers, 1, kind);
+    assert.deepEqual(view.rows.map((row) => row.key), plain.rows.map((row) => row.key), kind);
+    for (const column of FUNNEL_COLUMNS) assert.equal(columnCount(view.total.numbers, column), columnCount(plain.total.numbers, column), `${kind} ${column}`);
+  }
+});
+
+test("goal searches: LinkedIn's 상담 글 and 이벤트 글 searches count in LinkedIn's row, the company search in no candidate row", () => {
+  const run: NumbersRun = {
+    day: "2026-11-18", kind: "daily", searchCostUsd: 0,
+    counts: {
+      search_attempts_linkedin: 1, searches_linkedin: 2, signal_cost_linkedin: 0.4, searched_linkedin: 1,
+      search_attempts_linkedin_coaching: 1, searches_linkedin_coaching: 3, signal_cost_linkedin_coaching: 0.3, searched_linkedin_coaching: 1,
+      signal_found_linkedin_coaching: 2, skipped_budget_linkedin_event: 1,
+      search_attempts_linkedin_hiring: 1, searches_linkedin_hiring: 4, signal_cost_linkedin_hiring: 0.5, searched_linkedin_hiring: 1,
+    },
+    yields: [],
+  };
+  const rows = agentNumbersRows({ kind: "source", from: FROM, to: TO, people: [person("2026-11-18")], spend: [], runs: [run] });
+  // Its people are LinkedIn's, so its searches and cost are too; a skipped goal search does not mark LinkedIn skipped.
+  assert.deepEqual(rows.rows.map((row) => row.key), ["linkedin"]);
+  assert.equal(rows.rows[0].costBy.search, 0.7);
+  assert.equal(rows.rows[0].run.searches, 5);
+  assert.equal(rows.rows[0].run.newPeople, 2);
+  assert.equal(rows.rows[0].run.skippedBudget, 0);
+  // The company search (회사 소싱's cost) is in no candidate number, the 합계 neither.
+  assert.equal(rows.total.costBy.search, 0.7);
+  // Read through the panel's filters: a 찾은 곳 of LinkedIn takes its goal searches; no filter keeps them apart (날짜's
+  // 그날 실행 counts each search) and drops the company search.
+  const read = { day: run.day, kind: run.kind, counts: run.counts, configIds: [], searchConfigs: {} };
+  const linkedin = numbersRunOf(read, { source: "linkedin", configId: null });
+  assert.equal(linkedin?.searchCostUsd, 0.7);
+  const all = numbersRunOf(read, { source: null, configId: null });
+  assert.equal(all?.searchCostUsd, 0.7);
+  assert.equal(all?.counts.signal_cost_linkedin_coaching, 0.3);
+  assert.equal(all?.counts.signal_cost_linkedin_hiring, undefined);
+  assert.equal(numbersRunOf(read, { source: "linkedin_hiring", configId: null })?.searchCostUsd, 0);
+});
+
+test("the bought list is never searched: its 사이트 row and its 찾은 곳 filter have no searches to open", () => {
+  const rows = agentNumbersRows({ kind: "source", from: FROM, to: TO, people: [person("2026-11-18", { source: "db", method: "db" })], spend: [], runs: [] });
+  assert.equal(noSearchRecord("source", rows.rows[0], { source: null }), "not_searched");
+  assert.equal(noSearchRecord("day", { ...rows.total, run: { ...rows.total.run, searches: 0 } }, { source: "db" }), "not_searched");
+});
+
+test("채널 rows carry their people's own costs (no search's): 메일's 비용 and 연락 1명당 read them", () => {
+  const { rows, total } = rowsOf("channel");
+  assert.equal(total.costBy.search ?? 0, 0);
+  const sum = rows.reduce((acc, row) => acc + row.numbers.costUsd, 0);
+  assert.equal(Math.round(sum * 100) / 100, Math.round(total.numbers.costUsd * 100) / 100);
+  assert.ok(total.numbers.costUsd > 0);
 });

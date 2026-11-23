@@ -1,7 +1,6 @@
 import "server-only";
 
 import { gtmStructuredCall } from "./llm.server";
-import { gtmCompanyDescription } from "./publicName.server";
 import { cleanPublicDescription, gtmRoleName, withoutCompanyName, type GtmBrief, type GtmJd } from "./shared";
 
 type BriefDraft = {
@@ -62,9 +61,7 @@ export async function draftGtmBrief(jd: GtmJd): Promise<GtmBrief> {
     }))
     .filter((item) => item.name && item.criteria)
     .slice(0, 6);
-  // A company that already has GTM Roles keeps the description it has (one company reads the same everywhere).
-  const publicDescription = await gtmCompanyDescription(jd.companyName)
-    ?? cleanPublicDescription(withoutCompanyName(String(draft.publicDescription ?? ""), jd.companyName, "")) ?? "";
+  const publicDescription = cleanPublicDescription(withoutCompanyName(String(draft.publicDescription ?? ""), jd.companyName, "")) ?? "";
   return {
     roleName: gtmRoleName(jd), publicDescription, request: String(draft.request ?? "").trim().slice(0, 4_000), criteria,
   };

@@ -97,7 +97,7 @@ const LLM_LOG_SOURCES: readonly string[] = [
   "org/auto-intro",
   "org/slack-router",
   "contents-engine/outreach-reply-triage",
-  // 후보자 소싱 에이전트 (#5): search plans and judging, posting picks, reasons and mails (gtm-agent:<step>).
+  // gtm agent: search plans and judging, posting picks, reasons and mails (gtm-agent:<step>).
   "gtm-agent",
   ...LLM_LOG_TOOL_NAMES.map((name) => `career_tool:${name}`),
 ];

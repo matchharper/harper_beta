@@ -14,7 +14,7 @@ import { agentSenderProblem } from "./mailRules";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { AgentSendError, classifySendError } from "./sendErrors";
 import { SEND_CALL_TIMEOUT_MS } from "./tickRules";
-import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
+import type { AgentOfferEvent, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
  * #5: one agent mail (campaign 'agent') through Resend from the first-contact sender on /ops #5. The same safety as
@@ -62,7 +62,7 @@ function primaryPosting(postings: readonly AgentPosting[]) {
 }
 
 /** The gtm_mails facts of one agent mail. */
-function mailFacts(person: { id: string; language: "ko" | "en" | null }, postings: AgentPosting[]) {
+function mailFacts(person: { id: string; language: "ko" | "en" | null }, postings: AgentPosting[], events: readonly AgentOfferEvent[] = []) {
   const primary = primaryPosting(postings);
   const snapshot: GtmPostingSnapshot | null = primary
     ? { title: primary.title, companyName: primary.companyName, location: primary.location, description: primary.why, url: primary.url }
@@ -74,6 +74,8 @@ function mailFacts(person: { id: string; language: "ko" | "en" | null }, posting
     posting_url: primary?.url ?? null,
     talent_ids: [], language: person.language ?? "ko",
     posting: snapshot, postings, agent_person_id: person.id,
+    // A general mail's events (its link page shows them); only when there are any, so a posting mail's row is as before.
+    ...(events.length ? { events } : {}),
   };
 }
 
@@ -148,6 +150,8 @@ async function recordProviderCall(mailId: string, outcome: { providerId: string 
 export async function deliverAgentMail(args: {
   person: Pick<AgentPerson, "id" | "email" | "language">;
   postings: AgentPosting[];
+  /** A general mail's events (agent/events.server.ts). */
+  events?: readonly AgentOfferEvent[];
   settings: AgentSettings;
   /** The Ops user the mail is logged under (gtm_mails.sent_by): who turned the agent on. */
   sentBy: string;
@@ -168,7 +172,7 @@ export async function deliverAgentMail(args: {
     unsubscribeUrl: gtmUnsubscribeUrl(mailId, origin),
   });
   const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "" };
-  const facts = mailFacts(args.person, args.postings);
+  const facts = mailFacts(args.person, args.postings, args.events ?? []);
   const block = async (reason: string): Promise<AgentSendResult> => {
     const mailId = randomUUID();
     const rendered = args.render(mailId, links(mailId));

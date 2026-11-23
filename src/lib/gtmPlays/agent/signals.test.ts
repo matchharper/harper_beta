@@ -9,6 +9,11 @@ import {
   signalWindows, sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, windowDates, type SignalHistoryRun,
   type SignalJudgement, type SignalYield, historyOutcomes, queryFamily, wellFormedText,
 } from "./signals";
+import {
+  FIXED_JUDGE_RULES, GOAL_SEARCHES, HIRING_JUDGE_RULES, fixedJudgeRules, giverKindOf, goalSearchOf, goalSearchesOn, judgedIntents,
+  linkFollowsName, signalFoundNote,
+} from "./signals";
+import { defaultChannelSettings } from "./channels";
 import { summarizeDemand } from "./demand";
 import { defaultSignalTuning } from "./tuning";
 
@@ -453,8 +458,9 @@ test("a search's log entry: cut to size, no names, read back defensively", () =>
 // The 11/17 search review
 
 const verdict = (id: string, patch: Partial<SignalJudgement> = {}): SignalJudgement => ({
-  id, keep: true, kind: "seeking_individual", name: "", nameIsHandle: false, headline: "Backend Engineer", location: "Seoul", currentCompany: "",
-  email: "", contactUrl: "", signal: "looking for my next role", background: "", language: "en", score: 90, matchScore: 70, ...patch,
+  id, keep: true, kind: "seeking_individual", intent: "job", foundAs: "author", name: "", nameIsHandle: false, headline: "Backend Engineer",
+  location: "Seoul", currentCompany: "", email: "", contactUrl: "", signal: "looking for my next role", opening: "", background: "",
+  language: "en", score: 90, matchScore: 70, ...patch,
 });
 
 test("judge ids are r0, r1 …: a page's own numbers are never taken for one", () => {
@@ -498,7 +504,7 @@ test("judge answers sorted: kept, rejected, under the score, no key, known, repe
   });
   assert.deepEqual(sorted.map((item) => item.outcome), ["kept", "unmatched", "below_score", "not_identifiable", "rejected", "known", "repeat", "unmatched"]);
   assert.equal(sorted[0].who?.key, "url:velog.io/@jane");
-  assert.deepEqual(verdictCounts(sorted), { kept: 1, withContact: 0, rejected: 1, belowScore: 1, lowMatch: 0, notIdentifiable: 1, known: 2, unmatched: 2 });
+  assert.deepEqual(verdictCounts(sorted), { kept: 1, withContact: 0, rejected: 1, belowScore: 1, lowMatch: 0, notIdentifiable: 1, known: 2, unmatched: 2, givers: 0 });
   // With the list of open postings, a seeker whose career is unlikely to fit 2 of them is not kept (low_match); without
   // it, matchScore means nothing and is not used.
   const fit = sortVerdicts({
@@ -574,7 +580,7 @@ test("role families of titles (a full-stack title counts for both ends)", () => 
 
 const DEMAND = summarizeDemand([
   { kind: "external", title: "백엔드 엔지니어 (결제 플랫폼)", count: 3, companies: ["a", "b", "c"], seniorityLevel: "mid_senior", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
-  { kind: "gtm", title: "Backend Engineer (Ledger)", companies: ["g1"], seniorityLevel: null, countryCode: null, workMode: null, locationText: null },
+  { kind: "customer", title: "Backend Engineer (Ledger)", companies: ["g1"], seniorityLevel: null, countryCode: null, workMode: null, locationText: null },
   { kind: "external", title: "머신러닝 엔지니어 (추천·랭킹)", count: 2, companies: ["a", "d"], seniorityLevel: "mid", countryCode: "KR", workMode: "hybrid", locationText: "서울" },
   { kind: "external", title: "Product Designer", companies: ["e"], seniorityLevel: "mid", countryCode: "US", workMode: "remote", locationText: null },
 ], "2026-11-17");
@@ -708,4 +714,251 @@ test("Korean or English pages only: another script, or the judge's 'other', is n
   assert.equal(writtenInKoreanOrEnglish("バックエンドエンジニアとして転職活動中です。決済システムの開発経験があります。".repeat(2)), false);
   assert.equal(writtenInKoreanOrEnglish("短い"), true);
   assert.ok(FIXED_JUDGE_RULES.some((rule) => rule.startsWith("Korean or English only")));
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Intents, givers, commenters, goal searches (Shaun 11/23)
+
+test("the judge reads why a person wrote: job as before, career help and events only while their channel is on", () => {
+  const page = { id: "r0", url: "https://www.linkedin.com/posts/jane-doe_feedback-activity-1-abcd", publishedDate: null, text: "이력서 피드백 부탁드립니다" };
+  const jobOnly = judgePrompt([page], { source: "linkedin", stage: "signal", now: NOW, demand: DEMAND });
+  // The job rule is as it was, and nothing about the other asks is said.
+  assert.ok(jobOnly.system.includes(FIXED_JUDGE_RULES[3]));
+  assert.ok(FIXED_JUDGE_RULES[3].startsWith("The person must show on the page, themselves, that they are open to a new job now or soon."));
+  assert.match(jobOnly.system, /decide which are individual people currently looking for a job whom Harper/);
+  assert.match(jobOnly.system, /intent: job for seeking_individual; none for every other kind/);
+  assert.match(jobOnly.system, /Return at most one entry per result\./);
+  assert.doesNotMatch(jobOnly.system, /Intent coaching|Intent event|foundAs commenter|commenter's own comment/);
+  assert.match(jobOnly.system, /keep and score are about the job-seeking rules only; the code drops low matchScores itself/);
+  const asks = judgePrompt([page], { source: "linkedin", stage: "signal", now: NOW, demand: DEMAND, intents: ["job", "coaching", "event"], comments: true });
+  assert.match(asks.system, /\d+\. Intent job: The person must show on the page/);
+  assert.match(asks.system, /\d+\. Intent coaching: the person asks, themselves and now, for help with their own career, résumé or portfolio/);
+  assert.match(asks.system, /\d+\. Intent event: the person says, themselves, that they are looking for events/);
+  assert.match(asks.system, /intent: for seeking_individual, the main thing they ask for now: job, coaching, event/);
+  assert.match(asks.system, /the code drops low matchScores of job seekers itself/);
+  assert.match(asks.system, /a commenter's own comment counts as their own post/);
+  assert.match(asks.system, /one for each commenter whose own comment meets the rules \(foundAs commenter\)/);
+  // Givers are named by kind whatever is searched.
+  for (const prompt of [jobOnly, asks]) assert.match(prompt.system, /hiring_leader \(works at the hiring company/);
+  assert.deepEqual(judgedIntents(null), ["job"]);
+  assert.deepEqual(judgedIntents(["event"]), ["job", "event"]);
+  assert.deepEqual(judgedIntents([], "coaching"), ["job", "coaching"]);
+  assert.equal(fixedJudgeRules(["job", "coaching"]).length, FIXED_JUDGE_RULES.length + 1);
+  for (const field of ["intent", "foundAs", "opening"]) assert.ok((JUDGE_SCHEMA.properties.results.items.required as readonly string[]).includes(field));
+  assert.deepEqual([...JUDGE_SCHEMA.properties.results.items.properties.intent.enum], ["job", "coaching", "event", "none"]);
+  assert.equal(giverKindOf("coach"), "coach");
+  assert.equal(giverKindOf("company_or_school"), null);
+});
+
+test("intents: coaching and event are kept only when searched, and only job seekers pass the match-score gate", () => {
+  const batch = judgeBatch([
+    { url: "https://velog.io/@jane/resume", text: "이력서 피드백 부탁드려요" },
+    { url: "https://velog.io/@joe/meetups", text: "개발자 밋업 찾고 있어요" },
+    { url: "https://velog.io/@kim/job-hunt", text: "구직 중입니다" },
+  ], 2_000);
+  const verdicts = [
+    verdict("r0", { intent: "coaching", matchScore: 5 }), verdict("r1", { intent: "event", matchScore: 5 }), verdict("r2", { intent: "job", matchScore: 5 }),
+  ];
+  const sort = (intents?: Array<"job" | "coaching" | "event">) => sortVerdicts({
+    batch, verdicts, sharedPages: false, minScore: 60, minMatchScore: 50, known: new Set(), seen: new Set(), intents,
+  });
+  assert.deepEqual(sort().map((item) => item.outcome), ["rejected", "rejected", "low_match"]);
+  const all = sort(["job", "coaching", "event"]);
+  assert.deepEqual(all.map((item) => item.outcome), ["kept", "kept", "low_match"]);
+  assert.deepEqual(all.map((item) => item.intent), ["coaching", "event", null]);
+  // The score gate is the same for every intent; an answer without an intent (older) is a job seeker's.
+  const low = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, known: new Set(), seen: new Set(), intents: ["job", "coaching"],
+    verdicts: [verdict("r0", { intent: "coaching", score: 40 }), verdict("r2", { intent: undefined }), verdict("r1", { intent: "none" })],
+  });
+  assert.deepEqual(low.map((item) => item.outcome), ["below_score", "kept", "rejected"]);
+  assert.equal(low[1].intent, "job");
+});
+
+test("givers are kept apart: on their own page, keyed and deduped like anyone, counted on their own (Shaun 11/23)", () => {
+  const batch = judgeBatch([
+    { url: "https://www.linkedin.com/posts/ceo-kim_hiring-activity-1-abcd", text: "저희 팀 백엔드 개발자 채용합니다" },
+    { url: "https://www.linkedin.com/in/coach-lee", text: "커리어 코치 · 이력서 첨삭" },
+    { url: "https://www.linkedin.com/company/acme", text: "Acme is hiring" },
+    { url: "https://www.linkedin.com/in/known-recruiter", text: "Recruiter" },
+    { url: "https://velog.io/@jane/job-hunt", text: "구직 중입니다" },
+  ], 2_000);
+  const sorted = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, minMatchScore: 50, known: new Set(["url:linkedin.com/in/known-recruiter"]), seen: new Set(),
+    verdicts: [
+      verdict("r0", { keep: false, kind: "hiring_leader", intent: "none", score: 0, matchScore: 0, opening: "Backend Engineer" }),
+      verdict("r1", { keep: false, kind: "coach", intent: "none", score: 0 }),
+      verdict("r2", { keep: false, kind: "company_or_school", intent: "none" }),
+      verdict("r3", { keep: false, kind: "recruiter", intent: "none" }),
+      verdict("r4"),
+      // The same CEO again from another page: a repeat, not a second row.
+      verdict("r0", { keep: false, kind: "hiring_leader", intent: "none" }),
+    ],
+  });
+  assert.deepEqual(sorted.map((item) => item.outcome), ["giver", "giver", "rejected", "rejected", "kept", "unmatched"]);
+  assert.deepEqual(sorted.map((item) => item.giverKind), ["hiring_leader", "coach", null, null, null, null]);
+  assert.equal(sorted[0].who?.key, "url:linkedin.com/in/ceo-kim");
+  // No score or match-score gate for a giver; known givers stay rejected (as before), and kept counts candidates only.
+  assert.deepEqual(verdictCounts(sorted), { kept: 1, withContact: 0, rejected: 2, belowScore: 0, lowMatch: 0, notIdentifiable: 0, known: 0, unmatched: 1, givers: 2 });
+  // Another language: never kept, giver or not.
+  const other = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, known: new Set(), seen: new Set(), verdicts: [verdict("r1", { keep: false, kind: "coach", language: "other" })],
+  });
+  assert.equal(other[0].outcome, "rejected");
+});
+
+test("commenters under a LinkedIn post are their own people, known only by what they wrote; nothing changes without comments", () => {
+  const post = "https://www.linkedin.com/posts/coach-park_resume-activity-1-abcd";
+  const text = [
+    "Coach Park · 이력서 무료로 봐 드려요. 댓글 남겨 주세요. linkedin.com/in/coach-park",
+    "Jane Doe · Backend Engineer · 2h · 부탁드립니다! 이력서 피드백 받고 싶어요. https://www.linkedin.com/in/jane-doe-dev",
+    "Joe Roe · Data Analyst · 1h · 저도 부탁드려요 https://joeroe.example.dev",
+  ].join(" ");
+  const batch = judgeBatch([{ url: post, text }, { url: "https://www.linkedin.com/in/someone", text: "Open to work" }], 3_000);
+  const verdicts = [
+    verdict("r0", { keep: false, kind: "coach", intent: "none", name: "Coach Park" }),
+    verdict("r0", { foundAs: "commenter", intent: "coaching", name: "Jane Doe", contactUrl: "https://www.linkedin.com/in/jane-doe-dev" }),
+    // Claims the author's link: not theirs, and nothing else keys them.
+    verdict("r0", { foundAs: "commenter", intent: "coaching", name: "Sam Poe", contactUrl: "linkedin.com/in/coach-park" }),
+    // Claims Jane's link: it follows Jane's name, not Joe's.
+    verdict("r0", { foundAs: "commenter", intent: "coaching", name: "Joe Roe", contactUrl: "https://www.linkedin.com/in/jane-doe-dev" }),
+    // A profile page has no commenters.
+    verdict("r1", { foundAs: "commenter", intent: "job", name: "Kim" }),
+  ];
+  const sorted = sortVerdicts({ batch, verdicts, sharedPages: false, comments: true, minScore: 60, known: new Set(), seen: new Set(), intents: ["job", "coaching"] });
+  assert.deepEqual(sorted.map((item) => item.outcome), ["giver", "kept", "not_identifiable", "not_identifiable", "rejected"]);
+  assert.deepEqual(sorted.map((item) => item.foundAs), ["author", "commenter", "commenter", "commenter", "commenter"]);
+  assert.equal(sorted[0].who?.key, "url:linkedin.com/in/coach-park");
+  assert.equal(sorted[1].who?.key, "url:linkedin.com/in/jane-doe-dev");
+  assert.equal(sorted[1].who?.profileUrl, "https://linkedin.com/in/jane-doe-dev");
+  // Joe's own link follows his name.
+  const joe = sortVerdicts({
+    batch, sharedPages: false, comments: true, minScore: 60, known: new Set(), seen: new Set(), intents: ["coaching"],
+    verdicts: [verdicts[0], verdict("r0", { foundAs: "commenter", intent: "coaching", name: "Joe Roe", contactUrl: "https://joeroe.example.dev" })],
+  });
+  assert.equal(joe[1].who?.key, "url:joeroe.example.dev");
+  // Without the comment channel (or on a source without comments) a commenter answer is a second answer for the page.
+  const off = sortVerdicts({ batch, verdicts: verdicts.slice(0, 2), sharedPages: false, minScore: 60, known: new Set(), seen: new Set(), intents: ["coaching"] });
+  assert.deepEqual(off.map((item) => item.outcome), ["giver", "unmatched"]);
+  assert.equal(linkFollowsName("https://joeroe.example.dev", text, "Joe Roe", ["Jane Doe"]), true);
+  assert.equal(linkFollowsName("https://joeroe.example.dev", text, "Jane Doe", ["Joe Roe"]), false);
+  assert.equal(linkFollowsName("https://joeroe.example.dev", text, "", []), false);
+});
+
+test("a commenter never takes an address that sits near someone else's name, nor the author's own", () => {
+  const post = "https://www.linkedin.com/posts/coach-park_resume-activity-1-abcd";
+  // The comments' times cut the thread into comments (mailRules.ts addressIsPersons); without them any other name within
+  // NEAR_ADDRESS_CHARS keeps the address from everyone.
+  const text = "Coach Park · 3일 전 · 이력서 봐 드려요. Jane Doe · 2시간 전 · 부탁드려요 jane.doe.dev@gmail.com Joe Roe · 1시간 전 · 저도요";
+  const as = (name: string, others: string[]) =>
+    identifyPerson({ url: post, text, email: "jane.doe.dev@gmail.com", contactUrl: "", name, others, foundAs: "commenter" });
+  assert.equal(as("Jane Doe", ["Coach Park", "Joe Roe"]).email, "jane.doe.dev@gmail.com");
+  assert.equal(as("Joe Roe", ["Coach Park", "Jane Doe"]).email, null);
+  const flat = text.replace(/\d+(일|시간) 전 · /g, "");
+  assert.equal(identifyPerson({ url: post, text: flat, email: "jane.doe.dev@gmail.com", contactUrl: "", name: "Jane Doe", others: ["Coach Park", "Joe Roe"], foundAs: "commenter" }).email, null);
+  // A commenter is never keyed by the post (the author's page).
+  assert.equal(identifyPerson({ url: post, text, email: "", contactUrl: "", name: "Joe Roe", foundAs: "commenter" }).key, null);
+  // The author of a single-author post is keyed as before.
+  assert.equal(identifyPerson({ url: post, text: "Coach Park · 이력서 봐 드려요", email: "", contactUrl: "", name: "Coach Park" }).key, "url:linkedin.com/in/coach-park");
+});
+
+test("goal searches: their own ids on LinkedIn, run while their channel is on (Shaun 11/23)", () => {
+  assert.deepEqual(GOAL_SEARCHES.map((item) => item.id), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
+  const channels = defaultChannelSettings();
+  assert.deepEqual(goalSearchesOn(channels), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
+  channels.coaching_post.enabled = false;
+  channels.company_post.enabled = false;
+  assert.deepEqual(goalSearchesOn(channels), ["linkedin_event"]);
+  assert.deepEqual(goalSearchesOn(null), []);
+  // Searched on LinkedIn's domains, its pages; the company side only on posts. Never a settings source.
+  const hiring = signalSourceInfo("linkedin_hiring");
+  assert.equal(hiring.aim, "hiring");
+  assert.deepEqual(stageDomains("linkedin_hiring", "signal"), ["linkedin.com"]);
+  assert.equal(resultFitsStage("https://www.linkedin.com/posts/ceo-kim_hiring-activity-1-abcd", "linkedin_hiring", "signal"), true);
+  assert.equal(resultFitsStage("https://www.linkedin.com/in/ceo-kim", "linkedin_hiring", "signal"), false);
+  assert.equal(resultFitsStage("https://www.linkedin.com/in/jane", "linkedin_coaching", "signal"), true);
+  assert.equal(resultFitsStage("https://x.com/jane/status/1", "linkedin_coaching", "signal"), false);
+  assert.equal(normalizeSignalSource("linkedin_hiring"), null);
+  assert.equal(goalSearchOf("linkedin")?.id, undefined);
+  assert.equal(goalSearchOf("linkedin_event")?.channel, "event_post");
+});
+
+test("a goal search's plan aims at its own family: no posting split, its own fixed rule; the company side reads no Ops guidance", () => {
+  const tuning = { ...defaultSignalTuning("linkedin"), lookFor: "결제 도메인 우선" };
+  const job = planPrompt({ source: "linkedin", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, demand: DEMAND, now: NOW });
+  assert.match(job.system, /find individual people who are currently looking for a job, for Harper/);
+  assert.match(job.system, /Split the queries by how many companies hire/);
+  const coaching = planPrompt({ source: "linkedin_coaching", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, demand: DEMAND, now: NOW });
+  assert.match(coaching.system, /ask for help with their own career, résumé or portfolio/);
+  assert.match(coaching.system, /the commenters who ask for it are the targets, the poster is not/);
+  assert.match(coaching.system, /이력서 피드백 부탁드립니다/);
+  assert.doesNotMatch(coaching.system, /Split the queries by how many companies hire|<open_postings>/);
+  assert.match(coaching.system, /Spread the queries across role families/);
+  assert.match(coaching.system, /ops_guidance kind="look_for"/);
+  assert.match(coaching.system, /never for recruiters, coaches, companies or schools as the targets/);
+  const hiring = planPrompt({ source: "linkedin_hiring", previous: null, yields: [], keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, demand: DEMAND, now: NOW });
+  assert.match(hiring.system, /a person who works at a company says their own team or company is hiring/);
+  assert.match(hiring.system, /never for headhunters, staffing or recruiting agencies, job boards or a company page's own account/);
+  assert.doesNotMatch(hiring.system, /ops_guidance|결제 도메인 우선/);
+  // A revision shows the people noted apart, only when there are some.
+  const revise = planPrompt({
+    source: "linkedin_coaching", previous: { plan: "p", reason: null, queries: [] }, keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW,
+    yields: [{ stage: "signal", window: "0-30d", round: 1, group: "resume", query: "이력서 피드백", results: 10, kept: 2, withContact: 1, givers: 3 }],
+  });
+  assert.match(revise.user, /이력서 피드백: 10 \/ 2 \/ 1 \/ 3 helping or hiring/);
+  assert.match(revise.user, /"helping or hiring": people who help or hire, noted apart and not targets/);
+  assert.doesNotMatch(planPrompt({ source: "linkedin", previous: { plan: "p", reason: null, queries: [] }, keptSamples: [], rejectedSamples: [], budgetLeftUsd: 1, tuning, now: NOW, yields: [] }).user, /helping or hiring/);
+});
+
+test("the company side's judge asks one question, and keeps a hiring leader's own post above the score", () => {
+  const page = { id: "r0", url: "https://www.linkedin.com/posts/ceo-kim_hiring-activity-1-abcd", publishedDate: null, text: "저희 팀 백엔드 개발자 채용합니다" };
+  const prompt = judgePrompt([page], { source: "linkedin_hiring", stage: "signal", now: NOW, demand: DEMAND, tuning: { keepRule: "결제만" }, intents: ["job", "coaching"] });
+  assert.match(prompt.system, /posts in which a person who works at the hiring company says their own team or company is hiring now/);
+  for (const rule of HIRING_JUDGE_RULES) assert.ok(prompt.system.includes(rule));
+  assert.match(prompt.system, /Headhunters, staffing or recruiting agencies, a company page's own account, job boards and bots are never kept/);
+  assert.match(prompt.system, /opening: the role title\(s\) of the opening as the post writes them/);
+  assert.doesNotMatch(prompt.system, /ops_guidance|결제만|open_postings|Intent coaching/);
+  const batch = judgeBatch([
+    { url: "https://www.linkedin.com/posts/ceo-kim_hiring-activity-1-abcd", text: "저희 팀 백엔드 개발자 채용합니다" },
+    { url: "https://www.linkedin.com/posts/hh-choi_hiring-activity-2-abcd", text: "[헤드헌팅] 백엔드 포지션" },
+    { url: "https://www.linkedin.com/posts/jane-doe_open-activity-3-abcd", text: "구직 중입니다" },
+    { url: "https://www.linkedin.com/posts/cto-han_hiring-activity-4-abcd", text: "채용 고민 중" },
+  ], 2_500);
+  const sorted = sortVerdicts({
+    batch, sharedPages: false, minScore: 60, minMatchScore: 50, known: new Set(), seen: new Set(), aim: "hiring",
+    verdicts: [
+      verdict("r0", { kind: "hiring_leader", intent: "none", matchScore: 0, opening: "Backend Engineer" }),
+      verdict("r1", { keep: false, kind: "recruiter", intent: "none" }),
+      verdict("r2"),
+      verdict("r3", { kind: "hiring_leader", intent: "none", score: 40 }),
+    ],
+  });
+  assert.deepEqual(sorted.map((item) => item.outcome), ["kept", "giver", "rejected", "below_score"]);
+  assert.deepEqual(sorted.map((item) => item.giverKind), ["hiring_leader", "recruiter", null, null]);
+  assert.equal(verdictCounts(sorted).kept, 1);
+  assert.equal(verdictCounts(sorted).givers, 1);
+});
+
+test("what found a person, in plain words, by kind", () => {
+  const base = { aim: "job" as const, method: "signal_post" as const, group: "g", intent: "job" as const, foundAs: "author" as const, giverKind: null, score: 80, matchScore: 70 };
+  assert.equal(signalFoundNote(base), "구직 글 · 구직 신호 점수 80 · 공고 맞을 가능성 70");
+  assert.equal(signalFoundNote({ ...base, method: "open_to_work_profile", matchScore: null }), "구직 중 프로필 · 구직 신호 점수 80");
+  assert.equal(signalFoundNote({ ...base, method: "layoff_company", group: "Acme" }), "구조조정 회사(Acme) · 구직 신호 점수 80 · 공고 맞을 가능성 70");
+  assert.equal(signalFoundNote({ ...base, intent: "coaching" }), "상담 글 · 신호 점수 80");
+  assert.equal(signalFoundNote({ ...base, intent: "event" }), "이벤트 글 · 신호 점수 80 · 공고 맞을 가능성 70");
+  assert.equal(signalFoundNote({ ...base, intent: "coaching", foundAs: "commenter" }), "댓글 · 상담 · 신호 점수 80");
+  assert.equal(signalFoundNote({ ...base, intent: "event", foundAs: "commenter", matchScore: null }), "댓글 · 이벤트 · 신호 점수 80");
+  assert.equal(signalFoundNote({ ...base, foundAs: "commenter" }), "댓글 · 구직 · 구직 신호 점수 80 · 공고 맞을 가능성 70");
+  assert.equal(signalFoundNote({ ...base, intent: null, giverKind: "hiring_leader", matchScore: null }), "돕는 쪽 · 채용하는 대표·리더");
+  assert.equal(signalFoundNote({ ...base, intent: null, giverKind: "recruiter" }), "돕는 쪽 · 리크루터");
+  assert.equal(signalFoundNote({ ...base, intent: null, giverKind: "coach" }), "돕는 쪽 · 코치·멘토");
+  assert.equal(signalFoundNote({ ...base, intent: null, giverKind: "event_host" }), "돕는 쪽 · 행사 주최");
+  assert.equal(signalFoundNote({ ...base, aim: "hiring", intent: null, giverKind: "hiring_leader" }), "회사 소싱 · 채용 글");
+  assert.equal(signalFoundNote({ ...base, aim: "hiring", intent: null, giverKind: "recruiter" }), "돕는 쪽 · 리크루터");
+});
+
+test("a yield's givers are kept on the log and read back", () => {
+  const yields: SignalYield[] = [{ stage: "signal", window: "0-30d", round: 1, group: "g", query: "q", results: 6, kept: 1, withContact: 0, givers: 2 }];
+  const entry = signalLogEntry({ tuningVersion: "v", at: NOW, plans: [], yields, keptSamples: [] });
+  assert.deepEqual(readSignalLogEntry(JSON.parse(JSON.stringify(entry)))?.yields, yields);
 });

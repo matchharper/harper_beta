@@ -36,14 +36,14 @@ const POOL: DemandPosting[] = [
   posting({ title: "백엔드 엔지니어 (결제 플랫폼)", count: 2, companies: ["a", "b"], seniorityLevel: "mid_senior" }),
   posting({ title: "서버 개발자 (대용량 트래픽)", count: 3, companies: ["a", "c", "d"], seniorityLevel: "mid_senior" }),
   posting({ title: "풀스택 엔지니어", companies: ["e"], seniorityLevel: "mid" }),
-  posting({ kind: "gtm", title: "Data Engineer", companies: ["gtm-company:logistics"], countryCode: null, workMode: null, locationText: null }),
+  posting({ kind: "customer", title: "Data Engineer", companies: ["j"], countryCode: null, workMode: null, locationText: null }),
   posting({ title: "데이터 엔지니어", count: 2, companies: ["f", "g"], seniorityLevel: "mid" }),
   posting({ title: "Product Designer", companies: ["h"], countryCode: "US", workMode: "remote", locationText: null }),
   posting({ title: "Account Executive", companies: ["i"] }),
 ];
 
 test("the demand by family: companies (a fit needs 2 at different ones), levels and places, industries, examples", () => {
-  const summary = summarizeDemand(POOL, "2026-11-18", new Map([["gtm-company:logistics", "a logistics startup"], ["f", "물류 스타트업"]]));
+  const summary = summarizeDemand(POOL, "2026-11-18", new Map([["j", "a logistics startup"], ["f", "물류 스타트업"]]));
   assert.equal(summary.postings, 11);
   assert.equal(summary.companies, 10);
   assert.equal(summary.internal, 1);

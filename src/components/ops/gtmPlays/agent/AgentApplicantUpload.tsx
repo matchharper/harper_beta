@@ -8,8 +8,7 @@ import { Button, ErrorNotice, Hint } from "../ui";
 /** Same as APPLICANT_FILE_MAX_BYTES (applicantSheet.ts reads files with zlib, so it stays on the server). */
 const MAX_BYTES = 3 * 1024 * 1024;
 const ACCEPT = ".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
-const SOURCE = "받는 곳: 링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX";
-const HINT = "Recruiter에서 받은 파일을 그대로 올려요(매번 전체 목록이어도 새 사람만 처리해요). 이메일이 비어 있으면 에이전트가 찾아봐요.";
+const HINT = "링크드인 Recruiter → 공고 → Apply starters → Export all to XLSX로 받은 파일을 그대로 올려요(매번 전체 목록이어도 새 사람만 처리해요). 이메일이 비어 있으면 에이전트가 찾아봐요.";
 
 /** "파일 지원자.xlsx · 37명 중 새 사람 5명 · 이메일 있음 3명" */
 export function applicantUploadLine(result: Pick<ApplicantFileImport, "fileName" | "rows" | "newPeople" | "withEmail">) {
@@ -93,7 +92,6 @@ export default function AgentApplicantUpload({ writes, onImported, lastUpload }:
         </span>
         {!writes ? <span className="text-[12px] text-neutral-muted">이 서버는 쓰기가 꺼져 있어요.</span> : null}
       </div>
-      <p className="text-[12px] text-neutral-muted">{SOURCE}</p>
       {result ? (
         <p className="text-[12px]">
           <span className="font-medium">{applicantUploadLine(result)}</span>

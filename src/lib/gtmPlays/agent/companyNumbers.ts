@@ -1,6 +1,6 @@
 /**
  * #5 수치 · 회사 (Shaun 11/22): what the period's candidates led to on the company side, one row per company under a 합계
- * row, in two tables:
+ * row, in two tables (and, first, 회사 소싱: the companies found by their hiring posts, 11/23, at the end of this file):
  *   하퍼 밖 회사  outside postings' companies (not on Harper): Ashley's company mails (agent/companyMail.ts) and what
  *                came of them (the company's reply, its words passed on, its sign-up, its connection request);
  *   하퍼 고객사    customers already on Harper: everything happens inside Harper (the candidate's saved / applied posting,
@@ -240,5 +240,119 @@ export function tallyCompanyNumbers(input: CompanyNumbersInput): CompanyNumbers 
       keep: (cells) => OUTSIDE_COLUMNS.some((column) => column !== "received" && cells[column].n > 0),
     }),
     customers: customers.finish(),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// 회사 소싱 (Shaun 11/23): companies that posted they are hiring, mailed by the company step. One row per hiring post
+// (a gtm_agent_people row of giver_kind hiring_leader, not a test), so every number counts companies and opens exactly
+// those rows in the log (their ids). Not a candidate number: these rows are givers (funnel.ts isGiver).
+
+export const SOURCING_COLUMNS = [
+  "found", "excluded", "contacted", "clicked", "signedUp", "companyRequested", "connected", "replied", "bounced", "complained",
+  "unsubscribed",
+] as const;
+export type SourcingColumn = (typeof SOURCING_COLUMNS)[number];
+
+/**
+ * How the company was found: by the company search (a LinkedIn hiring post; the row's found note starts with
+ * COMPANY_SEARCH_NOTE), or as a hiring founder or lead the candidate search came across.
+ */
+export const SOURCING_WAYS = ["company_search", "candidate_search"] as const;
+export type SourcingWay = (typeof SOURCING_WAYS)[number];
+
+/** The note of the "found" event the company search writes on the rows it adds (store.server.ts insertAgentPeople foundNote). */
+export const COMPANY_SEARCH_NOTE = "회사 소싱 · 채용 글";
+
+export function sourcingWayOf(foundNote: string | null | undefined): SourcingWay {
+  return String(foundNote ?? "").startsWith(COMPANY_SEARCH_NOTE) ? "company_search" : "candidate_search";
+}
+
+/** One sourced company's mail (its first or a follow-up) and what came of it. */
+export type SourcingMail = {
+  /** The Harper page its button opens was on screen; the company signed up from it; the company answered it. */
+  clicked: boolean; signedUp: boolean; replied: boolean;
+  /** bounced / failed / complained (gtm_mails.delivery_status), and the opt-out (link or reply). */
+  deliveryStatus: string | null; unsubscribed: boolean;
+};
+
+/** One hiring post row and everything the columns read of it. */
+export type SourcingRowInput = {
+  personId: string;
+  way: SourcingWay;
+  /**
+   * Why the company step left the company out, in its own words (agent/companySourcing.ts SOURCING_SKIP, kept as
+   * gtm_agent_people.skip_reason: 하퍼 고객사, 30일 안에 연락한 회사, 맞는 회원 0명, 주소 없음 …), or null. Any of
+   * them is 제외; 제외's hover lists them as written.
+   */
+  skipReason: string | null;
+  /** Its company mails that went out (sending or sent): none until the first. */
+  mails: readonly SourcingMail[];
+  /** The company asked Harper to connect it with at least one candidate; at least one of those connected. */
+  companyRequested: boolean; connected: boolean;
+  /** Every spend log row of this row (agent/spend.ts). */
+  costUsd: number;
+};
+
+/** Whether a row is in a column: the one predicate the counts and the ids (the log) share. */
+export function inSourcingColumn(column: SourcingColumn, row: SourcingRowInput): boolean {
+  const mailed = row.mails.length > 0;
+  switch (column) {
+    case "found": return true;
+    // Left out by the company step and never mailed (as a candidate's 제외).
+    case "excluded": return !mailed && row.skipReason !== null;
+    case "contacted": return mailed;
+    // Signing up from the button takes its page, so a sign-up is a click too (as 수치 · 후보 counts it).
+    case "clicked": return row.mails.some((mail) => mail.clicked || mail.signedUp);
+    case "signedUp": return row.mails.some((mail) => mail.signedUp);
+    case "companyRequested": return mailed && (row.companyRequested || row.connected);
+    case "connected": return mailed && row.connected;
+    case "replied": return row.mails.some((mail) => mail.replied);
+    // As 수치 · 후보 reads delivery_status (funnel.ts): a complaint, else any other failure is a bounce.
+    case "bounced": return row.mails.some((mail) => Boolean(mail.deliveryStatus) && mail.deliveryStatus !== "complained");
+    case "complained": return row.mails.some((mail) => mail.deliveryStatus === "complained");
+    case "unsubscribed": return row.mails.some((mail) => mail.unsubscribed);
+  }
+}
+
+/** 합계 (way null) or one way's row: each column's companies, 제외 by reason, and the cost. */
+export type SourcingLine = {
+  way: SourcingWay | null;
+  cells: Record<SourcingColumn, CompanyCell>;
+  excludedBy: Record<string, number>;
+  costUsd: number;
+};
+export type SourcingNumbers = { total: SourcingLine; rows: SourcingLine[] };
+
+function sourcingLine(way: SourcingWay | null, rows: readonly SourcingRowInput[]): SourcingLine {
+  const cells = Object.fromEntries(SOURCING_COLUMNS.map((column) => {
+    const ids = [...new Set(rows.filter((row) => inSourcingColumn(column, row)).map((row) => row.personId))].sort();
+    return [column, { n: ids.length, ids }];
+  })) as Record<SourcingColumn, CompanyCell>;
+  const excludedBy: Record<string, number> = {};
+  for (const row of rows) {
+    if (inSourcingColumn("excluded", row)) excludedBy[row.skipReason as string] = (excludedBy[row.skipReason as string] ?? 0) + 1;
+  }
+  const costUsd = Math.round(rows.reduce((sum, row) => sum + (Number.isFinite(row.costUsd) ? row.costUsd : 0), 0) * 10_000) / 10_000;
+  return { way, cells, excludedBy, costUsd };
+}
+
+/**
+ * 합계 and a row per way the companies were found (only the ways anyone was found by), in SOURCING_WAYS order.
+ * `searchCostUsd` is what the company search itself cost in the period (its runs' signal_cost, which no row carries):
+ * it is in the 합계 and the company search's row, as a search's cost is in 수치 · 후보's rows. A search that cost
+ * something and found nobody still gets its row, so the rows' costs add up to the 합계.
+ */
+export function tallySourcing(rows: readonly SourcingRowInput[], { searchCostUsd = 0 }: { searchCostUsd?: number } = {}): SourcingNumbers {
+  const unique = [...new Map(rows.map((row) => [row.personId, row])).values()];
+  const search = Number.isFinite(searchCostUsd) && searchCostUsd > 0 ? searchCostUsd : 0;
+  const withSearch = (line: SourcingLine): SourcingLine => ({ ...line, costUsd: Math.round((line.costUsd + search) * 10_000) / 10_000 });
+  return {
+    total: withSearch(sourcingLine(null, unique)),
+    rows: SOURCING_WAYS.flatMap((way) => {
+      const of = unique.filter((row) => row.way === way);
+      if (way === "company_search") return of.length || search ? [withSearch(sourcingLine(way, of))] : [];
+      return of.length ? [sourcingLine(way, of)] : [];
+    }),
   };
 }

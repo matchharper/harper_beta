@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agentLeadLine, agentMailSubject, agentPostingList, agentSubject, mailWhy, renderAgentMail } from "./render";
+import { agentCoachingLead, agentLeadLine, agentMailSubject, agentPostingList, agentSubject, mailWhy, renderAgentMail } from "./render";
+import { eventDay } from "./events";
 import type { AgentPosting } from "./types";
 
 const postings: AgentPosting[] = [
@@ -13,7 +14,7 @@ const postings: AgentPosting[] = [
     why: "맞아요", summary: "개인 자산 관리 앱 팀이에요. 화면과 공통 기반을 함께 설계하게 됩니다.",
   },
   {
-    kind: "gtm", roleId: null, url: null, companyName: "테스트러닝", title: "프론트엔드 엔지니어", location: "서울",
+    kind: "customer", roleId: null, url: null, companyName: "테스트러닝", title: "프론트엔드 엔지니어", location: "서울",
     why: "맞아요", summary: "개발자 교육 서비스입니다. 화면 개발을 하면서 디자인 시스템 컴포넌트도 같이 다듬어요.",
   },
 ];
@@ -231,4 +232,47 @@ test("a company named like a web address keeps its name in the mail, as plain wo
   // The name is not a link: the roles page and the opt-out line stay the only links.
   const hrefs = [...mail.html.matchAll(/href="([^"]+)"/g)].map((match) => match[1].replace(/\?.*$/, ""));
   assert.deepEqual([...new Set(hrefs)].sort(), ["https://matchharper.com/jobs/invite/abc", "https://matchharper.com/u/abc"]);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The other two first mails (Shaun 11/23): 상담 and 일반
+
+const EVENTS = [
+  { title: "프론트엔드 개발자 밋업", url: "https://example.com/e1", startsAt: "2026-12-03T19:00:00+09:00", endsAt: null, place: "서울 강남", online: false, organizer: "예시 커뮤니티", why: "디자인 시스템 발표가 있어요" },
+  { title: "온라인 커리어 세션", url: "https://example.com/e2", startsAt: "2026-12-10", endsAt: null, place: null, online: true, organizer: null, why: "이직 준비 이야기를 나눠요" },
+];
+const offerMail = (patch: Partial<Parameters<typeof renderAgentMail>[0]>) => renderAgentMail({
+  language: "ko", subject: "", body: "", name: "유나", harperUrl: "https://matchharper.com/jobs/invite/abc", postings: [],
+  senderName: "Ashly", senderEmail: "s@example.com", unsubscribeUrl: "https://matchharper.com/u/abc", ...patch,
+});
+
+test("상담: no postings, what they seem to be working on, Harper's help and one link", () => {
+  const mail = offerMail({
+    offer: "coaching", subject: agentSubject({ language: "ko", name: "유나", count: 0, offer: "coaching" }), body: agentCoachingLead("ko", "이력서 정리"),
+  });
+  assert.equal(mail.subject, "유나님, 커리어 고민 같이 봐 드릴 수 있어요");
+  assert.match(mail.text, /^안녕하세요, 유나님\.\nHarper에서 커리어와 이직을 돕고 있는 Ashly입니다\.\n\n이력서 정리를 고민하고 계신 것 같아 연락드려요\.\n\n/);
+  assert.match(mail.text, /상담 받아 보기 \(https:\/\/matchharper\.com\/jobs\/invite\/abc\)/);
+  assert.doesNotMatch(mail.text, /•/);
+  // Without a focus, the general lead.
+  assert.match(offerMail({ offer: "coaching", body: agentCoachingLead("ko", "") }).text, /커리어 고민이 있으신 것 같아 연락드려요\./);
+  assert.match(offerMail({ offer: "coaching", language: "en", name: "Yuna Kim", body: agentCoachingLead("en", "your résumé") }).text,
+    /It sounded like you're working on your résumé, so I wanted to reach out\./);
+});
+
+test("일반: postings then events (events first for someone who asked for events), or events alone", () => {
+  const shown = postings.slice(0, 2);
+  const mail = offerMail({ offer: "general", postings: shown, events: EVENTS, body: agentPostingList(shown) });
+  const text = mail.text;
+  assert.ok(text.indexOf("지금 사람을 찾는 팀") < text.indexOf("다가오는 행사"));
+  assert.match(text, /• 프론트엔드 개발자 밋업 · 12월 3일\(목\) · 서울 강남\n디자인 시스템 발표가 있어요/);
+  assert.match(text, /• 온라인 커리어 세션 · 12월 10일\(목\) · 온라인/);
+  assert.match(text, /원하시면 지원도 대신 해 드려요\./);
+  const eventsFirst = offerMail({ offer: "general", postings: shown, events: EVENTS, eventsFirst: true, body: agentPostingList(shown) }).text;
+  assert.ok(eventsFirst.indexOf("다가오는 행사") < eventsFirst.indexOf("지금 사람을 찾는 팀"));
+  const eventsOnly = offerMail({ offer: "general", events: EVENTS.slice(0, 1) }).text;
+  assert.doesNotMatch(eventsOnly, /지금 사람을 찾는 팀/);
+  assert.match(eventsOnly, /다가오는 행사/);
+  assert.equal(agentSubject({ language: "ko", name: "유나", count: 0, offer: "general" }), "유나님께 맞을 만한 기회를 모아 봤어요");
+  assert.equal(eventDay("2026-12-03", "en"), "Thu, Dec 3");
 });

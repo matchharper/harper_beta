@@ -111,8 +111,10 @@ export function bySignalFirst(a: Waiting, b: Waiting): number {
  */
 export function planSends<T extends Waiting>(people: readonly T[], args: {
   now: Date; nextOpen: Date | null; pace: number; max: number; dueMax: number;
+  /** The queue's order (agent/channels.ts byQueueOrder); newest signal first by default. */
+  order?: (a: T, b: T) => number;
 }): Array<{ person: T; due: boolean }> {
-  const ordered = [...people].sort(bySignalFirst);
+  const ordered = [...people].sort(args.order ?? bySignalFirst);
   const due = ordered.filter((person) => dueBeforeNextChance(person.signalAt, args.now, args.nextOpen)).slice(0, Math.max(0, args.dueMax));
   const taken = new Set<T>(due);
   const paced = Math.max(0, Math.min(args.pace, args.max) - due.length);

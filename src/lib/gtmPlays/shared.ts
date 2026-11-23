@@ -21,7 +21,7 @@ export type GtmBrief = {
   roleName: string;
   /**
    * How candidates read the hiring company of a GTM Role made from an outside posting: a short description, never
-   * its name ("결제 스타트업"). One per company: a company that already has one keeps it.
+   * its name ("결제 스타트업").
    */
   publicDescription?: string;
   request: string;
@@ -111,12 +111,6 @@ export function companyDomain(homepageUrl: string | null | undefined) {
 export function cleanPublicDescription(value: string | null | undefined) {
   const text = String(value ?? "").replace(/\s+/g, " ").trim().replace(/^["'“‘(（]+|["'”’)）]+$/g, "").trim();
   return text.length >= 2 ? text.slice(0, 40) : null;
-}
-
-/** "Harper 고객사(결제 스타트업)": how a mail and its Harper page name the company of a GTM Role. */
-export function gtmCandidateCompanyLabel(workspaceName: string, description: string | null | undefined) {
-  const desc = cleanPublicDescription(description);
-  return desc ? `${workspaceName}(${desc})` : workspaceName;
 }
 
 /** The real company's name, taken out of what a candidate reads (words only, case-insensitive). */

@@ -531,6 +531,8 @@ ${args.gmailCapability === "not_connected"
     { factsOnly: usesCareerMain }
   );
 
+  // After onboarding the caller passes an entry record only for an entry from a Harper outreach mail (chatTurn.ts):
+  // read in the first chat turns, as the new-user section below, so Harper knows why they came (Shaun 11/23).
   const officialJobSignupIntentPrompt = isOnboardingActive
     ? [
         args.officialJobSignupIntentPrompt?.trim() ?? "",
@@ -538,7 +540,9 @@ ${args.gmailCapability === "not_connected"
       ]
         .filter(Boolean)
         .join("\n")
-    : "";
+    : isMainChat && isEarlyConversation
+      ? args.officialJobSignupIntentPrompt?.trim() ?? ""
+      : "";
   const postOnboardingContextSection = isOnboardingActive
     ? ""
     : buildCareerPostOnboardingContextSection({

@@ -139,3 +139,44 @@ test("one candidate: singular subject, lead and heading (the minimum can be 1 on
   assert.match(en.text, /They've shown direct interest in the role\./);
   assert.doesNotMatch(en.text, /One of them/);
 });
+
+test("S0 KO (company sourcing): the poster by name, S2's layout without any 직접 관심 line", () => {
+  const input: CompanyMailCopyInput = {
+    ...base, variant: "S0", interested: 0, questions: [], recipientName: "지훈",
+    lines: [base.lines[1], { line1: "백엔드 엔지니어 · 경력 5년 · 서울", line2: "주문 시스템을 Go로 옮기고 운영", interested: false }],
+  };
+  const mail = renderCompanyMail(input);
+  assert.equal(mail.subject, "백엔드 엔지니어 포지션에 맞는 분들이 있어 연락드려요");
+  assert.match(mail.text, /^안녕하세요, 지훈님\.\nHarper에서 회사 채용을 돕고 있는 Ashley Kim입니다\./);
+  assert.match(mail.text, /\n\nCompany A의 백엔드 엔지니어 포지션에 맞는 분이 2명 있어 연락드려요\.\n\n맞는 분들을 짧게 정리하면 이래요\./);
+  assert.match(mail.text, /이름과 연락처는 연결을 요청하시면 후보에게 확인한 뒤 이어드려요\./);
+  assert.match(mail.text, /2명 자세히 보기/);
+  assert.match(mail.text, /궁금한 점은 이 메일에 답장 주셔도 돼요\./);
+  assert.match(mail.text, /Ashley Kim 드림\nTalent Partner, Harper · matchharper\.com/);
+  assert.doesNotMatch(mail.text, /직접 관심|채용 담당자님/);
+  assert.match(mail.html, /org\?gtm=mail-1/);
+  // No name: the company's hiring team, as the other mails.
+  assert.match(text({ ...input, recipientName: null }), /^안녕하세요, Company A 채용 담당자님\./);
+});
+
+test("S0 EN: 'Hi <name>,', the count line alone, no interest lines", () => {
+  const mail = renderCompanyMail({
+    ...base, variant: "S0", language: "en", postingTitle: "Backend Engineer", interested: 0, questions: [], recipientName: "Riley",
+    lines: [{ line1: "Backend Engineer · 8 years · Seoul", line2: "Led a large settlement system", interested: false }], visible: 1,
+  });
+  assert.equal(mail.subject, "A candidate for your Backend Engineer role");
+  assert.match(mail.text, /^Hi Riley,\nI'm Ashley from Harper, where I help companies with their hiring\./);
+  assert.match(mail.text, /I know of one person who'd fit your Backend Engineer role, so I wanted to reach out\.\n\nHere's a quick look at them:/);
+  assert.match(mail.text, /See the candidate/);
+  assert.match(mail.text, /If you have any questions, just reply to this email\./);
+  assert.doesNotMatch(mail.text, /interest|Company A team/);
+});
+
+test("S3 in a sourced thread greets the same person by name", () => {
+  const mail = renderCompanyMail({
+    ...base, variant: "S3", visible: 3, previousVisible: 2, questions: [], recipientName: "지훈",
+    previousSubject: "백엔드 엔지니어 포지션에 맞는 분들이 있어 연락드려요",
+    lines: [{ line1: "백엔드 엔지니어 · 경력 4년", line2: "결제 정산 배치를 Go로 다시 짜서 운영", interested: true }],
+  });
+  assert.match(mail.text, /^안녕하세요, 지훈님\.\n\n지난번에 백엔드 엔지니어 포지션에 맞는 분 2명을 소개드렸는데/);
+});

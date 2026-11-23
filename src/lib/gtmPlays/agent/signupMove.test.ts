@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { careerContentDateOnly, formatCareerContentSuggestion, readCareerContentSuggestionRow } from "@/lib/career/contentSuggestions";
 import type { HistoryEntry } from "./conversation";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY, SIGNUP_QUESTION_MAX, gtmMailIdFromPath, intentSource, intentSummary, introQuestionLine,
-  introQuestions, mailConversationBlock, moveMailConversation, parseIntentSource, parseSignupNext, questionFromIntentSummary,
-  sameMailAddress, signupNextFromPath, signupNextQuery, stepPosting, type MailPosting, type SignupMoveDeps, type SignupNext,
+  introQuestions, mailContentItems, mailConversationBlock, moveMailConversation, parseIntentSource, parseSignupNext, questionFromIntentSummary,
+  sameMailAddress, signupLanding, signupNextFromPath, signupNextQuery, stepPosting, type MailPosting, type SignupMail, type SignupMoveDeps,
+  type SignupNext,
 } from "./signupMove";
+import type { AgentOfferEvent } from "./types";
 
 const MAIL_ID = "0b7a3c1e-4f2d-4a8b-9c6d-1e2f3a4b5c6d";
 const ROLE_ID = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
@@ -21,15 +24,21 @@ const entry = (patch: Partial<HistoryEntry> = {}): HistoryEntry => ({
 /** Fake database: every call is recorded, history answers only for its own address. */
 function fakeDeps(patch: {
   toEmail?: string; accountEmail?: string | null; confirmed?: boolean; history?: Record<string, HistoryEntry[]> | null;
-  postings?: MailPosting[]; mail?: boolean;
+  postings?: MailPosting[]; mail?: boolean; offer?: SignupMail["offer"]; events?: AgentOfferEvent[];
 } = {}) {
-  const calls = { history: [] as string[], blocks: [] as Array<{ content: string; payload: Record<string, unknown> }>, intents: [] as Array<{ source: string; summary: string }>, added: [] as string[] };
+  const calls = {
+    history: [] as string[], blocks: [] as Array<{ content: string; payload: Record<string, unknown> }>, intents: [] as Array<{ source: string; summary: string }>,
+    added: [] as string[], content: [] as Array<{ conversationId: string; item: Record<string, unknown> }>,
+  };
   const historyByAddress = patch.history === undefined
     ? { "candidate@example.com": [entry(), entry({ at: "2026-11-19T02:00:00.000Z", author: "counterpart", kind: "reply", subject: "Re: Two backend roles", text: "Interested in the first one." })] }
     : patch.history;
   const deps: SignupMoveDeps = {
     async readMail(mailId) {
-      return patch.mail === false ? null : { id: mailId, toEmail: patch.toEmail ?? "Candidate@Example.com", postings: patch.postings ?? [POSTING, EXTERNAL] };
+      return patch.mail === false ? null : {
+        id: mailId, toEmail: patch.toEmail ?? "Candidate@Example.com", postings: patch.postings ?? [POSTING, EXTERNAL],
+        offer: patch.offer, events: patch.events,
+      };
     },
     async readAccount() {
       return { email: patch.accountEmail === undefined ? "candidate@example.com" : patch.accountEmail, emailConfirmed: patch.confirmed ?? true };
@@ -55,6 +64,9 @@ function fakeDeps(patch: {
     },
     async addPosting(_userId, url) {
       calls.added.push(url);
+    },
+    async addContent(row) {
+      calls.content.push({ conversationId: row.conversationId, item: row.item });
     },
     now: () => new Date("2026-11-20T10:00:00.000Z"),
   };
@@ -201,7 +213,7 @@ test("move: no history for the address leaves the chat as it is", async () => {
 test("move: an unknown or unsent mail does nothing", async () => {
   const { deps, calls } = fakeDeps({ mail: false });
   assert.deepEqual(await run(deps), { status: "not_found", conversationId: null });
-  assert.deepEqual(calls, { history: [], blocks: [], intents: [], added: [] });
+  assert.deepEqual(calls, { history: [], blocks: [], intents: [], added: [], content: [] });
 });
 
 test("move: a posting the mail did not carry goes to the opportunities; an external posting has no Role in the source", async () => {
@@ -264,4 +276,94 @@ test("every similar role Ashley offered goes into 내 기회 too, once, never on
   deps.offeredPostings = async () => ["https://jobs.example.com/company-c/platform", "https://jobs.example.com/company-d/backend", `${EXTERNAL.url}/`];
   await run(deps, next({ step: "opportunities_first", posting: "https://jobs.example.com/company-c/platform", question: null }));
   assert.deepEqual(calls.added, ["https://jobs.example.com/company-c/platform", "https://jobs.example.com/company-d/backend"]);
+});
+
+const EVENT: AgentOfferEvent = {
+  title: "Data Engineering Meetup", url: "https://events.example.com/data-meetup", startsAt: "2026-12-03T19:00:00+01:00", endsAt: "2026-12-03T21:00:00+01:00",
+  place: "Example Hall, Riverside City", online: false, organizer: "Example Data Club", why: "Streaming talks close to your pipeline work.",
+};
+const WEBINAR: AgentOfferEvent = {
+  title: "Streaming Webinar", url: "https://events.example.com/stream-webinar", startsAt: "2026-12-10", endsAt: null, place: null, online: true,
+  organizer: null, why: "",
+};
+
+test("landing: a coaching mail goes to the chat first (상담 먼저); posting and general mails to the postings (기회 먼저)", () => {
+  assert.equal(signupLanding("coaching"), "chat");
+  assert.equal(signupLanding("posting"), "opportunities");
+  assert.equal(signupLanding("general"), "opportunities");
+  assert.equal(signupLanding(null), "opportunities");
+  // A general mail of events only has no posting to open: Harper's home, where its events are kept.
+  assert.equal(signupLanding("general", { postings: false, events: true }), "events");
+  // Events all passed (or none): 내 기회, where Harper keeps sending postings.
+  assert.equal(signupLanding("general", { postings: false, events: false }), "opportunities");
+  assert.equal(signupLanding("general", { postings: true, events: true }), "opportunities");
+  assert.equal(signupLanding("posting", { postings: false }), "opportunities");
+  assert.equal(signupLanding("coaching", { postings: false }), "chat");
+});
+
+test("entry record: says what the mail offered; a posting mail reads as before", () => {
+  const before = intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: true });
+  assert.equal(intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: true, offer: "posting" }), before);
+  const coaching = intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: true, offer: "coaching" });
+  assert.match(coaching, /offered career help, no postings: résumé or portfolio feedback/);
+  // Only where to start: anything else they ask for is answered as for any member (Shaun 11/23 18:41).
+  assert.match(coaching, /Start with that; when they ask for something else \(postings, applying, events\), help with it as for any member/);
+  const general = intentSummary({ next: next({ step: null, question: null }), posting: null, sameAddress: false, offer: "general", events: [EVENT, WEBINAR] });
+  assert.match(general, /fitting postings and upcoming events/);
+  assert.match(general, /apply on their behalf/);
+  assert.match(general, /Data Engineering Meetup \(2026-12-03, Example Hall, Riverside City\); Streaming Webinar \(2026-12-10, online\)/);
+  assert.match(general, /not introduction or profile-sharing consent\.$/);
+  // The question still goes last, for the recipient only.
+  assert.equal(questionFromIntentSummary(intentSummary({ next: next(), posting: POSTING, sameAddress: true, offer: "general", events: [EVENT] })), "Is the team remote-friendly?");
+});
+
+test("content items: the events still to come, as 볼 만한 것 events with exact dates, the place or online, why it fits", () => {
+  const items = mailContentItems([EVENT, WEBINAR, { ...EVENT, url: "https://events.example.com/past", startsAt: "2026-11-01" }], { locale: "ko", now: new Date("2026-11-20T10:00:00.000Z") });
+  assert.deepEqual(items, [
+    {
+      kind: "event", url: EVENT.url, title: EVENT.title, reason: EVENT.why, source: "Example Data Club",
+      startsAt: "2026-12-03T18:00:00.000Z", endsAt: "2026-12-03T20:00:00.000Z", location: "Example Hall, Riverside City",
+    },
+    {
+      kind: "event", url: WEBINAR.url, title: WEBINAR.title, reason: "메일로 소개해 드린 행사예요.", startsAt: "2026-12-10T00:00:00.000Z",
+      endsAt: "2026-12-11T00:00:00.000Z", location: "온라인",
+    },
+  ]);
+  assert.equal(mailContentItems([{ ...WEBINAR, place: "Example Hall" }], { locale: "en", now: new Date("2026-11-20T10:00:00.000Z") })[0].location, "Example Hall · Online");
+});
+
+test("move: a general mail's events go to the 볼 만한 것 list in their conversation, whichever address signed up", async () => {
+  const { deps, calls } = fakeDeps({ accountEmail: "someone.else@example.com", offer: "general", events: [EVENT, WEBINAR] });
+  assert.equal((await run(deps, next({ step: null, question: null }))).status, "other_address");
+  assert.deepEqual(calls.content.map((row) => [row.conversationId, row.item.url]), [["conversation-1", EVENT.url], ["conversation-1", WEBINAR.url]]);
+  assert.match(calls.intents[0].summary, /Events in the email/);
+  const posting = fakeDeps();
+  await run(posting.deps);
+  assert.deepEqual(posting.calls.content, []);
+});
+
+test("move: a coaching mail's entry record tells Harper to start with career help", async () => {
+  const { deps, calls } = fakeDeps({ offer: "coaching", postings: [] });
+  assert.equal((await run(deps, next({ step: null, posting: null, question: null }))).status, "moved");
+  assert.match(calls.intents[0].summary, /offered career help, no postings/);
+  assert.deepEqual(calls.content, []);
+});
+
+test("content items: a date with no time is kept as whole days, and the card and the chat read it as a date alone", () => {
+  const now = new Date("2026-11-20T10:00:00.000Z");
+  const [single, multi, timed] = mailContentItems([
+    WEBINAR, { ...WEBINAR, url: "https://events.example.com/two-days", endsAt: "2026-12-11" }, { ...EVENT, startsAt: "2026-12-03T09:00:00+09:00", endsAt: null },
+  ], { locale: "en", now });
+  assert.deepEqual([single.startsAt, single.endsAt], ["2026-12-10T00:00:00.000Z", "2026-12-11T00:00:00.000Z"]);
+  assert.deepEqual([multi.startsAt, multi.endsAt], ["2026-12-10T00:00:00.000Z", "2026-12-12T00:00:00.000Z"]);
+  const row = (item: Record<string, unknown>) => readCareerContentSuggestionRow({
+    id: "0b7a3c1e-4f2d-4a8b-9c6d-1e2f3a4b5c6e", kind: "event", url: item.url, title: item.title, reason: item.reason, starts_at: item.startsAt,
+    ends_at: item.endsAt ?? null, expires_at: "2026-12-31T00:00:00.000Z", status: "new", origin: "harper_offer", created_at: now.toISOString(),
+  });
+  assert.equal(careerContentDateOnly(row(single)), true);
+  assert.equal(careerContentDateOnly(row(multi)), true);
+  // A real time at 00:00Z (09:00 at +09:00) keeps its time: it has no whole-day end.
+  assert.equal(timed.startsAt, "2026-12-03T00:00:00.000Z");
+  assert.equal(careerContentDateOnly(row(timed)), false);
+  assert.match(formatCareerContentSuggestion(row(single)), /When: 2026-12-10 \(date only, no time given\)/);
 });

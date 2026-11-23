@@ -1,4 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
+import { storedEvents, upcomingEvents } from "./agent/events";
+import type { AgentOfferEvent } from "./agent/types";
 import type { GtmPostingSnapshot } from "./mailSend.server";
 import { gtmMailWentOut } from "./shared";
 
@@ -21,9 +23,12 @@ export type GtmInvitePage = {
   mailId: string;
   language: "ko" | "en";
   senderName: string | null;
-  posting: GtmPostingSnapshot;
+  /** The mail's main posting; null for an agent's general mail that proposed events only. */
+  posting: GtmPostingSnapshot | null;
   /** #5 agent mails: the 2-3 postings the mail proposed (null for a #4 mail about one posting). */
   postings: GtmInvitePosting[] | null;
+  /** An agent's general mail: its events still to come (agent/events.ts), shown under its postings; [] otherwise. */
+  events: AgentOfferEvent[];
   /** utm_campaign of the continue link: gtm_outreach (#4) or gtm_agent (#5). */
   campaign: "gtm_outreach" | "gtm_agent";
   /**
@@ -35,30 +40,36 @@ export type GtmInvitePage = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const COLUMNS = "id,campaign,audience,status,provider_message_id,created_at,language,from_name,posting,postings,posting_url,role_id";
+
 /**
  * The page a candidate mail's button opens (/jobs/invite/<id>): the posting the mail was about, readable
- * before sign-up. Only sent candidate mails within the link's validity that carry a posting.
+ * before sign-up. Only sent candidate mails within the link's validity that carry a posting or (an agent's
+ * general mail) events still to come; a coaching mail carries neither and goes straight to Harper.
  */
 export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage | null> {
   if (!UUID.test(mailId)) return null;
   // gtm_mails is new and not in the generated Database types yet.
-  const table = (getSupabaseAdmin() as unknown as { from: (name: string) => any }).from("gtm_mails");
-  const { data, error } = await table
-    .select("id,campaign,audience,status,provider_message_id,created_at,language,from_name,posting,postings,posting_url,role_id").eq("id", mailId).maybeSingle();
+  const mails = () => (getSupabaseAdmin() as unknown as { from: (name: string) => any }).from("gtm_mails");
+  let { data, error } = await mails().select(`${COLUMNS},events`).eq("id", mailId).maybeSingle();
+  // Before the 11/23 migration gtm_mails has no events column: the page reads the mail without it.
+  if (error?.code === "42703") ({ data, error } = await mails().select(COLUMNS).eq("id", mailId).maybeSingle());
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205" || error.code === "42703") return null;
     throw error;
   }
   const row = data as { id: string; campaign: string; audience: string; status: string; provider_message_id: string | null; created_at: string;
     language: string | null; from_name: string | null; posting: GtmPostingSnapshot | null;
-    postings: Array<Partial<GtmInvitePosting>> | null; posting_url: string | null; role_id: string | null } | null;
-  if (!row || row.audience !== "candidate" || !gtmMailWentOut(row) || !row.posting?.title) return null;
+    postings: Array<Partial<GtmInvitePosting>> | null; posting_url: string | null; role_id: string | null; events?: unknown } | null;
+  if (!row || row.audience !== "candidate" || !gtmMailWentOut(row)) return null;
   if (Date.now() - Date.parse(row.created_at) > GTM_INVITE_VALID_MS) return null;
+  const events = row.campaign === "agent" ? upcomingEvents(storedEvents(row.events), new Date()) : [];
+  if (!row.posting?.title && !events.length) return null;
   return {
     mailId: row.id,
     language: row.language === "en" ? "en" : "ko",
     senderName: row.from_name,
-    posting: row.posting,
+    posting: row.posting?.title ? row.posting : null,
     postings: row.campaign === "agent" && Array.isArray(row.postings) && row.postings.length
       ? row.postings.flatMap((item) => (item.title && item.companyName ? [{
         companyName: item.companyName, title: item.title, location: item.location ?? null, url: item.url ?? null,
@@ -67,6 +78,7 @@ export async function readGtmInvitePage(mailId: string): Promise<GtmInvitePage |
         fit: Array.isArray(item.fit) ? item.fit.filter((line): line is string => typeof line === "string" && Boolean(line.trim())).slice(0, 3) : [],
       }] : []))
       : null,
+    events,
     campaign: row.campaign === "agent" ? "gtm_agent" : "gtm_outreach",
     // The mail keeps an outside posting link only when the job-link import can read it; without one, its Role goes in.
     importable: Boolean(row.role_id)

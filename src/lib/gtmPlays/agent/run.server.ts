@@ -4,24 +4,29 @@ import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
 import { gtmRead } from "../db.server";
 import { gtmMailsTable } from "../mailSend.server";
 import { composeAgentMail } from "./compose.server";
-import { runCompanyMails } from "./companyMail.server";
+import { companySourcingDeliveryStats, runCompanyMails } from "./companyMail.server";
 import { conversationStore } from "./conversation.server";
 import {
-  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
+  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink,
+  planCoachingFollowup, planFollowup, planGeneralFollowup, renderAgentFollowup,
   type FollowupFound,
 } from "./followup";
-import { followupThreadHumanOwned, searchFollowupPostings } from "./followup.server";
+import { followupThreadHumanOwned, searchFollowupEvents, searchFollowupPostings } from "./followup.server";
 import {
   EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, LOOKUP_MIN_SIGNAL_SCORE, emptyLookup, lookupAllowance, lookupTimedOut,
   needsEmailLookup, noEmailReason,
   settleEmailLookup, type EmailLookupCheck, type EmailLookupDone,
 } from "./emailLookup";
 import { cancelEmailLookup, checkEmailLookup, startEmailLookup } from "./emailLookup.server";
+import {
+  AGENT_CHANNELS, CANDIDATE_CHANNELS, CHANNEL_LABELS, channelOf, channelRoomLeft, offerOf, searchedIntents, storedOffer, type AgentChannelKey,
+  type AgentOffer,
+} from "./channels";
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
 import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
-import { MAX_FITS, MIN_FITS } from "./match";
+import { MAX_FITS, MIN_FITS, detectLanguage } from "./match";
 import { matchAgentPostings } from "./match.server";
 import { exclusionReason, kstClock, sumCounts } from "./people";
 import { searchedProfileText } from "./profile";
@@ -36,13 +41,14 @@ import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
-import { mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
+import { channelRoomToday, mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
 import { sendDay } from "./sendTiming";
 import { MIN_SEARCH_USD, budgetOptions, budgetSearches, orderedSearches, searchBudgetNow } from "./budget";
 import { dayBudgetPlan } from "./budget.server";
 import { runDemand } from "./demand.server";
 import {
-  RECENT_MEMORY_DAYS, YIELD_OUTCOMES, historyOutcomes, readSignalLogEntry, type SignalHistoryRun, type SignalYield,
+  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, YIELD_OUTCOMES, goalSearchesOn, historyOutcomes, readSignalLogEntry, type SignalHistoryRun,
+  type SignalYield,
 } from "./signals";
 import { searchHnPeople } from "./signals.hn.server";
 import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
@@ -51,20 +57,23 @@ import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
-  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE,
+  BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, DRAFT_REDO_NOTE, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, QUEUE_DAYS,
   SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS,
   bodyWithPostings, brakeReason, draftExpired, draftedAt, followupTooLate, mayStartPerson, maySendNow, retryDelayMs,
-  runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs, sendQueueFull,
-  stillOpenPostings, waitLabel,
+  redoExpiredDraft, runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs,
+  stillOpenPostings, waitLabel, workPaused,
 } from "./tickRules";
 import { signalTuningVersion, type SignalTuning } from "./tuning";
 import {
-  addAgentRunCounts, agentDeliveryStats, brakeAgent, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
+  addAgentRunCounts, agentDeliveryStats, agentDeliveryStatsByChannel, brakeAgent, brakeAgentChannel, channelSql, channelUseToday,
+  countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
   leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
   readSearchOutcomes, readSignalLogs, readSignalMemory, releaseAgentRun, releaseAgentSendLease, resumeAgentRuns,
-  setAgentRunConfig, takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
+  requeueAgentRun, setAgentRunConfig, takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
 } from "./store.server";
-import type { AgentEmailLookup, AgentExcludeReason, AgentPerson, AgentPosting, AgentSettings } from "./types";
+import { pullDbPeople } from "./dbSource.server";
+import { EVENTS_PER_MAIL, findAgentEvents } from "./events.server";
+import type { AgentEmailLookup, AgentExcludeReason, AgentOfferEvent, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
  * #5 dispatcher tick (a web cron every few minutes, /api/internal/gtm-agent/dispatch). One tick leases one run
@@ -335,6 +344,62 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   }
 
   if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd)))) return { outcome: "cost_cap" };
+  // The offer the intent picks (agent/channels.ts offerOf, Shaun 11/23): career help without postings; postings; or
+  // postings and events together (the purchased DB, event-seeking posts), where either alone is enough.
+  const offer = offerOf(person);
+  const picked = offer === "coaching"
+    ? { postings: [] as AgentPosting[], language: person.language ?? detectLanguage([person.signalText, person.profileText, person.headline]), costUsd: 0 }
+    : await pickPostings(person, tick, offer);
+  if ("outcome" in picked) return picked;
+  let events: AgentOfferEvent[] = [];
+  let eventsCost = 0;
+  if (offer === "general") {
+    const found = await findAgentEvents(person, { language: picked.language, max: EVENTS_PER_MAIL, now: tick.now });
+    await recordAgentSpend({ step: "events", usd: found.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
+    events = found.events;
+    eventsCost = found.costUsd;
+    if (!picked.postings.length && !events.length) {
+      await updateAgentPerson(person.id, { status: "no_fit", language: picked.language, addCostUsd: picked.costUsd + eventsCost },
+        { kind: "no_fit", by: AGENT, note: (found.note ? `맞는 공고도, 다가오는 이벤트도 없어요 · ${found.note}` : "맞는 공고도, 다가오는 이벤트도 없어요").slice(0, 300) }, ["found"]);
+      return { outcome: "no_fit" };
+    }
+  }
+  const postings = picked.postings;
+  const matched = await updateAgentPerson(person.id, {
+    status: "matched", postings, offerEvents: events, messageKind: offer, language: picked.language,
+    addCostUsd: picked.costUsd + eventsCost, attempts: 0, retryAt: null,
+  }, { kind: "matched", by: AGENT, note: matchedNote(offer, postings, events) }, ["found"]);
+  if (!matched) return { outcome: "moved" };
+  const next = await handleMatched(matched, tick, ctx);
+  // Matched, the mail to write later (today's money ran out, the row moved on) or after the paid lookup.
+  if (next.outcome === "written") return { outcome: "approved" };
+  if (next.outcome === "cost_cap") return { outcome: "matched_cost_cap" };
+  if (next.outcome === "lookup_started" || next.outcome === "lookup_retry" || next.outcome === "lookup_deferred") return { outcome: `matched_${next.outcome}` };
+  if (next.outcome.startsWith("excluded_")) return next;
+  return { outcome: "matched" };
+}
+
+/** What the matched line on the timeline says: the offer and what it carries. */
+function matchedNote(offer: AgentOffer, postings: readonly AgentPosting[], events: readonly AgentOfferEvent[]): string {
+  const names = postings.map((posting) => `${posting.companyName} · ${posting.title}`);
+  if (offer === "coaching") return "상담 제안 (공고 없이 커리어·레쥬메 도움)";
+  if (offer === "posting") return names.join(" / ").slice(0, 300);
+  return [`일반 제안`, ...names, ...events.map((event) => `이벤트 · ${event.title}`)].join(" / ").slice(0, 300);
+}
+
+/** A general mail carries at most this many postings (its events take the rest of the room). */
+const GENERAL_MAX_FITS = 2;
+
+/**
+ * The postings a mail proposes (posting and general offers): the pick, the separate grader's gate and the mail lines.
+ * A posting mail needs MIN_FITS 잘 맞음 postings (none: no_fit) and a person the pick reads as job seeking; a general
+ * mail goes on with none (its events may carry it) and does not ask whether the person is looking (the DB says nothing
+ * of it). Returns an outcome when the person stops here.
+ */
+async function pickPostings(person: AgentPerson, tick: Tick, offer: Exclude<AgentOffer, "coaching">): Promise<
+  FoundStep | { postings: AgentPosting[]; language: "ko" | "en"; costUsd: number }
+> {
+  const general = offer === "general";
   // Never their current company, nor the company whose own applicant list they came from (applicantList.ts).
   const excludeCompanyNames = [person.currentCompany, applicantListCompany(person.source)].filter((name): name is string => Boolean(name));
   const match = await matchAgentPostings(person, { excludeCompanyNames });
@@ -344,18 +409,19 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   if (revised) {
     await updateAgentPerson(person.id, {}, { kind: "note", by: AGENT, note: `공고 검색 계획을 이렇게 바꿨어요 · ${revised.reason}`.slice(0, 300) }, ["found"]);
   }
-  if (match.notJobSeeking) {
+  if (match.notJobSeeking && !general) {
     await updateAgentPerson(person.id, { status: "excluded", excludeReason: "not_job_seeking", addCostUsd: match.costUsd },
       { kind: "excluded", by: AGENT, note: match.reason }, ["found"]);
     return { outcome: "excluded_not_job_seeking" };
   }
   if (match.postings.length < MIN_FITS) {
+    if (general) return { postings: [], language: match.language, costUsd: match.costUsd };
     await updateAgentPerson(person.id, { status: "no_fit", language: match.language, addCostUsd: match.costUsd },
       { kind: "no_fit", by: AGENT, note: match.reason || "맞는 회사가 없어요" }, ["found"]);
     return { outcome: "no_fit" };
   }
   // 따로 채점 (agent/review.ts) of the pick's up to GRADE_CANDIDATES: the mail carries the first MAX_FITS it calls 잘 맞음,
-  // and with none no mail goes out (Shaun 11/18: sent only when the agent is sure it fits). A failed call never lets
+  // and with none no posting goes in (Shaun 11/18: sent only when the agent is sure it fits). A failed call never lets
   // ungraded postings through (11/18 risk review): the person is tried again later like any passing error
   // (handlePeople), and fails after the last try.
   const review = await reviewAgentPostings({ person, postings: match.postings, texts: match.postingTexts });
@@ -365,10 +431,15 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
     throw new Error(`따로 채점을 하지 못했어요 · ${review.failed}`);
   }
   const graded = withReviews(match.postings, review.reviews);
-  const { kept, dropped } = postingsToMail(graded, MAX_FITS);
+  const { kept, dropped } = postingsToMail(graded, general ? GENERAL_MAX_FITS : MAX_FITS);
+  const droppedNames = dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ");
   if (kept.length < MIN_FITS) {
+    if (general) {
+      await updateAgentPerson(person.id, {}, { kind: "note", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어 공고 없이 써요 (${droppedNames})`.slice(0, 300) }, ["found"]);
+      return { postings: [], language: match.language, costUsd: match.costUsd + review.costUsd };
+    }
     await updateAgentPerson(person.id, { status: "no_fit", postings: graded, language: match.language, addCostUsd: match.costUsd + review.costUsd },
-      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${dropped.map((posting) => `${posting.companyName} ${posting.review ? `· ${posting.review.grade === "unsure" ? "애매" : "안 맞음"}` : "· 채점 없음"}`).join(", ")})`.slice(0, 300) }, ["found"]);
+      { kind: "no_fit", by: AGENT, note: `따로 채점에서 '잘 맞음'인 공고가 없어요 (${droppedNames})`.slice(0, 300) }, ["found"]);
     return { outcome: "no_fit" };
   }
   if (dropped.length) {
@@ -379,18 +450,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // The mail lines for the kept postings only (written after the grading, so the ones left out cost nothing).
   const framed = await match.frame(kept);
   await recordAgentSpend({ step: "match", usd: framed.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
-  const postings = framed.postings;
-  const matched = await updateAgentPerson(person.id, {
-    status: "matched", postings, language: match.language, addCostUsd: match.costUsd + review.costUsd + framed.costUsd, attempts: 0, retryAt: null,
-  }, { kind: "matched", by: AGENT, note: postings.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ") }, ["found"]);
-  if (!matched) return { outcome: "moved" };
-  const next = await handleMatched(matched, tick, ctx);
-  // Matched, the mail to write later (today's money ran out, the row moved on) or after the paid lookup.
-  if (next.outcome === "written") return { outcome: "approved" };
-  if (next.outcome === "cost_cap") return { outcome: "matched_cost_cap" };
-  if (next.outcome === "lookup_started" || next.outcome === "lookup_retry" || next.outcome === "lookup_deferred") return { outcome: `matched_${next.outcome}` };
-  if (next.outcome.startsWith("excluded_")) return next;
-  return { outcome: "matched" };
+  return { postings: framed.postings, language: match.language, costUsd: match.costUsd + review.costUsd + framed.costUsd };
 }
 
 /**
@@ -436,7 +496,7 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
 async function writeMail(person: AgentPerson, postings: AgentPosting[], language: "ko" | "en", tick: Tick): Promise<FoundStep> {
   if (!(await mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd)))) return { outcome: "cost_cap" };
-  const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "" });
+  const draft = await composeAgentMail({ person, postings, language, senderName: tick.settings.senderName ?? "", offer: storedOffer(person.messageKind) });
   await recordAgentSpend({ step: "compose", usd: draft.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
   const approved = await updateAgentPerson(person.id, {
     // No approval step (Shaun 11/17): every mail goes out within the hours and caps; quality is checked on the log.
@@ -447,12 +507,75 @@ async function writeMail(person: AgentPerson, postings: AgentPosting[], language
 }
 
 /**
+ * Each channel's people that may still be worked on today (agent/channels.ts): its daily max less its mails today, its
+ * written mails waiting and its people whose paid lookup is running; 0 for a channel that is off. A channel without a
+ * daily max is left out (no limit).
+ */
+async function handlingRoom(tick: Tick): Promise<Partial<Record<AgentChannelKey, number>>> {
+  const use = await channelUseToday(tick.now);
+  const room: Partial<Record<AgentChannelKey, number>> = {};
+  for (const channel of CANDIDATE_CHANNELS) {
+    const used = (use.sent.get(channel) ?? 0) + (use.waiting.get(channel) ?? 0) + (use.lookingUp.get(channel) ?? 0);
+    const left = channelRoomLeft(tick.settings.channels[channel], used);
+    if (Number.isFinite(left)) room[channel] = left;
+  }
+  return room;
+}
+
+/**
+ * The DB channel's people for today (agent/dbSource.server.ts), on the day's run: as many as its room (its daily max
+ * less its mails today and its people in work or waiting), only while the channel is on. Never stops the tick.
+ */
+async function pullDb(tick: Tick): Promise<void> {
+  const setting = tick.settings.channels.db;
+  if (!setting.enabled) return;
+  try {
+    const use = await channelUseToday(tick.now);
+    const room = channelRoomLeft(setting, (use.sent.get("db") ?? 0) + (use.waiting.get("db") ?? 0) + (use.inWork.get("db") ?? 0));
+    if (!Number.isFinite(room) || room <= 0) return;
+    const added = await pullDbPeople({ runId: tick.run.id, settings: tick.settings, configId: tick.configId, room });
+    if (added) tick.bump("db_found", added);
+  } catch (error) {
+    console.error("[gtm-agent] db people", error);
+    const line = `구매 DB에서 사람을 꺼내지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
+  }
+}
+
+/**
+ * The GitHub channel's people for today (agent/githubSource.server.ts), on the day's run: as many as its room (its
+ * daily max less its mails today and its people in work or waiting), only while the channel is on. Never stops the tick.
+ */
+async function pullGithub(tick: Tick): Promise<void> {
+  const setting = tick.settings.channels.github;
+  if (!setting.enabled) return;
+  try {
+    const use = await channelUseToday(tick.now);
+    const room = channelRoomLeft(setting, (use.sent.get("github") ?? 0) + (use.waiting.get("github") ?? 0) + (use.inWork.get("github") ?? 0));
+    if (!Number.isFinite(room) || room <= 0) return;
+    const { pullGithubPeople } = await import("./githubSource.server");
+    const added = await pullGithubPeople({ runId: tick.run.id, settings: tick.settings, configId: tick.configId, room });
+    if (added) tick.bump("github_found", added);
+  } catch (error) {
+    console.error("[gtm-agent] github people", error);
+    const line = `GitHub에서 사람을 찾지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
+  }
+}
+
+/**
  * The run's people a tick moves on (found, and matched ones still without a mail), a few within the tick's time slice
  * and today's money. A step that fails for a passing reason (a model error) is tried again after a wait, and the
  * person fails after STEP_MAX_ATTEMPTS. Returns whether the run had anyone to handle now.
  */
-async function handlePeople(tick: Tick): Promise<boolean> {
-  const people = await listAgentPeopleToHandle(tick.run.id, SCAN);
+async function handlePeople(tick: Tick, options: { undatedPaused: boolean }): Promise<boolean> {
+  // Who may be worked on now, in the queue's order (agent/channels.ts): a channel that is off waits; a new channel
+  // works only its room today (handlingRoom); without a date, only while the written mails leave room (tickRules.ts
+  // workPaused). The rest stay as they are for a later tick.
+  const listed = await listAgentPeopleToHandle(tick.run.id, SCAN, await handlingRoom(tick));
+  const people = options.undatedPaused ? listed.filter((person) => person.signalAt) : listed;
   if (!people.length) return false;
   let lookupsStarted = 0;
   let handled = 0;
@@ -538,11 +661,11 @@ function closedOf(postings: readonly AgentPosting[], closed: ReadonlySet<string>
  * (member, opt-out, recent contact, stale signal …) exclude; postings closed since are dropped from the mail, and
  * with fewer than 2 left the person is skipped. Returns what to send, or null when the person does not get it.
  */
-async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: string; body: string; postings: AgentPosting[] } | null> {
+async function readyToSend(person: AgentPerson, tick: Tick): Promise<{
+  subject: string; body: string; postings: AgentPosting[]; events: AgentOfferEvent[];
+} | null> {
   if (draftExpired(draftedAt(person.events, person.updatedAt), tick.now)) {
-    await updateAgentPerson(person.id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
-      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]);
-    tick.bump("expired");
+    if (await expireDraft(person, tick)) tick.bump("expired");
     return null;
   }
   const excluded = await exclusionNow(person, tick.settings, true);
@@ -554,19 +677,36 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{ subject: 
   }
   const subject = person.draftSubject ?? "";
   const body = person.draftBody ?? "";
-  const { kept, dropped, skip } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
-  if (!dropped.length) return { subject, body, postings: person.postings };
-  const names = dropped.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ").slice(0, 200);
-  const rebuilt = skip ? null : bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept));
+  const offer = storedOffer(person.messageKind);
+  // A coaching mail proposes no posting: nothing to have closed.
+  if (offer === "coaching") return { subject, body, postings: [], events: [] };
+  const general = offer === "general";
+  // A general mail's events that start before the mail goes out are dropped (upcomingEvents); its postings may all
+  // close as long as an event is left, and its events may all go as long as a posting is left.
+  const events = general ? upcomingEvents(person.offerEvents, tick.now) : [];
+  const { kept, dropped, skip: noPostingsLeft } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
+  const skip = general ? !kept.length && !events.length : noPostingsLeft;
+  const goneEvents = general ? person.offerEvents.length - events.length : 0;
+  if (!dropped.length && !goneEvents) return { subject, body, postings: person.postings, events };
+  const names = [
+    ...dropped.map((posting) => `${posting.companyName} · ${posting.title}`), ...(goneEvents ? [`지난 이벤트 ${goneEvents}개`] : []),
+  ].join(" / ").slice(0, 200);
+  // A general mail is drawn from its postings and events (render.ts); only a posting mail's stored list changes.
+  const rebuilt = skip ? null : general || !dropped.length ? body : bodyWithPostings(body, agentPostingList(person.postings), agentPostingList(kept));
   if (rebuilt === null) {
-    const reason = skip ? `공고가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어 보내지 않았어요 · ${names}`;
-    await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
-    tick.bump("skipped_closed_postings");
+    // As an expired mail (expireDraft): picked and written afresh once, skipped the second time.
+    const reason = skip ? `${general ? "공고와 이벤트" : "공고"}가 모두 닫혔어요 · ${names}` : `닫힌 공고를 메일에서 뺄 수 없어요 · ${names}`;
+    if (await expireDraft(person, tick, { skip: reason, redo: `${reason} · 다시 골라 메일을 써요` })) tick.bump("skipped_closed_postings");
     return null;
   }
-  const updated = await updateAgentPerson(person.id, { postings: kept, draftBody: rebuilt },
-    { kind: "note", by: AGENT, note: `닫힌 공고를 메일에서 뺐어요 · ${names}` }, ["approved"]);
-  return updated ? { subject, body: rebuilt, postings: kept } : null;
+  const updated = await updateAgentPerson(person.id, { postings: kept, draftBody: rebuilt.trim(), ...(general ? { offerEvents: events } : {}) },
+    { kind: "note", by: AGENT, note: `닫힌 공고·지난 이벤트를 메일에서 뺐어요 · ${names}` }, ["approved"]);
+  return updated ? { subject, body: rebuilt.trim(), postings: kept, events } : null;
+}
+
+/** The events still ahead at `now` (an event without a readable start is dropped). */
+function upcomingEvents(events: readonly AgentOfferEvent[], now: Date): AgentOfferEvent[] {
+  return events.filter((event) => Date.parse(event.startsAt) > now.getTime());
 }
 
 /** What a sending step did: first mails sent, and why sending stopped for the tick (the provider), if it did. */
@@ -665,6 +805,7 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
   const { settings, now } = tick;
   if (!sendWindowNow(settings, now) || agentSenderProblem(settings)) return { sent: 0, paused: null };
   const budget = await tickMailBudget(settings, now);
+  const room = await channelRoomToday(settings, now);
   let sent = 0;
   for (const { person, due } of await mailsToSendNow(settings, now, limit)) {
     if (pending.has(person.id)) continue;
@@ -676,11 +817,13 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
     let result: Awaited<ReturnType<typeof deliverAgentMail>>;
     try {
       result = await deliverAgentMail({
-        person, postings: ready.postings, settings, sentBy, followup: false, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
+        person, postings: ready.postings, events: ready.events, settings, sentBy, followup: false,
+        timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
         render: (_mailId, links) => renderAgentMail({
           language: person.language ?? "ko", subject: ready.subject, body: ready.body, name: person.name, harperUrl: links.harperUrl,
           postings: ready.postings, senderName: settings.senderName ?? "", senderEmail: settings.senderEmail ?? "",
           unsubscribeUrl: links.unsubscribeUrl,
+          offer: storedOffer(person.messageKind), events: ready.events, eventsFirst: person.intent === "event",
         }),
       });
     } catch (error) {
@@ -695,6 +838,7 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
     if (result.status === "sent") {
       sent += 1;
       spendTickMail(budget);
+      room.spend(channelOf(person));
       await updateAgentPerson(person.id, {
         status: "sent", mailId: result.mailId, sentAt: result.sentAt,
         followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(),
@@ -780,10 +924,30 @@ async function expireDrafts(tick: Tick) {
     order by p.updated_at limit ${EXPIRE_BATCH}::int
   `);
   for (const { id } of rows) {
-    const expired = await updateAgentPerson(id, { status: "skipped", skipReason: DRAFT_EXPIRED_REASON },
-      { kind: "expired", by: AGENT, note: DRAFT_EXPIRED_REASON }, ["approved"]);
-    if (expired) tick.bump("expired");
+    const person = await readAgentPerson(id);
+    if (person && await expireDraft(person, tick)) tick.bump("expired");
   }
+}
+
+/**
+ * A mail written more than DRAFT_MAX_AGE_DAYS ago, or one whose postings and events all closed before it went out: the
+ * first time, the person goes back to the start (postings picked and the mail written afresh on their run, the run
+ * picked up again; Shaun 11/23: nobody is lost to waiting); the second time, skipped. Returns whether it changed the
+ * person.
+ */
+async function expireDraft(
+  person: AgentPerson, tick: Tick, why: { skip: string; redo: string } = { skip: DRAFT_EXPIRED_REASON, redo: DRAFT_REDO_NOTE },
+): Promise<boolean> {
+  if (!redoExpiredDraft(person.events)) {
+    return Boolean(await updateAgentPerson(person.id, { status: "skipped", skipReason: why.skip.slice(0, 300) },
+      { kind: "expired", by: AGENT, note: why.skip.slice(0, 300) }, ["approved"]));
+  }
+  const redone = await updateAgentPerson(person.id, {
+    status: "found", postings: [], offerEvents: [], draftSubject: null, draftBody: null, reason: null, attempts: 0, retryAt: null,
+  }, { kind: "expired", by: AGENT, note: why.redo.slice(0, 300) }, ["approved"]);
+  if (redone?.runId) await requeueAgentRun(redone.runId);
+  tick.bump("redo_expired", redone ? 1 : 0);
+  return Boolean(redone);
 }
 
 /**
@@ -801,9 +965,13 @@ async function followUps(
   // While a team mailbox's replies are not being read, nothing is sent or ended here (replies.server.ts).
   if (await followUpsOnHold()) return { sent: 0, paused: null };
   const { settings, now } = tick;
+  // A channel that is off or at its daily max is left out here, so its follow-ups never hold the batch from the others.
+  const startRoom = await channelRoomToday(settings, now);
+  const full = AGENT_CHANNELS.filter((channel) => startRoom.left(channel) <= 0);
   const due = await gtmRead((sql) => sql<Array<{ id: string }>>`
-    select id from public.gtm_agent_people where status = 'sent' and followup_due_at <= now()
-    order by (events @> '[{"kind":"followup_sent"}]'::jsonb) desc, signal_at desc nulls last, followup_due_at
+    select p.id from public.gtm_agent_people p where p.status = 'sent' and p.followup_due_at <= now()
+      and ${channelSql(sql, "p")} <> all(${full}::text[])
+    order by (p.events @> '[{"kind":"followup_sent"}]'::jsonb) desc, p.signal_at desc nulls last, p.followup_due_at
     limit ${limit}::int
   `);
   for (const { id } of due) {
@@ -826,6 +994,10 @@ async function followUps(
       if (!maySendNow(tick.startedAt, Date.now())) { tick.bump("stopped_send_time"); break; }
       const budget = await tickMailBudget(settings, now);
       if (budget.left <= 0 || budget.quota <= 0) continue;
+      // A channel that is off or at its daily max (its follow-ups count in it) waits; the follow-up stays due.
+      const room = await channelRoomToday(settings, now);
+      const channel = channelOf(person);
+      if (room.left(channel) <= 0) continue;
       // A thread a human answered from Ashley's Gmail gets no automatic mail (Slack notes only).
       let humanOwned: boolean;
       try {
@@ -857,12 +1029,22 @@ async function followUps(
       if (!mayStartPerson(tick.startedAt, Date.now())) { tick.bump("stopped_time"); break; }
       // Turned off since the tick started: nothing more goes out.
       if (!(await readAgentSettings()).enabled) break;
+      const offer = storedOffer(person.messageKind);
       const { kept: open, dropped: closed } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
       let found: FollowupFound | null = null;
+      let freshEvents: AgentOfferEvent[] = [];
       let failure = "";
       try {
-        found = await searchFollowupPostings(person, { runId: tick.run.id, configId: tick.configId });
+        // A coaching mail's follow-up offers the same help again: nothing to search (D).
+        found = offer === "coaching"
+          ? { postings: [], costUsd: 0, failed: null, note: "" }
+          : await searchFollowupPostings(person, { runId: tick.run.id, configId: tick.configId });
         failure = found.failed ?? "";
+        if (offer === "general" && !failure) {
+          const events = await searchFollowupEvents(person, { runId: tick.run.id, configId: tick.configId, now });
+          freshEvents = events.events;
+          found = { ...found, costUsd: found.costUsd + events.costUsd };
+        }
       } catch (error) {
         console.error("[gtm-agent] follow-up postings not found", id, error);
         failure = errorText(error) || "unknown error";
@@ -889,7 +1071,11 @@ async function followUps(
       // the spend log already).
       const still = await readAgentPerson(id);
       if (!still || still.status !== "sent" || !still.followupDueAt || still.followupMailId) continue;
-      const plan = planFollowup({ open, closed, fresh: found.postings, clicked: openedLink(still.events) });
+      const clicked = openedLink(still.events);
+      const plan = offer === "coaching" ? planCoachingFollowup({ clicked })
+        : offer === "general"
+          ? planGeneralFollowup({ open, closed, fresh: found.postings, clicked, upcoming: upcomingEvents(still.offerEvents, now), freshEvents })
+          : planFollowup({ open, closed, fresh: found.postings, clicked });
       if (!plan.send) {
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: costUsd },
           { kind: "ended", by: AGENT, note: found.note ? `${plan.note} · ${found.note}`.slice(0, 300) : plan.note }, ["sent"]);
@@ -900,7 +1086,8 @@ async function followUps(
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
         result = await deliverAgentMail({
-          person, postings: plan.postings, settings, sentBy, followup: true, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
+          person, postings: plan.postings, events: plan.events ?? [], settings, sentBy, followup: true,
+          timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
           render: (_mailId, links) => renderAgentFollowup({
             plan, language, firstSubject: person.draftSubject, name: person.name, harperUrl: links.harperUrl,
             senderName: settings.senderName ?? "", unsubscribeUrl: links.unsubscribeUrl,
@@ -918,6 +1105,7 @@ async function followUps(
       }
       if (result.status === "sent") {
         spendTickMail(budget);
+        room.spend(channel);
         await updateAgentPerson(id, {
           followupMailId: result.mailId, followupDueAt: new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString(), addCostUsd: costUsd,
           attempts: 0,
@@ -958,12 +1146,14 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
   const stuck = await settlePendingMails(tick);
   let sent = stuck.sent;
   let paused = stuck.paused;
+  // Follow-ups first (Shaun 11/23): one more than FOLLOWUP_MAX_LATE_DAYS late is never sent, a first mail only waits.
+  // The 24-hour rule's first mails still go over the pace after them (sendTiming.ts planSends).
+  if (!paused) paused = (await followUps(tick, sentBy, BATCH, stuck.pending)).paused;
   if (!paused) {
     const first = await sendApproved(tick, sentBy, BATCH, stuck.pending);
     sent += first.sent;
     paused = first.paused;
   }
-  if (!paused) paused = (await followUps(tick, sentBy, BATCH, stuck.pending)).paused;
   // Company mails last (same daily cap and send lease): one can search members and write lines, so the candidate
   // mails get the tick's time first; a paused provider pauses them too.
   if (!paused) paused = await companyMails(tick, sentBy);
@@ -981,11 +1171,31 @@ async function sendMails(tick: Tick, sentBy: string): Promise<void> {
  * the agent is turned off with why (shown on /ops #5 as the run's error). Returns whether it is off now.
  */
 async function brakeIfNeeded(tick: Tick): Promise<boolean> {
+  // The same rule on each channel's own mails first (Shaun 11/23): only that channel turns off; the rest goes on.
+  try {
+    // Company sourcing's mails (company_post) are company mails: counted by the company mail step.
+    const byChannel = { ...await agentDeliveryStatsByChannel(BRAKE_DAYS), ...await companySourcingDeliveryStats(BRAKE_DAYS) };
+    for (const [channel, stats] of Object.entries(byChannel) as Array<[AgentChannelKey, NonNullable<(typeof byChannel)[AgentChannelKey]>]>) {
+      if (!tick.settings.channels[channel]?.enabled) continue;
+      const why = brakeReason(stats, CHANNEL_LABELS[channel]);
+      if (!why || !(await brakeAgentChannel(channel, why))) continue;
+      tick.settings.channels[channel] = { ...tick.settings.channels[channel], enabled: false };
+      console.warn("[gtm-agent] channel brake", channel, why);
+      await agentAlert("channel_brake", why, { key: channel, mentionUserId: tick.settings.handoffSlackUserId });
+      tick.bump(`braked_${channel}`);
+    }
+  } catch (error) {
+    // The whole agent's brake below still runs; a brake that cannot be checked is said in Slack, not only on the run.
+    console.error("[gtm-agent] channel brake", error);
+    const line = `채널별 멈춤을 확인하지 못했어요 · ${errorText(error).slice(0, 160)}`;
+    tick.problems.push(line);
+    await agentAlert("tick_error", line);
+  }
   const reason = brakeReason(await agentDeliveryStats(BRAKE_DAYS));
   if (!reason) return false;
   await brakeAgent(reason);
   console.warn("[gtm-agent] brake", reason);
-  await agentAlert("brake", reason);
+  await agentAlert("brake", reason, { mentionUserId: tick.settings.handoffSlackUserId });
   tick.problems.push(reason);
   tick.bump("braked");
   return true;
@@ -1053,6 +1263,21 @@ function yieldCounts(id: string, result: SignalSearchResult): Record<string, num
 }
 
 /**
+ * The day's searches (agent/budget.ts), each while its channel is on: the candidate searches and the open web while
+ * 구직 글·프로필 is (their people are its), LinkedIn's layoff news while 감원 is too, the career-help, event and
+ * hiring-post searches while theirs are (signals.ts goalSearchesOn).
+ */
+function searchOptionsOf(settings: AgentSettings) {
+  const { sources, tuning } = settings.signals;
+  const job = settings.channels.job.enabled;
+  return budgetOptions({
+    turnedOn: job ? Object.keys(sources).filter((id) => sources[id].enabled) : [],
+    layoffSearch: tuning.layoffSearch && settings.channels.layoff.enabled,
+    goalSearches: goalSearchesOn(settings.channels),
+  }).filter((option) => job || option.search !== EXPLORE_SOURCE);
+}
+
+/**
  * A day's run (and "지금 실행") searches each turned-on source once, then the open web (Shaun 11/17: default domains,
  * not limited to them). How much each search gets is the day's split (budget.ts, Shaun 11/18): the agent splits the
  * day's search budget over the places and LinkedIn's layoff method from what earlier days' money brought, starting
@@ -1083,9 +1308,7 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   const cap = newWorkCapUsd(settings.dailyCostUsd);
   if (spent >= cap) { tick.bump("stopped_cost_cap"); return; }
   const left = Math.max(0, cap - spent);
-  const options = budgetOptions({
-    turnedOn: Object.entries(sources).filter(([, setting]) => setting.enabled).map(([id]) => id), layoffSearch: tuning.layoffSearch,
-  });
+  const options = searchOptionsOf(settings);
   const searches = budgetSearches(options);
   if (searches.every((search) => searchStep(run.counts, search) === "done")) return;
   const plan = await dayBudgetPlan({ run, options, leftUsd: left, day: kstClock(tick.now).day, configId: tick.configId, deadlineAt, now: tick.now });
@@ -1127,6 +1350,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     source: id, budgetUsd: budget, layoffBudgetUsd: layoffBudget, maxPeople: SIGNAL_MAX_PEOPLE, known: memory.keys, knownUrls: memory.urls,
     blockedDomains, tuning,
     history: await signalHistory(id, run.id, tuning), demand, deadlineAt, onSpend: spend,
+    // Career-help and event posts are kept while their channel is on, commenters while 댓글 is (agent/channels.ts).
+    intents: searchedIntents(settings.channels), commenters: settings.channels.comment.enabled,
   });
   // What the search did not log as it went (a step cut off at the deadline, at its estimate).
   await spend(result.costUsd - result.recordedUsd);
@@ -1142,7 +1367,8 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   await insertAgentPeople(fresh.map((person) => ({
     runId: run.id, source: person.source, method: person.method, settingsVersion: settings.version,
     tuningVersion: person.tuningVersion, configId: tick.configId, contactUrl: person.contactUrl, personKey: person.personKey,
-    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.group,
+    // A hiring post keeps its opening's title where the company step reads it (search_group); others their query family.
+    signalScore: Math.min(100, Math.max(0, Math.round(person.score))) || 0, matchScore: person.matchScore, searchGroup: person.opening ?? person.group,
     searchQuery: person.query,
     email: person.email, emailSource: person.email ? "post" : null,
     isTest: run.isTest, name: person.name, headline: person.headline, location: person.location,
@@ -1151,7 +1377,10 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
     currentCompany: person.currentCompany, profileUrl: person.profileUrl, profileText: searchedProfileText(person.background, person.pageText),
     signalText: person.signalText,
     signalUrl: person.signalUrl, signalAt: person.signalAt,
-    foundNote: `${person.method === "layoff_company" ? `구조조정 회사(${person.group})` : person.method === "open_to_work_profile" ? "구직 중 프로필" : "구직 글"} · 구직 신호 점수 ${person.score}${person.matchScore === null ? "" : ` · 공고 맞을 가능성 ${person.matchScore}`}`,
+    // Why they wrote, author or commenter; a giver (hiring posts included) is inserted already excluded, never mailed.
+    intent: person.intent, foundAs: person.foundAs, giverKind: person.giverKind,
+    // By kind (signals.ts signalFoundNote): 구직 글 / 상담 글 / 이벤트 글 / 댓글 · … / 돕는 쪽 · … / 회사 소싱 · 채용 글.
+    foundNote: person.foundNote,
   })), AGENT);
   console.info("[gtm-agent] signals", id, JSON.stringify({
     stopped: result.stopped, plans: result.plans.map((plan) => plan.reason ?? plan.plan.slice(0, 120)), yields: result.yields,
@@ -1168,7 +1397,9 @@ async function findSignalPeople(tick: Tick, deadlineAt: number): Promise<void> {
   }
   const added: Record<string, number> = {
     // Known: the judge's targets an earlier run had found, and anyone known from before that (left out at insert).
-    [`signal_found_${id}`]: fresh.length, [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
+    // Found: the new people to mail (givers are recorded too, already excluded, and counted in the yields).
+    [`signal_found_${id}`]: fresh.filter((person) => !person.giverKind).length,
+    [`signal_known_${id}`]: result.knownPeople + result.people.length - fresh.length,
     [`searches_${id}`]: result.yields.length,
     // The search's spend is the run's, not one person's: kept per source so /ops #5 can show it by source.
     [`signal_cost_${id}`]: result.costUsd,
@@ -1223,9 +1454,14 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     // same people, and no mail is written days before it can go). A manual run ("지금 실행") still runs.
     const restDay = run.kind === "daily" && !sendDay(now, sendWindowOf(settings));
     if (restDay) tick.bump("rest_day");
-    const queueFull = !restDay && sendQueueFull(await countAgentSendQueue(), settings.dailyMailCap);
+    // The written mails and the follow-ups due within QUEUE_DAYS against the cap (Shaun 11/23): over it, people
+    // without a date wait; dated people (they go out first) wait only when they alone fill it (tickRules.ts workPaused).
+    const paused = workPaused(await countAgentSendQueue(QUEUE_DAYS), settings.dailyMailCap);
+    const queueFull = !restDay && (run.kind === "daily" ? paused.dated : paused.undated);
     if (queueFull) tick.bump("throttled_queue");
-    const busy = restDay || queueFull || await handlePeople(tick);
+    if (!restDay && !paused.undated && run.kind === "daily") await pullDb(tick);
+    if (!restDay && !paused.dated && run.kind === "daily") await pullGithub(tick);
+    const busy = restDay || queueFull || await handlePeople(tick, { undatedPaused: paused.undated });
     if (!busy) {
       const deadline = searchDeadline(startedAt, Date.now());
       if (deadline) await findSignalPeople(tick, deadline);
@@ -1274,10 +1510,7 @@ async function nextStatus(tick: Tick, today: string): Promise<"queued" | "done">
   if (Number(left?.n ?? 0) > 0) return "queued";
   if (run.kind === "daily") return run.runDate === today ? "queued" : "done";
   if (run.kind === "manual" && !tick.counts.stopped_cost_cap) {
-    const { sources, tuning } = settings.signals;
-    const toSearch = budgetSearches(budgetOptions({
-      turnedOn: Object.keys(sources).filter((id) => sources[id].enabled), layoffSearch: tuning.layoffSearch,
-    }));
+    const toSearch = budgetSearches(searchOptionsOf(settings));
     if (searchesLeft(sumCounts(run.counts, tick.counts), toSearch)) return "queued";
   }
   return "done";

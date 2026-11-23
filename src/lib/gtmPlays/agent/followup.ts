@@ -5,6 +5,11 @@
  *   B  1-2 new postings and earlier ones still open: "still hiring, and these came up since"
  *   C  every earlier posting closed and 1-2 new: "closed since, these came up instead"
  * Nothing new with every earlier posting closed, or nothing new for someone who opened the link: no follow-up.
+ * The other offers (Shaun 11/23 16:50, agent/channels.ts):
+ *   D  a coaching mail: one more offer of the same help, no postings (never for someone who opened the link)
+ *   E  a general mail: its postings follow A/B/C, and an events block goes with them (events already past dropped,
+ *      0-2 new ones within EVENT_MAX_DAYS first); with no posting form, E alone: new postings and/or new events, or,
+ *      for an events-only mail not opened, a reminder that its events are still ahead.
  * New postings come from the first mail's matcher and grader (the same bar), never one already sent to the person nor
  * one at a company already named, at most FOLLOWUP_NEW_MAX. The mail's link page shows every posting it names.
  * Company names take no Korean particle (a Latin name makes 와/과 a guess): "A, B 두 곳은", "A 자리는", "A, B까지".
@@ -14,17 +19,17 @@ import { gtmOptOutMarkdown } from "../shared";
 import { companyKey } from "./match";
 import { mailNames, plainFrameText, postingBulletMarkdown } from "./postingFrame";
 import {
-  AGENT_EN_COUNT, AGENT_KO_COUNT, AGENT_MAIL_COPY, agentCompanyCase, agentGreetingName, agentMailHtml, agentMailSubject,
-  agentSubject, escapeMarkdown, type AgentMailLanguage,
+  AGENT_EN_COUNT, AGENT_KO_COUNT, AGENT_MAIL_COPY, AGENT_OFFER_COPY, agentCompanyCase, agentGreetingName, agentMailHtml, agentMailSubject,
+  agentSubject, escapeMarkdown, eventBulletMarkdown, type AgentMailLanguage,
 } from "./render";
 import { normalizeMessageId } from "./replies";
 import { postingsToMail, withReviews } from "./review";
-import type { AgentEvent, AgentPersonInput, AgentPosting, AgentPostingReview } from "./types";
+import type { AgentEvent, AgentOfferEvent, AgentPersonInput, AgentPosting, AgentPostingReview } from "./types";
 
 /** New postings a follow-up adds at most. */
 export const FOLLOWUP_NEW_MAX = 2;
 
-export type FollowupVariant = "A" | "B" | "C";
+export type FollowupVariant = "A" | "B" | "C" | "D" | "E";
 
 export type FollowupPlan =
   | {
@@ -32,12 +37,21 @@ export type FollowupPlan =
     variant: FollowupVariant;
     /** The first mail's postings the "지난번" line names: still open (A, B) or all closed (C). */
     named: AgentPosting[];
-    /** The new postings, shown as bullets (B, C). */
+    /** The new postings, shown as bullets (B, C, E). */
     fresh: AgentPosting[];
     /** Every posting the mail names: what its link page shows (gtm_mails.postings). */
     postings: AgentPosting[];
+    /** A general mail's events block (new first, then earlier ones still ahead); [] otherwise. */
+    events?: AgentOfferEvent[];
+    /** E only: an events-only mail's reminder that its events are still ahead (nothing new found). */
+    reminder?: boolean;
   }
   | { send: false; note: string };
+
+export const FOLLOWUP_COACHING_CLICKED_NOTE = "상담 페이지를 열어본 분이라 후속 메일을 보내지 않았어요";
+export const FOLLOWUP_NOTHING_NEW_NOTE = "새로 제안할 공고와 행사가 없어 후속 메일을 보내지 않았어요";
+/** Events a mail names at most (as the first mail: events.server.ts EVENTS_PER_MAIL). */
+const FOLLOWUP_EVENTS_MAX = 2;
 
 export const FOLLOWUP_CLOSED_NOTE = "제안한 공고가 모두 닫혀 후속 메일을 보내지 않았어요 (새로 맞는 공고도 없어요)";
 export const FOLLOWUP_CLICKED_NOTE = "공고 페이지를 열어본 분이라, 새로 맞는 공고가 없어 후속 메일을 보내지 않았어요";
@@ -73,6 +87,38 @@ export function planFollowup(args: {
   if (!open.length) return { send: false, note: FOLLOWUP_CLOSED_NOTE };
   if (args.clicked) return { send: false, note: FOLLOWUP_CLICKED_NOTE };
   return { send: true, variant: "A", named: open, fresh: [], postings: open };
+}
+
+/** D: a coaching mail's follow-up, once, unless they opened its link (they saw the offer). */
+export function planCoachingFollowup(args: { clicked: boolean }): FollowupPlan {
+  if (args.clicked) return { send: false, note: FOLLOWUP_COACHING_CLICKED_NOTE };
+  return { send: true, variant: "D", named: [], fresh: [], postings: [], events: [] };
+}
+
+/**
+ * E: a general mail's follow-up. Its postings follow A/B/C (planFollowup) and carry the events block; without a
+ * posting form, E alone when something new came up (postings for a mail that had none, or events), or, for an
+ * events-only mail not opened, a reminder while its events are still ahead. `upcoming`: the first mail's events not
+ * started yet; `freshEvents`: new ones, none already sent.
+ */
+export function planGeneralFollowup(args: {
+  open: readonly AgentPosting[]; closed: readonly AgentPosting[]; fresh: readonly AgentPosting[]; clicked: boolean;
+  upcoming: readonly AgentOfferEvent[]; freshEvents: readonly AgentOfferEvent[];
+}): FollowupPlan {
+  // New ones are picked first; the block lists them by day.
+  const events = [...args.freshEvents, ...args.upcoming].slice(0, FOLLOWUP_EVENTS_MAX)
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+  const hadPostings = args.open.length + args.closed.length > 0;
+  if (hadPostings) {
+    const postings = planFollowup(args);
+    if (postings.send) return { ...postings, events };
+  }
+  const fresh = hadPostings ? [] : args.fresh.slice(0, FOLLOWUP_NEW_MAX);
+  if (fresh.length || args.freshEvents.length) return { send: true, variant: "E", named: [], fresh, postings: fresh, events };
+  if (!hadPostings && !args.clicked && args.upcoming.length) {
+    return { send: true, variant: "E", named: [], fresh: [], postings: [], events, reminder: true };
+  }
+  return { send: false, note: FOLLOWUP_NOTHING_NEW_NOTE };
 }
 
 /** A posting the person was already sent (any candidate mail to them: gtm_mails.postings / posting). */
@@ -136,7 +182,11 @@ export type FollowupFound = {
  * ones. Every step's cost goes on the spend log as it is spent.
  */
 export async function findFollowupPostings(
-  person: AgentPersonInput, args: { sent: readonly SentPosting[]; excludeCompanyNames: ReadonlyArray<string | null | undefined> },
+  person: AgentPersonInput, args: {
+    sent: readonly SentPosting[]; excludeCompanyNames: ReadonlyArray<string | null | undefined>;
+    /** A general mail's person: the matcher's "not looking" does not stop the search (the DB says nothing of it). */
+    anyIntent?: boolean;
+  },
   search: FollowupSearch,
 ): Promise<FollowupFound> {
   const excludeCompanyNames = [...new Set([...args.excludeCompanyNames, ...args.sent.map((posting) => posting.companyName)]
@@ -146,7 +196,7 @@ export async function findFollowupPostings(
   let costUsd = match.costUsd;
   const total = () => Number(costUsd.toFixed(6));
   const textOf = new Map(match.postings.map((posting, index) => [posting, match.postingTexts[index] ?? null]));
-  const candidates = match.notJobSeeking ? [] : unsentPostings(match.postings, args.sent);
+  const candidates = match.notJobSeeking && !args.anyIntent ? [] : unsentPostings(match.postings, args.sent);
   if (!candidates.length) return { postings: [], costUsd: total(), failed: null, note: match.reason || "새로 맞는 공고가 없어요" };
   const review = await search.review({ person, postings: candidates, texts: candidates.map((posting) => textOf.get(posting) ?? null) });
   await search.spend(review.costUsd);
@@ -191,6 +241,11 @@ const FOLLOWUP_COPY = {
     newHere: (count: number) => AGENT_MAIL_COPY.ko.gathered(count),
     // "나올 때마다" promised every one; Harper's checks decide when a role is worth a message.
     ask: ["궁금한 점이 있으면 이 메일에 편하게 답장 주세요.", "지금은 때가 아니시면 넘기셔도 괜찮아요. Harper에 가입해 두시면 잘 맞는 자리가 나왔을 때 알려드릴게요."],
+    // D (coaching) and E (general: the events block, and E alone).
+    coachingAsk: ["궁금한 점이 있으면 이 메일에 편하게 답장 주세요.", "지금은 괜찮으시면 넘기셔도 돼요."],
+    eventsWith: "다가오는 행사도 함께 적어 둘게요.",
+    eventsAhead: "소개드린 행사는 아직 열리기 전이에요.",
+    newSince: (name: string | null) => `그사이 ${name ? `${name}님께 ` : ""}맞을 만한 기회가 새로 보여서 한 번 더 연락드려요.`,
   },
   en: {
     buried: "Just following up once in case my last email got buried.",
@@ -211,6 +266,10 @@ const FOLLOWUP_COPY = {
       "If you have any questions, just reply to this email.",
       "And if now isn't the right time, that's completely fine. If you sign up on Harper, I'll let you know when a role that fits comes up.",
     ],
+    coachingAsk: ["If you have any questions, just reply to this email.", "And if now isn't a good time, that's completely fine."],
+    eventsWith: "Here are some upcoming events too.",
+    eventsAhead: "The events I shared haven't happened yet.",
+    newSince: (_name: string | null) => "I've since come across a few new opportunities that might fit you, so I wanted to reach out once more.",
   },
 } as const;
 
@@ -255,15 +314,28 @@ export function renderAgentFollowup(input: {
   const link = `[${md(mail.open(count))}](${input.harperUrl})`;
   // A loose list (a blank line between items), as the first mail shows its postings.
   const bullets = fresh.map(postingBulletMarkdown).join("\n\n");
-  const middle = plan.variant === "A"
-    ? [paragraph(md(copy.buried), md(copy.stillOpen(names))), paragraph(md(copy.stillHere(count)), link)]
-    : plan.variant === "B"
-      ? [md(copy.more(names, fresh.length, name)), bullets, paragraph(md(copy.allHere(names, count)), link)]
-      : [paragraph(md(copy.takenDown(names, plan.named.length)), md(copy.instead(name, fresh.length))), bullets, paragraph(md(copy.newHere(count)), link)];
+  const offer = AGENT_OFFER_COPY[language];
+  const events = plan.events ?? [];
+  const eventBullets = events.map((event) => eventBulletMarkdown(event, language)).join("\n\n");
+  const eventsBlock = events.length ? [md(plan.variant === "E" ? offer.general.events : copy.eventsWith), eventBullets] : [];
+  const middle = plan.variant === "D"
+    ? [paragraph(md(copy.buried), md(offer.coaching.offer[0])), `[${md(offer.coaching.open)}](${input.harperUrl})`]
+    : plan.variant === "E"
+      ? [
+        plan.reminder ? paragraph(md(copy.buried), md(copy.eventsAhead)) : md(copy.newSince(name)),
+        ...(fresh.length ? [md(offer.general.postings), bullets] : []),
+        ...eventsBlock,
+        paragraph(md(offer.general.gathered), `[${md(offer.general.open)}](${input.harperUrl})`),
+      ]
+      : plan.variant === "A"
+        ? [paragraph(md(copy.buried), md(copy.stillOpen(names))), paragraph(md(copy.stillHere(count)), link), ...eventsBlock]
+        : plan.variant === "B"
+          ? [md(copy.more(names, fresh.length, name)), bullets, paragraph(md(copy.allHere(names, count)), link), ...eventsBlock]
+          : [paragraph(md(copy.takenDown(names, plan.named.length)), md(copy.instead(name, fresh.length))), bullets, paragraph(md(copy.newHere(count)), link), ...eventsBlock];
   const markdown = [
     md(mail.greeting(name)),
     ...middle,
-    paragraph(...copy.ask.map(md)),
+    paragraph(...(plan.variant === "D" ? copy.coachingAsk : copy.ask).map(md)),
     md(mail.thanks),
     paragraph(...mail.signOff(input.senderName.trim()).map(md)),
     gtmOptOutMarkdown(language, input.unsubscribeUrl),
@@ -273,9 +345,11 @@ export function renderAgentFollowup(input: {
 
 /** The timeline line of a follow-up that went out: its form and the new postings. */
 export function followupSentNote(plan: Extract<FollowupPlan, { send: true }>, subject: string): string {
-  const form = plan.variant === "A" ? "A · 아직 열린 공고" : plan.variant === "B" ? "B · 새 공고 더함" : "C · 닫힌 공고 대신 새 공고";
+  const form = plan.variant === "A" ? "A · 아직 열린 공고" : plan.variant === "B" ? "B · 새 공고 더함" : plan.variant === "C" ? "C · 닫힌 공고 대신 새 공고"
+    : plan.variant === "D" ? "D · 상담 한 번 더" : plan.reminder ? "E · 행사 다시 알림" : "E · 새 기회";
   const fresh = plan.fresh.map((posting) => `${posting.companyName} · ${posting.title}`).join(" / ");
-  return `후속 메일 보냄 (${form}) · ${subject}${fresh ? ` · 새 공고: ${fresh}` : ""}`.slice(0, 300);
+  const events = (plan.events ?? []).map((event) => event.title).join(" / ");
+  return `후속 메일 보냄 (${form}) · ${subject}${fresh ? ` · 새 공고: ${fresh}` : ""}${events ? ` · 행사: ${events}` : ""}`.slice(0, 300);
 }
 
 /**

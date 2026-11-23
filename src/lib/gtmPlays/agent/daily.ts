@@ -126,6 +126,36 @@ export function runCountsBySource(counts: Record<string, unknown>): Map<string, 
   return bySource;
 }
 
+/** The counts that say how much a search did: they add up when two searches are shown as one place. */
+const VOLUME_KEY = /^(search_attempts|signal_cost|searches|signal_found|signal_known)_(.+)$/;
+
+/**
+ * A run's counts with each search shown where `place` puts it (agent/signals.ts candidateSearchPlace): a search put
+ * under another id adds its volume counts (attempts, cost, searches, people found and known) to that id's and drops its
+ * state counts (ran, cut off, skipped for the cap), which say how that one search went; a search put nowhere (null) is
+ * left out. Counts of no search stay as they are.
+ */
+export function runCountsByPlace(counts: Record<string, unknown>, place: (source: string) => string | null): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const add = (key: string, value: unknown) => {
+    out[key] = key in out ? round((Number(out[key]) || 0) + (Number(value) || 0)) : value;
+  };
+  for (const [key, value] of Object.entries(counts ?? {})) {
+    const source = SOURCE_KEY.exec(key)?.[1];
+    if (source === undefined) {
+      out[key] = value;
+      continue;
+    }
+    const to = place(source);
+    if (to === source) add(key, value);
+    else if (to !== null) {
+      const volume = VOLUME_KEY.exec(key);
+      if (volume) add(`${volume[1]}_${to}`, value);
+    }
+  }
+  return out;
+}
+
 /** The search spend in a run's counts (signal_cost_<source>), as 하루별 성능 adds it to the run's day. */
 export function runSearchCostUsd(counts: Record<string, unknown>): number {
   return round(Object.entries(counts ?? {})
