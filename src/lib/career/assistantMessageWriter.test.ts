@@ -290,3 +290,26 @@ test("a reply checklist is shown with the reply and continues when the same repl
   const other = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "next", startedAt });
   assert.deepEqual(other.readPlan(), []);
 });
+
+test("an application check stays on its reply when the same reply resumes", async () => {
+  const { admin } = database();
+  const startedAt = new Date().toISOString();
+  const writer = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "apply", startedAt });
+  await writer.start();
+  assert.equal(writer.readApplicationCheck(), false);
+  const activity = await writer.applicationCheck();
+  assert.equal(toTalentMessageResponse(activity!).workApplicationCheck, true);
+  assert.equal(await writer.applicationCheck(), null);
+  const resumed = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "apply", startedAt });
+  assert.equal(resumed.readApplicationCheck(), true);
+  assert.equal(toTalentMessageResponse((await resumed.finish("확인했어요.", []))!).workApplicationCheck, true);
+  // A streamed reply saves nothing until it waits for the browser; that wait saves the flag for the next attempt.
+  const live = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "live-apply", startedAt, onLiveMessage: () => {} });
+  await live.start();
+  assert.equal(await live.applicationCheck(), null);
+  await live.suspend(["지원 정보 확인 중..."]);
+  const afterBrowser = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "live-apply", startedAt });
+  assert.equal(afterBrowser.readApplicationCheck(), true);
+  const other = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "next", startedAt });
+  assert.equal(toTalentMessageResponse((await other.finish("다른 답", []))!).workApplicationCheck, undefined);
+});

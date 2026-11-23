@@ -463,9 +463,9 @@ const CareerWorkspacePage = ({
         notifyGmailIntegrationChanged();
         if (result.status === "permissions_required") {
           if (router.query.gmailCapability === "write") {
-            showToast({ message: t("career.forms.gmailWritePermission", "이메일 작성·발송 권한을 확인하지 못했어요. Gmail을 다시 연결해 주세요."), variant: "error" });
+            showToast({ message: t("career.forms.gmailWritePermission", "이메일 작성·발송 권한을 확인하지 못했어요. 다시 연결할 때 Google 화면에서 Gmail 접근 항목을 선택해 주세요."), variant: "error" });
           } else if (router.query.gmailCapability === "read") {
-            showToast({ message: t("career.integrations.gmail.chat_read_permission", "Gmail 읽기 권한을 확인하지 못했어요. 다시 연결해 주세요."), variant: "error" });
+            showToast({ message: t("career.integrations.gmail.chat_read_permission", "Gmail 읽기 권한을 확인하지 못했어요. 다시 연결할 때 Google 화면에서 Gmail 접근 항목을 선택해 주세요."), variant: "error" });
           }
           clearCallbackQuery(true);
           return;

@@ -1,6 +1,14 @@
 import { careerT } from "@/lib/career/translatedCareerMessage";
 import { getCareerLanguageSettingToolStatus } from "@/lib/talentOnboarding/languageSettingTool";
 
+/** A browser run that reads an application form before the user reviews it. */
+export function isCareerApplicationCheckTool(
+  toolName: string,
+  input?: Record<string, unknown>
+) {
+  return toolName === "use_browser" && input?.action === "run" && input.mode !== "execute";
+}
+
 export function getCareerToolStartThinkingLog(
   toolName: string,
   locale?: string | null,
@@ -8,7 +16,7 @@ export function getCareerToolStartThinkingLog(
 ) {
   switch (toolName) {
     case "use_browser":
-      return input?.action === "run" && input.mode !== "execute"
+      return isCareerApplicationCheckTool(toolName, input)
         ? careerT(locale, "career.application.browser.checking", "지원 정보 확인 중...")
         : "";
     case "update_language_setting":

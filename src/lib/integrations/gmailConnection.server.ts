@@ -1,5 +1,7 @@
 import { scheduleCareerConversationContinuation } from "@/lib/career/onboardingContinuation.server";
 import { wakeMailSyncForUser } from "@/lib/career/emailWriting/sync";
+import { notifyApplicationAwaitingEmailCode, scheduleLocalGmailReview } from "@/lib/career/background/gmailReview";
+import { GMAIL_CONNECTION_CONFIRMED_EVENT } from "@/lib/career/gmailWaitOfferExperiment";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { OpportunityRunRow } from "@/lib/opportunityDiscovery/types";
 
@@ -28,8 +30,29 @@ export async function confirmCareerGmailConnection(args: {
     conversationId: string | null;
     connectionChanged?: boolean;
     run?: OpportunityRunRow;
+    review?: { id: string } | null;
   };
+  // Before the 20261123070000 migration the connection itself started the inbox review; after it, the review
+  // waits its turn (career/background/gmailReview.ts) and only an application waiting for an emailed code hears now.
+  // The server's own record of the connection, which the Gmail card test counts (the app's log misses some returns).
+  try {
+    const { error: logError } = await (args.admin.from as any)("logs").insert({
+      user_id: args.talentId,
+      type: GMAIL_CONNECTION_CONFIRMED_EVENT,
+      meta_data: { read: args.readGranted, changed: Boolean(receipt.connectionChanged) },
+    });
+    if (logError) throw logError;
+  } catch (logError) {
+    console.warn("[career-gmail] Connection not logged", { error: String(logError) });
+  }
   if (receipt.run) scheduleCareerConversationContinuation(receipt.run);
+  if (receipt.review) scheduleLocalGmailReview(args.admin, args.talentId);
+  if (args.readGranted)
+    await notifyApplicationAwaitingEmailCode(args.admin, args.talentId).catch((error) =>
+      console.warn("[career-gmail] Waiting application not told about the connection", {
+        error: String(error),
+      })
+    );
   if (receipt.connectionChanged && args.readGranted)
     await wakeMailSyncForUser({
       admin: args.admin,
