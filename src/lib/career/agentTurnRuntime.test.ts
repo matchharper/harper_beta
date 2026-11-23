@@ -274,6 +274,40 @@ test("checkpoint persists before enqueue and a cancelled reply releases without 
   assert.ok(!calls.some(call => call.name === "finish_career_agent_turn"));
 });
 
+test("a NUL character from a tool result is kept out of the saved checkpoint on both paths and out of the turn record (#95)", async () => {
+  // Postgres jsonb refuses U+0000 ("unsupported Unicode escape sequence"); a tool result read from a page or file can carry it.
+  const page = "Publication time unavailable.\u0000 Senior Engineer \u0000\u0000Seoul";
+  for (const inbox of [false, true]) {
+    const { args, calls } = fixture();
+    const originalRpc = args.admin.rpc.bind(args.admin) as any;
+    (args.admin as any).rpc = (name: string, input: any) => {
+      if (JSON.stringify(input).includes("\\u0000"))
+        return Promise.resolve({ data: null, error: { message: "unsupported Unicode escape sequence", details: "\\u0000 cannot be converted to text." } });
+      if (name === "claim_career_inbox") return originalRpc("claim_career_agent_turn", input);
+      if (name === "read_career_inbox") return Promise.resolve({ data: { messages: [
+        { id: 11, role: "user", content: "이 공고 봐줘", message_type: "chat", payload: {}, created_at: "2026-11-20T01:00:00Z" },
+      ], inputIds: [11], deliveredIds: [], completed: false }, error: null });
+      return originalRpc(name, input);
+    };
+    const turn = await prepareCareerAgentTurn({ ...args, deadlineAt: 0, ...(inbox ? { inboxId: "inbox", agentReplyId: "invocation:inbox" } : {}) });
+    try {
+      const step = turn.runtime.resolveStep(false);
+      await turn.runtime.recordResult("open_url", { ok: true, url: "https://example.com/job", title: "Job", excerpt: page, modelOutput: page }, step, { url: "https://example.com/job" });
+      const record = JSON.stringify(turn.runtime.completedRecord());
+      assert.equal(record.includes("\\u0000"), false, "the record finished with the reply has no NUL either");
+      assert.ok(record.includes("Publication time unavailable. Senior Engineer Seoul"));
+      const messages = [{ role: "tool", content: `항목 0 (0부터): ${page}`, ["note\u0000"]: "kept" }];
+      await assert.rejects(turn.runtime.beforeCompletion(step, { transport: "chat", messages }), CareerReplyContinuation);
+      const saved = calls.findLast(call => call.name === (inbox ? "checkpoint_career_inbox" : "checkpoint_career_agent_turn"))!.args.p_checkpoint;
+      const text = JSON.stringify(saved);
+      assert.equal(text.includes("\\u0000"), false);
+      assert.ok(text.includes("Publication time unavailable. Senior Engineer Seoul"));
+      assert.equal(saved.messages[0].note, "kept");
+      assert.equal(messages[0].content.includes("\u0000"), true, "the running transcript itself is not rewritten");
+    } finally { await turn.release(); }
+  }
+});
+
 test("adapter checkpoints keep their original delivery ownership", async () => {
   const { args } = fixture();
   const turn = await prepareCareerAgentTurn({ ...args, deadlineAt: 0,
