@@ -33,6 +33,22 @@ test("the options: each turned-on place, LinkedIn's layoff method when on, then 
   assert.match(noLayoff[1].about, /OKKY/);
 });
 
+test("goal searches are options of their own after the candidate searches (Shaun 11/23)", () => {
+  const options = budgetOptions({ turnedOn: ["linkedin"], layoffSearch: false, goalSearches: ["linkedin_hiring", "linkedin_coaching", "nope", "linkedin_hiring"] });
+  assert.deepEqual(options.map((option) => option.id), ["linkedin", "explore", "linkedin_hiring", "linkedin_coaching"]);
+  assert.deepEqual(budgetSearches(options), ["linkedin", "explore", "linkedin_hiring", "linkedin_coaching"]);
+  const hiring = options.find((option) => option.id === "linkedin_hiring")!;
+  assert.equal(hiring.part, "signal");
+  assert.match(hiring.about, /never candidates/);
+  // Without them the options are as before (the candidate searches' split is unchanged).
+  assert.deepEqual(budgetOptions({ turnedOn: ["linkedin"], layoffSearch: false, goalSearches: [] }).map((option) => option.id), ["linkedin", "explore"]);
+  // A goal search's money is its own: the plan's amount for it goes to that search only.
+  const amounts = { linkedin: 1, explore: 0.5, linkedin_hiring: 0.3, linkedin_coaching: 0.2 };
+  const day: BudgetPlan = { at: "", totalUsd: 2, dice: {}, note: "", by: "agent", allocations: options.map((option) => ({ option: option.id, usd: amounts[option.id as keyof typeof amounts], why: "" })) };
+  assert.deepEqual(searchBudgetNow({ plan: day, options, search: "linkedin_hiring", spent: {}, done: new Set() }), { usd: 0.3, layoffUsd: 0 });
+  assert.deepEqual(searchBudgetNow({ plan: day, options, search: "linkedin", spent: {}, done: new Set() }), { usd: 1, layoffUsd: 0 });
+});
+
 test("Gamma draws have the right mean", () => {
   const random = seeded(7);
   for (const [shape, rate] of [[1, 1], [3, 2], [0.5, 1], [21, 4]] as const) {

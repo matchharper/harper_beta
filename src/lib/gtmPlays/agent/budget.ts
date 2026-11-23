@@ -12,9 +12,12 @@
  *
  * Pure: the run, the tests and the prompt-version hash share it.
  */
-import { EXPLORE_SOURCE, cleanOpsText, signalSourceInfo } from "./signals";
+import { EXPLORE_SOURCE, cleanOpsText, goalSearchOf, signalSourceInfo } from "./signals";
 
-/** An option id: a search's source id ("linkedin", "hn", "explore"), or "<source>:layoff" for its layoff method. */
+/**
+ * An option id: a search's source id ("linkedin", "hn", "explore"), "<source>:layoff" for its layoff method, or a goal
+ * search's id ("linkedin_hiring": signals.ts GOAL_SEARCHES).
+ */
 export type BudgetOptionId = string;
 export const LAYOFF_OPTION_SUFFIX = ":layoff";
 
@@ -75,10 +78,11 @@ const ABOUT: Record<string, string> = {
 };
 
 /**
- * The options of a day: each turned-on place (in the settings' order), LinkedIn's layoff method when it is on, and
- * the open web.
+ * The options of a day: each turned-on place (in the settings' order), LinkedIn's layoff method when it is on, the
+ * open web, then the goal searches whose channel is on (signals.ts goalSearchesOn, Shaun 11/23: career-help and event
+ * posts, company sourcing), each its own search with its own part of the split, after the candidate searches.
  */
-export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch: boolean }): BudgetOption[] {
+export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch: boolean; goalSearches?: readonly string[] | null }): BudgetOption[] {
   const options: BudgetOption[] = [];
   for (const source of args.turnedOn) {
     if (source === EXPLORE_SOURCE) continue;
@@ -90,6 +94,10 @@ export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch:
     }
   }
   options.push({ id: EXPLORE_SOURCE, search: EXPLORE_SOURCE, part: "signal", label: signalSourceInfo(EXPLORE_SOURCE).label, about: ABOUT[EXPLORE_SOURCE] });
+  for (const id of new Set(args.goalSearches ?? [])) {
+    const goal = goalSearchOf(id);
+    if (goal) options.push({ id: goal.id, search: goal.id, part: "signal", label: goal.label, about: goal.about });
+  }
   return options;
 }
 
