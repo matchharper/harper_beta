@@ -17,6 +17,7 @@ import {
   type ReactNode,
   type TextareaHTMLAttributes,
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -109,6 +110,7 @@ export type ChatComposerFrameProps = Omit<
   context?: ReactNode;
   maxRows?: number;
   mobileLeadingAction?: ReactNode;
+  mobileMinRows?: number;
   overlay?: ReactNode;
   textareaKey?: Key;
   textareaClassName?: string;
@@ -125,6 +127,7 @@ export const ChatComposerFrame = forwardRef<
     context,
     maxRows = DEFAULT_MAX_ROWS,
     mobileLeadingAction,
+    mobileMinRows = 1,
     onBlur,
     onChange,
     onFocus,
@@ -179,16 +182,36 @@ export const ChatComposerFrame = forwardRef<
       readCssPixelValue(styles.borderBottomWidth);
     const maximumHeight =
       lineHeight * Math.max(maxRows, 1) + paddingHeight + borderHeight;
-    const contentHeight = textarea.scrollHeight + borderHeight;
+    const minimumHeight = isMobile
+      ? lineHeight * Math.max(mobileMinRows, 1) + paddingHeight + borderHeight
+      : 0;
+    const contentHeight = Math.max(
+      textarea.scrollHeight + borderHeight,
+      minimumHeight
+    );
 
     textarea.style.height = `${Math.min(contentHeight, maximumHeight)}px`;
     textarea.style.overflowY =
       contentHeight > maximumHeight ? "auto" : "hidden";
-  }, [expanded, maxRows, rows]);
+  }, [expanded, maxRows, mobileMinRows, rows]);
 
   useLayoutEffect(() => {
     resizeTextarea();
   }, [resizeTextarea, textareaKey, value]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    // 접힘·펼침 전환 중 padding이 바뀌면 그 사이에 잰 높이가 남으므로 끝난 뒤 다시 잰다.
+    const handleTransitionEnd = (event: TransitionEvent) => {
+      if (event.target === textarea && event.propertyName.startsWith("padding")) {
+        resizeTextarea();
+      }
+    };
+    textarea.addEventListener("transitionend", handleTransitionEnd);
+    return () =>
+      textarea.removeEventListener("transitionend", handleTransitionEnd);
+  }, [resizeTextarea, textareaKey]);
 
   const handleChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -304,9 +327,9 @@ export const ChatComposerFrame = forwardRef<
             expanded
               ? "max-md:col-span-2 max-md:col-start-1 max-md:row-start-1 max-md:min-h-12 max-md:w-full max-md:px-3.5 max-md:py-3"
               : cn(
-                  "flex items-center max-md:row-start-1 max-md:h-12 max-md:truncate",
+                  "flex items-center max-md:row-start-1 max-md:mr-2 max-md:h-12 max-md:truncate max-md:[mask-image:linear-gradient(to_right,#000_calc(100%-2rem),transparent)]",
                   mobileLeadingAction
-                    ? "max-md:col-start-2 max-md:pr-2 max-md:pl-0"
+                    ? "max-md:col-start-2 max-md:pr-2 max-md:pl-1.5"
                     : "max-md:col-start-1 max-md:pl-3.5 max-md:pr-2"
                 ),
             actionLayout === "footer" ? "md:w-full md:flex-none" : "md:flex-1",
