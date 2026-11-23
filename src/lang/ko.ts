@@ -709,6 +709,8 @@ export const ko = {
     "career.browser.loginDone": "로그인을 마치면 대화에서 알려주세요.",
     "career.browser.noPreview": "브라우저 화면을 불러올 수 없어요. 세션 상태를 확인해 주세요.",
     "career.browser.openWindow": "새 창에서 열기",
+    "career.browser.savedLogin.help": "로그인 전에 체크해 주세요. 로그인이 저장되는 브라우저로 이 화면을 다시 열어요. 하퍼에게 말하면 언제든 지울 수 있어요.",
+    "career.browser.savedLogin.label": "다음 지원부터 로그인 유지하기",
     "career.browser.title": "지원 브라우저",
     "career.calendar.actions": "Google Calendar 메뉴",
     "career.calendar.connect": "연동하기",
