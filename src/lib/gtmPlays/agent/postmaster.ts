@@ -109,7 +109,9 @@ export function gmailSpamLine(spam: GmailSpam | null | undefined): { text: strin
   }
   return {
     text: `Gmail 스팸 ${spamPercent(latest.rate)} · ${monthDay(latest.day)}`,
-    title: spam.days.slice(-7).map((item) => `${monthDay(item.day)} ${spamPercent(item.rate)}`).join(" · "),
+    title:
+      `${monthDay(latest.day)} 하루 값이에요 (누적 아님). Gmail 받은편지함에 들어간 우리 도메인 메일 중 스팸 신고 비율이고, 하퍼 서비스 메일도 포함돼요. ` +
+      `최근 7일: ${spam.days.slice(-7).map((item) => `${monthDay(item.day)} ${spamPercent(item.rate)}`).join(" · ")}`,
     alert: latest.rate >= SPAM_RATE_ALERT,
   };
 }

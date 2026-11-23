@@ -38,7 +38,7 @@ test("setup errors say which step is missing; other errors are not setup", () =>
 
 test("the /ops line: the latest day's rate, red from 0.1%; no number, a missing step and a failed read each say so", () => {
   const ok = gmailSpamLine({ status: "ok", domain: "matchharper.com", days: [{ day: "2026-11-19", rate: 0 }, { day: "2026-11-20", rate: 0.0004 }] });
-  assert.deepEqual(ok, { text: "Gmail 스팸 0.04% · 11/20", title: "11/19 0.00% · 11/20 0.04%", alert: false });
+  assert.deepEqual(ok, { text: "Gmail 스팸 0.04% · 11/20", title: "11/20 하루 값이에요 (누적 아님). Gmail 받은편지함에 들어간 우리 도메인 메일 중 스팸 신고 비율이고, 하퍼 서비스 메일도 포함돼요. 최근 7일: 11/19 0.00% · 11/20 0.04%", alert: false });
   assert.equal(gmailSpamLine({ status: "ok", domain: "matchharper.com", days: [{ day: "2026-11-20", rate: 0.001 }] })?.alert, true);
   assert.match(gmailSpamLine({ status: "ok", domain: "matchharper.com", days: [] })?.text ?? "", /숫자 없음/);
   assert.deepEqual(gmailSpamLine({ status: "setup", domain: "matchharper.com", reason: SCOPE_NOT_ALLOWED }), { text: "Gmail 스팸 연결 전", title: SCOPE_NOT_ALLOWED, alert: false });
