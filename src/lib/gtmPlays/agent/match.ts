@@ -156,7 +156,7 @@ Write the plan's searchIntentSummary in Korean (Harper's recruiters read it).`;
 const WORK_LOCATION_PLAN = `
 
 WORK LOCATION
-countries: where they are based, plus any place they said they can work (the brief's "${WORK_LOCATION_LABEL}"). Another country only with remoteOnly true, and only when they want or accept remote work; never assume they can relocate unless they say so. When where they are based is unknown, plan as usual.`;
+countries: where they are based, plus any place they said they can work (the brief's "${WORK_LOCATION_LABEL}"). Put most of the weight on where they are based, unless they said they mainly want work from another place. Add another country only with remoteOnly true, and only when their post or reply says they want or accept remote work; never assume they can relocate or work remotely unless they say so. When where they are based is unknown, plan as usual.`;
 
 export const OUTREACH_PLAN_PROMPT = `${OUTREACH_PLAN_BASE}${WORK_LOCATION_PLAN}`;
 
