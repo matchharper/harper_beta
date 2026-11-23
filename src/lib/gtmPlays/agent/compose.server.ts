@@ -112,6 +112,8 @@ export async function composeAgentMail(args: {
     ].join("\n"),
     maxTokens: 900,
   }));
+  // The frame writer gave English names already (match.server.ts); this writer's, where usable, are the ones the first
+  // mail shows, and they alone cover postings framed before the frame writer gave names.
   const postings = withMailNames(args.postings, draft.roles, args.language);
   const list = agentPostingList(postings);
   const lead = agentLeadLine(args.language, cleanFocus(draft.focus));

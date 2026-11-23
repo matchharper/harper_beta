@@ -172,6 +172,25 @@ const letters = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "")
  */
 export const ROLE_NAMES_EN = "its company, title and place as an English reader should see them: translate a Korean title into natural English (e.g. '백엔드 개발자' → 'Backend Engineer'); a company's own name written in Korean becomes the name the company uses in English, else its romanization, never a word-by-word translation (e.g. '하늘페이' → 'Haneul Pay', not 'Sky Pay'); keep a name already written in Latin letters as it is, except one written all in lowercase like a job board's id ('acmedata', 'bluewave', 'northstarlabs'): write it the way the company writes its own name ('AcmeData', 'BlueWave', 'NorthStar Labs'); place: the city in English (e.g. '서울 강남구' → 'Seoul'), empty when the role gives no place.";
 
+/** The English names an English mail showed for a posting, as stored on it (types.ts AgentPosting). */
+export type MailShownNames = Partial<Pick<AgentPosting, "mailCompany" | "mailTitle" | "mailPlace">>;
+
+/**
+ * A posting as an English mail showed it, for its link page (invitePage.server.ts): the English names the writers gave,
+ * else as written; a Korean mail's as written.
+ */
+export function shownAsMailed<T extends { companyName?: string | null; title?: string | null; location?: string | null }>(
+  item: T, names: MailShownNames | null | undefined, language: "ko" | "en",
+): T {
+  if (language !== "en" || !names) return item;
+  return {
+    ...item,
+    companyName: names.mailCompany?.trim() || item.companyName,
+    title: names.mailTitle?.trim() || item.title,
+    location: names.mailPlace?.trim() || item.location,
+  };
+}
+
 /** What an English mail's writer gives for each posting: its company, title and place as an English reader sees them. */
 export type MailNames = { company?: string; title?: string; place?: string };
 

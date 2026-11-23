@@ -98,6 +98,19 @@ test("an English mail shows a Korean place in English; a Korean mail keeps it as
   assert.equal(postingBulletMarkdown(korean[0]), "- Example Labs · Data Engineer · 서울");
 });
 
+test("an English mail's link page shows the postings as the mail did; a Korean one as written", async () => {
+  const { shownAsMailed } = await import("./postingFrame");
+  const stored = { companyName: "예시페이", title: "백엔드 엔지니어", location: "서울 강남구", mailCompany: "Yesi Pay", mailTitle: "Backend Engineer", mailPlace: "Seoul" };
+  assert.deepEqual(
+    [shownAsMailed(stored, stored, "en")].map(({ companyName, title, location }) => [companyName, title, location]),
+    [["Yesi Pay", "Backend Engineer", "Seoul"]],
+  );
+  assert.equal(shownAsMailed(stored, stored, "ko").title, "백엔드 엔지니어");
+  // Postings stored before the English names existed show as written.
+  assert.equal(shownAsMailed({ ...stored, mailPlace: null }, { mailPlace: null }, "en").location, "서울 강남구");
+  assert.equal(shownAsMailed({ title: "Data Engineer" }, null, "en").title, "Data Engineer");
+});
+
 test("an English mail takes the writer's casing of a job board's lowercase id, and nothing else (11/19)", async () => {
   const { withMailNames } = await import("./postingFrame");
   const base = { kind: "external" as const, roleId: null, url: null, location: "Remote", why: "Fits." };
