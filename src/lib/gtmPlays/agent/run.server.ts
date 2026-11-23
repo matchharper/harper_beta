@@ -7,10 +7,11 @@ import { composeAgentMail } from "./compose.server";
 import { runCompanyMails } from "./companyMail.server";
 import { conversationStore } from "./conversation.server";
 import {
-  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink, planFollowup, renderAgentFollowup,
+  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink,
+  planCoachingFollowup, planFollowup, planGeneralFollowup, renderAgentFollowup,
   type FollowupFound,
 } from "./followup";
-import { followupThreadHumanOwned, searchFollowupPostings } from "./followup.server";
+import { followupThreadHumanOwned, searchFollowupEvents, searchFollowupPostings } from "./followup.server";
 import {
   EMAIL_LOOKUP_ESTIMATE_USD, EMAIL_LOOKUP_RUN_USD, LOOKUP_MIN_SIGNAL_SCORE, emptyLookup, lookupAllowance, lookupTimedOut,
   needsEmailLookup, noEmailReason,
@@ -997,12 +998,22 @@ async function followUps(
       if (!mayStartPerson(tick.startedAt, Date.now())) { tick.bump("stopped_time"); break; }
       // Turned off since the tick started: nothing more goes out.
       if (!(await readAgentSettings()).enabled) break;
+      const offer = storedOffer(person.messageKind);
       const { kept: open, dropped: closed } = stillOpenPostings(person.postings, closedOf(person.postings, await closedRoleIds(person.postings)));
       let found: FollowupFound | null = null;
+      let freshEvents: AgentOfferEvent[] = [];
       let failure = "";
       try {
-        found = await searchFollowupPostings(person, { runId: tick.run.id, configId: tick.configId });
+        // A coaching mail's follow-up offers the same help again: nothing to search (D).
+        found = offer === "coaching"
+          ? { postings: [], costUsd: 0, failed: null, note: "" }
+          : await searchFollowupPostings(person, { runId: tick.run.id, configId: tick.configId });
         failure = found.failed ?? "";
+        if (offer === "general" && !failure) {
+          const events = await searchFollowupEvents(person, { runId: tick.run.id, configId: tick.configId, now });
+          freshEvents = events.events;
+          found = { ...found, costUsd: found.costUsd + events.costUsd };
+        }
       } catch (error) {
         console.error("[gtm-agent] follow-up postings not found", id, error);
         failure = errorText(error) || "unknown error";
@@ -1029,7 +1040,11 @@ async function followUps(
       // the spend log already).
       const still = await readAgentPerson(id);
       if (!still || still.status !== "sent" || !still.followupDueAt || still.followupMailId) continue;
-      const plan = planFollowup({ open, closed, fresh: found.postings, clicked: openedLink(still.events) });
+      const clicked = openedLink(still.events);
+      const plan = offer === "coaching" ? planCoachingFollowup({ clicked })
+        : offer === "general"
+          ? planGeneralFollowup({ open, closed, fresh: found.postings, clicked, upcoming: upcomingEvents(still.offerEvents, now), freshEvents })
+          : planFollowup({ open, closed, fresh: found.postings, clicked });
       if (!plan.send) {
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null, addCostUsd: costUsd },
           { kind: "ended", by: AGENT, note: found.note ? `${plan.note} · ${found.note}`.slice(0, 300) : plan.note }, ["sent"]);
@@ -1040,7 +1055,8 @@ async function followUps(
       let result: Awaited<ReturnType<typeof deliverAgentMail>>;
       try {
         result = await deliverAgentMail({
-          person, postings: plan.postings, settings, sentBy, followup: true, timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
+          person, postings: plan.postings, events: plan.events ?? [], settings, sentBy, followup: true,
+          timeoutMs: sendCallTimeoutMs(tick.startedAt, Date.now()),
           render: (_mailId, links) => renderAgentFollowup({
             plan, language, firstSubject: person.draftSubject, name: person.name, harperUrl: links.harperUrl,
             senderName: settings.senderName ?? "", unsubscribeUrl: links.unsubscribeUrl,

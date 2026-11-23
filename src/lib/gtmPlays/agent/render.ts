@@ -378,6 +378,7 @@ export function agentMailHtml(markdown: string): { html: string; text: string } 
  * count words, the link's label and the "gathered" line, thanks and the sign-off.
  */
 export {
+  OFFER_COPY as AGENT_OFFER_COPY,
   COPY as AGENT_MAIL_COPY, KO_COUNT as AGENT_KO_COUNT, EN_COUNT as AGENT_EN_COUNT, escapeMarkdown, greetingName as agentGreetingName,
   withCompanyCase as agentCompanyCase,
 };
