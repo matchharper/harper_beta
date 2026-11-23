@@ -15,7 +15,6 @@ jobs:
       matrix:
         ref:
           - dev
-          - claude/project-thread-rexj39
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,7 +28,13 @@ jobs:
       - name: tests
         run: |
           set +e
-          for i in 1 2 3; do
-            node --import tsx --test --test-timeout=120000 --test-reporter=spec src/lib/org/companyRoleBriefRevisionsMigration.test.ts > out.txt 2>&1
-            echo "::warning title=${{ matrix.ref }} run $i::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
-          done
+          # Files both #391 and #431 changed (browser tool, submission receipt) and their neighbours, on the merged dev.
+          files=$(git ls-files 'src/lib/career/browser/*.test.ts' 'src/lib/career/work/*.test.ts' 'src/lib/shareLinks/*.test.ts' \
+            'src/lib/career/forms/*.test.ts' 'src/lib/career/llm.concurrentPreparation.test.ts' 'src/lib/career/background/gmailReview.test.ts' \
+            'src/app/api/talent/integrations/gmail/route.test.ts' 'src/lib/career/opportunityOffer.database.test.ts' \
+            'src/components/career/BrowserSessionCard.test.tsx' 'src/components/career/chat/CareerInlineForms.test.tsx')
+          node --import tsx --test --test-concurrency=4 --test-timeout=120000 --test-reporter=spec $files > out.txt 2>&1
+          echo "::warning title=dev counts::$(grep -E '^ℹ (tests|pass|fail) ' out.txt | tr '\n' ' ')"
+          grep -A30 '^✖ failing tests' out.txt > fail.txt || true
+          split -C 3000 -d fail.txt part_
+          for f in part_*; do echo "::warning title=dev ${f}::$(sed 's/%/%25/g; s/\r//g' $f | sed ':a;N;$!ba;s/\n/%0A/g')"; done
