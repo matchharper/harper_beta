@@ -11,7 +11,7 @@
   {"id": "T10", "runId": "3fa7cf50-6691-4fb8-8961-8d209eeceef6", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "마지막 검색(11/21) 결과 두 개를 이미 다뤘다"},
   {"id": "T11", "runId": "64f48cdd-2a42-42b8-b6b8-10e85d302c32", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "11/22 검색 결과가 이미 채팅에 있다"},
   {"id": "T12", "runId": "2c23e1a5-3a89-449d-9196-4c59028d255a", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "11/21에 이미 다뤘다"},
-  {"id": "C01", "runId": "424e587b-666f-4cd0-b94b-4ae06138f707", "group": "control", "locale": "en", "schedule": "pre_onboarding_instruction", "lastEmail": "11/22", "searchedInRun": false, "recordedReason": "두 시간 전 채팅에서 답했고 후속 질문이 열려 있다"},
+  {"id": "C01", "runId": "e3e4d3a2-c533-4690-918b-ebec8d86ee92", "group": "control", "locale": "ko", "schedule": "pre_onboarding_instruction", "lastEmail": "10/02", "searchedInRun": false, "recordedReason": "경력·학력·이력서가 없고 10월 리마인드에도 답이 없다"},
   {"id": "C02", "runId": "200f6ec9-659a-4a7c-89bc-69f382677f60", "group": "control", "locale": "en", "schedule": "pre_onboarding_instruction", "lastEmail": null, "searchedInRun": false, "recordedReason": "프로필·경력·희망 조건이 모두 비어 있다"},
   {"id": "C03", "runId": "0330b50d-ce7a-4be1-ac44-c5f2fe50011f", "group": "control", "locale": "ko", "schedule": "pre_onboarding_instruction", "lastEmail": "08/10", "searchedInRun": false, "recordedReason": "프로필이 비어 있고 두 번 물었지만 답이 없다"}
 ]

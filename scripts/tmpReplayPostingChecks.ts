@@ -108,13 +108,16 @@ async function main() {
     const admin = cutoffAdmin(sourceId, source.created_at);
     const usage: any[] = [];
     let text = "";
+    let lastStatus = "";
     const started = Date.now();
     const abort = AbortSignal.timeout(15 * 60_000);
     try {
       current = stats;
       await usageMod.withLlmUsageContext({ requestId: crypto.randomUUID(), previewUsage: usage }, () =>
         previewCareerBackgroundTurn({ admin, userId: source.user_id, conversationId: source.conversation_id,
-          existingSourceMessage: source, abortSignal: abort } as any, {
+          existingSourceMessage: source, abortSignal: abort,
+          // The status Harper wrote for the call that starts next (stripped from the tool input).
+          onThinkingLog: (status: string) => { lastStatus = status; } } as any, {
           onComplete: (value: string) => { text = value; },
           onModelTurn: () => undefined,
           executeTool: async ({ name, input, executeRead }: { name: string; input: Row; executeRead: () => Promise<unknown> }) => {
@@ -122,7 +125,8 @@ async function main() {
             const urls = name === "open_url" ? [input.url].flat() : [];
             stats.calls.push({ name, ...(input.query ? { query: String(input.query).slice(0, 120) } : {}),
               ...(urls.length ? { urls: urls.length, maxAgeHours: input.maxAgeHours } : {}), ...(input.action ? { action: input.action } : {}),
-              ...(input._uiStatusMessage ? { ui: String(input._uiStatusMessage).slice(0, 100) } : {}) });
+              ...(lastStatus ? { ui: lastStatus.slice(0, 120) } : {}) });
+            lastStatus = "";
             if (name === "web_search")
               return web.executeSharedWebSearch(input, { admin: full, resourceRefs: true, logging: { admin: full, attribution: { source: "replay" } } });
             if (name === "open_url") {

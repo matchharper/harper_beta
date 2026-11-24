@@ -80,7 +80,8 @@ export async function readCareerContinuationUserContext(args: Pick<PrepareCareer
       // Ordinary user prose is immutable evidence. Artifact clicks use the
       // shared projection, which preserves the exact selected action and values.
       const content = row.message_type === "chat" || row.message_type === "mail"
-        ? [fitCareerInputForModel(isAshleyInboxMail(row) ? ashleyInboxMailForModel(row.content ?? "", row.payload) : row.content ?? ""), formatCareerActionItemResponse(row.payload),
+        // Only the person's own text is fitted, so the Ashley frame, her mail and the roles it named stay whole.
+        ? [isAshleyInboxMail(row) ? ashleyInboxMailForModel(fitCareerInputForModel(row.content ?? ""), row.payload) : fitCareerInputForModel(row.content ?? ""), formatCareerActionItemResponse(row.payload),
           ...(isCareerTurnStopped(row.payload) ? [CAREER_TURN_STOP_FACT] : [])].filter(Boolean).join("\n")
         : formatTalentMessageContentForModel(row, {
             includeCreatedAt: false, timeZone: args.promptArgs.timeZone,

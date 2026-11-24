@@ -163,6 +163,35 @@ section.prop { padding-top: 64px; scroll-margin-top: 56px; display: grid; gap: 2
 
 /* ---------- company detail ---------- */
 .detail { background: var(--s-work); box-shadow: var(--s-shadow); border-radius: 20px; padding: 22px 24px 28px; min-width: 0; display: grid; gap: 28px; }
+.d-col { min-width: 0; display: grid; }
+.d-col > * { grid-area: 1 / 1; }
+.view-in { animation: viewIn .28s cubic-bezier(.22,1,.36,1); }
+@keyframes viewIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .view-in { animation: none; } }
+.co-top { display: grid; gap: 12px; }
+.co-top .d-co .logo { width: 40px; height: 40px; font-size: 18px; border-radius: 11px; }
+.co-top .d-co .name { font-size: 17px; }
+.hr { height: 1px; background: rgba(0,0,0,.07); }
+.post { display: grid; gap: 18px; }
+.post h5 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.post ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; color: rgba(29,29,31,.86); }
+.post p { margin: 0; font-size: 13.5px; color: rgba(29,29,31,.86); }
+.post .posted { font-size: 12.5px; color: var(--s-ink2); display: inline-flex; padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,.6); justify-self: start; }
+.post .src-link { font-size: 12.5px; color: var(--s-ink2); text-decoration: underline; text-underline-offset: 3px; justify-self: start; }
+.ppl { display: grid; gap: 4px; }
+.ppl-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; transition: background .15s; }
+.ppl-row:hover { background: rgba(255,255,255,.65); }
+.plogo { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 800; letter-spacing: -.02em; box-shadow: 0 0 0 .5px rgba(0,0,0,.08); }
+.plogo.round { border-radius: 50%; font-size: 11px; }
+.ppl-mid { min-width: 0; display: grid; gap: 4px; }
+.ppl-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppl-bar { height: 4px; border-radius: 999px; background: rgba(0,0,0,.06); overflow: hidden; }
+.ppl-bar i { display: block; height: 100%; border-radius: 999px; background: #1d1d1f; }
+.ppl-n { font-size: 12.5px; color: var(--s-ink2); font-variant-numeric: tabular-nums; }
+.ppl-sum { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--s-ink2); }
+.avs { display: flex; }
+.avs span { width: 26px; height: 26px; border-radius: 50%; margin-left: -7px; box-shadow: 0 0 0 2px #f4f6f9; display: grid; place-items: center; font-size: 10.5px; font-weight: 600; color: #fff; }
+.avs span:first-child { margin-left: 0; }
 .d-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .d-tabs { display: inline-flex; background: rgba(0,0,0,.05); border-radius: 12px; padding: 3px; gap: 2px; }
 .d-tabs button { border: 0; background: transparent; padding: 6px 14px; border-radius: 9px; font-size: 13px; color: var(--s-ink2); cursor: pointer; transition: background .18s, color .18s, box-shadow .18s; }
@@ -498,7 +527,7 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
   <section class="prop" id="company">
     <div>
       <div class="eyebrow">제안 2 · 기회 상세 (데스크톱·모바일 공통)</div>
-      <h2>기회를 누르면 회사 핵심만 먼저 보여 주고, 자세한 정보는 회사 정보 탭에서 봐요</h2>
+      <h2>기회를 누르면 위에는 회사 요약, 아래에는 공고 정보를 보여 주고, 회사는 따로 열어 자세히 봐요</h2>
     </div>
     <div class="why">
       <div>
@@ -512,8 +541,8 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
       <div>
         <h3>무엇을 기대하나</h3>
         <ul>
-          <li>처음에는 회사 설명과 핵심 숫자 네 개만 보여서 기회를 읽는 흐름이 끊기지 않아요.</li>
-          <li>더 알고 싶으면 회사 정보 탭에서 채용·투자·인원·구성원까지 Harper 안에서 다 봐요.</li>
+          <li>기회를 열면 어떤 회사인지 먼저 보고, 바로 아래에서 Harper 메모와 공고 내용을 이어서 읽어요.</li>
+          <li>더 알고 싶을 때만 회사를 따로 열어 채용·투자·인원·구성원까지 Harper 안에서 다 봐요.</li>
           <li>투자와 인원 흐름이 그래프로 보여서 성장 중인 회사인지 금방 감이 와요.</li>
           <li>직무를 표로 줄여 나와 맞는 것만 먼저 보고, 나머지는 펼쳐서 검색해요.</li>
         </ul>
@@ -533,63 +562,64 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
           <div class="b-bot">작년부터 빠르게 크고 있는 업무용 AI agent 회사예요. 6월에 Series B를 받고 한 달에 6~8명씩 뽑고 있어요.</div>
           <div class="m-composer">새로운 조건이나 궁금한 점을 남겨주세요</div>
         </div>
+        <div class="d-col">
         <article class="detail" id="detail">
-          <div class="d-head">
-            <span class="d-back">← 기회</span>
-            <div class="d-tabs" role="tablist" aria-label="상세 보기">
-              <button role="tab" aria-selected="true" data-dtab="opp">기회</button>
-              <button role="tab" aria-selected="false" data-dtab="co">회사 정보</button>
+          <span class="d-back">← 기회</span>
+          <div class="co-top">
+            <div class="d-co">
+              <span class="logo" style="background:#2f4b9a">M</span>
+              <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
+            </div>
+            <p class="d-desc clamp">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요.</p>
+            <div class="sum-facts">
+              <div><span class="k">인원</span><span class="v">142명<em>1년 +35%</em></span></div>
+              <div><span class="k">최근 투자</span><span class="v">Series B · 600억</span></div>
+              <div><span class="k">채용 중</span><span class="v"><span data-jobcount>42</span>개<em class="n">새 <span data-newcount>16</span></em></span></div>
+              <div><span class="k">본사</span><span class="v">서울 성동구</span></div>
+            </div>
+            <div class="follow-row">
+              <button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button>
+              <button class="btn ghost" data-open-company>회사 정보 더 보기 →</button>
             </div>
           </div>
-
-          <div class="d-pane" data-pane="opp">
+          <div class="hr"></div>
+          <div class="post">
             <div class="d-role">
               <h3>Applied AI Engineer, Agent Platform</h3>
-              <div class="meta">Morrow Labs · 서울 성수 · 대면 + 원격 · 풀타임 · 경력 5년 이상</div>
-              <div class="d-memo">
-                <span class="lbl">Harper 메모</span>
-                <span>원하던 agent 제품 팀이고, 평가 파이프라인을 직접 만든 경험과 맞아요.</span>
-                <span>Series B 직후라 지금 들어가면 플랫폼 초기 설계를 맡게 될 가능성이 커요.</span>
-              </div>
-              <div class="d-actions"><button class="btn">이번엔 넘길게요</button><button class="btn dark">관심 있어요</button></div>
+              <div class="meta">서울 성수 · 대면 + 원격 · 풀타임 · 경력 5년 이상</div>
             </div>
-            <div class="co-sum">
-              <div class="d-co">
-                <span class="logo" style="background:#2f4b9a">M</span>
-                <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
-              </div>
-              <p class="d-desc clamp">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요.</p>
-              <div class="sum-facts">
-                <div><span class="k">인원</span><span class="v">142명<em>1년 +35%</em></span></div>
-                <div><span class="k">최근 투자</span><span class="v">Series B · 600억</span></div>
-                <div><span class="k">채용 중</span><span class="v"><span data-jobcount>42</span>개<em class="n">새 <span data-newcount>16</span></em></span></div>
-                <div><span class="k">본사</span><span class="v">서울 성동구</span></div>
-              </div>
-              <div class="follow-row">
-                <button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button>
-                <button class="btn ghost" data-dtab="co">회사 정보 더 보기 →</button>
-              </div>
+            <span class="posted">게시일 2026. 11. 20.</span>
+            <div class="d-memo" style="margin-top:0">
+              <span class="lbl">Harper 메모</span>
+              <span>원하던 agent 제품 팀이고, 평가 파이프라인을 직접 만든 경험과 맞아요.</span>
+              <span>Series B 직후라 지금 들어가면 플랫폼 초기 설계를 맡게 될 가능성이 커요.</span>
             </div>
+            <div><h5>하는 일</h5><p>고객사 문서를 읽고 업무를 처리하는 agent의 계획·도구 호출·평가 파이프라인을 설계하고 운영해요. 새 고객사에 붙일 때 생기는 실패 사례를 모아 모델과 프롬프트를 개선해요.</p></div>
+            <div><h5>자격 요건</h5><ul><li>LLM 기반 제품을 실제 운영해 본 경험 2년 이상</li><li>Python, TypeScript 중 하나로 프로덕션 서비스 개발</li><li>오프라인·온라인 평가를 설계해 본 경험</li></ul></div>
+            <div><h5>우대 사항</h5><ul><li>B2B 고객사 연동 경험</li><li>검색·RAG 시스템 개선 경험</li></ul></div>
+            <span class="src-link">원문 보기</span>
+            <div class="d-actions" style="margin-top:0"><button class="btn">이번엔 넘길게요</button><button class="btn dark">관심 있어요</button></div>
           </div>
+        </article>
 
-          <div class="d-pane" data-pane="co" hidden>
-            <div class="d-sec" id="d-about">
-              <div class="d-co">
-                <span class="logo" style="background:#2f4b9a">M</span>
-                <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
-              </div>
-              <p class="d-desc">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요. 첫 고객은 증권사 리서치 팀이었고, 지금은 금융·제조 대기업 40여 곳이 쓰고 있어요.</p>
-              <div class="facts">
-                <div><div class="k">전체 인원</div><div class="v">142명</div></div>
-                <div><div class="k">본사</div><div class="v">서울 성동구</div></div>
-                <div><div class="k">설립</div><div class="v">2021년 4월</div></div>
-                <div><div class="k">최근 투자</div><div class="v">Series B <small>2026.06</small></div></div>
-                <div><div class="k">누적 투자</div><div class="v">900억 원</div></div>
-                <div><div class="k">분야</div><div class="v">B2B · AI agent</div></div>
-              </div>
-              <div class="follow-row"><button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button></div>
+        <article class="detail" id="companyView" hidden>
+          <button class="d-back" data-close-company style="border:0;background:none;padding:0;cursor:pointer;justify-self:start">← Applied AI Engineer</button>
+          <div class="d-sec" id="d-about">
+            <div class="d-co">
+              <span class="logo" style="background:#2f4b9a">M</span>
+              <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
             </div>
-
+            <p class="d-desc">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요. 첫 고객은 증권사 리서치 팀이었고, 지금은 금융·제조 대기업 40여 곳이 쓰고 있어요.</p>
+            <div class="facts">
+              <div><div class="k">전체 인원</div><div class="v">142명</div></div>
+              <div><div class="k">본사</div><div class="v">서울 성동구</div></div>
+              <div><div class="k">설립</div><div class="v">2021년 4월</div></div>
+              <div><div class="k">최근 투자</div><div class="v">Series B <small>2026.06</small></div></div>
+              <div><div class="k">누적 투자</div><div class="v">900억 원</div></div>
+              <div><div class="k">분야</div><div class="v">B2B · AI agent</div></div>
+            </div>
+            <div class="follow-row"><button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button></div>
+          </div>
             <nav class="d-nav" aria-label="회사 정보 목차">
               <button data-go="d-jobs" class="on">채용 <span data-jobcount>42</span></button>
               <button data-go="d-fund">투자</button>
@@ -634,13 +664,14 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
 
             <div class="d-sec" id="d-people">
               <h4>구성원</h4>
+              <div class="ppl-sum"><span class="avs"><span style="background:#5b6b8a">JH</span><span style="background:#8a5b6b">SY</span><span style="background:#5b8a7a">MK</span><span style="background:#8a7a5b">DW</span><span style="background:#6b5b8a">EJ</span></span>평균 경력 7.2년 · 엔지니어 58%</div>
               <div class="two">
                 <div><h5>이전 회사</h5><div class="bars" id="prevCo"></div></div>
                 <div><h5>출신 학교</h5><div class="bars" id="schools"></div></div>
               </div>
             </div>
-          </div>
         </article>
+        </div>
       </div>
     </div>
 
@@ -648,12 +679,12 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
       <div>
         <h3>화면 구성</h3>
         <ul>
-          <li><b>기회 탭</b> (처음 화면): 기회 내용 아래에 회사 설명 세 줄과 인원·최근 투자·채용 중·본사만 보여 줘요. 팔로우와 ‘회사 정보 더 보기’를 그 아래 한 줄에 둬요.</li>
-          <li><b>회사 정보 탭</b>: 회사 설명 전체와 핵심 정보, 팔로우 아래로 채용·투자·인원·구성원이 이어져요. 위쪽 목차로 바로 이동해요.</li>
+          <li><b>기회 상세</b>: 위에는 회사 설명 세 줄과 인원·최근 투자·채용 중·본사, 팔로우와 ‘회사 정보 더 보기’를 둬요. 아래에는 지금처럼 게시일, Harper 메모, 하는 일, 자격 요건, 원문 보기와 행동 버튼이 그대로 이어져요.</li>
+          <li><b>회사 상세</b>: ‘회사 정보 더 보기’를 누르면 지금 회사 상세처럼 따로 열려요. 회사 설명 전체와 핵심 정보, 팔로우 아래로 채용·투자·인원·구성원이 이어지고, 위쪽 목차로 바로 이동해요. 뒤로 가면 보던 기회로 돌아가요.</li>
           <li><b>채용</b>: 직군별 개수를 많은 순으로 보여 주고, 최근 14일 동안 새로 올라온 직무 수를 붙여요. 이 사람과 관련된 직무를 위에 먼저 보여 주고, 나머지는 접어 둬요. 펼치면 검색과 직군 필터를 쓸 수 있어요.</li>
           <li><b>투자</b>: 라운드별 금액을 시간축 막대로 보여 줘요. 막대에 마우스를 올리면 날짜와 투자사가 보여요.</li>
           <li><b>인원</b>: 국민연금 월별 자료로 위에는 입사, 아래에는 퇴사 막대를 그리고 인원 수는 선으로 겹쳐요. 막대에 마우스를 올리면 그 달 숫자가 보여요.</li>
-          <li><b>구성원</b>: 이전 회사와 출신 학교를 많은 순으로 보여 줘요.</li>
+          <li><b>구성원</b>: 이전 회사와 출신 학교를 로고와 함께 많은 순으로 보여 줘요. 예시의 로고 자리는 실제 회사·학교 로고로 바뀌어요.</li>
         </ul>
       </div>
       <div class="q">
@@ -963,7 +994,7 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
     if (pf) pf.onclick = () => { pastOpen = !pastOpen; renderOpps(); $("#pastFold").focus(); };
     $$(".opp.link", list).forEach((el) => {
       const go = () => {
-        showDetailTab("opp");
+        closeCompany();
         if (location.hash !== "#company") location.hash = "company"; else goHash();
         const d = $("#detail");
         d.classList.remove("flash"); void d.offsetWidth; d.classList.add("flash");
@@ -1085,13 +1116,18 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
     const on = b.getAttribute("aria-pressed") !== "true";
     $$(".follow").forEach((x) => { x.setAttribute("aria-pressed", String(on)); x.classList.toggle("on", on); x.textContent = on ? "✓ 팔로우 중" : "＋ 회사 팔로우"; });
   }));
-  function showDetailTab(k) {
-    $$("#detail [role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.dtab === k)));
-    $$("#detail .d-pane").forEach((p) => (p.hidden = p.dataset.pane !== k));
-    const d = $("#detail");
+  function openCompany() {
+    $("#detail").hidden = true; const v = $("#companyView"); v.hidden = false;
+    v.classList.remove("view-in"); void v.offsetWidth; v.classList.add("view-in");
+    if (v.getBoundingClientRect().top < 0) v.scrollIntoView({ block: "start" });
+  }
+  function closeCompany() {
+    $("#companyView").hidden = true; const d = $("#detail"); d.hidden = false;
+    d.classList.remove("view-in"); void d.offsetWidth; d.classList.add("view-in");
     if (d.getBoundingClientRect().top < 0) d.scrollIntoView({ block: "start" });
   }
-  $("#detail").addEventListener("click", (e) => { const b = e.target.closest("[data-dtab]"); if (b) showDetailTab(b.dataset.dtab); });
+  $("[data-open-company]").addEventListener("click", openCompany);
+  $("[data-close-company]").addEventListener("click", closeCompany);
   $$(".d-nav button").forEach((b) => b.addEventListener("click", () => {
     $$(".d-nav button").forEach((x) => x.classList.toggle("on", x === b));
     document.getElementById(b.dataset.go).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
@@ -1183,12 +1219,13 @@ footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px 
     svg.addEventListener("pointerleave", hide);
   })();
 
-  const bars = (el, rows) => {
+  const bars = (el, rows, round) => {
     const max = Math.max(...rows.map((r) => r[1]));
-    $(el).innerHTML = rows.map(([l, n], i) => `<div class="bar-row"><span class="lab">${esc(l)}</span><span class="track"><span class="fill" style="display:block;width:${(n / max) * 100}%;opacity:${1 - i * .1}"></span></span><span class="n">${n}</span></div>`).join("");
+    $(el).className = "ppl";
+    $(el).innerHTML = rows.map(([l, n, mark, bg, fg]) => `<div class="ppl-row"><span class="plogo${round ? " round" : ""}" style="background:${bg};color:${fg}">${mark}</span><span class="ppl-mid"><span class="ppl-name">${esc(l)}</span><span class="ppl-bar"><i style="width:${(n / max) * 100}%"></i></span></span><span class="ppl-n">${n}명</span></div>`).join("");
   };
-  bars("#prevCo", [["네이버", 14], ["카카오", 11], ["쿠팡", 8], ["토스", 7], ["삼성전자", 6], ["당근", 5], ["LINE", 5]]);
-  bars("#schools", [["서울대", 17], ["KAIST", 15], ["해외 대학", 13], ["연세대", 10], ["고려대", 9], ["POSTECH", 6]]);
+  bars("#prevCo", [["네이버", 14, "N", "#03c75a", "#fff"], ["카카오", 11, "K", "#fee500", "#3c1e1e"], ["쿠팡", 8, "c", "#fff", "#e52528"], ["토스", 7, "t", "#0064ff", "#fff"], ["삼성전자", 6, "S", "#1428a0", "#fff"], ["당근", 5, "당", "#ff6f0f", "#fff"], ["LINE", 5, "L", "#06c755", "#fff"]]);
+  bars("#schools", [["서울대", 17, "S", "#0f0f70", "#fff"], ["KAIST", 15, "K", "#004191", "#fff"], ["해외 대학", 13, `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>`, "#eef1f5", "#1d1d1f"], ["연세대", 10, "Y", "#003876", "#fff"], ["고려대", 9, "K", "#8b0029", "#fff"], ["POSTECH", 6, "P", "#c80150", "#fff"]], true);
 
   /* ================= 3. face ================= */
   const FACE = `

@@ -34,6 +34,7 @@ import {
 } from "@/lib/ops/matchingViewedAt";
 import { OPS_ROLE_MEMO_KIND } from "@/lib/ops/talentMemo";
 import type { Database } from "@/types/database.types";
+import { listTestTalentAccountUserIds, testTalentAccountExclusion } from "@/lib/testAccounts";
 
 type TalentUserRow = Database["public"]["Tables"]["talent_users"]["Row"];
 type TalentConversationRow =
@@ -1333,6 +1334,10 @@ export async function fetchCareerTalentList(args: {
       matchedRows = matchedRows.filter(hasCareerTalentSubmittedMaterial);
     }
 
+    // Persona test accounts never appear in ops lists.
+    const testUserIds = new Set(await listTestTalentAccountUserIds());
+    matchedRows = matchedRows.filter((row) => !testUserIds.has(row.user_id));
+
     totalCount = matchedRows.length;
     rows = matchedRows.slice(offset, offset + limit);
   } else {
@@ -1345,6 +1350,7 @@ export async function fetchCareerTalentList(args: {
       .select(CAREER_TALENT_LIST_SELECT, {
         count: "exact",
       })
+      .not("user_id", "in", await testTalentAccountExclusion())
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
