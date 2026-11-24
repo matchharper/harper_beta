@@ -91,13 +91,14 @@ LLM이 긴 요약을 통째로 다시 쓰면 내용이 줄거나 어긋나는 �
 - **보낸 메일 기록에는 Harper가 쓴 본문만 둔다 — 로컬 구현(2026-11-23).** 메일 답장과 정기 실행은 `career_email_messages.body_text`를 대화 이력으로 읽는다. 발송 때 붙는 하단 문구("사람과 이야기하려면 chris@로 메일")까지 여기에 저장되어 있었다. 그래서 Harper가 항의한 사용자에게 팀원 개인 메일을 안내했고, 11/8~11/23에는 276통에 하단 문구를 직접 따라 써 두 번 붙여 보냈다.
   - 정기 실행 메일(`finish_career_agent_email`), Worker 연락 큐·미팅 초대, 운영 수동 메일이 하단 문구 없이 본문만 저장한다. 실제 발송 원문은 `talent_opportunity_delivery.payload.emailPayload`에 그대로 남는다.
   - 기존 기록은 같은 migration에서 하단 문구 줄을 지운다. Harper가 하단 문구를 바꿔 쓴 문장은 Harper가 한 말이라 남긴다. [migration](../supabase/migrations/20261123170000_career_email_history_without_footer.sql)
-- **안 본 답장을 메일로 깨우는 경로 — 운영 DB 적용, 웹 미배포(2026-11-23).** 사용자가 질문하고 떠나면 끝난 답장이 채팅에 묻힌다. 서버는 탭이 보이는지 모르고, 연결이 끊긴 이유(탭 닫기·모바일 백그라운드·네트워크)도 구분하지 못한다. 그래서 "끝난 순간 자리에 없나" 대신 "몇 분 동안 안 봤나"로 판단한다.
-  - 브라우저는 페이지가 보이고 채팅 목록이 실제로 화면에 있을 때 저장된 최신 메시지 ID를 남긴다(`career_conversation_seen`). 모바일에서 다른 탭 뒤에 가려진 채팅은 본 것으로 치지 않는다.
-  - 1분마다 도는 `collect_due`가 웹 채팅 답장 중 5분 넘게 그 위치 뒤에 남은 것을 찾아, 답장마다 한 번 백그라운드 실행(`career_reply_unseen`)을 만든다(`admit_career_unseen_replies_v1`). 사용자의 마지막 메시지까지 브라우저가 기록한 대화만 대상이다. 그래서 이 기능 전의 대화와 옛 화면은 제외된다. 메일로 받은 요청, 사용자가 이어서 말한 대화, 테스트 계정도 제외한다.
+- **안 본 답장을 메일로 깨우는 경로 — 2026-11-24 운영 배포, 같은 날 "닫았을 때만"으로 고침(로컬).** 사용자가 질문하고 Harper를 닫으면 끝난 답장이 채팅에 묻힌다. 메일은 사용자가 Harper를 닫았을 때만 보낸다. 다른 탭이나 앱으로 옮겼거나 Harper 안의 다른 화면(기회 목록 등)에 있을 때 보내면 안 된다. 사용자가 정한 이 기준이 가장 중요하다. 작업이 오래 걸린 답장만 대상이다.
+  - 브라우저는 페이지가 보이고 채팅 목록이 실제로 화면에 있을 때 저장된 최신 메시지 ID를 남긴다(`career_conversation_seen`). 이 기록은 답장을 봤는지만 정한다.
+  - Career 페이지는 열려 있는 동안 1분마다 "열려 있음"을 남기고, 탭이나 브라우저가 페이지를 닫을 때(back/forward 캐시에 들어가지 않는 `pagehide`) 한 번 "닫힘"을 남긴다(`career_page_presence`). 숨겨진 탭, 다른 앱, Harper 안 화면 이동은 닫힘을 남기지 않는다. 닫힘 없이 기록이 끊긴 페이지(백그라운드로 간 모바일 앱, 강제 종료)는 열린 것으로 남아 메일을 보내지 않는다. 닫힘을 놓치는 쪽은 메일이 안 가는 것이라 안전하다.
+  - 1분마다 도는 `collect_due`가 웹 채팅 답장 중 다음을 모두 만족하는 것을 찾아, 답장마다 한 번 백그라운드 실행(`career_reply_unseen`)을 만든다(`admit_career_unseen_replies_v2`). 답장이 사용자 메시지보다 3분 이상 늦게 나왔다. 답장이 나온 뒤 30분이 지났는데 아직 보지 않았다. 사용자가 메시지를 보낸 뒤 Harper 페이지를 닫았고, 지난 하루 안에 열렸던 페이지 중 닫히지 않은 것이 없다. 사용자의 마지막 메시지까지 브라우저가 기록한 대화만 대상이다. 메일로 받은 요청, 사용자가 이어서 말한 대화, 테스트 계정은 제외한다.
   - 원본 Career agent가 대화를 보고 메일을 보낼지와 내용을 정한다. 원문에 앞뒤만 덧붙이는 틀은 두지 않는다. 추천처럼 채팅 카드로 보인 답은 메일에서 실제 링크로 다시 써야 하기 때문이다. 모델은 정기 실행과 같은 모델(`getScheduledCareerModelOptions`)을 쓴다.
-  - 사용자가 답장을 보면 그 실행을 취소한다. 취소하면 대화 claim이 바로 풀리고, 돌던 turn은 2초 안에 멈춘다. 실행을 시작할 때와 메일을 보내기 직전에도 `assertCareerSourceEventsCurrent`가 다시 확인한다. 이 실행은 정기 탐색 주기를 미루지 않고(`cadencePolicy.affectsBaseCadence=false`), 대기 중인 탐색 사건을 가져가지 않는다.
+  - 사용자가 답장을 보거나 Harper를 다시 열면 그 실행을 취소한다. 취소하면 대화 claim이 바로 풀리고, 돌던 turn은 2초 안에 멈춘다. 실행을 시작할 때와 메일을 보내기 직전에도 `assertCareerSourceEventsCurrent`가 다시 확인한다. 이 실행은 정기 탐색 주기를 미루지 않고(`cadencePolicy.affectsBaseCadence=false`), 대기 중인 탐색 사건을 가져가지 않는다.
   - 효과는 `/ops/update-metrics`의 '메일 받은 뒤 행동'에 있는 '안 본 답장 메일'(기간 안에 보낸 메일 수, 검토한 답장 수)에서 본다. 이 메일도 같은 섹션의 행동 비율에 함께 들어간다.
-  - [migration](../supabase/migrations/20261123150000_career_reply_unseen_email.sql) · [스캔](../src/lib/career/background/unseenReply.ts) · [브라우저 기록](../src/hooks/career/useCareerSeenReceipt.ts) · [지표](../src/lib/ops/emailActionMetrics.sql.ts)
+  - [migration](../supabase/migrations/20261123150000_career_reply_unseen_email.sql) · [닫힘 조건 migration](../supabase/migrations/20261124120000_career_reply_unseen_after_close.sql) · [스캔](../src/lib/career/background/unseenReply.ts) · [본 기록](../src/hooks/career/useCareerSeenReceipt.ts) · [열림·닫힘 기록](../src/hooks/career/useCareerPagePresence.ts) · [지표](../src/lib/ops/emailActionMetrics.sql.ts)
 - **사용자별 묶음 실행.** 새 사건은 그 사용자의 진행 중인 실행에 붙는다(`career_admit_discovery_events_v1`).
 - **위임의 권한 경계.** 맡긴 일은 사용자 원문 참조가 없으면 시작하거나 바꿀 수 없다(`20261113155021_career_work_responsibility_routes.sql`).
 - **회사 차단 설정.** `talent_setting.blocked_companies`로 Career 기회 검색과 회사 측 후보 조회를 모두 거른다. 회사명 부분 일치이고, Harper가 이 값을 쓸 도구는 없다.
@@ -434,6 +435,7 @@ E·F·G사는 최근 인원을 줄였다는 기사(11/05)가 있어 뺐고, 이 
 - **2026-11-19** — 첫 추천 평가 중에 note 도구(`read_notes`·`upsert_note`)가 온보딩 뒤 채팅 도구 허용 목록(`llmTools.ts`의 `CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES`)에 빠져 있어 실제 대화에서 모델에 닿지 않던 것을 찾아 고쳤다. 도구 등록과 기본 도구 목록만 확인하고, 모델이 받는 최종 도구 목록은 확인하지 않았던 탓이다.
 - **2026-11-21** — 채용 신호 검색을 회사마다 뉴스 1회로 줄였다. LinkedIn 글만 찾는 검색은 Exa 비용 때문에 뺐다([좋은 기회](career-good-opportunity-recommendation-ko.md) 2.7).
 - **2026-11-23** — 사용자가 보지 않은 답장을 메일로도 전하는 경로를 만들었다(3.2). 처음 제안은 "답장이 끝난 시점에 탭을 닫았거나 백그라운드면, 원문에 제목과 앞뒤 문장만 붙여 메일로 보낸다"였다. 두 가지를 바꿨다. 판단은 "몇 분 동안 안 봤나"로 한다. 끝나는 순간에는 서버가 자리에 있는지 알 수 없기 때문이다. 메일 내용은 Harper가 원문을 보고 정한다. 채팅 카드는 메일에 그대로 옮길 수 없기 때문이다.
+- **2026-11-24** — 안 본 답장 메일의 기준을 바꿨다(3.2). 11/23에는 "답장 뒤 5분 동안 화면에서 안 봤나"로 정했는데, 이 기준은 다른 탭이나 앱으로 옮겼거나 Harper 안 다른 화면에 있을 때도 메일을 보낸다. 사용자는 탭이나 브라우저를 닫았을 때만, 작업이 오래 걸린 답장에만 보내야 하고, 앞의 경우에 보내면 절대 안 된다고 했다. 안 본 시간 기준도 5분에서 30분으로 늘렸다. 서버는 닫힘을 직접 알 수 없으므로 페이지가 닫힐 때 남기는 기록으로만 판단한다. 기록을 놓치면 메일을 보내지 않는다.
 
 ## 11. 관련 문서
 

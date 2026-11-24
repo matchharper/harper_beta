@@ -21,6 +21,7 @@ import {
 } from "@/i18n/careerTranslationRoutes";
 import { DEFAULT_LOCALE } from "@/i18n/localeResolution";
 import { RouteHistoryProvider } from "@/hooks/useRouteHistory";
+import { useCareerPagePresence } from "@/hooks/career/useCareerPagePresence";
 import {
   getInitialClientLocalePreference,
   MessagesProvider,
@@ -62,6 +63,9 @@ export default function App({ Component, pageProps }: AppProps) {
   );
   const isCareerPage = isCareerTranslationRoute(currentPath);
   const isCareerLoginPage = router.pathname === "/career_login";
+  useCareerPagePresence(
+    router.pathname === "/career" || router.pathname.startsWith("/career/")
+  );
   const isCareerWorkspacePage = router.pathname === "/career/[[...tab]]";
   const isCareerLocalePage = isCareerPage || isCareerLoginPage;
   const isCareerLandingPage = ["/", "/en", "/ko"].includes(router.pathname);

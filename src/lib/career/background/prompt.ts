@@ -27,7 +27,7 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
       CAREER_BACKGROUND_INSTRUCTION,
       `Background event: ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
       `Career link: ${getConfiguredPublicSiteUrl()}/career`,
-      `Your latest reply in this conversation${completedAt ? `, completed ${formatLlmDateTime(completedAt)}` : ""}, has not been displayed on a visible Career page since, and the candidate has not written again. Email can bring it to them outside Career; whether it is worth an email is your decision. The reply is already in their chat, so another chat message would repeat it. This event is not a user message or a request for new work.`,
+      `Your latest reply in this conversation${completedAt ? `, completed ${formatLlmDateTime(completedAt)}` : ""}, has not been displayed on a visible Career page, the candidate has since closed Harper, and they have not written again. Email can bring it to them outside Career; whether it is worth an email is your decision. The reply is already in their chat, so another chat message would repeat it. This event is not a user message or a request for new work.`,
     ].join("\n\n");
   }
   const payload = run.trigger_payload ?? {};
