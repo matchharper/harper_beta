@@ -951,6 +951,9 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
           + (rawUserMessage && !insertedUserMessage ? 1 : 0),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
+      // Same condition as the onboarding redirect: Career opens on the signup form until then.
+      signupFinished: Boolean(talentSetting?.is_onboarding_done) ||
+        Boolean(conversation?.stage && conversation.stage !== "profile"),
       // A Harper outreach mail's entry record is read after onboarding too (its first chat turns, conversationPlan.ts).
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn || entrySource.fromMail
         ? entrySource.intentSummary

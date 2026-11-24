@@ -5,20 +5,23 @@ import { setupDaily } from "./dailyTestSupport";
 import { localAdmin, owner, other, write } from "./testSupport";
 import { collectCareerProcessing, planCareerProcessing } from "./daily";
 
-const migration = "supabase/migrations/20261106082331_career_pre_onboarding_discovery.sql";
+const migrations = [
+  "supabase/migrations/20261106082331_career_pre_onboarding_discovery.sql",
+  "supabase/migrations/20261124180000_career_presignup_reservation.sql",
+];
 async function fixture(before?: (db: Awaited<ReturnType<typeof setupDaily>>) => Promise<void>) {
   const db = await setupDaily();
   await db.exec(`create table contact_queue(id uuid primary key default gen_random_uuid(),user_id uuid,type text,
     last_error text,status text default 'queued',scheduled_at timestamptz default now(),locked_by text,resend_email_id text,
     payload jsonb default '{}',cancelled_at timestamptz,updated_at timestamptz default now());`);
   if (before) await before(db);
-  await db.exec(await readFile(migration, "utf8"));
+  for (const migration of migrations) await db.exec(await readFile(migration, "utf8"));
   return db;
 }
 const ensure = async (db: Awaited<ReturnType<typeof fixture>>, id = owner) => (await db.query<any>("select ensure_career_check_in($1) s", [id])).rows[0].s;
 const seed = async (db: Awaited<ReturnType<typeof fixture>>, dry = true) => (await db.query<any>("select seed_incomplete_career_schedules($1) s", [dry])).rows[0].s;
 
-test("new incomplete signup gets one 1–3 hour review; profile changes and completion preserve it", async () => {
+test("new incomplete signup gets one 1–3 hour review; finishing signup starts the regular discovery", async () => {
   const db = await fixture();
   try {
     await db.query<any>("update talent_setting set is_onboarding_done=false where user_id=$1", [owner]);
@@ -31,12 +34,19 @@ test("new incomplete signup gets one 1–3 hour review; profile changes and comp
       schedules:[{...first,next_run_at:"2030-01-01T03:00:00Z"}],
       sources:[{id:"event",available_at:"2030-01-01T00:00:00Z",event:{sourceKind:"company_followup"}}]},new Date("2030-01-01T00:00:00Z"));
     assert.equal(beforeFirst,null,"an earlier daily batch must wait for the fixed first review");
-    assert.match(first.instruction, /available profile/);
+    assert.match(first.instruction, /set this up by default when the account was created/);
+    assert.doesNotMatch(first.instruction, /explore suitable external opportunities/);
     await db.query<any>("update talent_setting set is_onboarding_done=true where user_id=$1", [owner]);
-    assert.deepEqual(await ensure(db), first);
+    const regular = await ensure(db);
+    assert.equal(regular.id, first.id);
+    assert.equal(regular.instruction, 'Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested.');
+    assert.equal(regular.target_refs.flexibleTiming, true);
+    assert.equal(regular.status, "active");
+    assert.equal(Number(regular.directive_revision), Number(first.directive_revision) + 1);
+    assert.ok(Math.abs(Date.parse(regular.next_run_at) - Date.now() - 3*86400000) < 5000);
     await db.query<any>("insert into contact_queue(user_id,type) values($1,'career_signup_no_profile_submit'),($1,'career_profile_submitted_no_answer')", [owner]);
     assert.equal((await db.query<any>("select count(*)::int n from contact_queue")).rows[0].n, 0);
-    assert.deepEqual(await ensure(db), first);
+    assert.deepEqual(await ensure(db), regular);
   } finally { await db.close(); }
 });
 
@@ -125,8 +135,30 @@ test("incomplete schedule enters existing Career collector once, with current pu
     const run = (await db.query<any>("select * from opportunity_discovery_run where id=$1",[a.runIds[0]])).rows[0];
     assert.equal(run.trigger_payload.runContract,'career_agent_v1');
     assert.equal(run.trigger_payload.contactScope,'external_recommendations');
-    assert.match(run.trigger_payload.sourceEvents[0].instruction,/career interview may be incomplete/);
+    assert.match(run.trigger_payload.sourceEvents[0].instruction,/have not asked Harper for anything/);
     assert.equal((await db.query<any>("select count(*)::int n from talent_opportunity_delivery")).rows[0].n,0);
     assert.equal((await collectCareerProcessing({admin:localAdmin(db),now})).runIds.length,0);
+  } finally { await db.close(); }
+});
+
+test("existing default reservations: before signup they say where they came from, after signup they become regular discovery", async () => {
+  const old = "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes.";
+  const due = new Date(Date.now() + 86400000).toISOString();
+  const db = await fixture(async db => {
+    await db.query<any>("update talent_setting set is_onboarding_done=(user_id=$1)", [other]);
+    await db.exec("delete from talent_agent_schedules");
+    await db.query<any>(`insert into talent_agent_schedules(talent_id,schedule_key,title,instruction,target_refs,timezone,interval_days,next_run_at,status)
+      values($1,'career_check_in','External opportunity discovery',$3,'{"externalRecommendations":true,"flexibleTiming":false}','Asia/Seoul',3,$4,'active'),
+            ($2,'career_check_in','External opportunity discovery','Check whether they submitted a profile','{"externalRecommendations":true,"flexibleTiming":false}','Asia/Seoul',3,$4,'paused')`,
+      [owner, other, old, due]);
+  });
+  try {
+    const rows = (await db.query<any>("select talent_id,instruction,target_refs,status,next_run_at from talent_agent_schedules order by talent_id=$1 desc", [owner])).rows;
+    assert.match(rows[0].instruction, /have not asked Harper for anything/);
+    assert.equal(rows[0].target_refs.flexibleTiming, false);
+    assert.match(rows[1].instruction, /^Review suitable external opportunities/);
+    assert.equal(rows[1].target_refs.flexibleTiming, true);
+    assert.equal(rows[1].status, "paused", "a finished signup keeps its current status and timing");
+    assert.ok(Math.abs(new Date(rows[1].next_run_at).getTime() - Date.parse(due)) < 1000);
   } finally { await db.close(); }
 });

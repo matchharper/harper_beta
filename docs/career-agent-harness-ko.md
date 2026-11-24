@@ -99,6 +99,12 @@ LLM이 긴 요약을 통째로 다시 쓰면 내용이 줄거나 어긋나는 �
   - 사용자가 답장을 보거나 Harper를 다시 열면 그 실행을 취소한다. 취소하면 대화 claim이 바로 풀리고, 돌던 turn은 2초 안에 멈춘다. 실행을 시작할 때와 메일을 보내기 직전에도 `assertCareerSourceEventsCurrent`가 다시 확인한다. 이 실행은 정기 탐색 주기를 미루지 않고(`cadencePolicy.affectsBaseCadence=false`), 대기 중인 탐색 사건을 가져가지 않는다.
   - 효과는 `/ops/update-metrics`의 '메일 받은 뒤 행동'에 있는 '안 본 답장 메일'(기간 안에 보낸 메일 수, 검토한 답장 수)에서 본다. 이 메일도 같은 섹션의 행동 비율에 함께 들어간다.
   - [migration](../supabase/migrations/20261123150000_career_reply_unseen_email.sql) · [닫힘 조건 migration](../supabase/migrations/20261124120000_career_reply_unseen_after_close.sql) · [스캔](../src/lib/career/background/unseenReply.ts) · [본 기록](../src/hooks/career/useCareerSeenReceipt.ts) · [열림·닫힘 기록](../src/hooks/career/useCareerPagePresence.ts) · [지표](../src/lib/ops/emailActionMetrics.sql.ts)
+- **가입 전에 생긴 예약 — 로컬 구현(2026-11-24).** 계정을 만들면 `ensure_career_check_in`이 외부 기회 탐색 예약(`career_check_in`)을 만들고, 가입 양식을 마치지 않은 사람에게는 1~3시간 뒤 첫 실행을 잡는다. 이 예약은 Harper가 기본으로 만든 것이고 사용자가 부탁하거나 동의한 것이 아니다.
+  - 가입 전 예약의 지시문은 그 사실을 말한다. 예전 지시문("Help this candidate explore suitable external opportunities…")은 예약 색인의 "opted-in external discovery" 표시와 함께 동의한 정기 탐색처럼 읽혔다. Harper는 가입하지 않은 사람에게 "외부 기회 탐색을 주기적으로 해드리기로 했는데"라고 썼다. "opted-in"은 가입한 사람에게도 사실이 아니어서(가입 양식은 외부 추천 동의를 묻지 않고 기본으로 켠다) 예약 표시, main prompt, 능력 목록, proactive handbook, 배경 실행 지침에서 모두 뺐다.
+  - 가입 전 예약은 `target_refs.flexibleTiming=false`로 구분한다. 이 값은 `ensure_career_check_in`만 쓴다. 가입을 마치면(`is_onboarding_done` true) 같은 행이 새 예약처럼 일반 탐색 지시문, 주기, 다음 실행(지금+주기), 설정에 따른 상태로 바뀐다. 전에는 가입 전 지시문이 가입 뒤에도 남았다(11/24 운영 543건). 이미 가입한 사람의 남은 행은 migration이 지시문만 바꾸고 시각과 상태는 둔다. Harper가 고쳐 쓴 가입 전 지시문은 Harper의 기록이라 그대로 둔다.
+  - 첫 연락 지침(`postOnboardingGuide.ts`)은 가입 양식을 마치지 않은 사람에게 그 사실을 준다. Harper가 아는 것은 프로필에 있는 것뿐이고, Career를 열면 가입 양식으로 돌아가며, 메일 답장은 양식 없이도 닿는다.
+  - Harper가 메일을 보낸 적이 있어도 가입 양식을 마치지 않은 사람은 `/career`에서 `/career/onboarding`으로 간다. 11/06부터는 메일을 한 번 받으면 이동이 꺼졌다. 메일 답장을 원본 Career agent가 받는 경로(`hasDeliveredCareerContact`)는 그대로 둔다.
+  - [migration](../supabase/migrations/20261124180000_career_presignup_reservation.sql) · [첫 연락 지침](../src/lib/career/prompts/postOnboardingGuide.ts) · [가입 이동](../src/app/api/talent/onboarding/status/route.ts) · [평가](evaluation/career-first-message/README.md)
 - **사용자별 묶음 실행.** 새 사건은 그 사용자의 진행 중인 실행에 붙는다(`career_admit_discovery_events_v1`).
 - **위임의 권한 경계.** 맡긴 일은 사용자 원문 참조가 없으면 시작하거나 바꿀 수 없다(`20261113155021_career_work_responsibility_routes.sql`).
 - **회사 차단 설정.** `talent_setting.blocked_companies`로 Career 기회 검색과 회사 측 후보 조회를 모두 거른다. 회사명 부분 일치이고, Harper가 이 값을 쓸 도구는 없다.
@@ -436,6 +442,7 @@ E·F·G사는 최근 인원을 줄였다는 기사(11/05)가 있어 뺐고, 이 
 - **2026-11-21** — 채용 신호 검색을 회사마다 뉴스 1회로 줄였다. LinkedIn 글만 찾는 검색은 Exa 비용 때문에 뺐다([좋은 기회](career-good-opportunity-recommendation-ko.md) 2.7).
 - **2026-11-23** — 사용자가 보지 않은 답장을 메일로도 전하는 경로를 만들었다(3.2). 처음 제안은 "답장이 끝난 시점에 탭을 닫았거나 백그라운드면, 원문에 제목과 앞뒤 문장만 붙여 메일로 보낸다"였다. 두 가지를 바꿨다. 판단은 "몇 분 동안 안 봤나"로 한다. 끝나는 순간에는 서버가 자리에 있는지 알 수 없기 때문이다. 메일 내용은 Harper가 원문을 보고 정한다. 채팅 카드는 메일에 그대로 옮길 수 없기 때문이다.
 - **2026-11-24** — 안 본 답장 메일의 기준을 바꿨다(3.2). 11/23에는 "답장 뒤 5분 동안 화면에서 안 봤나"로 정했는데, 이 기준은 다른 탭이나 앱으로 옮겼거나 Harper 안 다른 화면에 있을 때도 메일을 보낸다. 사용자는 탭이나 브라우저를 닫았을 때만, 작업이 오래 걸린 답장에만 보내야 하고, 앞의 경우에 보내면 절대 안 된다고 했다. 안 본 시간 기준도 5분에서 30분으로 늘렸다. 서버는 닫힘을 직접 알 수 없으므로 페이지가 닫힐 때 남기는 기록으로만 판단한다. 기록을 놓치면 메일을 보내지 않는다.
+- **2026-11-24** — 가입 양식을 마치지 않은 사람의 예약을 Harper가 기본으로 만든 것으로 바로잡았다(3.2). 그 예약이 동의한 정기 탐색처럼 보여 Harper가 있지도 않은 약속을 전제로 메일을 썼다. 예외 지침을 더하지 않고 틀린 표시("opted-in")와 지시문을 원본에서 고쳤다. 가입을 마치면 같은 예약이 일반 탐색으로 바뀌게 했다.
 
 ## 11. 관련 문서
 
