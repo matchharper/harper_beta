@@ -14,36 +14,46 @@ import type { AgentPerson } from "./types";
 const websiteHost = (sql: GtmReadSql) =>
   sql`regexp_replace(substring(lower(cd.website_url) from '^(?:[a-z][a-z0-9+.-]*://)?([^/:?#]+)'), '^www\\.', '')`;
 
-/** The host (websiteHost) is one of `blocked` or under one of them, in SQL. */
-const hostBlocked = (sql: GtmReadSql, blocked: readonly string[]) =>
-  sql`exists (select 1 from unnest(${blocked as string[]}::text[]) b(d) where ${websiteHost(sql)} = b.d or ${websiteHost(sql)} like '%.' || b.d)`;
+/** The row's website is a site's front page (no path), in SQL. */
+const websiteIsFrontPage = (sql: GtmReadSql) =>
+  sql`coalesce(substring(lower(cd.website_url) from '^(?:[a-z][a-z0-9+.-]*://)?[^/:?#]+(?::[0-9]+)?(/[^?#]*)?'), '') in ('', '/')`;
+
+/**
+ * The row's website is a blocked company's own: the front page of exactly one of `blocked`, in SQL. A page under a
+ * blocked domain is often another company's page there (11/24, company_db: 31 rows such as jobboard.example/company/123
+ * and 48 rows such as acme.career.ats.example are other companies' hiring pages), so neither a path nor a subdomain counts.
+ */
+const siteBlocked = (sql: GtmReadSql, blocked: readonly string[]) =>
+  sql`(${websiteHost(sql)} = any(${blocked as string[]}::text[]) and ${websiteIsFrontPage(sql)})`;
 
 /**
  * A company name that is surely one of the blocked companies: a company_db row with exactly this name (case and spaces
- * aside) has a blocked website, and no row with that name has another website (11/24: loose matching caught two
- * unrelated companies whose names merely contained a blocked one's; a name shared with another company is left alone).
+ * aside) has a blocked company's website (siteBlocked), and no row with that name has another website (11/24: loose
+ * matching caught two unrelated companies whose names merely contained a blocked one's; a name shared with another
+ * company is left alone).
  */
 function blockedNameSql(sql: GtmReadSql, names: readonly string[], blocked: readonly string[]) {
   return sql`(exists (select 1 from public.company_db cd where lower(btrim(cd.name)) = any(${names as string[]}::text[])
-      and cd.website_url is not null and ${hostBlocked(sql, blocked)})
+      and cd.website_url is not null and ${siteBlocked(sql, blocked)})
     and not exists (select 1 from public.company_db cd where lower(btrim(cd.name)) = any(${names as string[]}::text[])
-      and cd.website_url is not null and ${websiteHost(sql)} is not null and not ${hostBlocked(sql, blocked)}))`;
+      and cd.website_url is not null and ${websiteHost(sql)} is not null and not ${siteBlocked(sql, blocked)}))`;
 }
 
 const cleanNames = (names: ReadonlyArray<string | null | undefined>) =>
   [...new Set(names.map((name) => String(name ?? "").trim().toLowerCase()).filter(Boolean))];
 
 /**
- * Whether a company is a blocked one, for the company mails: its domain or the address on a blocked domain, or one of
- * its names surely a blocked company (blockedNameSql).
+ * Whether a company is a blocked one, for the company mails: the address on a blocked domain, or one of its names surely
+ * a blocked company (blockedNameSql). Not by the posting's or the company's web domain: that is often a hiring page on
+ * a blocked job board or ATS (a company's careers page there is not that board's company).
  */
 export async function isBlockedCompany(
-  input: { names?: ReadonlyArray<string | null | undefined>; domain?: string | null; email?: string | null },
+  input: { names?: ReadonlyArray<string | null | undefined>; email?: string | null },
   blockedDomains: readonly string[],
 ): Promise<boolean> {
   const blocked = normalizeDomainList(blockedDomains);
   if (!blocked.length) return false;
-  if (onBlockedDomain(input.domain, blocked) || onBlockedDomain(input.email, blocked)) return true;
+  if (onBlockedDomain(input.email, blocked)) return true;
   const names = cleanNames(input.names ?? []);
   if (!names.length) return false;
   const [row] = await gtmRead((sql) => sql<Array<{ blocked: boolean }>>`select ${blockedNameSql(sql, names, blocked)} as blocked`);
@@ -119,7 +129,7 @@ export async function exclusionFacts(person: AgentPerson, blockedDomains: readon
         and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out,
       ${!blocked.length ? sql`false` : sql`(
         ${candidId ? sql`exists (select 1 from public.experience_user e join public.company_db cd on cd.id = e.company_id
-          where e.candid_id = ${candidId}::uuid and e.end_date is null and cd.website_url is not null and ${hostBlocked(sql, blocked)})` : sql`false`}
+          where e.candid_id = ${candidId}::uuid and e.end_date is null and cd.website_url is not null and ${siteBlocked(sql, blocked)})` : sql`false`}
         or ${companyNames.length ? blockedNameSql(sql, companyNames, blocked) : sql`false`}
       )`} as blocked_company
   `;

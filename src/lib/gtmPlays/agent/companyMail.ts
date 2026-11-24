@@ -762,10 +762,10 @@ export type CompanyMailIo = {
   address: (posting: CompanyPostingFacts, personId: string) => Promise<CompanyAddress>;
   suppressed: (email: string) => Promise<boolean>;
   /**
-   * The company is one Ops blocked (settings.signals.blockedDomains: its domain, the address's domain, or a name that
-   * is surely a blocked company; exclusion.server.ts isBlockedCompany). Absent: none is blocked.
+   * The company is one Ops blocked (settings.signals.blockedDomains: the address's domain, or a name that is surely a
+   * blocked company; exclusion.server.ts isBlockedCompany). Absent: none is blocked.
    */
-  blockedCompany?: (input: { names?: readonly string[]; domain?: string | null; email?: string | null }) => Promise<boolean>;
+  blockedCompany?: (input: { names?: readonly string[]; email?: string | null }) => Promise<boolean>;
   writeLines: LineWriter;
   newMailId: () => string;
   links: (mailId: string) => { landingUrl: string; unsubscribeUrl: string };
@@ -905,7 +905,7 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
       wait("suppressed");
       continue;
     }
-    if (await io.blockedCompany?.({ names: [posting.companyName], domain: posting.companyDomain, email: address.email })) {
+    if (await io.blockedCompany?.({ names: [posting.companyName], email: address.email })) {
       for (const { signal } of fresh) await io.note(signal.personId, "막은 회사(채용 플랫폼·서치펌 등)라 회사 메일을 보내지 않아요");
       wait("blocked_company");
       continue;
@@ -1118,7 +1118,7 @@ async function runSourcedMails(
       await skip(lead, SOURCING_SKIP.customer);
       continue;
     }
-    if (await io.blockedCompany?.({ names, domain })) { await skip(lead, SOURCING_SKIP.blocked); continue; }
+    if (await io.blockedCompany?.({ names })) { await skip(lead, SOURCING_SKIP.blocked); continue; }
     if (mailedWithin(recent, { names, domain })) { await skip(lead, SOURCING_SKIP.recent); continue; }
     const language = detectLanguage([title, lead.postText], "ko");
     const posting: CompanyPostingFacts = {

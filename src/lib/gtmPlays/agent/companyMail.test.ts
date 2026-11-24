@@ -58,7 +58,7 @@ function fake(options: {
   humanOwned?: string[];
   companyReplied?: boolean;
   suppressed?: string[];
-  /** Blocked companies, by name or by domain (an address's domain counts). */
+  /** Blocked companies, by name or by an address's domain. */
   blocked?: string[];
   lines?: (request: LineRequest) => Record<string, string | WrittenLine>;
   writeWithHistory?: CompanyMailIo["writeWithHistory"];
@@ -96,9 +96,9 @@ function fake(options: {
       return options.address?.[item.postingUrl] ?? { email: "jobs@company-a.example", source: "posting" };
     },
     suppressed: async (email) => (options.suppressed ?? []).includes(email),
-    blockedCompany: async ({ names, domain, email }) => {
+    blockedCompany: async ({ names, email }) => {
       const blocked = options.blocked ?? [];
-      return [...(names ?? []), domain ?? "", email?.split("@")[1] ?? ""].some((value) => value && blocked.includes(value));
+      return [...(names ?? []), email?.split("@")[1] ?? ""].some((value) => value && blocked.includes(value));
     },
     writeLines: async (request) => {
       calls.lines.push(request);
