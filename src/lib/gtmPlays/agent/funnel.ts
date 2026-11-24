@@ -41,7 +41,7 @@ export type AgentExcludeBucket = AgentExcludeReason | "no_fit" | "skipped" | "fa
 const BUCKET_ORDER: Record<AgentExcludeBucket, number> = {
   no_lookup_source: 0, lookup_not_found: 1, lookup_other_person: 2, lookup_skipped: 3, no_email: 4, no_mx: 5, no_fit: 6,
   member: 7, recent_contact: 8, quiet_after_end: 9, suppressed: 10, internal: 11, duplicate: 12, stale_signal: 13,
-  not_job_seeking: 14, giver: 15, skipped: 16, failed: 17,
+  not_job_seeking: 14, blocked_company: 15, giver: 16, skipped: 17, failed: 18,
 };
 export const AGENT_EXCLUDE_BUCKETS = (Object.keys(BUCKET_ORDER) as AgentExcludeBucket[])
   .sort((a, b) => BUCKET_ORDER[a] - BUCKET_ORDER[b]);

@@ -49,7 +49,7 @@ export function alertText(kind: AgentAlertKind, detail: string, opsUrl: string, 
   return `${mention}[gtm agent] ${TITLES[kind]}${line ? `\n${line}` : ""}\n${opsUrl}`;
 }
 
-/** Only Slack incoming webhooks are posted to. */
+/** The webhook, when it is a Slack incoming webhook (else alerts.server.ts posts as the Harper Slack app to #gtm-talent). */
 export function alertWebhook(env: Record<string, string | undefined>): string | null {
   const url = env.GTM_AGENT_ALERT_WEBHOOK?.trim() ?? "";
   return /^https:\/\/hooks\.slack\.com\/services\/\S+$/.test(url) ? url : null;

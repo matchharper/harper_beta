@@ -7,7 +7,7 @@ import { composeAgentMail } from "./compose.server";
 import { companySourcingDeliveryStats, runCompanyMails } from "./companyMail.server";
 import { conversationStore } from "./conversation.server";
 import {
-  FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink,
+  FOLLOWUP_BLOCKED_NOTE, FOLLOWUP_HUMAN_NOTE, FOLLOWUP_MEMBER_NOTE, FOLLOWUP_SUPPRESSED_NOTE, followupDueAfterClick, followupSentNote, followupSubject, openedLink,
   planCoachingFollowup, planFollowup, planGeneralFollowup, renderAgentFollowup,
   type FollowupFound,
 } from "./followup";
@@ -252,12 +252,12 @@ async function beginLookup(person: AgentPerson, now: Date, configId: string | nu
  * leaves out the duplicate rule (two rows of one person written at once would otherwise stop each other).
  */
 async function exclusionNow(person: AgentPerson, settings: AgentSettings, atSend = false): Promise<AgentExcludeReason | null> {
-  const facts = await exclusionFacts(person);
+  const facts = await exclusionFacts(person, settings.signals.blockedDomains);
   const isInternal = !person.isTest && Boolean(person.email?.toLowerCase().endsWith("@matchharper.com"));
   return exclusionReason({
     method: person.method, email: person.email, signalAt: person.signalAt, isMember: facts.member,
     maxAgeDays: settings.signals.tuning.maxAgeDays,
-    isSuppressed: facts.suppressed || facts.opted_out, isInternal, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
+    isSuppressed: facts.suppressed || facts.opted_out, isInternal, isBlockedCompany: facts.blocked_company, lastMailedAt: facts.last_mailed ? new Date(facts.last_mailed).toISOString() : null,
     lastEndedAt: facts.last_ended ? new Date(facts.last_ended).toISOString() : null, seenInRun: !atSend && facts.active_elsewhere,
   }, new Date(), settings.quietDaysAfterEnd);
 }
@@ -1025,14 +1025,15 @@ async function followUps(
       // Joined Harper some other way since the first mail (the follow-up asks them to sign up), or on the opt-out list.
       let facts: Awaited<ReturnType<typeof exclusionFacts>>;
       try {
-        facts = await exclusionFacts(person);
+        facts = await exclusionFacts(person, settings.signals.blockedDomains);
       } catch (error) {
         console.warn("[gtm-agent] follow-up member check not read", id, errorText(error));
         continue;
       }
-      if (facts.member || facts.suppressed || facts.opted_out) {
+      if (facts.member || facts.suppressed || facts.opted_out || facts.blocked_company) {
+        const note = facts.member ? FOLLOWUP_MEMBER_NOTE : facts.blocked_company ? FOLLOWUP_BLOCKED_NOTE : FOLLOWUP_SUPPRESSED_NOTE;
         await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
-          { kind: "ended", by: AGENT, note: facts.member ? FOLLOWUP_MEMBER_NOTE : FOLLOWUP_SUPPRESSED_NOTE }, ["sent"]);
+          { kind: "ended", by: AGENT, note }, ["sent"]);
         continue;
       }
       if (!(await mayAgentSpend(settings.dailyCostUsd))) { tick.bump("stopped_cost_cap"); break; }
