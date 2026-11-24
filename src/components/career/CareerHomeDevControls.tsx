@@ -12,6 +12,7 @@ import {
 } from "@/lib/career/devWonderfulRoleResetTargets";
 import {
   AlertTriangle,
+  Bell,
   BriefcaseBusiness,
   Check,
   Clock3,
@@ -75,6 +76,7 @@ const CareerAgentRunDevModal = dynamic(
   () => import("./CareerAgentRunDevModal")
 );
 const CareerPersonaDevModal = dynamic(() => import("./CareerPersonaDevModal"));
+const CareerWebPushDevModal = dynamic(() => import("./CareerWebPushDevModal"));
 
 const devVoiceModelOptions: Array<{
   label: string;
@@ -247,6 +249,7 @@ export default function CareerHomeDevControls({
   const [harperResetStatus, setHarperResetStatus] = React.useState("");
   const harperResetSubmitting = React.useRef(false);
   const [uiPreviewOpen, setUiPreviewOpen] = React.useState(false);
+  const [webPushOpen, setWebPushOpen] = React.useState(false);
   const [externalFitsOpen, setExternalFitsOpen] = React.useState(false);
   const [backgroundRun, setBackgroundRun] = React.useState<{
     id: string;
@@ -902,7 +905,14 @@ export default function CareerHomeDevControls({
           <Play className="size-3.5" />
           UI 미리보기
         </MuteButton>
+        <MuteButton onClick={() => setWebPushOpen(true)}>
+          <Bell className="size-3.5" />
+          Web Push 테스트
+        </MuteButton>
       </div>
+      {webPushOpen ? (
+        <CareerWebPushDevModal onClose={() => setWebPushOpen(false)} />
+      ) : null}
       {browserUseOpen ? (
         <CareerBrowserUseDevModal onClose={() => setBrowserUseOpen(false)} />
       ) : null}

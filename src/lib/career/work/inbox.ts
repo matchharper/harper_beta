@@ -1,6 +1,6 @@
 import type { CareerDocumentImage } from "@/lib/talentOnboarding/documentImages.server";
 import type { TalentMessageRow } from "@/lib/talentOnboarding/models";
-import { formatTalentMessageContentForLlmPrompt } from "../opportunityFeedbackNote";
+import { formatTalentMessageContentForModel } from "../messageForModel";
 import type { CareerInputInbox, CareerReplyCheckpoint } from "../capabilities/runtime";
 import type { CareerConversationEvent } from "./events";
 import type { WorkScope } from "./store";
@@ -37,7 +37,7 @@ export function formatCareerInboxMessages(messages: TalentMessageRow[], options:
       action?.companyRequestId ? `This message refers to company request ${action.companyRequestId}.` : "",
       action?.coachingActivityAction ? `Selected coaching card action: ${action.coachingActivityAction.action}; activityMessageId ${action.coachingActivityAction.activityMessageId}; expectedRevision ${action.coachingActivityAction.expectedRevision}; channel ${action.coachingActivityAction.channel ?? "chat"}. The executor checks the current revision.` : "",
     ].filter(Boolean).join("\n");
-    return `User message ${message.id}:\n${formatTalentMessageContentForLlmPrompt({ ...message, payload }, {
+    return `User message ${message.id}:\n${formatTalentMessageContentForModel({ ...message, payload }, {
       ...options, includeCreatedAt: true, preserveUserText: true,
       currentInput: true,
     })}${references ? `\n${references}` : ""}`;

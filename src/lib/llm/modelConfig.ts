@@ -70,3 +70,26 @@ export function isOpenRouterGlm53FlashModel(model: string) {
     normalized.startsWith(`${OPENROUTER_GLM_53_FLASH_MODEL}:`)
   );
 }
+
+/**
+ * Maximum input tokens per request, from each provider's model page
+ * (checked 2026-11-23). OpenAI: developers.openai.com/api/docs/models/<id>
+ * ("Maximum input tokens"). Anthropic: platform.claude.com/docs/en/about-claude/
+ * models/overview ("Context window"). Models whose provider page states no
+ * limit (the OpenRouter GLM and Muse models) are left out instead of guessed.
+ */
+export const MODEL_MAX_INPUT_TOKENS: Record<string, number> = {
+  [GPT_61_TERRA_MODEL]: 922_000,
+  [GPT_61_SOL_MODEL]: 922_000,
+  [GPT_6_LUNA_MODEL]: 922_000,
+  [CLAUDE_MODEL]: 1_000_000,
+  [CLAUDE_HAIKU_MODEL]: 1_000_000,
+};
+
+/** The documented input limit of a selection ID, or null when unknown. */
+export function modelMaxInputTokens(model: string | null | undefined) {
+  if (!model) return null;
+  const base = getOpenAIChatPreset(model)?.tierModel ?? model;
+  const tier = base === GPT_61_SOL_ULTRAFAST_MODEL ? GPT_61_SOL_MODEL : base;
+  return MODEL_MAX_INPUT_TOKENS[tier] ?? null;
+}

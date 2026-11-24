@@ -131,3 +131,14 @@ test("only the Career inbox presents a decline note as the current request", asy
     created_at: "2026-11-11T01:00:00Z" } as any;
   assert.match(formatCareerInboxMessages([message]), /contact_company and recommendationId=rec-1/);
 });
+
+test("history marks Harper's emails, with the subject when saved; a reply keeps its own words", () => {
+  assert.equal(
+    formatTalentMessageContentForLlmPrompt({ role: "assistant", message_type: "mail", content: "소개해 드릴 분이 있어요.", payload: { subject: "소개 제안" } } as never),
+    "[Sent by email: 소개 제안]\n소개해 드릴 분이 있어요."
+  );
+  assert.equal(
+    formatTalentMessageContentForLlmPrompt({ role: "user", message_type: "mail", content: "네, 소개받고 싶어요." } as never),
+    "네, 소개받고 싶어요."
+  );
+});

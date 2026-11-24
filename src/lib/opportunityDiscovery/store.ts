@@ -483,9 +483,10 @@ export function serializeOpportunityRun(
   if (!run) return null;
   const active = ["queued", "running", "handed_off"].includes(run.status);
   const triggerPayload = getRecord(run.trigger_payload) ?? {};
-  // These jobs share the durable queue, but do not represent a job search.
-  // Their work/chat projections report progress without a misleading search card.
-  if (triggerPayload.runContract === "career_agent_v1" || run.trigger === "career_internal_evaluation") return null;
+  // The queue also carries Career agent invocations and Role evaluations, each
+  // with its own runContract. Only chat searches and legacy searches without a
+  // contract are job searches; the rest report progress elsewhere.
+  if (triggerPayload.runContract != null && !isCareerChatExternalSearchRun(run)) return null;
   const request = getRecord(triggerPayload.request);
   const safeCoverage = getSafeOpportunityRunCoverage(run.coverage);
   const safeCandidateCounts = getRecord(safeCoverage.candidateCounts);

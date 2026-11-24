@@ -12,7 +12,7 @@ import {
   normalizeCareerUtmDescription,
   normalizeCareerUtmSource,
 } from "@/lib/career/utm";
-import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
+import { listAnalyticsExcludedEmails } from "@/lib/testAccounts";
 import type {
   OpsUtmAccess,
   OpsUtmChartBucket,
@@ -197,8 +197,9 @@ function resolveRange(period: OpsUtmPeriod, now = new Date()) {
   };
 }
 
-function getExcludedEmails(extra: string[]) {
-  return normalizeExcludedEmails([...DEFAULT_ADMIN_EXCLUDED_EMAILS, ...extra]);
+// Staff, persona test accounts and the emails the viewer added.
+async function getExcludedEmails(extra: string[]) {
+  return normalizeExcludedEmails(await listAnalyticsExcludedEmails(extra));
 }
 
 function isEmailExcludedByTerms(value: string, excludedTerms: string[]) {
@@ -383,7 +384,7 @@ export async function fetchOpsUtmSources(args: {
     MAX_SOURCE_PAGE_SIZE
   );
   const offset = Math.max(Math.floor(args.offset ?? 0), 0);
-  const excludedEmails = getExcludedEmails(args.excludedEmails ?? []);
+  const excludedEmails = await getExcludedEmails(args.excludedEmails ?? []);
   const [registeredRows, utmLogs] = await Promise.all([
     fetchRegisteredSources(),
     fetchAllRows<LandingLogRow>((from, to) =>
@@ -533,7 +534,7 @@ export async function fetchOpsUtmSourceDetail(args: {
   const source = normalizeCareerUtmSource(args.source);
   if (!source) throw new Error("유효한 UTM source가 필요합니다.");
   const range = resolveRange(args.period);
-  const excludedEmails = getExcludedEmails(args.excludedEmails ?? []);
+  const excludedEmails = await getExcludedEmails(args.excludedEmails ?? []);
   const filters = parseOpsUtmFilters(args.filters ?? {});
 
   const [registeredRows, entryLogs] = await Promise.all([

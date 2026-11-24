@@ -5,7 +5,6 @@ import {
 } from "@/lib/officialJobs";
 import { normalizeOfficialJobMarkdown } from "@/lib/officialJobs/markdown";
 import {
-  DEFAULT_ADMIN_EXCLUDED_EMAILS,
   isEmailExcluded,
 } from "@/lib/adminEmailExclusions";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -14,6 +13,7 @@ import type { AshbyOfficialJobsSyncSummary } from "@/lib/ashbyOfficialJobsSync";
 import { notifyGoogleJobIndexingBestEffort } from "@/lib/googleJobIndexing";
 import { isBotUserAgent } from "@/lib/ops/officialJobsConversion";
 import { countOfficialJobSignups } from "@/lib/ops/officialJobsConversion.server";
+import { listAnalyticsExcludedEmails } from "@/lib/testAccounts";
 
 type OfficialJobRow = Database["public"]["Tables"]["official_jobs"]["Row"];
 type OfficialJobViewEventRow = Pick<
@@ -531,7 +531,8 @@ export async function fetchOpsOfficialJobAnalytics(
       return null;
     }),
   ]);
-  const excludedEmails = new Set(DEFAULT_ADMIN_EXCLUDED_EMAILS);
+  // Staff and persona test accounts are left out of job analytics.
+  const excludedEmails = new Set(await listAnalyticsExcludedEmails());
   const { startMs: yesterdayStartMs, endMs: yesterdayEndMs } =
     getKstYesterdayRange();
   const visitorKeys = new Set<string>();

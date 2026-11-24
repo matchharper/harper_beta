@@ -1526,6 +1526,43 @@ export function useCareerHistoryState(args: {
     ]
   );
 
+  // An opportunity already in the list only lacks its detail timeline; read just that.
+  const loadHistoryOpportunityTimeline = useCallback(
+    async (item: CareerHistoryOpportunity) => {
+      if (!enabled || !userId) return;
+      const searchParams = new URLSearchParams({
+        id: item.roleId,
+        timeline: item.id,
+      });
+      const response = await fetchWithAuth(
+        `/api/talent/opportunities?${searchParams.toString()}`
+      );
+      const payload = (await response.json().catch(() => ({}))) as Partial<
+        Pick<CareerHistoryOpportunity, "confirmedMeetings" | "talentRoleActivities">
+      > &
+        Record<string, unknown>;
+      if (!response.ok) {
+        throw new Error(
+          getErrorMessage(payload, tCareer(H.opportunityLoadFailed))
+        );
+      }
+      updateHistoryOpportunityLocally(
+        item.id,
+        (current) =>
+          normalizeHistoryOpportunities([
+            {
+              ...current,
+              activityTimelineLoaded: true,
+              confirmedMeetings: payload.confirmedMeetings,
+              talentRoleActivities: payload.talentRoleActivities,
+            },
+          ] as Parameters<typeof normalizeHistoryOpportunities>[0])[0] ??
+          current
+      );
+    },
+    [enabled, fetchWithAuth, tCareer, updateHistoryOpportunityLocally, userId]
+  );
+
   const loadMoreHistoryOpportunities = useCallback(
     async (filter?: CareerHistoryOpportunityPageFilter) => {
       if (!filter) {
@@ -1807,6 +1844,7 @@ export function useCareerHistoryState(args: {
     isHistoryOpportunityPageFilterLoading,
     loadSavedStageHistoryOpportunityPages,
     loadHistoryOpportunityByRoleId,
+    loadHistoryOpportunityTimeline,
     loadMoreHistoryOpportunities,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,

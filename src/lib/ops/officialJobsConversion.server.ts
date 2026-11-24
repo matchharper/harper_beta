@@ -1,7 +1,7 @@
 import "server-only";
 
 import postgres from "postgres";
-import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
+import { listAnalyticsExcludedEmails } from "@/lib/testAccounts";
 import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 import {
   buildJobsConversion,
@@ -52,7 +52,8 @@ async function readOnly<T>(
   return rows as unknown as T[];
 }
 
-const excludedEmails = () => excludedEmailParam(DEFAULT_ADMIN_EXCLUDED_EMAILS);
+// Staff and persona test accounts are left out of conversion counts.
+const excludedEmails = async () => excludedEmailParam(await listAnalyticsExcludedEmails());
 
 export async function fetchOpsOfficialJobsConversion(
   days: JobsConversionDays,
@@ -61,7 +62,7 @@ export async function fetchOpsOfficialJobsConversion(
   const periodStart = kstPeriodStart(days, now);
   const rows = await readOnly<JobsConversionQueryRow>(JOBS_CONVERSION_SQL, [
     periodStart.toISOString(),
-    excludedEmails(),
+    await excludedEmails(),
   ]);
   return buildJobsConversion({ days, periodStart, generatedAt: now, rows });
 }
@@ -70,7 +71,7 @@ export async function fetchOpsOfficialJobsConversion(
 export async function countOfficialJobSignups(jobId: string): Promise<number> {
   const rows = await readOnly<{ signups: number | string | null }>(
     OFFICIAL_JOB_SIGNUPS_SQL,
-    [jobId, excludedEmails()]
+    [jobId, await excludedEmails()]
   );
   const signups = Number(rows[0]?.signups ?? 0);
   return Number.isFinite(signups) ? signups : 0;

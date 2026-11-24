@@ -45,6 +45,7 @@ import {
   formatTalentRoleActivitiesForPrompt,
   formatUpcomingHarperMeetingForPrompt,
   InternalRoleAcceptanceError,
+  isExpiredOpportunityRole,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
@@ -66,6 +67,7 @@ import {
 import {
   createTalentContextMutationRequestId,
   fetchTalentContextsByRefs,
+  findTalentContextKeyConflicts,
   fetchTalentSetting,
   mutateTalentContextsFromAgent,
   readTalentContextsForAgent,
@@ -152,6 +154,7 @@ import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { fetchLatestInternalRoleRequestEntryPage } from "./internalRoleRequestEntryPage";
 import {
+  CareerCoachingActivityMutationError,
   fetchCurrentCareerCoachingActivity,
   mutateCareerCoachingActivity,
   type CareerCoachingActivityAction,
@@ -302,6 +305,7 @@ async function insertToolUsageLogFromContext(args: {
 async function insertToolFailureLogFromContext(args: {
   context?: TalentToolExecutionContext;
   name: string;
+  error?: unknown;
 }) {
   const admin = args.context?.admin;
   if (!admin) return;
@@ -310,6 +314,7 @@ async function insertToolFailureLogFromContext(args: {
     admin: admin as TalentAdminClient,
     name: args.name,
     userId: args.context?.userId,
+    error: args.error,
   });
 }
 
@@ -392,6 +397,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
   TALENT_TOOL_NAMES.MANAGE_CONTENT_SUGGESTIONS,
   TALENT_TOOL_NAMES.UPSERT_PLAN,
+  "contact_harper_team",
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -1050,7 +1056,8 @@ export async function runGetRoleContext(args: {
         type: normalizeRoleContextStringArray(row.type),
         seniorityLevel: optionalToolString(row.seniority_level),
         salaryRange: optionalToolString(row.salary_range),
-        ...(!isInternalRole ? {status: optionalToolString(row.status)} : {}),
+        ...(!isInternalRole ? {status: optionalToolString(row.status),
+          hiring: !isExpiredOpportunityRole({ expiresAt: optionalToolString(row.expires_at), isExpired: row.is_expired === true, status: optionalToolString(row.status) })} : {}),
         postedAt: optionalToolString(row.posted_at),
         expiresAt: optionalToolString(row.expires_at),
         sourceType: optionalToolString(row.source_type),
@@ -4168,12 +4175,13 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
               requestedImportance <= 3
                 ? requestedImportance
                 : 1;
+            const key = optionalToolString(change.key);
             return [
               {
                 collection: change.collection,
                 content: optionalToolString(change.content) ?? "",
                 ...(change.collection === "brief"
-                  ? { label: optionalToolString(change.label) }
+                  ? { label: optionalToolString(change.label), ...(key ? { key } : {}) }
                   : { importance: importance as TalentMemoryImportance }),
                 op,
               } as TalentContextAgentChange,
@@ -4198,6 +4206,9 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
                     }
                   : {}),
                 ...(label ? { label } : {}),
+                ...(typeof change.key === "string"
+                  ? { key: change.key.trim() }
+                  : {}),
                 op,
                 ref: Number(change.ref),
               },
@@ -4221,6 +4232,18 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
       if (new Set(refs).size !== referencedRows.length) {
         throw new TalentToolError(
           "One or more talent context refs are unavailable.",
+          409,
+        );
+      }
+      const keyConflicts = await findTalentContextKeyConflicts({
+        admin,
+        changes,
+        referencedRows,
+        userId,
+      });
+      if (keyConflicts.length > 0) {
+        throw new TalentToolError(
+          `No changes were saved. ${keyConflicts.join(" ")}`,
           409,
         );
       }
@@ -4373,6 +4396,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           userId,
         });
       } catch (error) {
+        // 22023 is raised only for a missing or invalid argument; its message
+        // names the argument, so the model can supply it instead of retrying later.
+        if (
+          error instanceof CareerCoachingActivityMutationError &&
+          error.code === "22023"
+        ) {
+          return {
+            assistantInstruction:
+              "Nothing changed because the activity request was rejected for its arguments. If the conversation or the coaching card already gives the needed value, call manage_career_coaching_activity again with it in this turn; otherwise ask the user for it.",
+            error: error.message,
+            ok: false,
+            status: "invalid_arguments",
+            skipCommonAssistantInstruction: true,
+          };
+        }
         const message = formatToolError(error);
         if (!/revision conflict|open career coaching activity/i.test(message)) {
           console.error("[career-coaching] activity mutation failed", {
@@ -4486,7 +4524,8 @@ function getToolParameters(tool: TalentToolDefinition) {
     tool.name === TALENT_TOOL_NAMES.END_CALL ||
     tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING ||
     tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST ||
-    tool.name === TALENT_TOOL_NAMES.UPSERT_PLAN
+    tool.name === TALENT_TOOL_NAMES.UPSERT_PLAN ||
+    tool.name === "contact_harper_team"
     ? tool.parameters
     : withUiStatusMessageParameter(tool.parameters);
 }
@@ -4666,6 +4705,7 @@ export async function executeTalentTool(args: {
     if (args.persistTelemetry !== false) await insertToolFailureLogFromContext({
       context: args.context,
       name: tool.name,
+      error,
     });
     if (shouldLog) {
       logTalentToolError({

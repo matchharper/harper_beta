@@ -16,6 +16,12 @@ import {
   gmailConnectionVersion,
 } from "@/lib/integrations/gmail";
 import { confirmCareerGmailConnection } from "@/lib/integrations/gmailConnection.server";
+import {
+  logGmailConnectEvent,
+  type GmailConnectLogMetadata,
+} from "@/lib/integrations/gmailConnectLog.server";
+import { detectInAppBrowserApp, detectMobileOs } from "@/lib/career/inAppBrowser";
+import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
 import {
   encodeGmailReturn,
@@ -27,20 +33,36 @@ import {
 
 export async function POST(req: NextRequest) {
   let stage = "authenticate";
+  let userId: string | null = null;
+  let admin: TalentAdminClient | null = null;
+  // Who pressed connect from where, repeated on every connection log of this request.
+  let facts: GmailConnectLogMetadata = {};
   try {
     const user = await getRequestUser(req);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    userId = user.id;
 
     console.info("[GmailConnect] connect requested", {
       talentId: user.id,
     });
 
-    stage = "load_server_config";
-    const admin = getTalentSupabaseAdmin();
     const body = await req.json().catch(() => ({}));
     const writeAccess = body.capability === "write";
+    const userAgent = req.headers.get("user-agent") ?? "";
+    facts = {
+      capability: writeAccess ? "write" : "read",
+      conversationId:
+        typeof body.conversationId === "string" ? body.conversationId : null,
+      // Google refuses sign-in inside app browsers, so a start there may never come back.
+      inAppBrowser: detectInAppBrowserApp(userAgent),
+      os: detectMobileOs(userAgent),
+      source: typeof body.source === "string" ? body.source : null,
+    };
+
+    stage = "load_server_config";
+    admin = getTalentSupabaseAdmin();
     stage = "list_accounts";
     const [current, existingAccounts] = await Promise.all([
       fetchTalentGmailIntegration({ admin, talentId: user.id }),
@@ -82,6 +104,16 @@ export async function POST(req: NextRequest) {
         previousConnection,
         readGranted: getComposioGmailReadAccess(existingAccount) === "granted",
       });
+      await logGmailConnectEvent({
+        admin,
+        metadata: {
+          ...facts,
+          alreadyConnected: true,
+          connectedAccountId: existingAccount.id,
+        },
+        type: "career_gmail_connect_started",
+        userId: user.id,
+      });
       return NextResponse.json({
         ...receipt,
         alreadyConnected: true,
@@ -105,6 +137,16 @@ export async function POST(req: NextRequest) {
     stage = "create_connect_link";
     const link = await createComposioGmailConnectLink({
       callbackUrl: callbackUrl.toString(),
+      userId: user.id,
+    });
+    await logGmailConnectEvent({
+      admin,
+      metadata: {
+        ...facts,
+        alreadyConnected: false,
+        connectedAccountId: link.connectedAccountId,
+      },
+      type: "career_gmail_connect_started",
       userId: user.id,
     });
     const response = NextResponse.json({
@@ -132,7 +174,15 @@ export async function POST(req: NextRequest) {
     );
     return response;
   } catch (error) {
-    if ((error as { code?: string })?.code === "40001")
+    const conflict = (error as { code?: string })?.code === "40001";
+    if (userId && admin)
+      await logGmailConnectEvent({
+        admin,
+        metadata: { ...facts, stage: conflict ? "connection_changed" : stage },
+        type: "career_gmail_connect_start_failed",
+        userId,
+      });
+    if (conflict)
       return NextResponse.json(
         { error: "Gmail connection changed during authorization" },
         { status: 409 }

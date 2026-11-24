@@ -38,7 +38,11 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-local-slack/types/**/*.ts",
-    ".next-local-slack/dev/types/**/*.ts"
+    ".next-local-slack/dev/types/**/*.ts",
+    ".next-persona/types/**/*.ts",
+    ".next-persona/dev/types/**/*.ts",
+    ".next-persona-3200/types/**/*.ts",
+    ".next-persona-3200/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

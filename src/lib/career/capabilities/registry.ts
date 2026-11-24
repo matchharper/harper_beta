@@ -247,6 +247,12 @@ export const CAREER_CAPABILITIES = [
     tools: [["read_talent_activity_events", "read activity history"]],
   },
   {
+    id: "harper_team",
+    turns: 1,
+    summary: "Pass a message to the Harper team when the user directly asks for it.",
+    tools: [["contact_harper_team", "pass a message to the Harper team"]],
+  },
+  {
     id: "connected_inbox",
     turns: 1,
     summary:

@@ -55,3 +55,14 @@ test("role evidence formats metadata without altering authored text or emptying 
     for (const fact of [expected, "Owns product", "Travel", "salary: false", "fit: 0"]) assert.ok(text.includes(fact), fact);
   }
 });
+
+test("hiring is said once for the list and an ended posting keeps its status", () => {
+  const role = (roleId: string, hiring: boolean) => ({ found: true, roleId,
+    role: { name: roleId, sourceType: "external", status: hiring ? "active" : "ended", hiring }, companyDb: { name: "Example" } });
+  const open = formatRoleContextForModel([role("a", true), role("b", true)]);
+  assert.match(open, /^Role context \(times: Asia\/Seoul; hiring\)\./);
+  assert.doesNotMatch(open, /Status:/);
+  const mixed = formatRoleContextForModel([role("a", true), role("b", false)]);
+  assert.match(mixed, /hiring unless a Status is shown/);
+  assert.equal(mixed.match(/Status: ended/g)?.length, 1);
+});

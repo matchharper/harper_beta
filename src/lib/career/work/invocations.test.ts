@@ -7,12 +7,14 @@ import { isAshleyInboxMail, mailStartedToolNames } from "../mailStartedTurn";
 
 /** Exercise the actual orchestration with isolated DB/provider boundaries.
  * SQL locking and idempotency are exercised separately in database.test.ts. */
-function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean; ashleyMail?: boolean } = {}) {
+function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean; failure?: any; waitUntil?: string; ashleyMail?: boolean } = {}) {
   const calls: Array<{ name: string; args: any }> = [];
   const reads: string[] = [];
   const turns: any[] = [];
   const invocations = ["first", "second"].map((id, index) => ({ id, user_id: "owner", conversation_id: "conversation",
-    kind: "career_invocation", parent_id: null, status: "ready", request: { source_message_id: index + 1, input_message_ids: [index + 1] } }));
+    kind: "career_invocation", parent_id: null, status: "ready", request: { source_message_id: index + 1, input_message_ids: [index + 1] },
+    provider_refs: options.waitUntil ? { failures: { count: 1, nextAttemptAt: options.waitUntil } } : {} }));
+  const failureNotices: any[] = [];
   const sources = [1, 2].map(id => ({ id, user_id: "owner", conversation_id: "conversation", role: "user", content: `Input ${id}`,
     ...(options.ashleyMail ? { message_type: "mail", payload: { via: "ashley_inbox" } } : {}) }));
   const admin = {
@@ -28,6 +30,7 @@ function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean;
       if (name === "claim_career_inbox") return { data: { accepted: !options.busy, state: { handbooks: [], completedReplyIds: {} } }, error: null };
       if (name === "finish_career_invocation") return { data: options.successor && args.p_invocation_id === "first" ? "second" : null, error: null };
       if (name === "claim_career_invocations") throw new Error("Unexpected queue publication while the immediate executor can continue");
+      if (name === "record_career_invocation_failure") return { data: options.failure ?? { state: "retry", count: 1, retryAfterSeconds: 15 }, error: null };
       return { data: true, error: null };
     },
   };
@@ -46,6 +49,10 @@ function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean;
     careerCheckpointIsReady: async () => true,
     createCareerInvocationActivity: () => ({ start: async () => {}, record() {}, checkpoint: async () => {}, flush: async () => {} }),
     CareerReplyContinuation: ControlError, CareerTurnCancelled: class extends Error {}, CareerAgentReplyUnavailable: class extends Error {},
+    CareerInvocationRetryLater: class extends Error {
+      constructor(readonly retryAfterSeconds: number, cause?: unknown) { super(cause instanceof Error ? cause.message : "retry later"); }
+    },
+    recordCareerTurnFailure: async (_scope: unknown, failure: unknown) => { failureNotices.push(failure); },
     runCareerChatTurn: async () => { throw new Error("Durable invocation must not build an unused HTTP response"); },
     executeCareerChatTurn: async (args: any) => { turns.push(args); if (options.fail) throw new Error("Preparation unavailable"); await args.onAgentTurnStarted(args.claimedInbox.claimId); args.onInvocationCompleted(options.successor && args.inboxId === "first" ? "second" : null); },
   };
@@ -56,7 +63,7 @@ function fixture(options: { busy?: boolean; fail?: boolean; successor?: boolean;
     require: () => new Proxy({}, { get: (_, key) => dependencies[String(key)] }),
   });
   const scope = { admin: admin as any, userId: "owner", conversationId: "conversation" };
-  return { ...compiledModule.exports, scope, calls, reads, turns,
+  return { ...compiledModule.exports, scope, calls, reads, turns, failureNotices, retryLater: dependencies.CareerInvocationRetryLater as any,
     delivery: { initialInvocation: invocations[0] as any, initialSourceMessage: sources[0] as any,
       initialSetting: { is_onboarding_done: true } as any, initialConversation: { id: "conversation" } as any } };
 }
@@ -95,6 +102,34 @@ test("a failed preparation releases its own claim without completing the admitte
   const claim = f.calls.find(call => call.name === "claim_career_inbox")!.args.p_claim_id;
   assert.equal(f.calls.find(call => call.name === "release_career_agent_turn")!.args.p_claim_id, claim);
   assert.ok(!f.calls.some(call => call.name === "finish_career_invocation"));
+});
+
+test("a failed attempt is counted on the invocation and retried after its wait", async () => {
+  const f = fixture({ fail: true, failure: { state: "retry", count: 2, retryAfterSeconds: 60 } });
+  const error: any = await f.processCareerInvocation(f.scope, "first", f.delivery).catch(caught => caught);
+  assert.ok(error instanceof f.retryLater);
+  assert.equal(error.retryAfterSeconds, 60);
+  assert.match(error.message, /Preparation unavailable/);
+  const record = f.calls.find(call => call.name === "record_career_invocation_failure")!;
+  assert.deepEqual(JSON.parse(JSON.stringify(record.args)), { p_user_id: "owner", p_conversation_id: "conversation", p_invocation_id: "first", p_error: "Preparation unavailable" });
+  assert.equal(f.failureNotices.length, 0);
+});
+
+test("the last allowed failure ends the invocation without another retry and tells the team", async () => {
+  const f = fixture({ fail: true, failure: { state: "failed", count: 5 } });
+  assert.equal(await f.processCareerInvocation(f.scope, "first", f.delivery), undefined);
+  assert.equal(f.failureNotices.length, 1);
+  assert.equal(f.failureNotices[0].attempts, 5);
+  assert.equal(f.failureNotices[0].error, "Preparation unavailable");
+});
+
+test("a delivery before the next attempt time waits without running or counting a failure", async () => {
+  const f = fixture({ waitUntil: new Date(Date.now() + 30_000).toISOString() });
+  const error: any = await f.processCareerInvocation(f.scope, "first", f.delivery).catch(caught => caught);
+  assert.ok(error instanceof f.retryLater);
+  assert.ok(error.retryAfterSeconds > 0 && error.retryAfterSeconds <= 30);
+  assert.equal(f.turns.length, 0);
+  assert.ok(!f.calls.some(call => call.name === "record_career_invocation_failure"));
 });
 
 test("a turn started only by a member's mail to Ashley gets every chat tool but those that act toward others; a person's input gets all", async () => {

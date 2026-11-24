@@ -14,7 +14,9 @@ const at = (offsetMs: number) => new Date(now.getTime() + offsetMs).toISOString(
 function signup(
   userId: string,
   signedUpAgoDays: number,
-  steps: Partial<Record<"firstChat" | "gmail" | "delegated" | "connected", number>> = {},
+  steps: Partial<
+    Record<"firstChat" | "gmail" | "delegated" | "connected" | "applyClicked" | "applyHarperClicked", number>
+  > = {},
   inFunnel = false
 ): OverviewSignupRow {
   const signedUpAt = now.getTime() - days(signedUpAgoDays);
@@ -23,6 +25,8 @@ function signup(
       ? null
       : new Date(signedUpAt + days(steps[key]!)).toISOString();
   return {
+    applyClickedAt: step("applyClicked"),
+    applyHarperClickedAt: step("applyHarperClicked"),
     bucketStart: "2026-11-02",
     connectedAt: step("connected"),
     delegatedAt: step("delegated"),
@@ -36,7 +40,7 @@ function signup(
   };
 }
 
-test("funnel counts the last 7 days of signups; channel rates use signups whose 7 days have passed", () => {
+test("funnel counts the last 7 days of signups; channel and Gmail rates count every signup's first 7 days so far", () => {
   const overview = buildOpsTalentMetricsOverview({
     applications: [],
     attribution: new Map([
@@ -53,8 +57,14 @@ test("funnel counts the last 7 days of signups; channel rates use signups whose 
       signup("c", 2, { firstChat: 0.1 }, true),
       signup("d", 5, { connected: 3, delegated: 1 }, true),
     ],
-    trendRows: [],
+    trendRows: [
+      { activeTalents: 0, applyDelegated: 0, connectedTalents: null, externalConnections: 0, internalConnections: 0, key: "2026-11-02", rowType: "bucket" },
+    ],
   });
+
+  // a connected Gmail on day 0.5 and b on day 3; c and d, still inside their 7 days, stay in the base.
+  assert.equal(overview.trend[0].gmailRate24h, 1 / 4);
+  assert.equal(overview.trend[0].gmailRate7d, 2 / 4);
 
   assert.deepEqual(
     overview.funnel.steps.map((step) => [step.key, step.count]),
@@ -65,13 +75,40 @@ test("funnel counts the last 7 days of signups; channel rates use signups whose 
   assert.equal(overview.summary.signups, 4);
   assert.equal(overview.summary.jobsSignupShare, 1 / 4);
   const jobs = overview.channels.find((row) => row.key === "jobs");
-  assert.equal(jobs?.matured, 1);
   assert.equal(jobs?.connectedRate, 1);
-  // A signup without attribution belongs to 기타.
-  assert.equal(overview.channels.find((row) => row.key === "other")?.signups, 2);
+  // A signup without attribution belongs to 기타. c and d signed up 2 and 5 days ago; d connected on day 3.
+  const other = overview.channels.find((row) => row.key === "other");
+  assert.equal(other?.signups, 2);
+  assert.equal(other?.connectedRate, 1 / 2);
   assert.deepEqual(overview.postings, [
     { companyName: "Acme", delegated: 1, isPublished: true, roleTitle: "Engineer", signups: 1, slug: "job-1" },
   ]);
+});
+
+test("apply delegation rates count every signup in the bucket and what they clicked within 24 or 96 hours so far", () => {
+  const overview = buildOpsTalentMetricsOverview({
+    applications: [],
+    attribution: new Map(),
+    filters: { from: "2026-10-20", interval: "week", to: "2026-11-18" },
+    generatedAt: now,
+    jobs: [],
+    pending: [],
+    signups: [
+      signup("a", 10, { applyClicked: 0.2, applyHarperClicked: 0.5 }),
+      signup("b", 9, { applyClicked: 0.5, applyHarperClicked: 3 }),
+      signup("c", 8, { applyClicked: 2, applyHarperClicked: 5 }),
+      // Signed up an hour ago and has not clicked yet: still in the base.
+      signup("d", 1 / 24),
+    ],
+    trendRows: [
+      { activeTalents: 0, applyDelegated: 0, connectedTalents: null, externalConnections: 0, internalConnections: 0, key: "2026-11-02", rowType: "bucket" },
+    ],
+  });
+
+  assert.equal(overview.trend[0].applyClickRate24h, 2 / 4);
+  assert.equal(overview.trend[0].applyHarperRate24h, 1 / 4);
+  assert.equal(overview.trend[0].applyHarperRate96h, 2 / 4);
+  assert.equal(overview.trend[0].applyHarperTalents96h, 2);
 });
 
 test("apply sites group subdomains and pending waits split by days", () => {
@@ -122,7 +159,7 @@ test("apply sites group subdomains and pending waits split by days", () => {
   assert.equal(applySiteOf(null), "알 수 없음");
 });
 
-test("a channel none of whose signups has had 7 days shows its rates so far", () => {
+test("a channel none of whose signups has had 7 days still shows its rates so far", () => {
   const overview = buildOpsTalentMetricsOverview({
     applications: [],
     attribution: new Map([
@@ -144,15 +181,14 @@ test("a channel none of whose signups has had 7 days shows its rates so far", ()
 
   const agent = overview.channels.find((row) => row.key === "agent_sourcing");
   assert.deepEqual(
-    [agent?.signups, agent?.matured, agent?.ratesSoFar, agent?.firstChatRate, agent?.delegatedRate, agent?.connectedRate],
-    [2, 0, true, 1 / 2, 1 / 2, 1 / 2]
+    [agent?.signups, agent?.firstChatRate, agent?.delegatedRate, agent?.connectedRate],
+    [2, 1 / 2, 1 / 2, 1 / 2]
   );
-  // 기타 has signups past their 7 days: the rates stay over those.
   const other = overview.channels.find((row) => row.key === "other");
-  assert.deepEqual([other?.matured, other?.ratesSoFar, other?.firstChatRate], [2, false, 1 / 2]);
+  assert.deepEqual([other?.signups, other?.firstChatRate], [2, 1 / 2]);
   // No signups at all: no rate.
   const seo = overview.channels.find((row) => row.key === "seo");
-  assert.deepEqual([seo?.ratesSoFar, seo?.firstChatRate], [false, null]);
+  assert.deepEqual([seo?.signups, seo?.firstChatRate], [0, null]);
 });
 
 test("activity leaves out Harper's own logs: tool calls and outside-service cost receipts", () => {

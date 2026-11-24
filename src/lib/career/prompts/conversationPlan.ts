@@ -199,9 +199,13 @@ export function buildCareerConversationPromptPlan(args: {
 
   const isOnboardingActive = !Boolean(args.isOnboardingDone);
   const isMainChat = !isOnboardingActive && args.channel === "chat" && !args.backgroundInvocation;
-  // The onboarding-completed reply has its own guide (post-onboarding guide); the
-  // early-conversation asks belong to the person's own first messages.
-  const isEarlyConversation = !args.includePostOnboardingConversationGuide &&
+  // Until the person writes to Harper, any contact is Harper's first message to them:
+  // the reply after signup, or a later scheduled email while they stay silent.
+  const isFirstContact = !isOnboardingActive && args.channel !== "voice" &&
+    args.conversationMode !== "career_coaching" && args.userChatTurnCount === 0;
+  // The first contact has its own guide; the early-conversation asks belong to the
+  // person's own first messages.
+  const isEarlyConversation = !isFirstContact && !args.includePostOnboardingConversationGuide &&
     (args.userChatTurnCount ?? Infinity) <= EARLY_USER_MESSAGE_COUNT;
   const usesCareerMain = isMainChat || (!isOnboardingActive && args.scheduledWork === true);
 
@@ -328,16 +332,12 @@ export function buildCareerConversationPromptPlan(args: {
     promptBlocks.push(coreSystemPrompt);
     promptBlocks.push(conversationGuidePrompt());
   }
-  if (
-    !isOnboardingActive &&
-    !args.backgroundInvocation &&
-    args.includePostOnboardingConversationGuide === true &&
-    conversationMode !== "career_coaching"
-  ) {
+  if (isFirstContact) {
     promptBlocks.push({
       key: "post_onboarding_conversation_guide",
       text: buildCareerPostOnboardingConversationGuide({
         channel: args.channel,
+        delivery: args.backgroundInvocation || args.scheduledWork ? "email" : "chat",
       }),
       cacheable: true,
     });

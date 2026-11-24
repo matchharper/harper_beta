@@ -26,6 +26,7 @@ async function database() {
   await db.exec(await readFile("supabase/migrations/20261029215555_career_background_agent_delivery.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261102084400_career_meeting_delivery_admission.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261123130000_career_entry_without_internal_warmup.sql", "utf8"));
   await db.query("insert into talent_users values($1)", [user]);
   await db.query("insert into talent_conversations values($1,$2)", [conversation,user]);
   await db.query("insert into talent_messages(user_id,conversation_id,role,content) values($1,$2,'user','원래 요청')",[user,conversation]);
@@ -114,9 +115,7 @@ test("onboarding completion and its single invocation are committed together",as
     assert.equal(first.lease_token, null);
     assert.equal(first.trigger_payload.agentInvocation.replyId, `background:${first.id}`);
     assert.equal(first.trigger_payload.agentInvocation.sourceMessageCursor, 1);
-    const children = (await db.query<any>("select * from opportunity_discovery_run where trigger='onboarding_internal_evaluation'")).rows;
-    assert.equal(children.length, 1);
-    assert.equal(children[0].trigger_payload.onboardingRunId, first.id);
+    assert.equal((await db.query<any>("select count(*)::int n from opportunity_discovery_run where trigger='onboarding_internal_evaluation'")).rows[0].n, 0);
     await assert.rejects(() => db.query("select enqueue_career_onboarding_continuation($1,$2,'{}')", [child,conversation]), /Conversation unavailable/);
     await claim(db, first.trigger_payload.agentInvocation.replyId);
     assert.equal((await db.query<any>("select finish_career_background_reply($1,$2,$3,'agent-claim',$4) done", [user,conversation,first.trigger_payload.agentInvocation.replyId,first.id])).rows[0].done, true);
@@ -279,17 +278,15 @@ test('audit failure rolls back secondary history but preserves the separately co
 });
 
 
-test("DB-first rollout preserves deployed Worker admission and never reowns an existing run", async () => {
+test("Career entry reuses an existing initial run and stays server-only", async () => {
   const db = await database();
   try {
-    const before = (await db.query<any>("select pg_get_functiondef('enqueue_career_onboarding_invocation(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
-    await db.exec(await readFile("supabase/migrations/20261108120000_career_onboarding_direct_continuation.sql", "utf8"));
-    const after = (await db.query<any>("select pg_get_functiondef('enqueue_career_onboarding_invocation(uuid,uuid,jsonb)'::regprocedure) definition")).rows[0].definition;
-    assert.equal(after, before);
-    const legacy = (await db.query<any>("select enqueue_career_onboarding_invocation($1,$2,'{}') r", [user,conversation])).rows[0].r;
-    assert.equal(legacy.status, "queued");
+    assert.equal((await db.query<any>("select to_regprocedure('enqueue_career_onboarding_invocation(uuid,uuid,jsonb)') f")).rows[0].f, null);
+    await db.query("insert into opportunity_discovery_run(talent_id,conversation_id,status,trigger) values($1,$2,'queued','conversation_completed')", [user,conversation]);
+    await db.query("insert into opportunity_discovery_run(talent_id,conversation_id,status,trigger) values($1,$2,'queued','onboarding_internal_evaluation')", [user,conversation]);
+    await db.exec(await readFile("supabase/migrations/20261123130000_career_entry_without_internal_warmup.sql", "utf8"));
+    assert.equal((await db.query<any>("select status from opportunity_discovery_run where trigger='onboarding_internal_evaluation'")).rows[0].status, "cancelled");
     const retry = (await db.query<any>("select enqueue_career_onboarding_continuation($1,$2,'{}') r", [user,conversation])).rows[0].r;
-    assert.equal(retry.id, legacy.id);
     assert.equal(retry.status, "queued");
     assert.equal((await db.query<any>("select count(*)::int n from opportunity_discovery_run where trigger='conversation_completed'")).rows[0].n, 1);
     for (const role of ["anon", "authenticated"]) {

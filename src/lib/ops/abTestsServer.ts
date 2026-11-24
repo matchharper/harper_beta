@@ -37,6 +37,7 @@ import {
 } from "@/lib/ops/abTests";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import type { Database } from "@/types/database.types";
+import { listTestTalentAccountEmails } from "@/lib/testAccounts";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const BATCH_SIZE = 1_000;
@@ -176,7 +177,11 @@ export async function fetchOpsAbTests(args: {
       ? args.externalSurface
       : "all";
   const now = Date.now();
-  const exclusionTerms = normalizeExclusionTerms(args.excludedEmails ?? []);
+  // Persona test accounts are never counted, whatever the viewer excludes.
+  const exclusionTerms = normalizeExclusionTerms([
+    ...(args.excludedEmails ?? []),
+    ...(await listTestTalentAccountEmails()),
+  ]);
   const cacheKey = JSON.stringify({
     experiment: args.experiment,
     days,

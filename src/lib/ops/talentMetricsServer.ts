@@ -27,19 +27,14 @@ type UntypedRpcClient = {
 const MAX_RANGE_DAYS = 366;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
-const CACHE_TTL_MS = 2 * 60 * 1_000;
-const RESPONSE_CACHE_LIMIT = 12;
 
 type AnySectionResponse =
   OpsTalentMetricsResponseBySection[OpsTalentMetricsSection];
 
-const responseCache = new Map<
-  string,
-  { expiresAt: number; value: AnySectionResponse }
->();
-
+// A migration that changes one of these functions in place also deletes that section's
+// ops_metric_snapshots rows (see metricSnapshots.ts): the build does not change, so nothing else resets them.
 const RPC_BY_SECTION: Record<OpsTalentMetricsSection, string> = {
-  conversion: "get_ops_talent_metrics_conversion_v1",
+  conversion: "get_ops_talent_metrics_conversion_v2",
   engagement: "get_ops_talent_metrics_engagement_v1",
   retention: "get_ops_talent_metrics_retention_v1",
 };
@@ -136,17 +131,6 @@ function isMetricsResponse(
   );
 }
 
-function storeCachedResponse(cacheKey: string, value: AnySectionResponse) {
-  if (responseCache.size >= RESPONSE_CACHE_LIMIT) {
-    const oldestKey = responseCache.keys().next().value;
-    if (oldestKey) responseCache.delete(oldestKey);
-  }
-  responseCache.set(cacheKey, {
-    expiresAt: Date.now() + CACHE_TTL_MS,
-    value,
-  });
-}
-
 export async function fetchOpsTalentMetricsSection<
   TSection extends OpsTalentMetricsSection,
 >(args: {
@@ -164,17 +148,6 @@ export async function fetchOpsTalentMetricsSection<
     ...(args.excludedEmails ?? []),
     ...(await listTestTalentAccountEmails()),
   ]);
-  const cacheKey = JSON.stringify({
-    excludedEmails,
-    interval,
-    range,
-    section: args.section,
-  });
-  const cached = responseCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.value as OpsTalentMetricsResponseBySection[TSection];
-  }
-
   const admin = getTalentSupabaseAdmin() as unknown as UntypedRpcClient;
   const query = admin.rpc(RPC_BY_SECTION[args.section], {
     p_excluded_email_terms: excludedEmails,
@@ -192,6 +165,5 @@ export async function fetchOpsTalentMetricsSection<
     throw new Error("Talent 지표 응답 형식이 올바르지 않습니다.");
   }
 
-  storeCachedResponse(cacheKey, data);
   return data as OpsTalentMetricsResponseBySection[TSection];
 }

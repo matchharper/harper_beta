@@ -356,7 +356,7 @@ function reviewMarkdown(result: Row) {
  * The frozen market of one persona. Every tool result is rendered in the current production
  * format from the fixture; production formatters are reused wherever they are pure.
  */
-async function worldFactory() {
+export async function worldFactory() {
   const { formatLedger, formatRouteHistory } = await import("@/lib/career/matching/candidatePool");
   const { formatCompanyFill } = await import("@/lib/career/matching/searchOutput");
   const { formatCompanyFacts } = await import("@/lib/career/companies/discovery");
@@ -990,4 +990,5 @@ async function worldFactory() {
   };
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+// The first-message evaluation reuses this frozen market without running this evaluation.
+if (process.argv[1]?.endsWith("evalCareerFirstRecommendation.ts")) main().catch(error => { console.error(error); process.exitCode = 1; });

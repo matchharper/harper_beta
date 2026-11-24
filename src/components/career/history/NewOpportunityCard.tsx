@@ -19,10 +19,13 @@ import type { CareerHistoryOpportunity } from "../types";
 import OpportunityCard from "./OpportunityCard";
 import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
 import { getExternalOpportunityApplyLabel } from "./hiringPost";
+import {
+  OpportunityActionGrid,
+  opportunityActionClass,
+} from "./HistoryOpportunityDetailActions";
 
-type OpportunityAction = (
-  item: CareerHistoryOpportunity
-) => void | Promise<unknown>;
+// Callers may return whatever their handler returns; the card ignores it.
+type OpportunityAction = (item: CareerHistoryOpportunity) => unknown;
 export type NewOpportunityCardActions = {
   onApply: OpportunityAction;
   onNegative: OpportunityAction;
@@ -70,7 +73,6 @@ export default memo(function NewOpportunityCard({
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
   const positiveLabel = getCareerPositiveActionLabel(item.opportunityType, t);
   const negativeLabel = getCareerNegativeActionLabel(item.opportunityType, t);
-  const actionClass = "py-2.5 rounded-sm font-normal text-sm truncate";
   const feedbackActions = (
     <div className="flex shrink-0 items-center gap-1">
       {isInternal ? (
@@ -148,66 +150,95 @@ export default memo(function NewOpportunityCard({
         onOpenLink={onOpenLink}
         collapsedActions={feedbackActions}
         actions={
-          <div className="grid grid-cols-2 items-center gap-2 pt-4 max-md:[&>button:last-child:nth-child(odd)]:col-start-2">
-            {isInternal ? (
-              <Tooltips
-                text={t(
-                  "career.history.keep.tooltip",
-                  "저장해두고 나중에 결정"
-                )}
-              >
-                <MuteButton
-                  disabled={pending}
-                  onClick={() => onKeep(item)}
-                  size="md"
-                  variant="neutral"
-                  className={actionClass}
-                >
-                  <Bookmark aria-hidden className="size-3.5" />
-                  {t("career.history.keep.action", "저장하고 나중에 결정")}
-                </MuteButton>
-              </Tooltips>
-            ) : null}
-            <MuteButton
-              disabled={pending}
-              onClick={() => onNegative(item)}
-              size="md"
-              className={actionClass}
-            >
-              <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
-              {negativeLabel}
-            </MuteButton>
-            <MuteButton
-              disabled={pending}
-              onClick={() => onPositive(item)}
-              size="md"
-              variant={isInternal ? "primary" : "neutral"}
-              className={actionClass}
-            >
-              {pending ? (
-                <Loader2 aria-hidden className="size-3.5 animate-spin" />
-              ) : (
-                <PositiveActionIconView
-                  icon={PositiveActionIcon}
-                  className="size-3.5"
-                />
-              )}
-              {positiveLabel}
-            </MuteButton>
-            {!isInternal ? (
-              <MuteButton
-                disabled={pending}
-                onClick={() => onApply(item)}
-                size="md"
-                variant="primary"
-                className={actionClass}
-              >
-                {getExternalOpportunityApplyLabel(item, t)}
-              </MuteButton>
-            ) : null}
-          </div>
+          <NewOpportunityDecisionActions
+            className="pt-4"
+            item={item}
+            pending={pending}
+            onApply={onApply}
+            onKeep={onKeep}
+            onNegative={onNegative}
+            onPositive={onPositive}
+          />
         }
       />
     </OpportunitySwipeRow>
   );
 });
+
+/** Save, decline, connect and apply buttons for an opportunity still waiting for an answer. */
+export function NewOpportunityDecisionActions({
+  className,
+  item,
+  pending,
+  onApply,
+  onKeep,
+  onNegative,
+  onPositive,
+}: Pick<
+  NewOpportunityCardActions,
+  "onApply" | "onKeep" | "onNegative" | "onPositive"
+> & {
+  className?: string;
+  item: CareerHistoryOpportunity;
+  pending: boolean;
+}) {
+  const t = useCareerT();
+  const isInternal = item.isInternal || item.sourceType === "internal";
+  const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
+  const positiveLabel = getCareerPositiveActionLabel(item.opportunityType, t);
+  const negativeLabel = getCareerNegativeActionLabel(item.opportunityType, t);
+  return (
+    <OpportunityActionGrid className={className}>
+      {isInternal ? (
+        <Tooltips
+          text={t("career.history.keep.tooltip", "저장해두고 나중에 결정")}
+        >
+          <MuteButton
+            disabled={pending}
+            onClick={() => onKeep(item)}
+            size="md"
+            variant="neutral"
+            className={opportunityActionClass}
+          >
+            <Bookmark aria-hidden className="size-3.5" />
+            {t("career.history.keep.action", "저장하고 나중에 결정")}
+          </MuteButton>
+        </Tooltips>
+      ) : null}
+      <MuteButton
+        disabled={pending}
+        onClick={() => onNegative(item)}
+        size="md"
+        className={opportunityActionClass}
+      >
+        <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
+        {negativeLabel}
+      </MuteButton>
+      <MuteButton
+        disabled={pending}
+        onClick={() => onPositive(item)}
+        size="md"
+        variant={isInternal ? "primary" : "neutral"}
+        className={opportunityActionClass}
+      >
+        {pending ? (
+          <Loader2 aria-hidden className="size-3.5 animate-spin" />
+        ) : (
+          <PositiveActionIconView icon={PositiveActionIcon} className="size-3.5" />
+        )}
+        {positiveLabel}
+      </MuteButton>
+      {!isInternal ? (
+        <MuteButton
+          disabled={pending}
+          onClick={() => onApply(item)}
+          size="md"
+          variant="primary"
+          className={opportunityActionClass}
+        >
+          {getExternalOpportunityApplyLabel(item, t)}
+        </MuteButton>
+      ) : null}
+    </OpportunityActionGrid>
+  );
+}

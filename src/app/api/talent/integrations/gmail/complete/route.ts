@@ -9,6 +9,10 @@ import {
   isOwnedComposioGmailAccount,
 } from "@/lib/integrations/composio";
 import { confirmCareerGmailConnection } from "@/lib/integrations/gmailConnection.server";
+import {
+  logGmailConnectEvent,
+  type GmailConnectLogMetadata,
+} from "@/lib/integrations/gmailConnectLog.server";
 
 import {
   gmailCareerReturnUrl,
@@ -84,18 +88,50 @@ async function complete(userId: string, body: CompleteBody) {
   });
 }
 
+const logReturn = (userId: string, metadata: GmailConnectLogMetadata) =>
+  logGmailConnectEvent({
+    admin: getTalentSupabaseAdmin(),
+    metadata,
+    type: "career_gmail_connect_returned",
+    userId,
+  });
+
+// The Career page finishes here when the redirect below could not (for example, its return cookie expired).
 export async function POST(req: NextRequest) {
+  let userId: string | null = null;
+  let body: CompleteBody = {};
+  const logPageReturn = (status: string | null, httpStatus: number) =>
+    userId
+      ? logReturn(userId, {
+          capability: body.capability ?? null,
+          connectedAccountId: String(body.connectedAccountId ?? "").trim() || null,
+          httpStatus,
+          status,
+          via: "page",
+        })
+      : undefined;
   try {
     const user = await getRequestUser(req);
     if (!user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    return await complete(user.id, await req.json().catch(() => ({})));
+    userId = user.id;
+    body = await req.json().catch(() => ({}));
+    const response = await complete(user.id, body);
+    const payload = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as { status?: string } | null;
+    await logPageReturn(payload?.status ?? null, response.status);
+    return response;
   } catch (error) {
-    if ((error as { code?: string })?.code === "40001")
+    if ((error as { code?: string })?.code === "40001") {
+      await logPageReturn("connection_changed", 409);
       return NextResponse.json(
         { error: "Gmail connection changed during authorization" },
         { status: 409 }
       );
+    }
+    await logPageReturn("error", 500);
     return NextResponse.json(
       { error: "Failed to complete Gmail connection" },
       { status: 500 }
@@ -117,8 +153,10 @@ export async function GET(req: NextRequest) {
     "";
   const cookieName = gmailReturnCookieName(accountId);
   const intent = readGmailReturn(req.cookies.get(cookieName)?.value, accountId);
-  let status = params.get("status") ?? "failed";
+  const providerStatus = params.get("status");
+  let status = providerStatus ?? "failed";
   let verified = false;
+  let httpStatus: number | null = null;
   if (status === "success" && intent) {
     try {
       const result = await complete(intent.userId, {
@@ -127,6 +165,7 @@ export async function GET(req: NextRequest) {
         conversationId: intent.conversationId,
         capability: intent.capability,
       });
+      httpStatus = result.status;
       if (result.ok) {
         verified = true;
         if ((await result.json()).status === "permissions_required")
@@ -136,8 +175,20 @@ export async function GET(req: NextRequest) {
       }
     } catch {
       // The authenticated Career page can retry a transient provider or DB failure.
+      httpStatus = 500;
     }
   }
+  // Without the return cookie (it lasts 10 minutes) the person is unknown here; the Career page logs its own retry.
+  if (intent)
+    await logReturn(intent.userId, {
+      capability: intent.capability,
+      connectedAccountId: accountId || null,
+      httpStatus,
+      providerStatus,
+      status,
+      verified,
+      via: "redirect",
+    });
   target.searchParams.set("gmailConnect", verified ? "verified" : "callback");
   target.searchParams.set("status", status);
   if (accountId) target.searchParams.set("connected_account_id", accountId);

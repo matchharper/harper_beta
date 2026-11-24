@@ -23,6 +23,41 @@ export function hashReplyToken(token: string) {
     .digest("hex");
 }
 
+/**
+ * An email answer option opened on the web fills only its own recipient's chat composer: the link carries this
+ * signature over the person and the text, so a link someone else wrote (or a forwarded one) fills nothing.
+ */
+export function signEmailChoiceDraft(talentId: string, text: string) {
+  return createHmac("sha256", readTokenSecret())
+    .update(`email-choice-draft\n${talentId}\n${text}`)
+    .digest()
+    .subarray(0, 16)
+    .toString("base64url");
+}
+
+/**
+ * The unsubscribe link in a CRM group email names its recipient; this signature proves the link came from Harper.
+ * The Worker signs the same way (`email_reply/crm_broadcast.py`), so keep the two in step.
+ */
+export function signCrmBroadcastUnsubscribe(talentId: string) {
+  return createHmac("sha256", readTokenSecret())
+    .update(`crm-broadcast-unsubscribe\n${String(talentId ?? "").trim()}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+export function verifyCrmBroadcastUnsubscribe(talentId: string, signature: string) {
+  const expected = Buffer.from(signCrmBroadcastUnsubscribe(talentId));
+  const given = Buffer.from(String(signature ?? "").trim().toLowerCase());
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+export function verifyEmailChoiceDraft(talentId: string, text: string, signature: string) {
+  const expected = Buffer.from(signEmailChoiceDraft(talentId, text));
+  const given = Buffer.from(String(signature ?? ""));
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
 function decodeSvixSecret(secret: string) {
   const normalized = secret.startsWith("whsec_") ? secret.slice(6) : secret;
   return Buffer.from(normalized, "base64");

@@ -77,7 +77,7 @@ An external roleId or a companyWorkspaceId is sufficient to publish a new recomm
 
   // 외부 공고·지원 관련
   // src/lib/talentOnboarding/tools.ts
-  save_job_posting: `Import external public job postings from their URLs. mode=index independently reads the current public source and registers or refreshes its shared Role facts without creating a personal recommendation, save, application or contact. It can refresh outdated indexed conditions from the official source. Personal fields are not promoted. save/suggest import into this user's Jobs. Pass postings as a list, with each posting's URL and optional fields/mode. Import independent postings together in one call. Results correspond to input order and include each posting's outcome; one failure does not roll back other saves. Use for a requested save or to save external postings the user asked to apply to when they are not yet in their Jobs. The application request includes this preparation; a separate save confirmation is unnecessary.
+  save_job_posting: `Import external public job postings from their URLs. mode=index reads the posting page and registers or refreshes its shared Role facts without creating a personal recommendation, save, application or contact. Personal fields are not promoted. save/suggest import into this user's Jobs. Pass postings as a list, with each posting's URL and optional fields/mode. Import independent postings together in one call. Results correspond to input order and include each posting's outcome; one failure does not roll back other saves. Use for a requested save or to save external postings the user asked to apply to when they are not yet in their Jobs. The application request includes this preparation; a separate save confirmation is unnecessary.
 
 save/suggest create or reuse the posting and the user's recommendation, preserving existing application progress. They return roleId, recommendationId and savedStage. Use the returned roleId to continue the requested application with the application tools and handbook; saving alone does not submit an application. Harper-connected/internal roles use the internal role tools.
 
@@ -217,10 +217,10 @@ answers returns, in one call, the user's earlier submitted answers in this conve
   // 웹 검색·페이지 조회 관련
   // src/lib/agentTools/web.ts
   web_search: `Search the web for information, using search engine.`,
-  career_web_search: `Start a new external search to discover sources or check what has changed. For known company facts, inspect existing company research and its references before searching the web for the same information. A remaining gap or an explicit need for fresh evidence can justify a new search.`,
+  career_web_search: `Start a new external search to discover sources. For known company facts, inspect existing company research and its references before searching the web for the same information. A remaining gap or an explicit need for fresh evidence can justify a new search.`,
 
   // src/lib/agentTools/web.ts
-  open_url: `Read one URL or several independent URLs; a failed page does not discard the others. Reading a supplied URL does not establish public discoverability. A matching independent web search result can establish a reusable public source. maxAgeHours=0 requests a fresh page; the result reports whether the provider actually fetched it.`,
+  open_url: `Read one URL or several independent URLs; a failed page does not discard the others. maxAgeHours=0 requests a fresh page; the result reports whether the provider actually fetched it.`,
 
   // 이메일 관련
   // src/lib/talentOnboarding/tools.ts
@@ -286,7 +286,7 @@ If the caller asks to stop with onboarding unfinished, or this is another call m
 
 Every new activity must use suggest first after one honest topic is clear; never use start to create a new activity. Ask the user to choose 5, 10, or 20 minutes before suggesting unless they already provided one. If they do not answer that question but continue or ask to proceed, choose one of those three durations. No other duration is valid.
 
-Use start only for an existing suggested activity after the user chooses chat or call, including through the exact activity-card action. An explicit start action on the exact current active call activity may re-open a call whose client connection was interrupted.
+Use start only for an existing suggested activity after the user chooses chat or call, including through the exact activity-card action. Start requires channel; topic and duration carry over from the suggestion, and agenda is optional. An explicit start action on the exact current active call activity may re-open a call whose client connection was interrupted.
 
 Never use update or end when no current activity snapshot is present; an end mentioned in history has already happened. For a suggested activity, update only a confirmed topic or suggested duration. For an active activity, update only a material confirmed change to topic, planned duration, agenda, or channel.
 

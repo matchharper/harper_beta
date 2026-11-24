@@ -28,6 +28,9 @@ import {
   recordLegalDocumentAcceptance,
 } from "@/lib/legal/legalDocumentAcceptance";
 
+const BANNED_AUTH_ERROR_CODE = "user_banned";
+const ACCOUNT_RESTRICTED_PATH = "/account-restricted";
+
 function inferLandingLogSource(args: { flow: string; nextPath: string }) {
   if (args.nextPath.startsWith("/search")) return "search";
   if (args.nextPath.startsWith("/career")) return "career";
@@ -131,6 +134,14 @@ export default function AuthCallback() {
       const legalAcceptance = parseLegalAcceptanceQuery((key) =>
         getQueryText(router.query[key])
       );
+      // Supabase Auth rejects a banned account's sign-in with this code.
+      if (
+        (getQueryText(router.query.error_code) ||
+          getAuthCallbackHashValue("error_code")) === BANNED_AUTH_ERROR_CODE
+      ) {
+        void router.replace(ACCOUNT_RESTRICTED_PATH);
+        return;
+      }
       if (callbackError && inferCompanyAuthEntrySource(nextPath) === "org") {
         void router.replace(
           resolveAuthCallbackErrorDestination({
@@ -168,6 +179,10 @@ export default function AuthCallback() {
         const { error: exchangeError } =
           await supabase.auth.exchangeCodeForSession(code);
         if (exchangeError) {
+          if (exchangeError.code === BANNED_AUTH_ERROR_CODE) {
+            void router.replace(ACCOUNT_RESTRICTED_PATH);
+            return;
+          }
           console.error("exchangeCodeForSession error:", exchangeError);
           if (inferCompanyAuthEntrySource(nextPath) === "org") {
             void router.replace(

@@ -12094,6 +12094,7 @@ export type Database = {
         Row: {
           blocked_companies: string[]
           created_at: string
+          crm_broadcast_unsubscribed_at: string | null
           engagement_types: string[]
           external_search_default: Json | null
           get_external_recommendation: boolean
@@ -12113,6 +12114,7 @@ export type Database = {
         Insert: {
           blocked_companies?: string[]
           created_at?: string
+          crm_broadcast_unsubscribed_at?: string | null
           engagement_types?: string[]
           external_search_default?: Json | null
           get_external_recommendation?: boolean
@@ -12132,6 +12134,7 @@ export type Database = {
         Update: {
           blocked_companies?: string[]
           created_at?: string
+          crm_broadcast_unsubscribed_at?: string | null
           engagement_types?: string[]
           external_search_default?: Json | null
           get_external_recommendation?: boolean

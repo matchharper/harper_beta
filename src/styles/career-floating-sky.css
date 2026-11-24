@@ -388,7 +388,9 @@
 }
 .career-right-scroll {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* Vertical only: a contained x axis would swallow the macOS back swipe,
+     since overflow-y: auto also makes the panel a horizontal scroller. */
+  overscroll-behavior-y: contain;
   /* Vertical scroll also clips horizontally: reserve space for card shadows.
      Matching negative margins preserve the cards' original width and position. */
   padding: 0 calc(var(--career-panel-shadow-gutter) + 3px) 32px;
@@ -705,10 +707,6 @@
     display: none;
   }
 }
-[data-opportunity-detail] .career-opportunity-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
 @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
   .career-workspace-body[data-panel="history"] {
     transition: grid-template-columns var(--career-duration-state) var(--career-ease);
@@ -740,6 +738,18 @@
       var(--career-topbar-height) + max(0px, env(safe-area-inset-top) - 8px)
     );
     --career-chat-inset-top: calc(var(--career-mobile-header-height) + 16px);
+  }
+  /* Collapsed cards have no surface on mobile, so their text lines up with the page edge.
+     A tap opens the detail page, so the expand chevron is hidden. */
+  .career-workspace
+    .career-opportunity-card[data-expanded="false"]
+    .career-opportunity-header {
+    padding-inline: 0;
+  }
+  .career-workspace
+    .career-opportunity-card[data-expanded="false"]
+    .career-opportunity-chevron {
+    display: none;
   }
   .career-topbar {
     isolation: isolate;

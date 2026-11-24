@@ -1,4 +1,9 @@
 import { browserSessionFromQuery } from "@/lib/career/browser/links";
+import {
+  EMAIL_CHOICE_DRAFT_PARAM,
+  EMAIL_CHOICE_OPENED_EVENT,
+  EMAIL_CHOICE_SIGNATURE_PARAM,
+} from "@/lib/career/emailChoiceDraft";
 import { useStartDailyExternalRecommendations } from "@/hooks/career/useDailyExternalRecommendations";
 import { useGtmInviteClaim } from "@/hooks/career/useGtmInviteClaim";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -113,6 +118,7 @@ const CareerWorkspacePage = ({
   const router = useRouter();
   const isMobile = useIsMobile();
   const logCareerEvent = useCareerLogEvent();
+  const { fetchWithAuth } = useCareerApi();
   const { user, authLoading } = useCareerAuth();
   const { locale } = useMessages();
   const t = useCareerT();
@@ -478,7 +484,10 @@ const CareerWorkspacePage = ({
         clearCallbackQuery();
       })
       .catch(() => {
-        logCareerEvent("gmail_connect_failed");
+        // The status Google and Composio returned with, e.g. failed when the person declined.
+        logCareerEvent("gmail_connect_failed", {
+          status: gmailConnectStatus ?? null,
+        });
         showToast({
           message: t(
             "career.profile.resume_links.gmail_callback_failed",
@@ -534,6 +543,56 @@ const CareerWorkspacePage = ({
     router,
     user,
   ]);
+
+  const emailChoiceDraftParam = isRouterReady
+    ? getSingleQueryParam(router.query[EMAIL_CHOICE_DRAFT_PARAM])?.trim() || null
+    : null;
+  const emailChoiceSignatureParam = isRouterReady
+    ? getSingleQueryParam(router.query[EMAIL_CHOICE_SIGNATURE_PARAM])?.trim() || ""
+    : "";
+  // Kept after the parameters leave the URL, so a chat that mounts later still starts with it.
+  const [emailChoiceDraftSeed, setEmailChoiceDraftSeed] = useState<{
+    draft: string;
+    key: string;
+  } | null>(null);
+  const emailChoiceDraftReady = Boolean(
+    emailChoiceDraftParam && user && isOnboardingStatusReady && !needsOnboarding
+  );
+  const checkedEmailChoiceDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!emailChoiceDraftReady || !emailChoiceDraftParam) return;
+    const nextQuery = { ...router.query };
+    delete nextQuery[EMAIL_CHOICE_DRAFT_PARAM];
+    delete nextQuery[EMAIL_CHOICE_SIGNATURE_PARAM];
+    void router.replace(
+      { pathname: router.pathname, query: nextQuery },
+      undefined,
+      { shallow: true, scroll: false }
+    );
+    if (checkedEmailChoiceDraftRef.current === emailChoiceDraftParam) return;
+    checkedEmailChoiceDraftRef.current = emailChoiceDraftParam;
+    const draft = emailChoiceDraftParam;
+    // Only an option Harper wrote to this person fills the composer; any other link just opens chat.
+    void fetchWithAuth("/api/talent/email-choice-draft", {
+      method: "POST",
+      body: JSON.stringify({ text: draft, signature: emailChoiceSignatureParam }),
+    })
+      .then((response: Response) => (response.ok ? response.json() : null))
+      .then((result: { valid?: boolean } | null) => {
+        if (result?.valid !== true) return;
+        setEmailChoiceDraftSeed({ draft, key: `email_choice:${draft}` });
+        logCareerEvent(EMAIL_CHOICE_OPENED_EVENT);
+      })
+      .catch(() => undefined);
+  }, [
+    emailChoiceDraftParam,
+    emailChoiceDraftReady,
+    emailChoiceSignatureParam,
+    fetchWithAuth,
+    logCareerEvent,
+    router,
+  ]);
+  const chatDraftSeed = officialJobsChatDraftSeed ?? emailChoiceDraftSeed;
 
   useEffect(() => {
     if (!isRouterReady || authLoading || !user) return;
@@ -730,8 +789,8 @@ const CareerWorkspacePage = ({
       <CareerFlowProvider
         activeTab={currentActiveTab}
         emailOnboardingToken={emailOnboardingToken}
-        initialChatDraft={officialJobsChatDraftSeed?.draft}
-        initialChatDraftKey={officialJobsChatDraftSeed?.key}
+        initialChatDraft={chatDraftSeed?.draft}
+        initialChatDraftKey={chatDraftSeed?.key}
         initialChatOpportunityMention={
           officialJobsChatDraftSeed?.opportunityMention
         }
@@ -759,7 +818,7 @@ const CareerWorkspacePage = ({
           >
             <CareerWorkspaceScreen
               activeTab={currentActiveTab}
-              initialMobileChatOpen={Boolean(officialJobsChatDraftSeed || browserSessionFromQuery(router.query.browserSession))}
+              initialMobileChatOpen={Boolean(chatDraftSeed || emailChoiceDraftParam || browserSessionFromQuery(router.query.browserSession))}
               onChangeTab={handleChangeTab}
             />
             <CareerSettingsModal

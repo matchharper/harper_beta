@@ -1,4 +1,4 @@
-// career-i18n-skip-file: Local E2E stack only — open persona test accounts without a local login.
+// career-i18n-skip-file: Dev servers only — open persona test accounts without a sign-in.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
@@ -7,7 +7,7 @@ import CareerPersonaDevModal from "./CareerPersonaDevModal";
 
 export default function CareerPersonaLoginEntry() {
   const [open, setOpen] = useState(false);
-  // The route answers only on the isolated local stack; elsewhere it is 404.
+  // The route answers only on dev servers; deployed builds return 404.
   const available = useQuery({
     queryKey: ["career-dev-personas-available"],
     queryFn: async () =>

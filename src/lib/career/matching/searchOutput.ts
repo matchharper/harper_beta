@@ -102,6 +102,8 @@ export async function renderSearch(admin: TalentAdminClient, args: {
     hidden > 0 ? `Already recommended to this person and not listed: ${hidden}.` : "",
     structured.expiredRoleCount ? `Closed postings not listed: ${structured.expiredRoleCount}.` : "",
     "",
+    // Closed postings are left out above, so the listed roles are hiring.
+    page.some(e => e.role_id) ? "Options (roles are hiring):" : "",
     ...lines,
     "",
     page.length ? `Showing ${page.length} of ${listed} by weighted score (mutualFit 55%, candidateInterest 35%, companyInterest 10%; a constraint conflict lowers it).${structured.evaluationCursor ? ` Next: cursor ${structured.evaluationCursor}.` : ""}` : "No options to list.",

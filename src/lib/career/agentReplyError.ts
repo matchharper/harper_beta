@@ -7,3 +7,14 @@ export class CareerAgentReplyUnavailable extends Error {
     this.name = "CareerAgentReplyUnavailable";
   }
 }
+
+/**
+ * A Career invocation failed and will be attempted again after a wait. The
+ * queue handler uses `retryAfterSeconds` instead of its fixed redelivery.
+ */
+export class CareerInvocationRetryLater extends Error {
+  constructor(readonly retryAfterSeconds: number, cause?: unknown) {
+    super(cause instanceof Error ? cause.message : "Career invocation will retry later", { cause });
+    this.name = "CareerInvocationRetryLater";
+  }
+}

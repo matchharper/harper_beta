@@ -4,7 +4,7 @@ import { ownsCareerExecution } from "../executionEnvironment";
 import { createDelegatedTurnAdapter } from "./output";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { enqueueCareerAgentReply, type CareerAgentReplyJob } from "../agentReplyQueue";
-import { CareerAgentReplyUnavailable } from "../agentReplyError";
+import { CareerAgentReplyUnavailable, CareerInvocationRetryLater } from "../agentReplyError";
 import { CareerReplyContinuation, type CareerReplyCheckpoint } from "../capabilities/runtime";
 import { careerCheckpointIsReady } from "../agentContinuation";
 import { cancelCareerTurnWork, CareerTurnCancelled } from "../turnCancellation.server";
@@ -35,7 +35,16 @@ export async function processCareerInvocation(scope: WorkScope, invocationId: st
   const deadlineAt = Math.min(delivery.deadlineAt ?? Infinity, Date.now() + 430_000);
   let currentId: string | false | void = invocationId;
   do {
-    currentId = await processInvocation(scope, currentId, deadlineAt, delivery);
+    const attemptedId: string = currentId;
+    try {
+      currentId = await processInvocation(scope, attemptedId, deadlineAt, delivery);
+    } catch (error) {
+      if (error instanceof CareerInvocationRetryLater) throw error;
+      // Any failure counts; consecutive failures without progress end it.
+      const outcome = await recordCareerInvocationFailure(scope, attemptedId, error);
+      if (outcome.state === "retry") throw new CareerInvocationRetryLater(outcome.retryAfterSeconds, error);
+      return;
+    }
     delivery = { ...delivery, initialSetting: undefined, initialConversation: undefined, initialSourceMessage: undefined, initialInvocation: undefined };
   } while (typeof currentId === "string" && Date.now() < deadlineAt);
   if (typeof currentId === "string") {
@@ -44,6 +53,34 @@ export async function processCareerInvocation(scope: WorkScope, invocationId: st
     return false;
   }
   return currentId;
+}
+
+type InvocationFailureOutcome =
+  | { state: "retry"; count: number; retryAfterSeconds: number }
+  | { state: "failed"; count: number }
+  | { state: "gone" };
+
+async function recordCareerInvocationFailure(scope: WorkScope, invocationId: string, error: unknown): Promise<InvocationFailureOutcome> {
+  const message = typeof (error as { message?: unknown } | null)?.message === "string"
+    ? (error as { message: string }).message : String(error);
+  const { data, error: rpcError } = await (scope.admin.rpc as any)("record_career_invocation_failure", {
+    p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_invocation_id: invocationId, p_error: message,
+  });
+  // Without the record the old behaviour stays: the queue redelivers.
+  if (rpcError) {
+    console.error("[career-invocation] failure not recorded", { invocationId, error: rpcError.message });
+    throw error;
+  }
+  const outcome = data as InvocationFailureOutcome;
+  const log = { userId: scope.userId, conversationId: scope.conversationId, invocationId, outcome: outcome.state,
+    attempts: "count" in outcome ? outcome.count : null, error: message.slice(0, 2000) };
+  console.warn("[career-invocation] attempt failed", log);
+  if (outcome.state === "failed") {
+    const { recordCareerTurnFailure } = await import("./failureNotice.server");
+    await recordCareerTurnFailure(scope, log).catch(cause =>
+      console.error("[career-invocation] failure notice not saved", { invocationId, cause: String(cause) }));
+  }
+  return outcome;
 }
 
 async function processInvocation(scope: WorkScope, invocationId: string, deadlineAt: number, delivery: CareerInvocationDelivery): Promise<string | false | void> {
@@ -56,6 +93,10 @@ async function processInvocation(scope: WorkScope, invocationId: string, deadlin
   if (found.error) throw found.error;
   const invocation = found.data;
   if (!invocation || invocation.status === "completed" || !ownsCareerExecution(invocation.request.execution_environment)) return;
+  // After a failure the next attempt waits; an earlier delivery (another queue
+  // message, a resend) leaves it for then without counting as a failure.
+  const nextAttemptAt = Date.parse(invocation.provider_refs?.failures?.nextAttemptAt ?? "");
+  if (nextAttemptAt > Date.now()) throw new CareerInvocationRetryLater(Math.ceil((nextAttemptAt - Date.now()) / 1000));
   const workId = invocation.parent_id as string | undefined;
   const inboxId = !workId && Array.isArray(invocation.request.input_message_ids) ? invocationId : undefined;
   const replyId = `invocation:${invocation.id}`;

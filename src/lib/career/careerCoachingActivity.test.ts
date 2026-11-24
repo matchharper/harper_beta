@@ -66,13 +66,27 @@ test("parses the compact coaching activity contract and rejects incomplete activ
     }),
     activity
   );
-  assert.equal(
+  // Agenda and duration are optional once started; only the channel is needed.
+  assert.deepEqual(
     parseCareerCoachingActivity({
       id: 42,
       message_type: "career_coaching_activity",
       payload: {
         ...activity,
         agenda: [],
+        kind: "career_coaching_activity",
+        plannedMinutes: null,
+      },
+    }),
+    { ...activity, agenda: [], plannedMinutes: null }
+  );
+  assert.equal(
+    parseCareerCoachingActivity({
+      id: 42,
+      message_type: "career_coaching_activity",
+      payload: {
+        ...activity,
+        channel: null,
         kind: "career_coaching_activity",
       },
     }),

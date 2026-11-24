@@ -34,9 +34,10 @@ test("KR/US/JP model currencies become annual KRW exactly once before persistenc
   assert.deepEqual(result.invalid, []);
   assert.deepEqual(result.values.map(({ min, max }) => [min, max]), [
     [65_000_000, 80_000_000],
-    [Math.round(60_000 * fx.krwPerUnit.USD), Math.round(100_000 * fx.krwPerUnit.USD)],
-    [Math.round(60_000 * fx.krwPerUnit.USD), Math.round(100_000 * fx.krwPerUnit.USD)],
+    [Math.round(60_000 * fx.krwPerUnit.USD / 1e5) * 1e5, Math.round(100_000 * fx.krwPerUnit.USD / 1e5) * 1e5],
+    [Math.round(60_000 * fx.krwPerUnit.USD / 1e5) * 1e5, Math.round(100_000 * fx.krwPerUnit.USD / 1e5) * 1e5],
   ]);
+  assert.ok(result.values.every(({ min, max }) => min % 100_000 === 0 && max % 100_000 === 0));
   let saved = 0;
   await saveSalaryBatch({ rpc: async (name: string, args: any) => {
     assert.equal(name, "save_external_role_salary_predictions");

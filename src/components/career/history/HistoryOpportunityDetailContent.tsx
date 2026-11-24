@@ -546,9 +546,12 @@ export const HistoryOpportunityInlinePage = ({
   onStartMockInterview,
   pending,
   onKeepDecision,
+  decisionActions,
   roleActionsOnDesktop = true,
   savedStatus,
 }: {
+  /** Replaces the status actions for an opportunity the talent has not answered yet. */
+  decisionActions?: ReactNode;
   className?: string;
   item: CareerHistoryOpportunity;
   onBack: () => void;
@@ -592,10 +595,10 @@ export const HistoryOpportunityInlinePage = ({
   const archived = savedStatus === "archived";
   const external = !(item.isInternal || item.sourceType === "internal");
   const companyUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
-  const actions = (
+  // Every detail shows its buttons in one place, right under the card.
+  const actions = decisionActions ?? (
     <HistoryOpportunityDetailActions
       item={item}
-      compact={!archived}
       pending={pending}
       onApply={onApply}
       onSavedStatusChange={onSavedStatusChange}
@@ -645,10 +648,9 @@ export const HistoryOpportunityInlinePage = ({
               <OpportunityPostingSummary item={item} />
             ) : undefined
           }
-          headerActions={!archived && external ? actions : undefined}
           showUnreadIndicator={false}
-          actions={archived ? actions : undefined}
         />
+        <div className="pt-3 empty:hidden">{actions}</div>
       </header>
       {archived ? (
         <>
@@ -692,7 +694,6 @@ export const HistoryOpportunityInlinePage = ({
                 }
                 fallbackMeeting={item.upcomingMeeting}
               />
-              {!external && !inProgress && actions}
               <TalentRoleActivityTimeline
                 showMemo
                 item={item}
@@ -700,7 +701,6 @@ export const HistoryOpportunityInlinePage = ({
                 loadError={timelineError}
                 onAddTalentMemo={onUpdateTalentMemo}
               />
-              {!external && inProgress && actions}
               {!inProgress && (
                 <HistoryOpportunityRoleActions
                   className={cn(!roleActionsOnDesktop && "md:hidden")}
@@ -716,6 +716,7 @@ export const HistoryOpportunityInlinePage = ({
               <OpportunityRoleInformation
                 item={item}
                 factsSection="role"
+                fullDescription
                 onOpenLink={onOpenLink}
               />
             </div>

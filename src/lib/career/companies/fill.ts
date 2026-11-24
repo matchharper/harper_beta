@@ -19,7 +19,7 @@ export const TOP_COMPANY_FILL_BUDGET_MS = 30_000;
 /** One company's preparation, including what continues after a search stops waiting. Shorter than the
  * three-minute provider lease, so a stuck provider call cannot hold a company's lease past it. */
 export const COMPANY_PREPARATION_TIMEOUT_MS = 120_000;
-/** Companies prepared at once. Each runs up to three web searches; this keeps a search's burst of
+/** Companies prepared at once. Each runs up to two web searches; this keeps a search's burst of
  * provider requests near the bounded concurrency used elsewhere for Exa. */
 export const COMPANY_PREPARATION_CONCURRENCY = 6;
 

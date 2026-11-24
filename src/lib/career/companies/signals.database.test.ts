@@ -133,9 +133,9 @@ test("a check searches once per company, saves each dated source once, and recor
   ];
   const [one, two] = await Promise.all([orbit, orbit].map(() => checkCompanySignals(context, orbit, { search: search as never, extract })));
   assert.deepEqual([one.status, two.status].sort(), ["checked", "waited"]);
-  assert.equal(queries.length, 2, "one check runs the news and LinkedIn searches once");
+  assert.equal(queries.length, 1, "one check runs the news search once");
   assert.ok(queries.every(q => q.query.startsWith("Orbit orbit.example")));
-  assert.deepEqual(queries.map(q => Object.keys(q.options as object).sort()), [["category", "startPublishedDate"], ["includeDomains", "startPublishedDate"]]);
+  assert.deepEqual(queries.map(q => Object.keys(q.options as object).sort()), [["category", "startPublishedDate"]]);
   assert.deepEqual(seen, [["https://www.linkedin.com/posts/orbit-team", "https://news.example/orbit-korea", "https://news.example/another-company"]]);
   const stored = (await readCompanySignals(admin, [orbit])).get(orbit)!;
   assert.equal(stored.total, 2);
@@ -144,7 +144,7 @@ test("a check searches once per company, saves each dated source once, and recor
 
   // Checked within the recheck period: nothing is searched.
   assert.equal((await checkCompanySignals(context, orbit, { search: search as never, extract })).status, "current");
-  assert.equal(queries.length, 2);
+  assert.equal(queries.length, 1);
 
   // Fifteen days later the same pages are already on record; only the new one is read.
   await db.query("update career_company_signal_checks set checked_at=now()-interval '15 days'");

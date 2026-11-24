@@ -1,4 +1,5 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { testTalentAccountExclusion } from "@/lib/testAccounts";
 
 type TalentSummary = {
   createdAt: string | null;
@@ -1358,6 +1359,8 @@ export async function fetchOpsDebugOpportunityRuns(args: {
     )
     .order("created_at", { ascending: false })
     .range(0, sourceLimit - 1);
+  // Persona test accounts are not listed in ops.
+  runQuery = runQuery.not("talent_id", "in", await testTalentAccountExclusion());
 
   if (dateRange.startIso) {
     runQuery = runQuery.gte("created_at", dateRange.startIso);

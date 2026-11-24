@@ -12,6 +12,7 @@ import { readCompanyFacts, formatCompanyFacts, embedHint, type CompanyFacts } fr
  */
 type Row = Record<string, any>;
 const db = (admin: TalentAdminClient, table: string) => admin.from(table as never) as any;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type PoolKey = { roleId?: string | null; companyWorkspaceId?: string | null };
 const keyOf = (k: PoolKey) => k.roleId ? `role:${k.roleId}` : `company:${k.companyWorkspaceId}`;
@@ -159,6 +160,8 @@ export function formatRouteHistory(routes: Map<string, RouteHistory>) {
 export async function resolvePoolNumbers(admin: TalentAdminClient, matchingId: string | undefined, numbers: number[]) {
   if (!numbers.length) return new Map<number, PoolKey>();
   if (!matchingId) throw new Error("Option numbers belong to a matching; open or name the matching first.");
+  // An ID that is not a UUID names no matching; say that instead of a uuid cast error.
+  if (!UUID.test(matchingId)) throw new Error(`Matching ${matchingId} is unavailable.`);
   const { data, error } = await db(admin, "talent_matching_candidates")
     .select("number,role_id,company_workspace_id").eq("matching_id", matchingId).in("number", numbers);
   if (error) throw new Error(error.message);

@@ -5,14 +5,10 @@ import { getCareerDevSqlClient } from "./devSqlClient";
  * (`talent_test_accounts`) that played a public profile through first signup.
  */
 
-// Deployed builds never serve personas; a dev server may point at any DB.
+// Deployed builds never serve personas. A dev server may point at any DB, and
+// whoever runs it already holds the service role, so personas open without a sign-in.
 export function isDevPersonaEnabled() {
   return process.env.NODE_ENV !== "production";
-}
-
-// Only the isolated local stack lets a signed-out browser open personas.
-export function allowsSignedOutPersonaAccess() {
-  return process.env.HARPER_LOCAL_E2E === "1";
 }
 
 export type DevPersonaRun = {

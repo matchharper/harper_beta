@@ -4,7 +4,10 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-/** Cohort metrics look at what a talent did in the first 3 days after signing up. */
+/**
+ * Cohort metrics look at what a talent did in the first 3 days after signing up. Talents still inside those days
+ * count with what they did so far, so recent weeks show values right away.
+ */
 const COHORT_DAYS = 3;
 /** A landing visit converts when the same browser signs up within a day. */
 const LANDING_CONVERSION_DAYS = 1;
@@ -76,6 +79,8 @@ export type UpdateMetricsSignupRow = {
   disliked3d: number;
   firstChatAt: Date | string | null;
   gmailAt: Date | string | null;
+  /** First Harper reply that showed the Gmail connection card. */
+  gmailProposedAt: Date | string | null;
   hasMaterials: boolean;
   liked3d: number;
   llmMs3d: number;
@@ -84,6 +89,11 @@ export type UpdateMetricsSignupRow = {
   signedUpAt: Date | string;
   userId: string;
 };
+
+export type UpdateMetricsUsageRow = Pick<
+  UpdateMetricsSignupRow,
+  "costUsd3d" | "llmMs3d" | "userId"
+>;
 
 export type UpdateMetricsRecommendationRow = {
   bucketIndex: number;
@@ -239,15 +249,9 @@ export function buildOpsUpdateMetrics(args: {
     const index = bucketIndexOf(buckets, new Date(signup.signedUpAt).getTime());
     if (index >= 0) signupsByBucket[index]?.push(signup);
   }
-  // Cohort metrics only count talents whose first 3 days are over.
-  const matured = signupsByBucket.map((rows) =>
-    rows.filter(
-      (row) => new Date(row.signedUpAt).getTime() + COHORT_DAYS * DAY_MS <= args.nowMs
-    )
-  );
   const cohort = (
     measure: (rows: UpdateMetricsSignupRow[]) => UpdateMetricValue
-  ) => matured.map(measure);
+  ) => signupsByBucket.map(measure);
   const signedUpMs = (row: UpdateMetricsSignupRow) => new Date(row.signedUpAt).getTime();
   const chatted = (row: UpdateMetricsSignupRow) =>
     within(row.firstChatAt, signedUpMs(row), COHORT_DAYS);
@@ -280,8 +284,6 @@ export function buildOpsUpdateMetrics(args: {
   const landingByBucket = buckets.map(() => ({ converted: 0, visitors: 0 }));
   for (const visit of args.landing) {
     const atMs = new Date(visit.at).getTime();
-    // A visit counts once its conversion window has passed.
-    if (atMs + LANDING_CONVERSION_DAYS * DAY_MS > args.nowMs) continue;
     const index = bucketIndexOf(buckets, atMs);
     const bucket = landingByBucket[index];
     if (!bucket) continue;
@@ -312,7 +314,8 @@ export function buildOpsUpdateMetrics(args: {
         row(
           {
             better: "up",
-            detail: "가입 후 3일 안에 채팅 메시지를 한 번이라도 보낸 비율입니다. 가입 후 3일이 지난 사람만 셉니다.",
+            detail:
+              "가입 후 3일 안에 채팅 메시지를 한 번이라도 보낸 비율입니다. 직접 입력한 메시지와 채팅 버튼(오픈 포지션 더 추천, 소개 요청, 양식 답변)으로 보낸 메시지를 모두 셉니다. 가입한 지 3일이 안 된 사람은 지금까지 한 것으로 셉니다.",
             key: "chatRate",
             label: "가입 대비 채팅 진행",
             unit: "percent",
@@ -431,7 +434,7 @@ export function buildOpsUpdateMetrics(args: {
           {
             better: "up",
             detail:
-              "가입 후 3일 안에 추천을 받은 사람 중 그 추천에 3일 안에 좋아요를 하나 이상 누른 비율입니다.",
+              "가입 후 3일 안에 추천을 받은 사람 중 그 추천에 3일 안에 좋아요를 하나 이상 누른 비율입니다. ‘이미 지원했던 회사/역할’로 제외한 것도 좋아요로 셉니다.",
             key: "recipientLikeRate",
             label: "추천 받은 사람 중 좋아요",
             unit: "percent",
@@ -445,7 +448,8 @@ export function buildOpsUpdateMetrics(args: {
         row(
           {
             better: "up",
-            detail: "첫 3일 추천에 첫 3일 안에 남긴 좋아요·싫어요 중 좋아요 비율입니다.",
+            detail:
+              "첫 3일 추천에 첫 3일 안에 남긴 좋아요·싫어요 중 좋아요 비율입니다. ‘이미 지원했던 회사/역할’로 제외한 것도 좋아요로 셉니다.",
             key: "feedbackLikeRate",
             label: "피드백 중 좋아요",
             unit: "percent",
@@ -485,6 +489,24 @@ export function buildOpsUpdateMetrics(args: {
       rows: [
         row(
           {
+            better: null,
+            detail:
+              "가입 후 3일 안에 Harper가 채팅에서 Gmail 연결 카드(읽기·보내기)를 보여 준 비율입니다. 이 카드는 2026-11-04부터 있었습니다.",
+            key: "gmailProposedRate",
+            label: "가입 대비 Gmail 연결 제안",
+            unit: "percent",
+          },
+          cohort((rows) =>
+            rate(
+              rows.filter((item) => within(item.gmailProposedAt, signedUpMs(item), COHORT_DAYS))
+                .length,
+              rows.length
+            )
+          ),
+          emptyRate
+        ),
+        row(
+          {
             better: "up",
             detail: "가입 후 3일 안에 Gmail을 연결한 비율입니다.",
             key: "gmailRate",
@@ -509,7 +531,7 @@ export function buildOpsUpdateMetrics(args: {
           {
             better: "up",
             detail:
-              "후보자 랜딩(/)을 본 브라우저 중 하루 안에 같은 브라우저로 가입한 비율입니다. 방문은 landing_stats_exposure로 셉니다. 배포 전 칸은 4주를 합친 주간 평균입니다.",
+              "후보자 랜딩(/)을 본 브라우저 중 하루 안에 같은 브라우저로 가입한 비율입니다. 방문은 landing_stats_exposure로 셉니다. 본 지 하루가 안 된 방문은 지금까지 가입한 것으로 셉니다. 배포 전 칸은 4주를 합친 주간 평균입니다.",
             key: "landingConversion",
             label: "랜딩 전환율",
             unit: "percent",

@@ -84,6 +84,7 @@ import {
   OFFICIAL_JOBS_ROLE_TITLE_MAX_LENGTH,
 } from "@/lib/officialJobs";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
+import { EMAIL_CHOICE_DRAFT_PARAM, EMAIL_CHOICE_SIGNATURE_PARAM } from "@/lib/career/emailChoiceDraft";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
 import {
@@ -1549,6 +1550,14 @@ const CareerNetworkOnboardingContent = () => {
           if (router.query.start === "call" || router.query.start === "chat") {
             query.start = router.query.start;
           }
+          const emailChoiceDraft = getSingleQueryParam(
+            router.query[EMAIL_CHOICE_DRAFT_PARAM]
+          );
+          if (emailChoiceDraft) query[EMAIL_CHOICE_DRAFT_PARAM] = emailChoiceDraft;
+          const emailChoiceSignature = getSingleQueryParam(
+            router.query[EMAIL_CHOICE_SIGNATURE_PARAM]
+          );
+          if (emailChoiceSignature) query[EMAIL_CHOICE_SIGNATURE_PARAM] = emailChoiceSignature;
 
           redirecting = true;
           void router.replace({
@@ -2089,13 +2098,7 @@ const CareerNetworkOnboardingContent = () => {
         return;
       }
 
-      setGuideVisible(true);
-      // Start the existing submission without waiting for analysis to finish.
-      void submitOnboarding().then((succeeded) => {
-        if (succeeded) return;
-        setGuideVisible(false);
-        setStep(stepOrder.indexOf("profile"));
-      });
+      submitBehindGuide();
     },
     totalSteps: stepOrder.length,
     beforeNext: (currentStep) => {
@@ -2120,6 +2123,33 @@ const CareerNetworkOnboardingContent = () => {
     onComplete: () => setGuideVisible(false),
     enableWheelNavigation: false,
   });
+  // The guide stays until the person clicks on; the submission runs behind it
+  // without waiting for analysis, and a failure returns to the profile step.
+  const submitBehindGuide = useCallback(
+    (skipProfileSources = false) => {
+      setGuideVisible(true);
+      void submitOnboarding(skipProfileSources).then((succeeded) => {
+        if (succeeded) return;
+        setGuideVisible(false);
+        setStep(stepOrder.indexOf("profile"));
+      });
+    },
+    [setStep, stepOrder, submitOnboarding]
+  );
+  // Nothing was connected: describing it by hand, or skipping, also passes through the guide.
+  const submitProfileRecovery = useCallback(
+    (skipProfileSources = false) => {
+      const guideStep = stepOrder.indexOf("guide");
+      if (resumeRecovery !== "empty" || guideStep < 0) {
+        void submitOnboarding(skipProfileSources);
+        return;
+      }
+      setResumeRecovery(false);
+      setStep(guideStep);
+      submitBehindGuide(skipProfileSources);
+    },
+    [resumeRecovery, setStep, stepOrder, submitBehindGuide, submitOnboarding]
+  );
   const currentStepKind = stepOrder[step] ?? "basic";
 
   const handleLoggedNext = useCallback(() => {
@@ -2239,6 +2269,14 @@ const CareerNetworkOnboardingContent = () => {
       if (officialJobRoleId) {
         query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM] = officialJobRoleId;
       }
+      const emailChoiceDraft = getSingleQueryParam(
+        router.query[EMAIL_CHOICE_DRAFT_PARAM]
+      );
+      if (emailChoiceDraft) query[EMAIL_CHOICE_DRAFT_PARAM] = emailChoiceDraft;
+          const emailChoiceSignature = getSingleQueryParam(
+            router.query[EMAIL_CHOICE_SIGNATURE_PARAM]
+          );
+          if (emailChoiceSignature) query[EMAIL_CHOICE_SIGNATURE_PARAM] = emailChoiceSignature;
 
       void router.push({
         pathname: "/career",
@@ -2258,8 +2296,10 @@ const CareerNetworkOnboardingContent = () => {
   );
 
   useEffect(() => {
-    if (submitState === "done" && !isPreviewSubmitState) navigateToCareerStart("chat");
-  }, [isPreviewSubmitState, navigateToCareerStart, submitState]);
+    if (submitState === "done" && !guideVisible && !isPreviewSubmitState) {
+      navigateToCareerStart("chat");
+    }
+  }, [guideVisible, isPreviewSubmitState, navigateToCareerStart, submitState]);
 
   // Came from a Harper GTM mail: that posting is the first screen (once per mail), then onboarding.
   const gtmInviteFirstScreen = useGtmInviteFirstScreen(!isPreviewSubmitState && effectiveSubmitState === "form");
@@ -2365,7 +2405,7 @@ const CareerNetworkOnboardingContent = () => {
                   variant="secondary"
                   onClick={() => {
                     logCareerEvent("click_onboarding_skip_profile_sources");
-                    void submitOnboarding(true);
+                    submitProfileRecovery(true);
                   }}
                 >
                   {t("career.onboarding.skip_profile_sources", "건너뛰기")}
@@ -2379,7 +2419,7 @@ const CareerNetworkOnboardingContent = () => {
               reason={resumeRecovery}
               value={pastedResumeText}
               onChange={setPastedResumeText}
-              onSubmit={() => void submitOnboarding()}
+              onSubmit={() => submitProfileRecovery()}
             />
           </OnboardingFrame>
         )}

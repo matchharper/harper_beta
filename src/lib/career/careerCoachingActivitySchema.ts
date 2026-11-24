@@ -112,11 +112,7 @@ export function parseCareerCoachingActivity(message: {
   }
   if (
     payload.status === "active" &&
-    (plannedMinutes === null ||
-      !channel ||
-      agenda.length < 1 ||
-      startedAt === null ||
-      endedAt !== null)
+    (!channel || startedAt === null || endedAt !== null)
   ) {
     return null;
   }

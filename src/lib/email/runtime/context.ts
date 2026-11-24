@@ -5,8 +5,9 @@ import { isInternalRoleCandidateDecisionAvailable } from "@/lib/career/internalO
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
 // Subject prefixes are transport syntax, not conversational intent.
-function threadSubject(value: string) {
+export function threadSubject(value: string) {
   return value
+    .replace(/\s+/g, " ")
     .replace(/^(?:(?:re|fw|fwd)\s*:\s*)+/i, "")
     .trim()
     .toLowerCase();

@@ -13,6 +13,7 @@ import {
   type SalaryMethod,
 } from "../ops/roleSalaryEstimation";
 import prompts from "../ops/roleSalaryEstimation.prompts.json";
+import { roundEstimatedKrw } from "../career/estimatedSalary";
 import fx from "./salaryFx.json";
 import { chunks, mapConcurrent } from "./contract";
 
@@ -111,8 +112,8 @@ export async function estimateSalaryBatch(
         {
           roleId: row.id,
           sourceHash: row.source_hash,
-          min: Math.round(estimate.min * rate),
-          max: Math.round(estimate.max * rate),
+          min: roundEstimatedKrw(estimate.min * rate),
+          max: roundEstimatedKrw(estimate.max * rate),
         },
       ];
     } catch {

@@ -33,6 +33,7 @@ import {
 } from "./CareerSidebarContext";
 import CareerOpportunitySettingsSection from "./settings/CareerOpportunitySettingsSection";
 import CareerLanguageSetting from "./settings/CareerLanguageSetting";
+import CareerCrmBroadcastSetting from "./settings/CareerCrmBroadcastSetting";
 import { CareerSettingRow as SettingRow } from "./settings/CareerSettingRow";
 import { GroupedList, GroupedListRow } from "@/components/ui/grouped-list";
 import { BareButton, MuteButton } from "@/components/ui/button";
@@ -702,6 +703,7 @@ const AccountSectionContent = ({
                 </button>
               </GroupedListRow>
               <CareerLanguageSetting grouped />
+              <CareerCrmBroadcastSetting grouped />
             </GroupedList>
             {saveFeedback}
             <div className="flex flex-col items-start px-5">
@@ -750,6 +752,8 @@ const AccountSectionContent = ({
 
             {saveFeedback}
             <CareerLanguageSetting />
+
+            <CareerCrmBroadcastSetting />
 
             <SettingRow
               title={logoutLabel}

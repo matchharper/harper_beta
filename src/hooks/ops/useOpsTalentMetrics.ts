@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { fetchWithInternalAuth } from "@/lib/internalApiClient";
+import { useOpsMetricSnapshotQuery } from "@/hooks/ops/useOpsMetricSnapshotQuery";
 import type {
   OpsTalentMetricInterval,
   OpsTalentMetricsResponseBySection,
@@ -14,12 +13,28 @@ type Filters = {
   to: string;
 };
 
+function filterParams(filters: Filters, extra: Record<string, string> = {}) {
+  const params = new URLSearchParams({
+    from: filters.from,
+    interval: filters.interval,
+    to: filters.to,
+    ...extra,
+  });
+  for (const value of filters.excludedEmails) {
+    params.append("excludedEmail", value);
+  }
+  return params;
+}
+
 function useOpsTalentMetricsSection<TSection extends OpsTalentMetricsSection>(
   section: TSection,
   enabled: boolean,
   filters: Filters
 ) {
-  return useQuery({
+  return useOpsMetricSnapshotQuery<OpsTalentMetricsResponseBySection[TSection]>({
+    enabled,
+    params: filterParams(filters, { section }),
+    path: "/api/internal/ops/metrics",
     queryKey: [
       "ops-talent-metrics",
       section,
@@ -28,26 +43,6 @@ function useOpsTalentMetricsSection<TSection extends OpsTalentMetricsSection>(
       filters.interval,
       ...filters.excludedEmails,
     ],
-    queryFn: ({ signal }) => {
-      const params = new URLSearchParams({
-        from: filters.from,
-        interval: filters.interval,
-        section,
-        to: filters.to,
-      });
-      for (const value of filters.excludedEmails) {
-        params.append("excludedEmail", value);
-      }
-      return fetchWithInternalAuth<OpsTalentMetricsResponseBySection[TSection]>(
-        `/api/internal/ops/metrics?${params.toString()}`,
-        { signal }
-      );
-    },
-    enabled,
-    gcTime: 15 * 60 * 1_000,
-    placeholderData: (previousData) => previousData,
-    retry: false,
-    staleTime: 2 * 60 * 1_000,
   });
 }
 
@@ -60,7 +55,10 @@ export function useOpsTalentMetrics(enabled: boolean, filters: Filters) {
 }
 
 export function useOpsTalentMetricsOverview(enabled: boolean, filters: Filters) {
-  return useQuery({
+  return useOpsMetricSnapshotQuery<OpsTalentMetricsOverviewResponse>({
+    enabled,
+    params: filterParams(filters),
+    path: "/api/internal/ops/metrics/overview",
     queryKey: [
       "ops-talent-metrics",
       "overview",
@@ -69,24 +67,5 @@ export function useOpsTalentMetricsOverview(enabled: boolean, filters: Filters) 
       filters.interval,
       ...filters.excludedEmails,
     ],
-    queryFn: ({ signal }) => {
-      const params = new URLSearchParams({
-        from: filters.from,
-        interval: filters.interval,
-        to: filters.to,
-      });
-      for (const value of filters.excludedEmails) {
-        params.append("excludedEmail", value);
-      }
-      return fetchWithInternalAuth<OpsTalentMetricsOverviewResponse>(
-        `/api/internal/ops/metrics/overview?${params.toString()}`,
-        { signal }
-      );
-    },
-    enabled,
-    gcTime: 15 * 60 * 1_000,
-    placeholderData: (previousData) => previousData,
-    retry: false,
-    staleTime: 2 * 60 * 1_000,
   });
 }

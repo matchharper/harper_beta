@@ -1,4 +1,8 @@
-import { Handshake, ListChecks, ScanSearch, Users } from "lucide-react";
+import {
+  Agreement02Icon,
+  GlobalSearchIcon,
+  TaskDone01Icon,
+} from "@hugeicons/core-free-icons";
 import {
   OnboardingGuideBody,
   OnboardingGuideHeader,
@@ -37,7 +41,7 @@ export function CareerOnboardingGuideBody() {
       items={[
         {
           id: "discover",
-          icon: Users,
+          icon: Agreement02Icon,
           title: t(
             "career.onboarding.guide.discover_title",
             "Harper는 회사와 직접 연결해드려요."
@@ -49,7 +53,7 @@ export function CareerOnboardingGuideBody() {
         },
         {
           id: "prepare",
-          icon: ScanSearch,
+          icon: GlobalSearchIcon,
           title: t(
             "career.onboarding.guide.prepare_title",
             "밖의 모든 기회를 항상 탐색해요."
@@ -61,7 +65,7 @@ export function CareerOnboardingGuideBody() {
         },
         {
           id: "track",
-          icon: ListChecks,
+          icon: TaskDone01Icon,
           title: t(
             "career.onboarding.guide.track_title",
             "모든 필요한 작업을 맡겨주세요."

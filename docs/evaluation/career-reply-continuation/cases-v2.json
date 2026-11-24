@@ -1,0 +1,209 @@
+{
+  "datasetVersion": "v2",
+  "frozenAt": "2026-11-23",
+  "provenance": "Synthetic cases written by Claude on 2026-11-23 from a second sample of production Career replies (2026-11-05 ~ 11-23) that ended on a plain statement: card feedback, standing instructions, new facts, explanations, introductions, file uploads, posting details. Names, companies and numbers are invented; no production text is copied.",
+  "defaultToolResult": "Defined in the runner: reads return no further records, external effects return 'nothing was sent', other saves succeed.",
+  "cases": [
+    {
+      "id": "s1-archive-card",
+      "group": "continuation",
+      "locale": "en",
+      "facts": "Search Brief: Head of technology operations or similar leadership roles in fintech, Singapore or remote. Recent recommendations: Staff Platform Engineer at Pave Bank (just archived by the user), VP Engineering Operations at Coinflow (saved), Director of IT at Northstar Pay (new).",
+      "messages": [
+        { "role": "user", "content": "[Opportunity card action] (External) Staff Platform Engineer at Pave Bank — Archived" }
+      ],
+      "toolResults": {
+        "update_recommended_opportunity_feedback": "Feedback recorded: Pave Bank Staff Platform Engineer archived."
+      }
+    },
+    {
+      "id": "s2-save-card",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Candidate: 5 years in service planning and UX research (customer interviews, journey maps) at an e-commerce company. Search Brief: CX/서비스 기획, 서울. The user just saved this posting from New opportunities.",
+      "messages": [
+        { "role": "user", "content": "[Opportunity card action] (External) CX Strategy Manager (고객경험기획) at 모노웨어 — 저장함" }
+      ],
+      "toolResults": {
+        "get_role_context": "모노웨어 CX Strategy Manager. Seoul. Responsibilities: turn VOC and customer research into product and operations changes, own the customer journey map. Requirements: 7+ years in service/product planning or CX strategy. Preferred: e-commerce, fashion. Deadline: none stated. Apply via official site.",
+        "read_companies": "모노웨어: fashion commerce, ~300 employees, series C (2025)."
+      }
+    },
+    {
+      "id": "s3-standing-instruction",
+      "group": "continuation",
+      "locale": "en",
+      "facts": "Harper recommended a Benchling Solutions Engineer role yesterday; the posting is 3 weeks old. Search Brief: solutions/sales engineer roles in Boston or remote.",
+      "messages": [
+        { "role": "assistant", "content": "Benchling's Solutions Engineer role is a close fit for your lab-software background." },
+        { "role": "user", "content": "that one's 3 weeks old, they've probably filled it. remove it. always search roles posted in the last 2 business days." }
+      ],
+      "toolResults": {
+        "update_recommended_opportunity_feedback": "Benchling Solutions Engineer removed from recommendations.",
+        "write_talent_context": "Search Brief updated: only roles posted within the last 2 business days."
+      }
+    },
+    {
+      "id": "s4-new-fact",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Harper is reviewing the candidate's fit for a Data Analyst role at 스테이폴리 (requires SQL). Earlier Harper said SQL experience was not confirmed in their profile.",
+      "messages": [
+        { "role": "assistant", "content": "스테이폴리 데이터 분석가 공고는 SQL 활용이 필수인데, 프로필에서는 SQL 경험이 확인되지 않았어요." },
+        { "role": "user", "content": "고마워 그리고 나 SQL로 내가 원하는 데이터 뽑아오는 정도는 할 줄 알아" }
+      ],
+      "toolResults": {
+        "update_talent_profile": "Profile skill added: SQL (data extraction).",
+        "write_talent_context": "Memory saved: can write SQL to extract needed data."
+      }
+    },
+    {
+      "id": "s5-explain-expired",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "A system notice just removed 3 expired roles from the user's list: Gatik ML Engineer, Notion Software Engineer New Grad, ServiceNow Software Engineer. The user is currently viewing SpruceID Software Engineer, which is active and marked as applied.",
+      "messages": [
+        { "role": "assistant", "content": "만료된 포지션 3개를 목록에서 제외했어요." },
+        { "role": "user", "content": "만료된건 머였어?" }
+      ],
+      "toolResults": {
+        "read_recommended_opportunities": "Closed (removed today): Gatik — Machine Learning Engineer; Notion — Software Engineer, New Grad; ServiceNow — Software Engineer. Active: SpruceID — Software Engineer (applied)."
+      }
+    },
+    {
+      "id": "s6-whats-my-resume",
+      "group": "continuation",
+      "locale": "en",
+      "facts": "Default resume: Resume_2026.pdf. It lists the current job at Brivva as 'Present', but the user left Brivva last month (recorded in Memory). A copy was already shared with Wonderful for an introduction.",
+      "messages": [
+        { "role": "user", "content": "whats my resume?" }
+      ],
+      "toolResults": {
+        "list_documents": "Documents: doc-r-1 Resume_2026.pdf (default, public).",
+        "read_document": "Resume_2026.pdf: ML engineer. Brivva (2024 – Present): built retrieval and agent pipelines. Kakao (2021–2024): recommender systems. M.S. CS, UNIST."
+      }
+    },
+    {
+      "id": "s7-follow-company",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "The user looked at a Growth Manager role at Harper (the company) earlier; it mixes marketing, sales and business development.",
+      "messages": [
+        { "role": "assistant", "content": "Harper의 Growth Manager는 마케팅뿐 아니라 영업·사업 개발까지 폭넓게 맡는 역할이에요." },
+        { "role": "user", "content": "약간 마케팅 같은 직무구나. 일단 harper 나의 관심 기업으로 해줘" }
+      ],
+      "toolResults": {
+        "follow_company": "Following Harper. Scheduled checks will include it."
+      }
+    },
+    {
+      "id": "s8-anything-else",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Harper-connected opportunities for this user: introductions requested to Harper (the company) and NARWHAL, both awaiting the company decision. One more connected role (New York, onsite) does not fit. External search was last run 9 days ago for backend roles in Seoul.",
+      "messages": [
+        { "role": "user", "content": "내가 더 지원할 곳은 없지?" }
+      ],
+      "toolResults": {
+        "read_recommended_opportunities": "Harper-connected: Harper — Backend Engineer (introduction requested, awaiting decision); NARWHAL — Backend Engineer (introduction requested, awaiting decision); Loop NYC — Platform Engineer (New York onsite; not a fit). External: none new since last search 9 days ago."
+      }
+    },
+    {
+      "id": "s9-intro-request",
+      "group": "continuation",
+      "locale": "en",
+      "facts": "Blockit is a Harper-connected company. Its Founding Engineer role was recommended yesterday and the candidate accepted sharing their default profile and public resume.",
+      "messages": [
+        { "role": "assistant", "content": "Blockit's Founding Engineer role fits your scheduling-infra work. Want me to introduce you?" },
+        { "role": "user", "content": "Yes, introduce me to Blockit" }
+      ],
+      "toolResults": {
+        "contact_company": "Introduction request delivered to Blockit's agent with the default profile and public resume. Awaiting the company's decision; typical response within a few days."
+      }
+    },
+    {
+      "id": "s10-file-received",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "The user is preparing three applications with different CVs: KAIST AI Lab (CV received yesterday), HITS (now uploading), 스캐터랩 ML Researcher (CV not yet uploaded). Harper will tailor nothing; the user wants each CV attached as-is.",
+      "messages": [
+        { "role": "assistant", "content": "카이스트용 CV 잘 받았어요. 다음은 HITS용 CV를 올려주세요." },
+        { "role": "user", "content": "그 다음인 HITS용이에요 [attachment: HITS_CV_2026.pdf]" }
+      ],
+      "toolResults": {
+        "upsert_document": "Document saved: HITS_CV_2026.pdf (doc-h-2).",
+        "list_documents": "Documents: KAIST_CV.pdf, HITS_CV_2026.pdf."
+      }
+    },
+    {
+      "id": "s11-posting-detail",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Two recommended roles: TwelveLabs Staff ML Research Engineer (video understanding foundation models, Seoul/SF), CJ AI Center Video Generation Engineer (applies generative video to content production, deadline in 3 days). Candidate: ML researcher, video generation papers.",
+      "messages": [
+        { "role": "user", "content": "TwelveLabs Staff ML Research Engineer 공고를 자세히 보여줘." }
+      ],
+      "toolResults": {
+        "get_role_context": "TwelveLabs Staff ML Research Engineer. Lead research on multimodal video understanding foundation models; own training of large video-language models; mentor researchers. Requirements: PhD or equivalent, first-author publications at top venues, large-scale training experience. Location: Seoul or San Francisco. Compensation not disclosed."
+      }
+    },
+    {
+      "id": "s12-project-answer",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Harper is tailoring the resume for a DevOps role at 딥오토 (requires CI/CD). The resume mentions a GitHub Actions self-hosted runner setup but did not say whether it was at work or personal.",
+      "messages": [
+        { "role": "assistant", "content": "이력서의 GitHub Actions 셀프호스팅 러너 구성은 회사 업무였나요, 개인 프로젝트였나요?" },
+        { "role": "user", "content": "개인 프로젝트입니다" }
+      ],
+      "toolResults": {
+        "read_document": "Resume doc-d-3: Backend developer 3 years. Projects: GitHub Actions build/test/deploy with self-hosted runners (cost reduction).",
+        "upsert_document": "Resume doc-d-3 saved as a new revision."
+      }
+    },
+    {
+      "id": "g6-no-questions",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Recommended role: 핀다 Product Analyst. The posting discloses salary: 연 5,500만~7,000만 원 (경력에 따라).",
+      "messages": [
+        { "role": "user", "content": "질문하지 말고 그냥 알려줘. 핀다 공고 연봉 공개돼 있어?" }
+      ],
+      "toolResults": {
+        "get_role_context": "핀다 Product Analyst. Salary disclosed: 5,500만~7,000만 원 per year depending on experience."
+      }
+    },
+    {
+      "id": "g7-short-thanks",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Harper just recommended three roles in the previous reply. Nothing is waiting on the user.",
+      "messages": [
+        { "role": "assistant", "content": "세 곳을 새 기회에 담아뒀어요. 그중 토스뱅크 데이터 PM이 경력과 가장 잘 이어져요." },
+        { "role": "user", "content": "ㅇㅋ 고마워" }
+      ],
+      "toolResults": {}
+    },
+    {
+      "id": "g8-three-line-summary",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Earlier in this conversation Harper gave a long review of the user's career description, portfolio and automation experience.",
+      "messages": [
+        { "role": "assistant", "content": "경력기술서는 Jira 요청자 직접 등록 비율 33%→82% 같은 성과를 앞에 두면 좋아요. 포트폴리오는 LLM 도구의 초안 생성·검사·QA 승인 과정을 명확히 하고, 자동화 경험은 직접 구축한 것과 도입 준비를 구분하세요. (긴 검토)" },
+        { "role": "user", "content": "3줄 요약." }
+      ],
+      "toolResults": {}
+    },
+    {
+      "id": "g9-venting",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "The user has been job hunting for over a year as a backend developer. Harper has recommended roles before; two applications were rejected this month.",
+      "messages": [
+        { "role": "user", "content": "1년 넘게 떨어지기만 하니까 진짜 너무 지친다" }
+      ],
+      "toolResults": {}
+    }
+  ]
+}

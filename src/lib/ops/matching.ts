@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { listTestTalentAccountEmails } from "@/lib/testAccounts";
+import { listTestTalentAccountUserIds } from "@/lib/testAccounts";
 import {
   isCompanyDecisionActivityId,
   OPS_COMPANY_ACTIVITY_SOURCE,
@@ -2180,6 +2180,7 @@ async function loadTalentRowsByTagState(args: {
 async function loadTalentRows(args: {
   admin: AdminClient;
   dateRange: DateRange;
+  excludedTalentIds?: Set<string> | null;
   limit: number;
   matchedTagTalentIds: Set<string> | null;
   offset: number;
@@ -2206,6 +2207,9 @@ async function loadTalentRows(args: {
     .order("created_at", { ascending: false })
     .range(args.offset, args.offset + args.limit - 1);
 
+  if (args.excludedTalentIds?.size) {
+    query = query.not("user_id", "in", `(${[...args.excludedTalentIds].join(",")})`);
+  }
   if (args.dateRange.startIso) {
     query = query.gte("created_at", args.dateRange.startIso);
   }
@@ -3800,7 +3804,7 @@ export async function fetchOpsMatchingTalentPool(args: {
   const [
     matchedTagTalentIds,
     taggedTalentIds,
-    excludedTalentIds,
+    notInterestedTalentIds,
     tailoredTalentIds,
   ] = await Promise.all([
     matchingTags.length > 0
@@ -3824,6 +3828,12 @@ export async function fetchOpsMatchingTalentPool(args: {
         })
       : Promise.resolve(null),
   ]);
+  // Test accounts are never matched by hand, so they are never listed or counted.
+  const testTalentIds = await listTestTalentAccountUserIds();
+  const excludedTalentIds =
+    notInterestedTalentIds || testTalentIds.length > 0
+      ? new Set([...(notInterestedTalentIds ?? []), ...testTalentIds])
+      : null;
 
   let directMatchedTalentIds = matchedTagTalentIds;
   if (tailoredTalentIds) {
@@ -3866,18 +3876,15 @@ export async function fetchOpsMatchingTalentPool(args: {
         admin,
         dateRange,
         limit,
+        excludedTalentIds,
         matchedTagTalentIds: directMatchedTalentIds,
         offset,
         searchQuery,
       });
-  // Test accounts are never matched by hand.
-  const testEmails = new Set(await listTestTalentAccountEmails());
   const items = await buildOpsMatchingTalentItems({
     admin,
     roleId: null,
-    rows: rows.filter(
-      (row) => !testEmails.has(String(row.email ?? "").trim().toLowerCase())
-    ),
+    rows,
   });
   const nextOffset =
     offset + items.length < totalCount ? offset + items.length : null;

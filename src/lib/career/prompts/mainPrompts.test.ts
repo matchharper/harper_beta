@@ -63,6 +63,7 @@ test("the completed signup event supplies facts and the conversation guide appea
   const { promptBlocks } = buildCareerConversationPromptPlan({
     ...base,
     includePostOnboardingConversationGuide: true,
+    userChatTurnCount: 0,
     runtimeInstruction: event,
   });
   const guide = promptBlocks.find(block => block.key === "post_onboarding_conversation_guide")!.text;
@@ -135,11 +136,17 @@ test("friendly chat replaces tone at its source and keeps the execution contract
   }
 });
 
-test("account entry guide is explicit and does not persist in ordinary turns", () => {
-  const first = buildCareerConversationPromptPlan({ ...base, includePostOnboardingConversationGuide: true });
-  const later = buildCareerConversationPromptPlan(base);
-  assert.ok(first.promptBlocks.some(b => b.key === "post_onboarding_conversation_guide"));
-  assert.equal(later.promptBlocks.some(b => b.key === "post_onboarding_conversation_guide"), false);
+test("the first-contact guide applies until the person writes to Harper, in chat or a scheduled email", () => {
+  const guideOf = (plan: ReturnType<typeof buildCareerConversationPromptPlan>) =>
+    plan.promptBlocks.find(b => b.key === "post_onboarding_conversation_guide")?.text;
+  const first = buildCareerConversationPromptPlan({ ...base, userChatTurnCount: 0 });
+  const later = buildCareerConversationPromptPlan({ ...base, userChatTurnCount: 1 });
+  const scheduled = buildCareerConversationPromptPlan({ ...base, userChatTurnCount: 0, backgroundInvocation: true, scheduledWork: true });
+  assert.ok(guideOf(first)?.includes("[[CALL]] shows the call button."));
+  assert.equal(guideOf(later), undefined);
+  assert.equal(guideOf(buildCareerConversationPromptPlan(base)), undefined);
+  assert.ok(guideOf(scheduled)?.includes("This contact is an email."));
+  assert.equal(guideOf(buildCareerConversationPromptPlan({ ...base, userChatTurnCount: 0, channel: "voice" as const })), undefined);
   assert.deepEqual(first.promptBlocks.find(b=>b.key==="career_main"),later.promptBlocks.find(b=>b.key==="career_main"));
 });
 
