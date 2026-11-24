@@ -94,6 +94,8 @@ export type ExclusionFacts = {
   isSuppressed: boolean;
   /** Harper staff or a test address. */
   isInternal: boolean;
+  /** Their address or current company is on Ops' blocked domains (exclusion.server.ts exclusionFacts). */
+  isBlockedCompany?: boolean;
   /** Latest #4 / #5 mail sent to this person (any Role). */
   lastMailedAt: string | null;
   /** Latest time a #5 cycle for this person ended without a reaction. */
@@ -112,6 +114,7 @@ export function exclusionReason(facts: ExclusionFacts, now: Date, quietDaysAfter
   if (facts.isInternal) return "internal";
   if (facts.isSuppressed) return "suppressed";
   if (facts.isMember) return "member";
+  if (facts.isBlockedCompany) return "blocked_company";
   if (facts.lastMailedAt && now.getTime() - Date.parse(facts.lastMailedAt) < RECENT_CONTACT_DAYS * DAY_MS) {
     return "recent_contact";
   }

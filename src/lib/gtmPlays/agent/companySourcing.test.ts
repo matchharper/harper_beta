@@ -8,7 +8,7 @@ import {
 // Made-up people, companies and addresses only (public repo).
 
 test("the skip reasons are the exact words /ops counts as 제외 (gtm_agent_people.skip_reason)", () => {
-  assert.deepEqual(Object.values(SOURCING_SKIP), ["하퍼 고객사", "30일 안에 연락한 회사", "맞는 회원 0명", "주소 없음", "공고를 읽지 못함"]);
+  assert.deepEqual(Object.values(SOURCING_SKIP), ["하퍼 고객사", "30일 안에 연락한 회사", "맞는 회원 0명", "주소 없음", "공고를 읽지 못함", "막은 회사"]);
   assert.equal(sourcingSkipNote(SOURCING_SKIP.noAddress, "채용 담당자 주소를 찾지 못했어요"), "회사 소싱 제외 · 주소 없음 · 채용 담당자 주소를 찾지 못했어요");
   assert.equal(sourcingSkipNote(SOURCING_SKIP.customer), "회사 소싱 제외 · 하퍼 고객사");
 });

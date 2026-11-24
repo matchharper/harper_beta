@@ -59,6 +59,7 @@ export const FOLLOWUP_HUMAN_NOTE = "사람이 직접 답한 스레드라 후속 
 /** Joined Harper since the first mail (the follow-up asks them to sign up), or on the opt-out list. */
 export const FOLLOWUP_MEMBER_NOTE = "그사이 Harper에 가입한 분이라 후속 메일을 보내지 않았어요";
 export const FOLLOWUP_SUPPRESSED_NOTE = "연락 받지 않기 목록에 있어 후속 메일을 보내지 않았어요";
+export const FOLLOWUP_BLOCKED_NOTE = "막은 회사(채용 플랫폼·서치펌 등)라 후속 메일을 보내지 않았어요";
 
 /** Whether the person opened the mail's link (noticeReactions records it as a "clicked" line). */
 export function openedLink(events: readonly Pick<AgentEvent, "kind">[]): boolean {

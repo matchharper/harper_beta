@@ -37,6 +37,7 @@ import { detectLanguage } from "./match";
 import { closePendingAgentMail, countAgentMailsToday } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS, classifySendError } from "./sendErrors";
 import { sendWindowNow } from "./sendPace.server";
+import { isBlockedCompany } from "./exclusion.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
 import { mayAgentSpend, recordAgentSpend } from "./spend.server";
 import { mapAgentPerson, readAgentPerson, readAgentSettings, readChannelBrakes, updateAgentPerson } from "./store.server";
@@ -1018,6 +1019,7 @@ export async function runCompanyMails(input: RunCompanyMailsInput): Promise<Comp
     },
     address: (posting, personId) => postingAddress(posting, ctx, personId),
     suppressed: isSuppressed,
+    blockedCompany: (company) => isBlockedCompany(company, ctx.settings.signals.blockedDomains),
     writeLines: (request) => writeCompanyLines(request, ctx),
     newMailId: () => randomUUID(),
     links: (mailId) => ({

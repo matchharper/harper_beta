@@ -1,9 +1,54 @@
 import "server-only";
 
 import { externalEmailHash } from "@/lib/org/agent/externalInvite.server";
-import { gtmRead } from "../db.server";
+import { gtmRead, type GtmReadSql } from "../db.server";
 import { cleanEmail, personKeys } from "./people";
+import { normalizeDomainList, onBlockedDomain } from "./signals";
 import type { AgentPerson } from "./types";
+
+// ---------------------------------------------------------------------------------------------------------------
+// Blocked companies (Shaun 11/24): Ops' blocked domains (settings.signals.blockedDomains: recruiting platforms, search
+// firms, HR companies) are never mailed, as an address, as a candidate's current employer or as a company.
+
+/** A company_db row's web host ("https://www.jobboard.example/x" → jobboard.example), in SQL. */
+const websiteHost = (sql: GtmReadSql) =>
+  sql`regexp_replace(substring(lower(cd.website_url) from '^(?:[a-z][a-z0-9+.-]*://)?([^/:?#]+)'), '^www\\.', '')`;
+
+/** The host (websiteHost) is one of `blocked` or under one of them, in SQL. */
+const hostBlocked = (sql: GtmReadSql, blocked: readonly string[]) =>
+  sql`exists (select 1 from unnest(${blocked as string[]}::text[]) b(d) where ${websiteHost(sql)} = b.d or ${websiteHost(sql)} like '%.' || b.d)`;
+
+/**
+ * A company name that is surely one of the blocked companies: a company_db row with exactly this name (case and spaces
+ * aside) has a blocked website, and no row with that name has another website (11/24: loose matching caught two
+ * unrelated companies whose names merely contained a blocked one's; a name shared with another company is left alone).
+ */
+function blockedNameSql(sql: GtmReadSql, names: readonly string[], blocked: readonly string[]) {
+  return sql`(exists (select 1 from public.company_db cd where lower(btrim(cd.name)) = any(${names as string[]}::text[])
+      and cd.website_url is not null and ${hostBlocked(sql, blocked)})
+    and not exists (select 1 from public.company_db cd where lower(btrim(cd.name)) = any(${names as string[]}::text[])
+      and cd.website_url is not null and ${websiteHost(sql)} is not null and not ${hostBlocked(sql, blocked)}))`;
+}
+
+const cleanNames = (names: ReadonlyArray<string | null | undefined>) =>
+  [...new Set(names.map((name) => String(name ?? "").trim().toLowerCase()).filter(Boolean))];
+
+/**
+ * Whether a company is a blocked one, for the company mails: its domain or the address on a blocked domain, or one of
+ * its names surely a blocked company (blockedNameSql).
+ */
+export async function isBlockedCompany(
+  input: { names?: ReadonlyArray<string | null | undefined>; domain?: string | null; email?: string | null },
+  blockedDomains: readonly string[],
+): Promise<boolean> {
+  const blocked = normalizeDomainList(blockedDomains);
+  if (!blocked.length) return false;
+  if (onBlockedDomain(input.domain, blocked) || onBlockedDomain(input.email, blocked)) return true;
+  const names = cleanNames(input.names ?? []);
+  if (!names.length) return false;
+  const [row] = await gtmRead((sql) => sql<Array<{ blocked: boolean }>>`select ${blockedNameSql(sql, names, blocked)} as blocked`);
+  return Boolean(row?.blocked);
+}
 
 /**
  * A LinkedIn profile's handle in the forms a stored link may have it (as written, decoded, encoded), lower case:
@@ -35,8 +80,12 @@ export function linkedinHandles(urls: ReadonlyArray<string | null | undefined>):
  * - last_ended / active_elsewhere / opted_out: by every key the person may be known by (email and profile) and by the
  *   address on any other #5 row.
  */
-export async function exclusionFacts(person: AgentPerson) {
+export async function exclusionFacts(person: AgentPerson, blockedDomains: readonly string[] = []) {
   const email = cleanEmail(person.email);
+  const blocked = normalizeDomainList(blockedDomains);
+  // The purchased DB's person: their current jobs' companies by id (exact); anyone else: their profile's company name.
+  const candidId = /^candid:([0-9a-f-]{36})$/i.exec(person.sourceRef ?? "")?.[1] ?? null;
+  const companyNames = cleanNames([person.currentCompany]);
   const keys = [...new Set([person.personKey, ...personKeys({ email, profileUrl: person.profileUrl })])];
   const handles = linkedinHandles([person.profileUrl, person.contactUrl, person.personKey.replace(/^url:/, "")]);
   const likePatterns = handles.map((handle) => `%linkedin.com/in/${handle.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
@@ -47,7 +96,7 @@ export async function exclusionFacts(person: AgentPerson) {
       : sql`p.person_key = any(${keys}::text[])`;
     return sql<Array<{
       member: boolean; suppressed: boolean; last_mailed: string | Date | null; last_ended: string | Date | null; active_elsewhere: boolean;
-      opted_out: boolean;
+      opted_out: boolean; blocked_company: boolean;
     }>>`
     select
       (${email ? sql`exists (select 1 from public.talent_users t where lower(t.email) = ${email} and t.deleted_at is null)` : sql`false`}
@@ -67,8 +116,13 @@ export async function exclusionFacts(person: AgentPerson) {
         and p.status in ('matched', 'drafted', 'approved', 'sent', 'replied')) as active_elsewhere,
       -- "연락 그만" on any earlier cycle (a person known only by profile has no address on the shared list).
       exists (select 1 from public.gtm_agent_people p where ${samePerson} and p.id <> ${person.id}::uuid
-        and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out
+        and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out,
+      ${!blocked.length ? sql`false` : sql`(
+        ${candidId ? sql`exists (select 1 from public.experience_user e join public.company_db cd on cd.id = e.company_id
+          where e.candid_id = ${candidId}::uuid and e.end_date is null and cd.website_url is not null and ${hostBlocked(sql, blocked)})` : sql`false`}
+        or ${companyNames.length ? blockedNameSql(sql, companyNames, blocked) : sql`false`}
+      )`} as blocked_company
   `;
   });
-  return facts;
+  return { ...facts, blocked_company: Boolean(facts?.blocked_company) || onBlockedDomain(email, blocked) };
 }
