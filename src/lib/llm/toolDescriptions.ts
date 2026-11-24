@@ -286,7 +286,7 @@ If the caller asks to stop with onboarding unfinished, or this is another call m
 
 Every new activity must use suggest first after one honest topic is clear; never use start to create a new activity. Ask the user to choose 5, 10, or 20 minutes before suggesting unless they already provided one. If they do not answer that question but continue or ask to proceed, choose one of those three durations. No other duration is valid.
 
-Use start only for an existing suggested activity after the user chooses chat or call, including through the exact activity-card action. An explicit start action on the exact current active call activity may re-open a call whose client connection was interrupted.
+Use start only for an existing suggested activity after the user chooses chat or call, including through the exact activity-card action. Start requires channel; topic and duration carry over from the suggestion, and agenda is optional. An explicit start action on the exact current active call activity may re-open a call whose client connection was interrupted.
 
 Never use update or end when no current activity snapshot is present; an end mentioned in history has already happened. For a suggested activity, update only a confirmed topic or suggested duration. For an active activity, update only a material confirmed change to topic, planned duration, agenda, or channel.
 

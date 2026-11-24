@@ -153,6 +153,7 @@ import { executeConnectedGmailSearch } from "@/lib/integrations/gmail";
 import { fetchCareerPostOnboardingContext } from "@/lib/career/postOnboardingContext";
 import { fetchLatestInternalRoleRequestEntryPage } from "./internalRoleRequestEntryPage";
 import {
+  CareerCoachingActivityMutationError,
   fetchCurrentCareerCoachingActivity,
   mutateCareerCoachingActivity,
   type CareerCoachingActivityAction,
@@ -4392,6 +4393,21 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           userId,
         });
       } catch (error) {
+        // 22023 is raised only for a missing or invalid argument; its message
+        // names the argument, so the model can supply it instead of retrying later.
+        if (
+          error instanceof CareerCoachingActivityMutationError &&
+          error.code === "22023"
+        ) {
+          return {
+            assistantInstruction:
+              "Nothing changed because the activity request was rejected for its arguments. If the conversation or the coaching card already gives the needed value, call manage_career_coaching_activity again with it in this turn; otherwise ask the user for it.",
+            error: error.message,
+            ok: false,
+            status: "invalid_arguments",
+            skipCommonAssistantInstruction: true,
+          };
+        }
         const message = formatToolError(error);
         if (!/revision conflict|open career coaching activity/i.test(message)) {
           console.error("[career-coaching] activity mutation failed", {

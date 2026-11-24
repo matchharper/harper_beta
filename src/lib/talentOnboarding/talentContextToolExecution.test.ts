@@ -141,7 +141,10 @@ class FakeCoachingQuery {
 class FakeCoachingAdmin {
   rpcCalls: Array<{ args: Record<string, unknown>; name: string }> = [];
 
-  constructor(private readonly rpcError: string | null = null) {}
+  constructor(
+    private readonly rpcError: string | null = null,
+    private readonly rpcErrorCode: string | null = null
+  ) {}
 
   from(table: string) {
     if (table === "logs") {
@@ -158,7 +161,10 @@ class FakeCoachingAdmin {
   async rpc(name: string, args: Record<string, unknown>) {
     this.rpcCalls.push({ args, name });
     if (this.rpcError) {
-      return { data: null, error: { message: this.rpcError } };
+      return {
+        data: null,
+        error: { code: this.rpcErrorCode, message: this.rpcError },
+      };
     }
     return {
       data: {
@@ -303,6 +309,33 @@ test("coaching lifecycle fills omitted machine references from the current activ
   );
   assert.equal(mutation?.args.p_activity_message_id, 42);
   assert.equal(mutation?.args.p_expected_revision, 3);
+});
+
+test("coaching lifecycle returns the missing argument to the model when the database rejects input", async () => {
+  const admin = new FakeCoachingAdmin(
+    "career coaching start requires channel (chat or call)",
+    "22023"
+  );
+  const { executeTalentTool, TALENT_TOOL_NAMES } = await talentToolsPromise;
+
+  const result = (await executeTalentTool({
+    context: {
+      admin: admin as never,
+      conversationId: "conversation-1",
+      userId: "11111111-1111-4111-8111-111111111111",
+    },
+    input: { action: "start" },
+    logging: false,
+    name: TALENT_TOOL_NAMES.MANAGE_CAREER_COACHING_ACTIVITY,
+  })) as Record<string, unknown>;
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "invalid_arguments");
+  assert.equal(
+    result.error,
+    "career coaching start requires channel (chat or call)"
+  );
+  assert.match(String(result.modelOutput), /requires channel \(chat or call\)/);
 });
 
 test("coaching lifecycle returns a user-safe unavailable result on infrastructure failure", async () => {

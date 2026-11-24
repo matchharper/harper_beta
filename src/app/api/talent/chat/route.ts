@@ -1238,7 +1238,7 @@ export async function POST(req: NextRequest) {
         ? [
             "The user deliberately selected an action on the currently visible career-coaching card before sending the latest message.",
             `The exact action is ${coachingActivityAction.action}; activityMessageId=${coachingActivityAction.activityMessageId}; expectedRevision=${coachingActivityAction.expectedRevision}; channel=${coachingActivityAction.channel ?? "none"}.`,
-            "Treat the visible user message as explicit intent for this exact activity. Use manage_career_coaching_activity with the referenced identifiers. For start, supply the final topic, duration, and a compact agenda; do not mutate a different activity.",
+            "Treat the visible user message as explicit intent for this exact activity. Use manage_career_coaching_activity with the referenced identifiers. For start, pass the selected channel; topic and duration carry over from the suggestion unless the user changed them, and an agenda is optional. Do not mutate a different activity.",
           ].join(" ")
         : "The latest message carries a stale career-coaching card reference. Do not apply that action to another activity. Respond using the current activity state and let the user know briefly if the requested card action is no longer available."
       : undefined;

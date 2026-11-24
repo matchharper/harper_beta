@@ -186,6 +186,17 @@ export async function rollbackCareerCoachingCallStart(args: {
   return response;
 }
 
+/** Keeps the database SQLSTATE so callers can tell rejected input from outages. */
+export class CareerCoachingActivityMutationError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null
+  ) {
+    super(message);
+    this.name = "CareerCoachingActivityMutationError";
+  }
+}
+
 export async function mutateCareerCoachingActivity(args: {
   action: CareerCoachingActivityAction;
   activityMessageId?: number | null;
@@ -218,8 +229,9 @@ export async function mutateCareerCoachingActivity(args: {
   );
 
   if (error || !data) {
-    throw new Error(
-      error?.message ?? "Failed to change career coaching activity"
+    throw new CareerCoachingActivityMutationError(
+      error?.message ?? "Failed to change career coaching activity",
+      error?.code ?? null
     );
   }
 
