@@ -1,4 +1,5 @@
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
+import { testTalentAccountExclusion } from "@/lib/testAccounts";
 
 type TalentSummary = {
   email: string | null;
@@ -562,6 +563,8 @@ async function fetchCanonicalEmailCandidates(args: {
     .order("occurred_at", { ascending: false })
     .order("created_at", { ascending: false })
     .range(0, args.limit - 1);
+  // Persona test accounts are not listed in ops.
+  query = query.not("talent_id", "in", await testTalentAccountExclusion());
 
   if (args.dateRange.startIso) {
     query = query.gte("occurred_at", args.dateRange.startIso);
@@ -623,6 +626,8 @@ async function fetchDeliveryEmailCandidates(args: {
     .in("status", args.status ? [args.status] : ["sent", "failed"])
     .order("created_at", { ascending: false })
     .range(0, args.limit - 1);
+  // Persona test accounts are not listed in ops.
+  query = query.not("talent_id", "in", await testTalentAccountExclusion());
 
   if (args.dateRange.startIso) {
     query = query.gte("created_at", args.dateRange.startIso);

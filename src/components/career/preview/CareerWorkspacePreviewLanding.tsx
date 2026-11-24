@@ -788,6 +788,14 @@ const CareerWorkspacePreviewLanding = ({
       onLoadSavedStageHistoryOpportunityPages: () => undefined,
       onLoadHistoryOpportunityByRoleId: (roleId) =>
         historyOpportunities.find((item) => item.roleId === roleId) ?? null,
+      onLoadHistoryOpportunityTimeline: (opportunity) =>
+        setHistoryOpportunities((current) =>
+          current.map((item) =>
+            item.id === opportunity.id
+              ? { ...item, activityTimelineLoaded: true }
+              : item
+          )
+        ),
       onRefreshHistoryOpportunities: () => undefined,
       onChangeInternalHistoryOpportunityDecision: (opportunityId, action) => {
         setHistoryOpportunities((current) =>

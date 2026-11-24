@@ -113,11 +113,8 @@ export function formatCompanySignals(signals: CompanySignals | undefined, option
 
 // ── Checking a company ────────────────────────────────────────────────────────
 
-/** Two searches per company: news, and public LinkedIn posts, where teams announce hiring first. */
-const SIGNAL_SEARCHES = [
-  { options: { category: "news" as const }, terms: "채용 팀 확장 지사 투자 구조조정 hiring team expansion new office funding layoffs" },
-  { options: { includeDomains: ["linkedin.com"] }, terms: "hiring we are hiring join our team 채용" },
-];
+/** One news search per company. */
+const SIGNAL_SEARCH_TERMS = "채용 팀 확장 지사 투자 구조조정 hiring team expansion new office funding layoffs";
 
 export type SignalSource = { number: number; title: string; url: string; publishedDate?: string; highlights: string[] };
 export type FoundSignal = { result: number; date: string; content: string };
@@ -254,15 +251,19 @@ export async function checkCompanySignals(context: ResourceContext, workspaceId:
       Number.isFinite(lastChecked) ? lastChecked - SIGNAL_RECHECK_DAYS * DAY_MS : -Infinity)).toISOString().slice(0, 10);
     const name = state.name || before.name;
     const domain = site(state.website);
-    const searches = await Promise.allSettled(SIGNAL_SEARCHES.map(({ options: filters, terms }) => search({
-      admin: context.admin, query: [name, domain, terms].filter(Boolean).join(" "),
-      options: { ...filters, startPublishedDate: since }, logging: { attribution: { source: "career/company-hiring-signals" } },
-    })));
+    let found: Awaited<ReturnType<typeof runWebSearch>>;
+    try {
+      found = await search({
+        admin: context.admin, query: [name, domain, SIGNAL_SEARCH_TERMS].filter(Boolean).join(" "),
+        options: { category: "news", startPublishedDate: since }, logging: { attribution: { source: "career/company-hiring-signals" } },
+      });
+    } catch {
+      signal?.throwIfAborted();
+      return { status: "failed", saved: 0 };
+    }
     signal?.throwIfAborted();
-    const failedSearches = searches.filter(result => result.status === "rejected").length;
-    if (failedSearches === searches.length) return { status: "failed", saved: 0 };
     // Only captured public pages can support a shared record.
-    const results = [...new Map(searches.flatMap(result => result.status === "fulfilled" ? result.value.results : [])
+    const results = [...new Map(found.results
       .filter((hit): hit is WebSearchResult & { resourceRef: NonNullable<WebSearchResult["resourceRef"]> } => Boolean(hit.resourceRef?.revision))
       .map(hit => [normalizeOpenUrl(hit.url), hit] as const)).values()];
     const recorded = new Set<string>();
@@ -276,8 +277,8 @@ export async function checkCompanySignals(context: ResourceContext, workspaceId:
     if (fresh.length) {
       const sources = fresh.map((hit, index) => ({ number: index + 1, title: hit.title, url: hit.url,
         publishedDate: hit.publishedDate, highlights: hit.highlights }));
-      const found = await extract({ company: { name, website: state.website, linkedinUrl: state.linkedinUrl }, sources, signal });
-      for (const item of found) {
+      const kept = await extract({ company: { name, website: state.website, linkedinUrl: state.linkedinUrl }, sources, signal });
+      for (const item of kept) {
         const hit = fresh[item.result - 1];
         if (!hit) continue;
         signal?.throwIfAborted();
@@ -291,9 +292,8 @@ export async function checkCompanySignals(context: ResourceContext, workspaceId:
         if (!write.error && ["saved", "unchanged"].includes((write.data as { status?: string } | null)?.status ?? "")) saved++;
       }
     }
-    // What one search found is kept; the company counts as checked only when every search answered.
-    checked = failedSearches === 0;
-    return { status: checked ? "checked" : "failed", saved };
+    checked = true;
+    return { status: "checked", saved };
   } finally {
     const finish = await db.rpc("career_finish_company_signals_v1", {
       p_key: key, p_owner: owner, p_workspace: home, p_checked: checked,

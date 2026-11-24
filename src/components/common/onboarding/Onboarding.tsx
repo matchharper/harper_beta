@@ -284,7 +284,7 @@ export const OnboardingStepHeader = ({
           titleLines
         )}
       </Text>
-      <Text as="p" variant="body" tone="subtle" className="mt-2 w-full">
+      <Text as="p" variant="body" tone="caption" className="mt-2 w-full">
         {stepDefinition.description.map((line, index) => (
           <span key={`${index}-${line}`} className="block break-keep">
             {line}

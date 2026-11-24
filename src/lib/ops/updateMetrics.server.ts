@@ -12,20 +12,15 @@ import {
   type UpdateMetricsLandingRow,
   type UpdateMetricsRecommendationRow,
   type UpdateMetricsSignupRow,
+  type UpdateMetricsUsageRow,
 } from "@/lib/ops/updateMetrics";
 import {
   UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL,
   UPDATE_METRICS_LANDING_SQL,
+  UPDATE_METRICS_LLM_USAGE_SQL,
   UPDATE_METRICS_RECOMMENDATIONS_SQL,
   UPDATE_METRICS_SIGNUPS_SQL,
 } from "@/lib/ops/updateMetrics.sql";
-
-const CACHE_TTL_MS = 2 * 60 * 1_000;
-const RESPONSE_CACHE_LIMIT = 8;
-const responseCache = new Map<
-  string,
-  { expiresAt: number; value: OpsUpdateMetricsResponse }
->();
 
 export async function fetchOpsUpdateMetrics(args: {
   deployedOn: string;
@@ -40,10 +35,6 @@ export async function fetchOpsUpdateMetrics(args: {
         .filter(Boolean)
     )
   ).sort();
-  const cacheKey = JSON.stringify({ deployedOn: args.deployedOn, excludedEmails });
-  const cached = responseCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
   const nowMs = Date.now();
   const buckets = buildUpdateMetricsBuckets(deployedAtMs, nowMs);
   const first = buckets[0];
@@ -52,7 +43,9 @@ export async function fetchOpsUpdateMetrics(args: {
   const boundaries = [first.start, ...buckets.map((bucket) => bucket.end)];
   const window = [first.start, last.end];
 
-  const signupsWithJobs = readOnly<UpdateMetricsSignupRow>(UPDATE_METRICS_SIGNUPS_SQL, [
+  const signupsWithJobs = readOnly<
+    Omit<UpdateMetricsSignupRow, "costUsd3d" | "llmMs3d">
+  >(UPDATE_METRICS_SIGNUPS_SQL, [
     ...window,
     excludedEmails,
   ]).then(async (signups) => {
@@ -81,9 +74,14 @@ export async function fetchOpsUpdateMetrics(args: {
     return { jobsWithoutRoleUserIds, signups };
   });
 
-  const [{ jobsWithoutRoleUserIds, signups }, recommendations, landing] =
+  const [{ jobsWithoutRoleUserIds, signups }, usage, recommendations, landing] =
     await Promise.all([
       signupsWithJobs,
+      readOnly<UpdateMetricsUsageRow>(
+        UPDATE_METRICS_LLM_USAGE_SQL,
+        [...window, excludedEmails],
+        { enable_indexscan: "off" }
+      ),
       readOnly<UpdateMetricsRecommendationRow>(UPDATE_METRICS_RECOMMENDATIONS_SQL, [
         ...window,
         excludedEmails,
@@ -92,18 +90,17 @@ export async function fetchOpsUpdateMetrics(args: {
       readOnly<UpdateMetricsLandingRow>(UPDATE_METRICS_LANDING_SQL, window),
     ]);
 
-  const value = buildOpsUpdateMetrics({
+  const usageByUser = new Map(usage.map((row) => [row.userId, row]));
+  return buildOpsUpdateMetrics({
     deployedAtMs,
     jobsWithoutRoleUserIds,
     landing,
     nowMs,
     recommendations,
-    signups,
+    signups: signups.map((row) => ({
+      ...row,
+      costUsd3d: usageByUser.get(row.userId)?.costUsd3d ?? 0,
+      llmMs3d: usageByUser.get(row.userId)?.llmMs3d ?? 0,
+    })),
   });
-  if (responseCache.size >= RESPONSE_CACHE_LIMIT) {
-    const oldestKey = responseCache.keys().next().value;
-    if (oldestKey) responseCache.delete(oldestKey);
-  }
-  responseCache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, value });
-  return value;
 }

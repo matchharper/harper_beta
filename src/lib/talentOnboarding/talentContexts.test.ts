@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildTalentMemoryRetrievalQuery,
+  findTalentContextKeyConflicts,
   mutateTalentContexts,
   mutateTalentContextsFromAgent,
   normalizeTalentContextRow,
@@ -296,35 +297,28 @@ test("renders all Brief rows and selected Memory rows without database ids", () 
     }),
     ref: 1,
   };
+  const unkeyedBrief = {
+    ...row(912346, "brief", "현재 총보상 이상", { label: "보상" }),
+    ref: 3,
+  };
   const memory = {
     ...row(998877, "memory", "초기 팀에서 빠르게 성장한 경험을 선호한다."),
     ref: 2,
   };
   const output = renderTalentContextPrompt({
-    allBriefs: [brief],
-    briefs: [brief],
+    allBriefs: [brief, unkeyedBrief],
+    briefs: [brief, unkeyedBrief],
     memories: [memory],
     memorySelection: "semantic",
     memoryTruncated: true,
   });
 
-  assert.match(output, /\[1\] 선호 근무 지역: 서울 또는 원격/);
+  assert.match(output, /\[1\] 선호 근무 지역 \(key: location\): 서울 또는 원격/);
+  assert.match(output, /\[3\] 보상: 현재 총보상 이상/);
   assert.match(output, /\[2\] 초기 팀에서 빠르게 성장한 경험/);
-  assert.doesNotMatch(output, /912345|998877|location/);
+  assert.doesNotMatch(output, /912345|912346|998877/);
+  assert.equal(output.match(/서울 또는 원격/g)?.length, 1);
   assert.match(output, /read_talent_context/);
-
-  const onboardingExtractionOutput = renderTalentContextPrompt(
-    {
-      allBriefs: [brief],
-      briefs: [brief],
-      memories: [memory],
-      memorySelection: "semantic",
-      memoryTruncated: false,
-    },
-    { includeCompatibilityKeys: true }
-  );
-  assert.match(onboardingExtractionOutput, /onboarding key: location/);
-  assert.equal(onboardingExtractionOutput.match(/서울 또는 원격/g)?.length, 1);
 });
 
 test("legacy projection includes only keyed Brief rows", () => {
@@ -486,4 +480,138 @@ test("cursor reads report hasMore only when a next cursor is available", async (
     finalPage.items.map((item) => item.ref),
     [1]
   );
+});
+
+test("passes a Brief key change through update and drops it for Memory", async () => {
+  const captured: { rpcArgs?: Record<string, unknown> } = {};
+  const admin = {
+    rpc: async (_name: string, args: Record<string, unknown>) => {
+      captured.rpcArgs = args;
+      return { data: { applied: [] }, error: null };
+    },
+  } as unknown as Parameters<typeof mutateTalentContextsFromAgent>[0]["admin"];
+  const brief = { ...row(30, "brief", "현재 총보상 이상", { label: "보상" }), ref: 3 };
+  const keyed = {
+    ...row(31, "brief", "서울", { key: "location", label: "지역" }),
+    ref: 4,
+  };
+  const memory = { ...row(32, "memory", "재택을 선호한다."), ref: 5 };
+
+  await mutateTalentContextsFromAgent({
+    admin,
+    changes: [
+      { key: "compensation", op: "update", ref: 3 },
+      { key: "", op: "update", ref: 4 },
+      { content: "재택을 강하게 선호한다.", key: "location", op: "update", ref: 5 },
+    ],
+    referencedRows: [brief, keyed, memory],
+    requestId: "key-update",
+    userId: "00000000-0000-0000-0000-000000000001",
+  });
+
+  assert.deepEqual(
+    (captured.rpcArgs?.p_changes as Array<Record<string, unknown>>).map(
+      ({ id, key, op }) => ({ id, key, op })
+    ),
+    [
+      { id: 30, key: "compensation", op: "update" },
+      { id: 31, key: "", op: "update" },
+      { id: 32, key: undefined, op: "update" },
+    ]
+  );
+});
+
+function briefListAdmin(rows: TalentContextRow[]) {
+  let reads = 0;
+  const query: Record<string, unknown> = {};
+  for (const method of ["select", "eq", "is", "lt", "order"]) {
+    query[method] = () => query;
+  }
+  query.limit = async () => {
+    reads += 1;
+    return { data: rows, error: null };
+  };
+  return {
+    admin: { from: () => query } as unknown as Parameters<
+      typeof findTalentContextKeyConflicts
+    >[0]["admin"],
+    reads: () => reads,
+  };
+}
+
+test("reports the Brief that already holds a requested key instead of replacing it", async () => {
+  const holder = {
+    ...row(40, "brief", "현재 총보상 이상", { key: "compensation", label: "보상" }),
+    ref: 12,
+  };
+  const other = { ...row(41, "brief", "연봉 10% 개선", { label: "연봉" }), ref: 13 };
+  const { admin } = briefListAdmin([holder, other]);
+  const userId = "00000000-0000-0000-0000-000000000001";
+
+  const addConflict = await findTalentContextKeyConflicts({
+    admin,
+    changes: [
+      { collection: "brief", content: "동결 이상", key: "compensation", label: "보상", op: "add" },
+    ],
+    referencedRows: [],
+    userId,
+  });
+  assert.equal(addConflict.length, 1);
+  assert.match(addConflict[0], /compensation[\s\S]*\[12\] 보상/);
+
+  const updateConflict = await findTalentContextKeyConflicts({
+    admin,
+    changes: [{ key: "compensation", op: "update", ref: 13 }],
+    referencedRows: [holder, other],
+    userId,
+  });
+  assert.equal(updateConflict.length, 1);
+
+  assert.deepEqual(
+    await findTalentContextKeyConflicts({
+      admin,
+      changes: [{ content: "동결 이상", key: "compensation", op: "update", ref: 12 }],
+      referencedRows: [holder],
+      userId,
+    }),
+    []
+  );
+  assert.deepEqual(
+    await findTalentContextKeyConflicts({
+      admin,
+      changes: [
+        { key: "", op: "update", ref: 12 },
+        { key: "compensation", op: "update", ref: 13 },
+      ],
+      referencedRows: [holder, other],
+      userId,
+    }),
+    []
+  );
+  assert.deepEqual(
+    await findTalentContextKeyConflicts({
+      admin,
+      changes: [
+        { op: "delete", ref: 12 },
+        { collection: "brief", content: "동결 이상", key: "compensation", label: "보상", op: "add" },
+      ],
+      referencedRows: [holder],
+      userId,
+    }),
+    []
+  );
+});
+
+test("does not read Brief keys when no change requests one", async () => {
+  const { admin, reads } = briefListAdmin([]);
+  assert.deepEqual(
+    await findTalentContextKeyConflicts({
+      admin,
+      changes: [{ collection: "brief", content: "서울", label: "지역", op: "add" }],
+      referencedRows: [],
+      userId: "00000000-0000-0000-0000-000000000001",
+    }),
+    []
+  );
+  assert.equal(reads(), 0);
 });

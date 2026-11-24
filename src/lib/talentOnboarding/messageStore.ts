@@ -413,14 +413,15 @@ export async function fetchVisibleMessagesPage(args: {
 export async function countUserChatTurns(args: {
   admin: TalentAdminClient;
   conversationId: string;
+  messageTypes?: string[];
 }) {
-  const { admin, conversationId } = args;
+  const { admin, conversationId, messageTypes = ["chat", "call_transcript"] } = args;
   const { count, error } = await admin
     .from("talent_messages")
     .select("id", { count: "exact", head: true })
     .eq("conversation_id", conversationId)
     .eq("role", "user")
-    .in("message_type", ["chat", "call_transcript"]);
+    .in("message_type", messageTypes);
 
   if (error) {
     throw new Error(error.message ?? "Failed to count user chat turns");

@@ -3,16 +3,23 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import type {
-  OpsTalentMetricInterval,
-  OpsTalentMetricsSection,
+import { opsMetricExclusionKey } from "@/lib/ops/metricSnapshots";
+import { readOpsMetricSnapshotForRoute } from "@/lib/ops/metricSnapshots.server";
+import {
+  opsTalentMetricsSnapshotRange,
+  type OpsTalentMetricInterval,
+  type OpsTalentMetricsSection,
 } from "@/lib/ops/talentMetrics";
-import { fetchOpsTalentMetricsSection } from "@/lib/ops/talentMetricsServer";
+import {
+  fetchOpsTalentMetricsSection,
+  parseOpsTalentMetricsRange,
+} from "@/lib/ops/talentMetricsServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 // Sections render independently, so a slower cohort scan does not block the
-// rest of the dashboard. Keep enough headroom for the longest retained range.
+// rest of the dashboard. A stale snapshot is recomputed after the response
+// within this limit too.
 export const maxDuration = 300;
 
 function readInterval(value: string | null): OpsTalentMetricInterval {
@@ -43,14 +50,21 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+    const interval = readInterval(req.nextUrl.searchParams.get("interval"));
+    const excludedEmails = req.nextUrl.searchParams.getAll("excludedEmail");
+    const range = opsTalentMetricsSnapshotRange(parseOpsTalentMetricsRange(from, to));
     return NextResponse.json(
-      await fetchOpsTalentMetricsSection({
-        excludedEmails: req.nextUrl.searchParams.getAll("excludedEmail"),
-        from,
-        interval: readInterval(req.nextUrl.searchParams.get("interval")),
-        section,
-        signal: req.signal,
-        to,
+      await readOpsMetricSnapshotForRoute({
+        // Runs to the end even if the viewer leaves, so the next view has it.
+        compute: () =>
+          fetchOpsTalentMetricsSection({
+            excludedEmails,
+            interval,
+            section,
+            ...range.resolve(Date.now()),
+          }),
+        force: req.nextUrl.searchParams.get("refresh") === "1",
+        key: `talent-metrics:${section}:${range.key}:${interval}:${opsMetricExclusionKey(excludedEmails)}`,
       })
     );
   } catch (error) {

@@ -28,7 +28,7 @@ export const getExternalOpportunityLabel = (
   t: CareerTHelper
 ) =>
   isCompanyOpportunity(item)
-    ? t("career.history.hiring_post.1fnb2v7", "회사 제안")
+    ? t("career.history.hiring_post.1fnb2v7", "회사")
     : isHiringPostOpportunity(item)
       ? getHiringPostLabel(t)
       : t("career.history.new_opportunity_list.open_positions", "직접 지원");
@@ -38,10 +38,19 @@ export const getExternalOpportunityApplyLabel = (
   t: CareerTHelper
 ) =>
   isCompanyOpportunity(item)
-    ? t("career.history.hiring_post.0q0a4bv", "다가가 볼래요")
+    ? t("career.history.hiring_post.0q0a4bv", "합류 방법 찾기")
     : isHiringPostOpportunity(item)
       ? getHiringPostApplyLabel(t)
       : t("career.history.external_application.apply", "지원하기");
+
+// A company opportunity goes straight to Harper: the way in (an open role,
+// a talent pool, a person to contact, waiting for an opening) is Harper's call.
+export const getCompanyJoinRequestText = (opportunity: string, t: CareerTHelper) =>
+  t(
+    "career.history.external_opportunity_apply_modal.05q2dvh",
+    "{opportunity}에 합류하기 위해 지금 할 수 있는 가장 좋은 방법을 찾아서 준비해줘.",
+    { values: { opportunity } }
+  );
 
 /** One plain sentence on how the post asks people to get in touch. */
 export function getHiringPostContactText(

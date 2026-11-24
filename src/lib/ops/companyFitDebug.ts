@@ -38,7 +38,8 @@ export async function runCompanyFitDebug(raw: unknown): Promise<CompanyFitDebugR
   const { CAREER_AGENTIC_TOOLS } = await import("@/lib/career/generalTools");
   const began = Date.now();
   const result = (await CAREER_AGENTIC_TOOLS.search_opportunities.execute!(
-    { action: "search", companyNames: input.companyNames, kinds: ["companies"] },
+    // Named companies alone are evaluated as companies; one page holds every requested company.
+    { action: "search", named: input.companyNames, limit: input.companyNames.length },
     // A fresh tool-call id starts a new run; identical evaluation inputs still reuse cached scores.
     { admin: getSupabaseAdmin() as never, userId: input.talentId, toolCallId: `ops-company-fit:${randomUUID()}` }
   )) as Record<string, any>;

@@ -58,7 +58,7 @@ const CareerGmailSettingsRow = () => {
   const handleGmailConnect = async () => {
     logCareerEvent("click_resume_links_connect_gmail");
     try {
-      const result = await gmailIntegration.connect({ conversationId });
+      const result = await gmailIntegration.connect({ conversationId, source: "settings" });
       if (result?.connected) {
         logCareerEvent("gmail_connect_succeeded");
         setPermissionsModalOpen(false);

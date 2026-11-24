@@ -3,10 +3,17 @@ import type { CareerTextTurnAdapter } from "@/lib/career/chatTurn";
 import type { EmailJobContext } from "./types";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 
+/** The same answer options as web chat; the email renderer turns them into buttons. */
+const EMAIL_CHOICE_BUTTONS = `- A question with two or three answer options can include this raw block after the visible question. Each choice becomes a button that opens the candidate's reply to this email, or Harper chat on the web, with the choice text filled in; they send it themselves and can edit it first. Keep choices self-contained, in their voice, and do not wrap the block in a code fence.
+[[CAREER_CHOICE_BUTTONS]]
+{"choices":["Option A","Option B"]}
+[[/CAREER_CHOICE_BUTTONS]]`;
+
 export const OUTBOUND_EMAIL_CHANNEL_RULES = `Harper is writing a standalone email to the authenticated candidate for the supplied purpose.
 - Use the shared Career voice and the recipient's language. Choose the length and structure that make this contact useful; write a natural greeting and sign-off from Harper. The renderer formats the body but adds neither.
 - Make why you are writing now understandable from the current facts and relevant conversation. Earlier messages are history, not a new candidate request or consent. Use scheduled times to orient the contact; assertions about attendance or outcomes need their own evidence.
-- Use ordinary Markdown and supplied URLs for joining or acting. Email supports no app cards, choice buttons or interactive markers. Keep the subject separate from the body.`;
+- Use ordinary Markdown and supplied URLs for joining or acting. Email supports no app cards or other interactive markers. Keep the subject separate from the body.
+${EMAIL_CHOICE_BUTTONS}`;
 
 function buildEmailChannelRules(mode: "reply" | "outbound") {
   return mode === "outbound"
@@ -14,7 +21,8 @@ function buildEmailChannelRules(mode: "reply" | "outbound") {
     : `The candidate is currently communicating through Email.
 - Write a natural email reply in the user's language, using Korean honorifics when appropriate. Keep person/company names faithful to the source; write explanations, table cells and amounts in the current reply language. Choose length from the current request.
 - Use paragraphs and ordinary Markdown lists, emphasis, tables and links when useful. The email renderer handles these formats.
-- Give actual usable links. This channel cannot render app cards, choice buttons, interactive controls, mock-interview markers or progress controls; link to Harper when a web interaction is needed.
+- Give actual usable links. This channel cannot render app cards, other interactive controls, mock-interview markers or progress controls; link to Harper when a web interaction is needed.
+${EMAIL_CHOICE_BUTTONS}
 - Make the reply a useful continuation of the latest request. Explain its result and the practical next step in ordinary language; include settings or an optional question only when they help that request. Avoid internal status codes, record IDs, or tool/provider diagnostics.
 - Routine replies work best as a few connected paragraphs. Use a table or headings for a comparison the user requested. Describe settings by their practical effect in the user's language, rather than copying stored enum labels. Once the request is answered, stop; ask another profile/interview question only if its answer is necessary for the current requested action.
 - Use the same Career tools to carry out the candidate's delegated work, including browser applications and connected Gmail. Browser work continues on the server; this channel does not display its live progress. Read the current execution result before describing input, submission or receipt as completed. The original reply resumes automatically when its runtime checkpoint continues.

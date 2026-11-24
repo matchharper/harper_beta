@@ -92,6 +92,7 @@ export const toUiMessage = (message: {
   workPending?: boolean;
   thinkingLogs?: unknown;
   turnStopped?: boolean;
+  turnFailed?: boolean;
   turnPending?: boolean;
   clientRequestId?: string;
 }): CareerMessage => ({
@@ -106,6 +107,7 @@ export const toUiMessage = (message: {
   workCompletedAt: message.workCompletedAt,
   workPending: message.workPending,
   turnStopped: message.turnStopped,
+  turnFailed: message.turnFailed,
   turnPending: message.turnPending,
   clientRequestId: message.clientRequestId,
   careerForm: message.careerForm,

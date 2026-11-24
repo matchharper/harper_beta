@@ -11,6 +11,7 @@ export type OpsTalentActionView = "summary" | "weekly";
 
 export type OpsTalentActionId =
   | "brief_viewed"
+  | "career_coaching_clicked"
   | "composer_add_clicked"
   | "email_replied"
   | "external_recommendation_received"
@@ -142,6 +143,12 @@ export const OPS_TALENT_ACTION_SECTIONS: OpsTalentActionSection[] = [
         label: "채팅 + 버튼 클릭",
         sourceGroup: "product",
         trackingSince: "09.17",
+      },
+      {
+        id: "career_coaching_clicked",
+        label: "커리어 상담 클릭",
+        sourceGroup: "product",
+        trackingSince: "09.21",
       },
       {
         id: "two_way_call",

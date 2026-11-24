@@ -6,6 +6,7 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Tooltips } from "@/components/ui/tooltip";
+import OpsMetricSnapshotStamp from "@/components/ops/metrics/OpsMetricSnapshotStamp";
 import OpsTalentMetricsOverviewDetails from "@/components/ops/metrics/OpsTalentMetricsOverviewDetails";
 import {
   useOpsTalentMetrics,
@@ -198,13 +199,13 @@ function MetricRow({
   columns = 5,
 }: {
   children: React.ReactNode;
-  columns?: 4 | 5;
+  columns?: 3 | 4 | 5;
 }) {
   return (
     <div
       className={cx(
         "grid border-t border-neutral-1000-a05 md:grid-cols-2 md:divide-x md:divide-neutral-1000-a05",
-        columns === 4 ? "xl:grid-cols-4" : "xl:grid-cols-5"
+        columns === 3 ? "xl:grid-cols-3" : columns === 4 ? "xl:grid-cols-4" : "xl:grid-cols-5"
       )}
     >
       {children}
@@ -287,11 +288,18 @@ export default function OpsTalentMetricsWorkspace() {
   const weekRetention = latestCompleteWeekRetention(
     retention?.weeklyRetentionCohorts
   );
+  const snapshots = [
+    overview?.snapshot,
+    conversion?.snapshot,
+    engagement?.snapshot,
+    retention?.snapshot,
+  ];
   const isFetching =
     overviewQuery.isFetching ||
     queries.conversion.isFetching ||
     queries.engagement.isFetching ||
-    queries.retention.isFetching;
+    queries.retention.isFetching ||
+    snapshots.some((snapshot) => snapshot?.refreshing);
   const sourceLimitReached =
     conversion?.sourceLimitReached ||
     engagement?.sourceLimitReached ||
@@ -304,10 +312,10 @@ export default function OpsTalentMetricsWorkspace() {
 
   const refreshAll = () => {
     void Promise.all([
-      overviewQuery.refetch(),
-      queries.conversion.refetch(),
-      queries.engagement.refetch(),
-      queries.retention.refetch(),
+      overviewQuery.refresh(),
+      queries.conversion.refresh(),
+      queries.engagement.refresh(),
+      queries.retention.refresh(),
     ]);
   };
 
@@ -354,9 +362,10 @@ export default function OpsTalentMetricsWorkspace() {
               size="small"
               variant="borderless"
             />
+            <OpsMetricSnapshotStamp snapshots={snapshots} />
             <MuteButton
-              aria-label="지표 새로고침"
-              disabled={!canFetch}
+              aria-label="지표 다시 집계"
+              disabled={!canFetch || isFetching}
               onClick={refreshAll}
               variant="transparent"
             >
@@ -476,7 +485,7 @@ export default function OpsTalentMetricsWorkspace() {
           </section>
 
           <section aria-label="Talent 전환 지표">
-            <MetricRow columns={4}>
+            <MetricRow columns={3}>
               <MetricCell
                 current={conversion.summary.recommendationAcceptRejectRatio}
                 detail={`선택 기간의 최신 명시적 결정 기준으로 ${conversion.summary.recommendationAcceptedCount.toLocaleString("ko-KR")}건 수락 / ${conversion.summary.recommendationRejectedCount.toLocaleString("ko-KR")}건 거절입니다. 표시값은 거절 1건당 수락 건수입니다.`}
@@ -487,7 +496,7 @@ export default function OpsTalentMetricsWorkspace() {
               </MetricCell>
               <MetricCell
                 current={conversion.summary.internalAcceptanceRate}
-                detail={`14일 이상 성숙한 internal 추천 ${conversion.summary.internalAcceptedCount.toLocaleString("ko-KR")} / ${conversion.summary.internalMaturedRecommendationCount.toLocaleString("ko-KR")}쌍`}
+                detail={`이 기간 internal 추천 ${formatNumber(conversion.summary.internalRecommendationPairCount, 0)}쌍 중 추천 후 14일 안에 수락 ${formatNumber(conversion.summary.internalAcceptedCount, 0)}쌍`}
                 label="Internal 매칭 수락률"
                 percentDelta
                 previous={conversion.comparison.internalAcceptanceRate}
@@ -503,15 +512,6 @@ export default function OpsTalentMetricsWorkspace() {
                 {conversion.summary.pendingConnectionTalentCount.toLocaleString(
                   "ko-KR"
                 )}
-              </MetricCell>
-              <MetricCell
-                current={conversion.summary.onboardingCompletionRate}
-                detail={`가입 후 14일이 지난 cohort ${conversion.summary.onboardingCompletedWithin14DaysCount.toLocaleString("ko-KR")} / ${conversion.summary.onboardingMaturedSignupCount.toLocaleString("ko-KR")}명`}
-                label="온보딩 14일 완료율"
-                percentDelta
-                previous={conversion.comparison.onboardingCompletionRate}
-              >
-                {formatPercent(conversion.summary.onboardingCompletionRate)}
               </MetricCell>
             </MetricRow>
           </section>

@@ -3,7 +3,7 @@ import { listCoverage } from "@/lib/career/listCoverage";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { operationSchema, type ExternalOperation } from "../externalOperations/store";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
-import { formatTalentMessageContentForLlmPrompt } from "../opportunityFeedbackNote";
+import { formatTalentMessageContentForModel } from "../messageForModel";
 
 export type WorkScope = { admin: TalentAdminClient; userId: string; conversationId: string };
 export async function workRpc(scope: WorkScope, action: string, input: Record<string, unknown>) {
@@ -77,7 +77,7 @@ export async function readWorkContext(scope: WorkScope, workId?: string) {
     const others = works.filter(other => other.id !== work.id);
     const mail=await (await import("../emailWriting/context")).readWorkMailContext(scope,work);
     return { works: [work, ...others], text: [formatWork(work),mail,
-      ...(sources.data ?? []).map(row => `Original user message ${row.id}:\n${formatTalentMessageContentForLlmPrompt(row, { includeCreatedAt: false })}`),
+      ...(sources.data ?? []).map(row => `Original user message ${row.id}:\n${formatTalentMessageContentForModel(row, { includeCreatedAt: false })}`),
       `Other work (${listCoverage(others.length, Boolean(nextCursor))}); observed ${formatLlmDateTime(new Date().toISOString())}; manage_work reads details:`,
       ...others.map(other => formatWorkIndex(other)),
       ...(nextCursor ? [`More work; nextCursor ${nextCursor}`] : []),

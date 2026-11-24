@@ -60,7 +60,9 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
         factsSource?.kind === "public_postings"
           ? "Role text sources: individually published advertisements; raw company and Role text is outside this anonymous sharing scope."
           : factsSource?.kind === "role" ? "Role text source: company's Role and company record." : null,
-        role?.sourceType !== "internal" && role?.status ? `Status: ${role.status}` : null,
+        // A hiring role needs no line of its own; the heading says so once.
+        role?.hiring === false ? `Status: ${role.status ?? "ended"}`
+          : role?.hiring === undefined && role?.sourceType !== "internal" && role?.status ? `Status: ${role.status}` : null,
         role?.locationText ? `Location: ${role.locationText}` : null,
         role?.workMode ? `Work mode: ${role.workMode}` : null,
         detailLine("Employment type", role?.type),
@@ -96,7 +98,9 @@ export function formatRoleContextForModel(roles: readonly Record<string, unknown
       return lines.filter(Boolean).join("\n");
     })
     .join("\n\n");
-  return text ? `Role context (times: ${PROMPT_TIME_ZONE}).\n${text}` : text;
+  const hiring = roles.map(item => asToolRecord(item.role)?.hiring);
+  const label = hiring.includes(true) ? `; hiring${hiring.includes(false) ? " unless a Status is shown" : ""}` : "";
+  return text ? `Role context (times: ${PROMPT_TIME_ZONE}${label}).\n${text}` : text;
 }
 function detailLine(label: string, value: unknown) {
   const text = formatRoleContextList(value);

@@ -38,7 +38,7 @@ function useNavCopy() {
   return {
     features: c("기능", "Features"),
     resources: c("리소스", "Resources"),
-    companies: c("기업용", "For companies"),
+    companies: "For companies",
     signIn: c("로그인", "Sign in"),
     continue: c("계속하기", "Continue"),
     start: c("시작하기", "Get started"),

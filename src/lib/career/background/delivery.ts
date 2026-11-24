@@ -5,6 +5,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { TalentToolDefinition } from "@/lib/talentOnboarding/tools";
 import { ensureReplyAlias } from "@/lib/email/runtime/store";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
+import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { normalizeEmailAddress } from "@/lib/email/parse";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
@@ -417,7 +418,7 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
         },
         sourceIds: CAREER_DELIVERY_SOURCE_IDS,
         subject: { type: "string" },
-        body: { type: "string", description: "Finished Markdown email body, with actual line breaks and supplied URLs. The body is rendered directly as email, without chat cards." },
+        body: { type: "string", description: "Finished Markdown email body, with actual line breaks and supplied URLs. The body is rendered directly as email, without chat cards; a choice-button block becomes reply buttons." },
       },
       additionalProperties: false,
     },
@@ -538,7 +539,10 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           to,
           replyTo,
           subject: input.subject,
-          ...renderReplyEmail(bodyMarkdown, { footer: true }),
+          ...renderReplyEmail(bodyMarkdown, {
+            footer: true,
+            choiceHref: careerEmailChoiceHref({ talentId: context.userId, recipient: to, replyTo, subject: input.subject }),
+          }),
           idempotencyKey: `career-agent/${invocation.runId}`,
         };
         receipt = await rpc(admin, "reserve_career_agent_email", {

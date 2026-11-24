@@ -30,13 +30,6 @@ import { parseOpsTalentMetricsRange } from "@/lib/ops/talentMetricsServer";
 export const SUBMITTED_SENTENCE = String.raw`(^\s*(application )?submitted\M|submitted [^.]{0,160}\monce\M|successfully submitted|submitted successfully|was submitted|has been submitted|application submitted|application (has been|was) (received|accepted)|confirmed (the )?(successful )?submission|submission confirmation|application-submitted|thank you for (applying|your application)|successfully applied|제출(했|완료|되었|됐)|지원(이|을)? ?완료)`;
 export const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|without submitting|before (submission|submitting)|no application|nothing was submitted|did not submit|didn't submit|was not submitted|already (been )?submitted|no new application|rejected|no longer accepting|not accepting|could not submit|unable to submit|failed to submit|submission failed|no (prior )?(submission )?confirmation|제출하지|제출 전|제출 안|제출되지)`;
 
-const CACHE_TTL_MS = 2 * 60 * 1_000;
-const RESPONSE_CACHE_LIMIT = 12;
-const responseCache = new Map<
-  string,
-  { expiresAt: number; value: OpsTalentMetricsOverviewResponse }
->();
-
 let client: ReturnType<typeof postgres> | null = null;
 
 /** Direct read-only SQL: the joins across logs, mail sends and browser runs are beyond PostgREST. */
@@ -58,9 +51,17 @@ function overviewSql() {
   return client;
 }
 
-export async function readOnly<T>(query: string, parameters: unknown[]): Promise<T[]> {
+export async function readOnly<T>(
+  query: string,
+  parameters: unknown[],
+  // Planner settings for this transaction only, when a measured plan needs them.
+  localSettings: Record<string, string> = {}
+): Promise<T[]> {
   const rows = await overviewSql().begin("read only", async (sql) => {
     await sql.unsafe("set local statement_timeout = '90s'");
+    for (const [name, value] of Object.entries(localSettings)) {
+      await sql`select set_config(${name}, ${value}, true)`;
+    }
     return sql.unsafe(query, parameters as postgres.ParameterOrJSON<never>[]);
   });
   return rows as unknown as T[];
@@ -82,10 +83,6 @@ export async function fetchOpsTalentMetricsOverview(args: {
         .filter(Boolean)
     )
   ).sort();
-  const cacheKey = JSON.stringify({ excludedEmails, interval, range });
-  const cached = responseCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.value;
-
   const generatedAt = new Date();
   const period = [
     range.from,
@@ -126,7 +123,7 @@ export async function fetchOpsTalentMetricsOverview(args: {
       ]),
       readOnly<OverviewJobRow>(OVERVIEW_OFFICIAL_JOBS_SQL, []),
     ]);
-  const value = buildOpsTalentMetricsOverview({
+  return buildOpsTalentMetricsOverview({
     applications,
     attribution,
     filters: { from: range.from, interval, to: range.to },
@@ -136,13 +133,4 @@ export async function fetchOpsTalentMetricsOverview(args: {
     signups,
     trendRows,
   });
-  if (responseCache.size >= RESPONSE_CACHE_LIMIT) {
-    const oldestKey = responseCache.keys().next().value;
-    if (oldestKey) responseCache.delete(oldestKey);
-  }
-  responseCache.set(cacheKey, {
-    expiresAt: Date.now() + CACHE_TTL_MS,
-    value,
-  });
-  return value;
 }

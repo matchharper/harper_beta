@@ -83,6 +83,13 @@ export function automaticEmailReason(email: ReceivedEmail, ownAddress: string) {
     return "auto_reply";
   return null;
 }
+/** Mail written from a mailto button names no earlier message, unlike a reply. */
+export function namesNoEarlierMessage(email: ReceivedEmail) {
+  return (
+    !getHeader(email.headers, "In-Reply-To").trim() &&
+    !getHeader(email.headers, "References").trim()
+  );
+}
 export function replyHeaders(email: ReceivedEmail, fallbackMessageId: string) {
   const id = String(email.message_id ?? fallbackMessageId ?? "").trim();
   const existing = getHeader(email.headers, "References")

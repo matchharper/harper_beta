@@ -32,6 +32,7 @@ import {
   updateEmailJob,
 } from "./store";
 import { renderReplyEmail, wrapEmailHtml } from "./format";
+import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
 import { adaptEmailPromptBlocks } from "./prompt";
 import { emailCopy } from "./copy";
 import { callEmailInternalApi } from "./internalApi";
@@ -803,7 +804,10 @@ export async function processEmailContact(
       subject: copy.subject,
       ...(copy.html
         ? { html: copy.html, text: copy.text ?? htmlToPlainText(copy.html) }
-        : renderReplyEmail(copy.emailBody ?? copy.body, { footer: true })),
+        : renderReplyEmail(copy.emailBody ?? copy.body, {
+            footer: true,
+            choiceHref: careerEmailChoiceHref({ talentId: job.user_id, recipient: profile.email, replyTo: alias, subject: copy.subject }),
+          })),
       replyTo: alias,
       idempotencyKey:
         job.type === "crm_broadcast"

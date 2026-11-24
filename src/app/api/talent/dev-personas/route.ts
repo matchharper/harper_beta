@@ -5,7 +5,6 @@ import { isTestTalentAccount } from "@/lib/testAccounts";
 import {
   fetchDevPersonaRunForUser,
   fetchDevPersonaRunTarget,
-  allowsSignedOutPersonaAccess,
   isDevPersonaEnabled,
   listDevPersonaRuns,
   type DevPersonaCurrentResponse,
@@ -17,12 +16,12 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-// Team members (or a persona account switching to another) may open personas.
-// Only the isolated local stack also lets a signed-out browser in.
+// Dev servers only. A signed-out browser may enter a persona test account;
+// a signed-in user must be a team member or a persona account switching.
 async function authorize(req: NextRequest) {
   if (!isDevPersonaEnabled()) return { error: 404 as const };
   const user = await getFreshRequestUser(req);
-  if (!user) return allowsSignedOutPersonaAccess() ? { user: null } : { error: 401 as const };
+  if (!user) return { user: null };
   if (!canInspectCareerAgentMessages(user.email) && !(await isTestTalentAccount(user.id)))
     return { error: 403 as const };
   return { user };

@@ -16,6 +16,7 @@ import type {
   CareerInlineCardButton,
 } from "@/lib/career/inlineUi";
 import { HIRING_SIGNAL_LABEL } from "@/lib/career/companies/labels";
+import { stripSentenceSourceLinks } from "@/lib/career/companies/sourceLinks";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import { cn } from "@/lib/utils";
 import type { CareerHistoryOpportunity } from "../../types";
@@ -139,11 +140,16 @@ function Topic({
 }) {
   const t = useCareerT();
   const { locale } = useMessages();
+  // The overview reads like the company screen: no check date and no sources
+  // beside its sentences. Dated topics such as hiring signals keep both.
+  const overview = topic.label === "summary";
   return (
     <Folded>
       <div className="space-y-5">
         {topic.entries.map((entry, index) => {
-          const checked = formatCheckedDate(entry.checkedAt, locale);
+          const checked = overview
+            ? ""
+            : formatCheckedDate(entry.checkedAt, locale);
           return (
             <div key={index} className="min-w-0">
               {checked ? (
@@ -154,7 +160,11 @@ function Topic({
               ) : null}
               <RichText
                 variant="career"
-                content={entry.content}
+                content={
+                  overview
+                    ? stripSentenceSourceLinks(entry.content)
+                    : entry.content
+                }
                 referenceLinks
                 className="max-w-full text-[14px] leading-6 text-neutral-primary/85 [overflow-wrap:anywhere] [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
               />

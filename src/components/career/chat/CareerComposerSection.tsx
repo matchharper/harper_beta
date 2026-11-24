@@ -16,14 +16,9 @@ import React, {
 import {
   ArrowUp,
   Building2,
-  CircleHelp,
   Clock3,
-  FileText,
   FileUp,
-  Handshake,
   Loader2,
-  MessageSquareText,
-  PhoneCall,
   Plus,
   Square,
 } from "lucide-react";
@@ -76,7 +71,6 @@ import {
   type CareerPendingFitQuestionAction,
   type CareerPendingInternalOpportunityAction,
 } from "@/lib/career/pendingActions";
-import { useCareerPendingActions } from "@/hooks/career/useCareerPendingActions";
 import { CareerPendingActionContextCard } from "./CareerPendingActionContextCard";
 import ChatAttachmentDraftList from "@/components/chat/ChatAttachmentDraftList";
 import {
@@ -160,7 +154,6 @@ const selectComposerChat = (chat: CareerChatPanelCoreContextValue) => ({
   onboardingWrapupPending: chat.onboardingWrapupPending,
   callStartPending: chat.callStartPending,
   callWrapUpPending: chat.callWrapUpPending,
-  pendingActionsOverride: chat.pendingActionsOverride,
   forceCompletePending: chat.forceCompletePending,
   interviewProgress: chat.interviewProgress,
   onboardingPausePending: chat.onboardingPausePending,
@@ -247,7 +240,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     onboardingWrapupPending,
     callStartPending = false,
     callWrapUpPending = false,
-    pendingActionsOverride,
     forceCompletePending = false,
     interviewProgress,
     onboardingPausePending,
@@ -379,16 +371,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     isTextInputLocked || stopPending;
   const isComposerBusy =
     chatPending || assistantTyping || opportunityFeedbackFollowUpPending;
-  const pendingActions = useCareerPendingActions({
-    enabled:
-      isOnboardingDone &&
-      !pendingActionsOverride &&
-      (mobileActionMenuOpen ||
-        desktopActionMenuOpen ||
-        Boolean(selectedPendingAction)),
-    locale: router.locale,
-    userId: user?.id,
-  });
   const opportunityMentions = useCareerOpportunityMentions({
     enabled: Boolean(opportunityMentionSearch) && !isTextInputLocked,
     userId: user?.id,
@@ -999,9 +981,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
         }
       },
     });
-    if (!sendFailed && submittedPendingAction) {
-      if (!pendingActionsOverride) void pendingActions.refetch();
-    }
   };
 
   const handleSend = async () => {
@@ -1131,7 +1110,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
         if (saved) {
           setSelectedPendingAction(null);
           setPendingQuestionExpanded(false);
-          if (!pendingActionsOverride) void pendingActions.refetch();
         }
       } else {
         const additions = files.map(createDraftFileAttachment);
@@ -1221,194 +1199,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
     !onStartConversationStarter ||
     conversationStarterPending ||
     isComposerActionLocked;
-  const resolvedPendingActions =
-    pendingActionsOverride ?? pendingActions.data ?? [];
-  const visiblePendingActions = resolvedPendingActions;
-  const pendingActionMenuItems: ChatComposerActionMenuItem[] = !isOnboardingDone
-    ? []
-    : !pendingActionsOverride && pendingActions.isPending
-      ? [
-          {
-            disabled: true,
-            icon: <Loader2 />,
-            id: "pending-actions-loading",
-            label: t(
-              "career.chat.career_composer_section.pending_actions_loading_label",
-              "처리할 항목을 확인하는 중"
-            ),
-            loading: true,
-            onSelect: () => undefined,
-            sectionLabel: t(
-              "career.chat.career_composer_section.pending_actions_section_label",
-              "처리할 항목"
-            ),
-            subtext: t(
-              "career.chat.career_composer_section.pending_actions_loading_subtext",
-              "회사 요청과 연결 제안을 불러오고 있어요."
-            ),
-            subtextLayout: "stacked" as const,
-          },
-        ]
-      : !pendingActionsOverride && pendingActions.isError
-        ? [
-            {
-              icon: <MessageSquareText />,
-              id: "pending-actions-error",
-              label: t(
-                "career.chat.career_composer_section.pending_actions_error_label",
-                "처리할 항목 다시 불러오기"
-              ),
-              onSelect: () => void pendingActions.refetch(),
-              sectionLabel: t(
-                "career.chat.career_composer_section.pending_actions_section_label",
-                "처리할 항목"
-              ),
-              subtext: t(
-                "career.chat.career_composer_section.pending_actions_error_subtext",
-                "목록을 불러오지 못했어요. 눌러서 다시 시도해 주세요."
-              ),
-              subtextLayout: "stacked" as const,
-            },
-          ]
-        : visiblePendingActions.map((action) => {
-            if (action.kind === "career_check_in_call") {
-              return {
-                disabled:
-                  isComposerActionLocked ||
-                  isStartingCall ||
-                  !onStartConversationStarter,
-                icon: <PhoneCall />,
-                id: `pending-${action.kind}-${action.id}`,
-                label: t(
-                  "career.common.conversation_starters.career_check_in",
-                  "최근 상황 업데이트하기"
-                ),
-                onSelect: () => handleSelectPendingAction(action),
-                sectionLabel: t(
-                  "career.chat.career_composer_section.pending_actions_section_label",
-                  "처리할 항목"
-                ),
-                subtext: t(
-                  "career.chat.career_composer_section.pending_career_check_in_subtext",
-                  "최근 상황과 앞으로 보고 싶은 기회를 Harper와 가볍게 이야기해요."
-                ),
-                subtextLayout: "stacked" as const,
-                trailingText: t(
-                  "career.chat.career_composer_section.pending_call_trailing_text",
-                  "통화 시작"
-                ),
-              };
-            }
-            if (action.kind === "internal_opportunity_call") {
-              return {
-                disabled:
-                  isComposerActionLocked || isStartingCall || !onStartCallMode,
-                icon: <PhoneCall />,
-                id: `pending-${action.kind}-${action.id}`,
-                label: t(
-                  "career.chat.career_composer_section.pending_call_label",
-                  "연결 전 통화 · {companyName}",
-                  {
-                    values: {
-                      companyName: action.callRequest.companyName,
-                    },
-                  }
-                ),
-                onSelect: () => handleSelectPendingAction(action),
-                sectionLabel: t(
-                  "career.chat.career_composer_section.pending_actions_section_label",
-                  "처리할 항목"
-                ),
-                subtext: t(
-                  "career.chat.career_composer_section.pending_call_subtext",
-                  "{roleTitle} 포지션에 대해 간단히 이야기하고 연결을 준비해요.",
-                  { values: { roleTitle: action.callRequest.roleTitle } }
-                ),
-                subtextLayout: "stacked" as const,
-                trailingText: t(
-                  "career.chat.career_composer_section.pending_call_trailing_text",
-                  "통화 시작"
-                ),
-              };
-            }
-            if (action.kind === "company_request") {
-              return {
-                disabled: isComposerActionLocked,
-                icon:
-                  action.requestMode === "resume" ? (
-                    <FileText />
-                  ) : (
-                    <MessageSquareText />
-                  ),
-                id: `pending-${action.kind}-${action.id}`,
-                label: t(
-                  "career.chat.career_composer_section.pending_company_request_label",
-                  "{companyName}의 요청",
-                  { values: { companyName: action.companyName } }
-                ),
-                onSelect: () => handleSelectPendingAction(action),
-                sectionLabel: t(
-                  "career.chat.career_composer_section.pending_actions_section_label",
-                  "처리할 항목"
-                ),
-                subtext: action.prompt,
-                subtextLayout: "stacked" as const,
-                trailingText:
-                  action.requestMode === "resume"
-                    ? t(
-                        "career.chat.career_composer_section.pending_company_request_resume",
-                        "이력서"
-                      )
-                    : t(
-                        "career.chat.career_composer_section.pending_company_request_general",
-                        "요청"
-                      ),
-              };
-            }
-            if (action.kind === "internal_fit_question") {
-              return {
-                disabled: isComposerActionLocked,
-                icon: <CircleHelp />,
-                id: `pending-${action.kind}-${action.id}`,
-                label: t(
-                  "career.chat.pending_action_context.fit_question_label",
-                  "정보가 필요합니다"
-                ),
-                onSelect: () => handleSelectPendingAction(action),
-                sectionLabel: t(
-                  "career.chat.career_composer_section.pending_actions_section_label",
-                  "처리할 항목"
-                ),
-                subtext: action.prompt,
-                subtextLayout: "stacked" as const,
-                trailingText: t(
-                  "career.chat.career_composer_section.pending_company_request_question",
-                  "질문"
-                ),
-              };
-            }
-            return {
-              disabled: isComposerActionLocked,
-              icon: <Handshake />,
-              id: `pending-${action.kind}-${action.id}`,
-              label: action.roleTitle,
-              onSelect: () => handleSelectPendingAction(action),
-              sectionLabel: t(
-                "career.chat.career_composer_section.pending_actions_section_label",
-                "처리할 항목"
-              ),
-              subtext: t(
-                "career.chat.career_composer_section.pending_internal_opportunity_subtext",
-                "{companyName}에 대한 연결 제안이에요. 수락·거절 또는 질문을 남겨주세요.",
-                { values: { companyName: action.companyName } }
-              ),
-              subtextLayout: "stacked" as const,
-              trailingText: t(
-                "career.chat.career_composer_section.pending_internal_opportunity_trailing_text",
-                "연결 제안"
-              ),
-            };
-          });
   const composerActionMenuItems: ChatComposerActionMenuItem[] = [
     {
       disabled: fileUploadDisabled,
@@ -1426,7 +1216,6 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       ),
       // trailingText: "PDF, DOCX, TXT",
     },
-    ...pendingActionMenuItems,
   ];
 
   const composerActionsHidden = !shouldShowCareerComposerRoleActions(draft);
@@ -1628,12 +1417,13 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                 placeholder={composerPlaceholder}
                 rows={1}
                 maxRows={CAREER_COMPOSER_MAX_ROWS}
+                mobileMinRows={2}
                 disabled={isComposerActionLocked}
                 aria-busy={isComposerBusy || undefined}
                 mobileLeadingAction={
                   <ChatComposerActionMenu
                     animated={false}
-                    className="[--blur-button:0px] [--color-button-hover:transparent] [--color-button-pressed:transparent]"
+                    className="border-transparent! bg-transparent! backdrop-blur-none! hover:bg-transparent! active:bg-transparent! data-[state=open]:bg-transparent!"
                     triggerIcon={
                       <Plus
                         className="size-5 text-neutral-primary"
@@ -1681,6 +1471,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
                     ) : null}
                     {opportunityMentionSearch && !isTextInputLocked ? (
                       <ChatComposerPicker
+                        className="[--background-image-menu-image:none] [--color-menu:rgb(255_255_255/0.9)]"
                         highlightedIndex={opportunityMentionHighlightedIndex}
                         items={opportunityPickerItems}
                         listId={opportunityMentionListId}

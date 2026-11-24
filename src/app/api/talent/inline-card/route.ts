@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readCompanySummariesInLanguage } from "@/lib/career/companies/summaryLanguage";
 import { isPostingRoleId } from "@/lib/career/postingLinks";
 import { readCompanyBundles } from "@/lib/career/resources/companyData";
 import type {
@@ -14,10 +15,12 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 
-/** The shared company record and every saved research entry, grouped by topic. */
+/** The shared company record and every saved research entry, grouped by topic.
+ * The overview comes in the reader's language. */
 async function readCompany(
   admin: Admin,
-  workspaceId: string
+  workspaceId: string,
+  locale: string | null
 ): Promise<CareerInlineCardCompany | null> {
   const given = await admin
     .from("company_workspace")
@@ -38,11 +41,16 @@ async function readCompany(
       .maybeSingle();
     logoUrl = home.data?.logo_url ?? null;
   }
+  const overview = await readCompanySummariesInLanguage(
+    admin,
+    bundle.items.filter((item) => item.label === "summary"),
+    locale
+  );
   const topics = new Map<string, CareerInlineCardCompany["topics"][number]>();
   for (const item of bundle.items) {
     const topic = topics.get(item.label) ?? { label: item.label, entries: [] };
     topic.entries.push({
-      content: item.content,
+      content: overview.get(item.dataRef.id) ?? item.content,
       checkedAt: item.checkedAt ?? null,
     });
     topics.set(item.label, topic);
@@ -93,7 +101,7 @@ export async function GET(req: NextRequest) {
             userId: user.id,
           })
         : [],
-      companyId ? readCompany(admin, companyId) : null,
+      companyId ? readCompany(admin, companyId, locale) : null,
     ]);
     const body: CareerInlineCardRecord = {
       role: roles[0] ? toCandidateOpportunityResponse(roles[0]) : null,

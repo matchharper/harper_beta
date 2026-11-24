@@ -35,6 +35,8 @@ import ProgressOpportunityRow from "../../history/ProgressOpportunityRow";
 import SavedOpportunityList from "../../history/SavedOpportunityList";
 import CareerOpportunityPreviewModal from "../../history/CareerOpportunityPreviewModal";
 import ExternalOpportunityApplyModal from "../../history/ExternalOpportunityApplyModal";
+import { useApplyWithHarper } from "../../history/ApplyWithHarperButton";
+import { getCompanyJoinRequestText, isCompanyOpportunity } from "../../history/hiringPost";
 import { getCareerOpportunityManagementStatus } from "../../history/savedOpportunityStatus";
 import CareerTalentContextSection from "../../profile/CareerTalentContextSection";
 
@@ -636,6 +638,7 @@ function ConnectedInlineUi({
     useState<CareerHistoryOpportunity | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const saving = useRef(false);
+  const applyWithHarper = useApplyWithHarper();
   const [error, setError] = useState("");
   const refresh = async (roleId: string) => {
     await history.onRefreshHistoryOpportunities(roleId);
@@ -707,10 +710,20 @@ function ConnectedInlineUi({
     continueMatchingPending: chat?.chatPending,
     onSendMessage: chat ? text => chat.onSendChatMessage({ text }) : undefined,
     onSave: save,
-    onApply: (item) =>
-      item.isInternal || item.sourceType === "internal"
-        ? open(item)
-        : setApplication(item),
+    onApply: (item) => {
+      if (item.isInternal || item.sourceType === "internal") open(item);
+      else if (!isCompanyOpportunity(item)) setApplication(item);
+      else
+        void applyWithHarper.start(item, {
+          source: "opportunity_card",
+          onBeforeStart: async () =>
+            (await history.onUpdateHistoryOpportunityFeedback(item.id, "positive", {
+              fallbackOpportunity: item,
+              savedStage: "saved",
+            })) === true,
+          requestText: (opportunity) => getCompanyJoinRequestText(opportunity, t),
+        });
+    },
   };
   return (
     <>

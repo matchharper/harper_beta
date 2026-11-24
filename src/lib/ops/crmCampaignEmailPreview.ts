@@ -52,6 +52,12 @@ const BROADCAST_FOOTERS = {
   ],
 } as const;
 
+// The Worker adds the same line with each recipient's own link (`email_reply/crm_broadcast.py`).
+const BROADCAST_UNSUBSCRIBE_LINE = {
+  en: { before: "To stop receiving Harper update emails, ", link: "unsubscribe", after: "." },
+  ko: { before: "Harper 소식 메일을 그만 받으려면 ", link: "수신거부", after: "를 눌러 주세요." },
+} as const;
+
 export function buildCrmBroadcastPreviewDocument(
   htmlContent: string,
   locale: "ko" | "en" = "ko"
@@ -59,15 +65,18 @@ export function buildCrmBroadcastPreviewDocument(
   const bodyHtml = htmlContent.trim()
     ? htmlContent
     : '<div style="padding:20px;border:1px dashed #cbd5e1;color:#94a3b8;text-align:center;">단체 메일 본문 미리보기</div>';
-  const footerHtml = BROADCAST_FOOTERS[locale]
-    .map(
-      (paragraph) =>
-        `<p>${paragraph.replace(
-          "chris@matchharper.com",
-          '<a href="mailto:chris@matchharper.com">chris@matchharper.com</a>'
-        )}</p>`
-    )
-    .join("");
+  const unsubscribe = BROADCAST_UNSUBSCRIBE_LINE[locale];
+  const footerHtml =
+    BROADCAST_FOOTERS[locale]
+      .map(
+        (paragraph) =>
+          `<p>${paragraph.replace(
+            "chris@matchharper.com",
+            '<a href="mailto:chris@matchharper.com">chris@matchharper.com</a>'
+          )}</p>`
+      )
+      .join("") +
+    `<p>${unsubscribe.before}<a href="#">${unsubscribe.link}</a>${unsubscribe.after}</p>`;
 
   return `<!doctype html>
 <html>

@@ -141,6 +141,16 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     if (error) throw new Error(error.message);
     if (!data) throw new CareerSourceChangedError();
   }
+  const unseenReply = (args.run.trigger_payload as any)?.unseenReply;
+  if (unseenReply) {
+    // Seeing the reply or writing again ends the reason to email it.
+    const { data, error } = await db(args.admin).rpc('career_unseen_reply_current_v1', {
+      p_user: args.run.talent_id, p_conversation: (args.run as { conversation_id?: string | null }).conversation_id,
+      p_reply: unseenReply.messageId, p_source: unseenReply.sourceMessageId,
+    });
+    if (error) throw new Error(error.message);
+    if (!data) throw new CareerSourceChangedError();
+  }
   if ((args.run.trigger_payload as any)?.companyIntroCandidateId) {
     const { data, error } = await db(args.admin).rpc('career_company_intro_is_current', {
       p_run: args.run.id, p_talent: args.run.talent_id,

@@ -18,6 +18,7 @@ const DEFAULT_MAX_MARKDOWN_CHARS = 20_000;
 const MAX_MARKDOWN_CHARS = 40_000;
 const DIRECT_FETCH_MAX_CHARACTERS = 2_000_000;
 const DIRECT_FETCH_TIMEOUT_MS = 8_000;
+const LIVE_READ_REUSE_MS = 24 * 3_600_000;
 
 const directJobPostingTurndown = new TurndownService({
   bulletListMarker: "-",
@@ -218,7 +219,10 @@ async function prepareOpenUrl(args: OpenUrlOptions & { url: string }) {
     const { contract, searchTextLimitReached } = cached.provenance;
     const needsPageBody = contract === "exa-search-metadata-v1" ||
       (contract === "exa-search-text-v1" && (searchTextLimitReached !== false || offset >= cached.markdown.length));
+    // A live read (0) reuses a page Harper captured within the last day; the receipt says cached.
+    const lastCapturedAt = Date.parse(cached.lastSuccessfulCheckAt ?? cached.sourceFetchedAt ?? "");
     const freshEnough = maxAgeHours === undefined || maxAgeHours === -1 ||
+      (maxAgeHours === 0 && lastCapturedAt >= Date.now() - LIVE_READ_REUSE_MS) ||
       (maxAgeHours > 0 && cached.sourceFetchedAt && Date.parse(cached.sourceFetchedAt) >= Date.now() - maxAgeHours * 3600000);
     if (!needsPageBody && freshEnough)
       return { page: formatCachedOpenUrlResult(cached, maxMarkdownChars, offset) };
@@ -384,8 +388,8 @@ function formatCachedOpenUrlResult(
     sourceFetchedAt: cached.sourceFetchedAt,
     lastSuccessfulCheckAt: cached.lastSuccessfulCheckAt,
     coverage: cached.provenance.contract === "exa-search-text-v1"
-      ? "Saved provider search text. Offsets describe the indexed text; source completeness and live freshness are unverified."
-      : "Saved public observation; read time is not proof of live source freshness.",
+      ? "Saved provider search text. Offsets describe the indexed text."
+      : "Saved public observation.",
     sourceScope: "public",
     offset, nextOffset: clamped.truncated ? offset + maxMarkdownChars : null,
     createdAt: cached.createdAt,

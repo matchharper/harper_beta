@@ -380,7 +380,9 @@ async function processEmailAttachments(args: {
         documentId: document?.id ?? null,
         kind: documentKind,
         extractedTextChars: text.length,
-        extractionStatus: text ? "ok" : "empty",
+        // An image or other non-text file is stored without text extraction;
+        // "empty" means extraction ran and found no text (e.g. a scanned PDF).
+        extractionStatus: text ? "ok" : canExtractText ? "empty" : "not_text",
         sha256,
         storageBucket: TALENT_RESUME_BUCKET,
         storagePath,

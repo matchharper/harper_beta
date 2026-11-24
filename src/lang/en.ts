@@ -8,6 +8,7 @@ export const en = {
 
 
   "career.chat.stopped": "Stopped",
+  "career.chat.turn_failed": "I couldn't put together a reply. Send the same message again and I'll start over.",
   "career.chat.stop": "Stop",
 
   auth: {
@@ -915,6 +916,7 @@ export const en = {
     "career.chat.tool.update_setting.start": "Updating your recommendation settings.",
     "career.chat.tool.update_talent_profile.start": "Updating your profile information.",
     "career.chat.tool.web_search.query": "Searching \"{query}\"",
+    "career.chat.turn_failed": "I couldn't put together a reply. Send the same message again and I'll start over.",
     "career.chat.work_status_unavailable": "Could not check work status. Reconnecting…",
     "career.coaching.action_dismiss": "I’ll pass on this coaching suggestion for now.",
     "career.coaching.action_end": "I’d like to finish this coaching conversation here.",
@@ -1449,8 +1451,8 @@ export const en = {
     "career.history.estimated_salary.disclaimer": "This salary is Harper's estimate and may not be accurate.",
     "career.history.estimated_salary.heading": "Estimated annual salary",
     "career.history.estimated_salary.range": "{range} (estimated)",
-    "career.history.external_application.apply": "Apply",
     "career.history.external_application.applied_myself": "I applied myself",
+    "career.history.external_application.apply": "Apply",
     "career.history.external_application.description": "Harper will help you apply.",
     "career.history.external_application.direct": "Apply on company site",
     "career.history.external_application.open": "Open job page",
@@ -2545,6 +2547,9 @@ export const en = {
     "career.settings.career_settings_modal.pause_title": "Pause new opportunities?",
     "career.settings.career_settings_modal.subscription_update_failed": "Could not save your opportunity settings. Please try again.",
     "career.settings.career_settings_modal.subscription_updating": "Updating",
+    "career.settings.crm_broadcast.description": "You'll still get new opportunity emails either way.",
+    "career.settings.crm_broadcast.save_failed": "Couldn't save this setting. Please try again in a moment.",
+    "career.settings.crm_broadcast.title": "Harper update emails",
     "career.settings.email_change.availability_check_failed": "Could not verify the email address.",
     "career.settings.email_change.callback_failed": "We couldn't save your verified email. Please try again.",
     "career.settings.email_change.check_complete": "Confirm verification",

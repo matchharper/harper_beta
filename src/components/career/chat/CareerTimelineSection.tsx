@@ -105,9 +105,6 @@ const TIMELINE_SCROLL_STYLE: React.CSSProperties = {
 };
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_ROLE_QUERY_KEY = "id";
-const CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE =
-  // career-i18n-skip-next-line system marker comparison
-  "기존에 제출한 정보로 커리어 워크스페이스를 시작했습니다.";
 const getSingleQueryValue = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
@@ -240,7 +237,7 @@ type TimelineMessageRowProps = Omit<
   isSimulationMode: boolean;
   suppressRolePreviews: boolean;
   turnStartedAt?: string;
-  stopDisplay?: "label" | "search";
+  stopDisplay?: "label" | "search" | "failed";
   dateLabel: string;
   dateAriaPrefix: string;
   simulationSession?: CareerMessage["simulationSession"];
@@ -291,6 +288,7 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
   const isRunningRecommendationSearch = latestStatus?.state === "running";
   const isActivity = message.messageType === "career_turn_activity";
   const stoppedLabel = t("career.chat.stopped", "중단됨");
+  const failedLabel = t("career.chat.turn_failed", "답을 만들지 못했어요. 같은 내용을 다시 보내면 처음부터 다시 할게요.");
   const displayEvents = message.workBackgroundLogs?.length ? [
     ...(message.workEvents?.length ? message.workEvents : (message.thinkingLogs ?? []).map((text, index) => ({ id: `tool:${index}`, kind: "tool" as const, text }))),
     ...message.workBackgroundLogs.map((text, index) => ({ id: `delegate:${index}`, kind: "tool" as const, text })),
@@ -548,10 +546,15 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
           {stoppedLabel}
         </div>
       )}
+      {stopDisplay === "failed" && (
+        <div role="status" className="text-[12px] text-neutral-muted">
+          {failedLabel}
+        </div>
+      )}
       <CareerMessageActions
         message={message}
         copyText={isActivity
-          ? displayEvents?.map(event => event.text).join("\n\n") || textLogs.join("\n\n") || (stopDisplay ? stoppedLabel : message.content)
+          ? displayEvents?.map(event => event.text).join("\n\n") || textLogs.join("\n\n") || (stopDisplay === "failed" ? failedLabel : stopDisplay ? stoppedLabel : message.content)
           : undefined}
         onDeleteMessage={onDeleteMessage}
       />
@@ -631,15 +634,18 @@ export const TimelineMessageList = memo(function TimelineMessageList({
   let turnStart = 0;
   let previousDateKey = "";
   let turnStopped = false;
+  let turnFailed = false;
   let turnHasStoppedSearch = false;
   const rows: React.ReactNode[] = [];
   for (let index = 0; index < messages.length; index++) {
     const message = messages[index];
     if (message.role === "user") {
       turnStopped = false;
+      turnFailed = false;
       turnHasStoppedSearch = false;
     }
     turnStopped ||= Boolean(message.turnStopped);
+    turnFailed ||= Boolean(message.turnFailed);
     turnHasStoppedSearch ||=
       splitRecommendJobPostingStatusLogs(
         message.thinkingLogs ?? EMPTY_THINKING_LOGS
@@ -651,7 +657,7 @@ export const TimelineMessageList = memo(function TimelineMessageList({
         ? formatChatDateDividerLabel(message.createdAt, locale)
         : "";
     if (messageDateKey) previousDateKey = messageDateKey;
-    const stopDisplay = turnHasStoppedSearch ? "search" : turnStopped ? "label" : undefined;
+    const stopDisplay = turnHasStoppedSearch ? "search" : turnStopped ? "label" : turnFailed ? "failed" : undefined;
     // A previous user message is not an execution start: autonomous greetings
     // and resumed work may arrive much later. Only measured timing can supply
     // a duration; message chronology must not manufacture hours of work.
@@ -999,19 +1005,20 @@ const CareerTimelineSection = ({
     }
     return Boolean(deleted);
   }, [onDeleteMessage, projectedMessages]);
+  // The signup receipt records what the form submitted; the person did not say it in chat.
   const timelineMessages = useMemo(
     () =>
       projectedMessages.filter(
         (message) =>
-          !(
-            message.role === "user" &&
-            message.messageType === "profile_submit" &&
-            message.content.trim() === CLAIMED_WORKSPACE_BOOTSTRAP_MESSAGE
-          )
+          !(message.role === "user" && message.messageType === "profile_submit")
       ),
     [projectedMessages]
   );
   const hasTimelineMessages = timelineMessages.length > 0;
+  // Signed up, and Harper's first message has not arrived yet.
+  const awaitingFirstMessage =
+    !hasTimelineMessages &&
+    projectedMessages.some((message) => message.messageType === "profile_submit");
   const latestTimelineMessage = timelineMessages[timelineMessages.length - 1];
   const latestTimelineMessageKey = latestTimelineMessage
     ? [
@@ -1366,7 +1373,7 @@ const CareerTimelineSection = ({
           </div>
         )}
 
-        {sessionPending && !hasTimelineMessages && (
+        {(sessionPending || awaitingFirstMessage) && !hasTimelineMessages && (
           <div className="flex min-h-[52vh] items-center justify-center">
             <FaceLoading
               label={t(

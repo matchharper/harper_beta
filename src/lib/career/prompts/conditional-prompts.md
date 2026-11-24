@@ -74,7 +74,7 @@ Action note: ...
 | Session start greeting/re-engagement | `/api/talent/session`, `/api/talent/session/reengagement` -> `runCareerChatTurn` | Dedicated endpoint streams text; session GET is non-streaming | `buildCareerSessionStartTurnInstruction` | Shared Career capability runtime | Explicit app-return event after history; no persisted user speech |
 | Voice call wrap-up | `/api/talent/chat/call-wrapup` -> `runCareerChatTurn` | No | 일반 call: `buildCareerCallWrapupTurnInstruction`; internal opportunity call: `buildInternalOpportunityCallWrapupInstruction` | `update_setting`, `update_talent_profile` | Prompt differs for internal opportunity call. Tool allowlist is the same. |
 | Onboarding completion wrap-up card | `createOnboardingCompletionMessages` / `regenerateOnboardingCompletionMessages` -> `generateOnboardingCompletionWrapupContent` | No | `buildWrapupInstruction` as `runtimeInstruction` | `update_setting`, `update_talent_profile` | No |
-| Onboarding continuation | direct web reply queue → `processCareerBackgroundRun` → `runCareerChatTurn` | Yes | `buildOnboardingCompletionHandoffInstruction` | Normal Career tools | Current `/jobs` entry and conversation facts guide the next action; the server saves the original final response in chat. No Python handoff or Behavior preparation. |
+| Onboarding continuation | direct web reply queue → `processCareerBackgroundRun` → `runCareerChatTurn` | Yes | `buildCareerEntryHandoffInstruction`; `post_onboarding_conversation_guide` while the person has not written to Harper | Normal Career tools | Current `/jobs` entry and conversation facts guide the next action; the server saves the original final response in chat. No Python handoff or Behavior preparation. |
 
 Not separate chat-like LLM calls:
 
@@ -180,7 +180,7 @@ Wrap-up card prompt: `buildWrapupInstruction`
 - Generic stop/unsubscribe wording should ask for clarification instead of calling `update_setting`.
 - It must output only the markdown card body without the `Call Wrap-up` title.
 
-Continuation prompt: `buildOnboardingCompletionHandoffInstruction`
+Continuation prompt: `buildCareerEntryHandoffInstruction` (signup page). The legacy interview wrapup keeps `buildOnboardingCompletionHandoffInstruction`.
 
 - The completion transaction admits the existing durable Career run directly to the web reply queue, without Python handoff or initial Behavior Context preparation.
 - After the completion response, the original Career executor uses the normal chat prompt and general tools. The server saves its final response to the same chat through the existing idempotent delivery executor; the model need not call a delivery tool. The tool-less next-steps writer is no longer called.

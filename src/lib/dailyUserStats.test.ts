@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { DailyUserStatsReport } from "@/lib/dailyUserStats";
-import { buildReferralFunnelStats } from "@/lib/dailyUserStatsReferral";
-import {
-  buildTalentNetworkReferralVisitLogType,
-  isTalentNetworkReferralVisitLogType,
-} from "@/lib/talentNetworkReferralTracking";
 
 function makeDailyUserStatsReport(
   overrides: Partial<DailyUserStatsReport> = {}
@@ -79,8 +74,6 @@ function makeDailyUserStatsReport(
     negativeFeedbackCount: 0,
     newSignupFourPlusChatDropoffCount: 0,
     newSignupOnboardingCompletedCount: 0,
-    newSignupReferralActivatedCount: 0,
-    newSignupReferralViewedCount: 0,
     newSignupSubmittedCount: 0,
     submittedResumeUserCount: 0,
     submittedResumeWithoutProfileUserCount: 0,
@@ -94,15 +87,6 @@ function makeDailyUserStatsReport(
     period: "daily",
     positiveFeedbackCount: 0,
     recommendationCount: 0,
-    referralFunnelStats: {
-      onboardingCompletedCount: 0,
-      onboardingCompletedRateFromVisit: null,
-      signupCount: 0,
-      signupRateFromVisit: null,
-      submittedCount: 0,
-      submittedRateFromVisit: null,
-      visitCount: 0,
-    },
     returningOnboardingCompletedCount: 0,
     returningSubmittedCount: 0,
     signupCount: 0,
@@ -117,83 +101,6 @@ function makeDailyUserStatsReport(
     ...overrides,
   };
 }
-
-test("referral visit log helpers recognize recorded visits", () => {
-  const type = buildTalentNetworkReferralVisitLogType("referral-token");
-
-  assert.equal(type, "talent_network_referral_visit:referral-token");
-  assert.equal(isTalentNetworkReferralVisitLogType(type), true);
-  assert.equal(isTalentNetworkReferralVisitLogType("new_visit:career"), false);
-});
-
-test("referral viewers count unique users from the report-day signup cohort", async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
-  const { countNewSignupReferralViewedUsers } =
-    await import("@/lib/dailyUserStats");
-
-  const count = countNewSignupReferralViewedUsers({
-    referralInteractionLogs: [
-      { type: "career_referral_viewed", user_id: "new-user-a" },
-      { type: "career_referral_viewed", user_id: "new-user-a" },
-      { type: "career_referral_viewed", user_id: "returning-user" },
-      { type: "career_click_settings_tab_referral", user_id: "new-user-b" },
-      { type: "career_referral_viewed", user_id: "new-user-b" },
-    ],
-    signupUserIds: new Set(["new-user-a", "new-user-b"]),
-  });
-
-  assert.equal(count, 2);
-});
-
-test("referral activation counts new signups whose copied link gets a later visit", async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-key";
-  const { countNewSignupReferralActivatedUsers } =
-    await import("@/lib/dailyUserStats");
-
-  const count = countNewSignupReferralActivatedUsers({
-    referralInteractionLogs: [
-      {
-        created_at: "2026-07-22T00:01:00.000Z",
-        type: "career_referral_link_copied",
-        user_id: "new-user-a",
-      },
-      {
-        created_at: "2026-07-22T00:05:00.000Z",
-        type: "career_referral_link_copied",
-        user_id: "new-user-b",
-      },
-      {
-        created_at: "2026-07-22T00:01:00.000Z",
-        type: "career_referral_link_copied",
-        user_id: "returning-user",
-      },
-    ],
-    referralLinks: [
-      { referrer_user_id: "new-user-a", token: "token-a" },
-      { referrer_user_id: "new-user-b", token: "token-b" },
-      { referrer_user_id: "returning-user", token: "token-returning" },
-    ],
-    referralVisitLogs: [
-      {
-        created_at: "2026-07-22T00:03:00.000Z",
-        type: buildTalentNetworkReferralVisitLogType("token-a"),
-      },
-      {
-        created_at: "2026-07-22T00:04:00.000Z",
-        type: buildTalentNetworkReferralVisitLogType("token-b"),
-      },
-      {
-        created_at: "2026-07-22T00:06:00.000Z",
-        type: buildTalentNetworkReferralVisitLogType("token-returning"),
-      },
-    ],
-    signupUserIds: new Set(["new-user-a", "new-user-b"]),
-  });
-
-  assert.equal(count, 1);
-});
 
 test("mail open stats dedupe Resend ids and respect the report cutoff", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:54321";
@@ -241,79 +148,6 @@ test("mail open stats dedupe Resend ids and respect the report cutoff", async ()
     openRate: 1 / 3,
     openedCount: 1,
     trackedSentCount: 3,
-  });
-});
-
-test("referral funnel dedupes visitors and uses visit-based nested rates", () => {
-  const stats = buildReferralFunnelStats({
-    emailOnboardingLeads: [],
-    excludedEmailSet: new Set(),
-    landingLoginLogs: [
-      {
-        created_at: "2026-07-22T00:05:00.000Z",
-        local_id: "visitor-a",
-        type: "login_email:a@example.com:career",
-      },
-      {
-        created_at: "2026-07-22T00:06:00.000Z",
-        local_id: "visitor-b",
-        type: "login_email:b@example.com:career",
-      },
-    ],
-    onboardingEvents: [
-      {
-        created_at: "2026-07-22T00:09:00.000Z",
-        event_type: "onboarding_completed",
-        talent_id: "user-a",
-      },
-    ],
-    profileSubmitMessages: [
-      {
-        created_at: "2026-07-22T00:08:00.000Z",
-        message_type: "profile_submit",
-        user_id: "user-a",
-      },
-    ],
-    referralVisitLogs: [
-      {
-        created_at: "2026-07-22T00:00:00.000Z",
-        local_id: "visitor-a",
-        type: buildTalentNetworkReferralVisitLogType("token-a"),
-      },
-      {
-        created_at: "2026-07-22T00:01:00.000Z",
-        local_id: "visitor-a",
-        type: buildTalentNetworkReferralVisitLogType("token-a"),
-      },
-      {
-        created_at: "2026-07-22T00:02:00.000Z",
-        local_id: "visitor-b",
-        type: buildTalentNetworkReferralVisitLogType("token-b"),
-      },
-    ],
-    signupAndSubmitLogs: [],
-    talentUsers: [
-      {
-        created_at: "2026-07-22T00:05:00.000Z",
-        email: "a@example.com",
-        user_id: "user-a",
-      },
-      {
-        created_at: "2026-07-22T00:06:00.000Z",
-        email: "b@example.com",
-        user_id: "user-b",
-      },
-    ],
-  });
-
-  assert.deepEqual(stats, {
-    onboardingCompletedCount: 1,
-    onboardingCompletedRateFromVisit: 0.5,
-    signupCount: 2,
-    signupRateFromVisit: 1,
-    submittedCount: 1,
-    submittedRateFromVisit: 0.5,
-    visitCount: 2,
   });
 });
 
@@ -505,8 +339,6 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     mailOpenRate: 0.5,
     mailOpenedCount: 40,
     mailTrackedSentCount: 80,
-    newSignupReferralActivatedCount: 2,
-    newSignupReferralViewedCount: 4,
     newSignupSubmittedCount: 87,
     newVisitorCount: 370,
     onboardingCompletedNoEmailUserCount: 8,
@@ -532,8 +364,6 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     mailOpenRate: 0.61,
     mailOpenedCount: 72,
     mailTrackedSentCount: 118,
-    newSignupReferralActivatedCount: 3,
-    newSignupReferralViewedCount: 7,
     newSignupSubmittedCount: 103,
     newVisitorCount: 446,
     onboardingCompletedNoEmailUserCount: 10,
@@ -556,11 +386,7 @@ test("daily Slack stats compare counts by percent and rates by percentage point"
     main,
     /신규 가입자 중 제출 완료: 103명\(\+18\.4%\), 가입 대비 78\.6% \(-1\.2%p\)/
   );
-  assert.match(main, /레퍼럴 확인한 사람 수: 7명\(\+75\.0%\)/);
-  assert.match(
-    main,
-    /레퍼럴 링크 복사 후 해당 링크로 다른 사람이 들어온 사람 수: 3명\(\+50\.0%\)/
-  );
+  assert.doesNotMatch(main, /레퍼럴/);
   assert.match(main, /회원 탈퇴: 0명\(-100\.0%\)/);
   assert.match(main, /메일 오픈\(추정\): 72\/118개, 61\.0% \(\+11\.0%p\)/);
   assert.match(main, /열람\(확인\): 345개\(-2\.0%\), 21\.9% \(-3\.3%p\)/);
@@ -611,6 +437,7 @@ test("daily Slack stats omit the retired landing A/B test section", async () => 
 
   assert.doesNotMatch(details, /랜딩페이지 A\/B Test/);
   assert.doesNotMatch(details, /Email first|Login first/);
+  assert.doesNotMatch(details, /레퍼럴/);
 });
 
 test("weekly Slack stats compare against the previous week", async () => {

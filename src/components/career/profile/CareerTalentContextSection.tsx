@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { InfoIcon, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
@@ -18,16 +18,6 @@ type EditorState = {
   collection: CareerTalentContextCollection;
   row: CareerTalentContext | null;
 } | null;
-
-const PINNED_BRIEF_KEYS = [
-  "next_scope",
-  "location",
-  "compensation",
-  "must_haves",
-  "deal_breakers",
-] as const;
-
-const PINNED_BRIEF_KEY_SET = new Set<string>(PINNED_BRIEF_KEYS);
 
 export default function CareerTalentContextSection({
   brief,
@@ -63,60 +53,6 @@ export default function CareerTalentContextSection({
   const [memoryListOpen, setMemoryListOpen] = useState(false);
   const [pendingDelete, setPendingDelete] =
     useState<CareerTalentContext | null>(null);
-
-  const pinnedBriefLabels = useMemo(
-    () => ({
-      compensation: t(
-        "career.profile.context.pinned.compensation",
-        "보상"
-      ),
-      deal_breakers: t(
-        "career.profile.context.pinned.deal_breakers",
-        "피하고 싶은 것"
-      ),
-      location: t("career.profile.context.pinned.location", "지역·근무 방식"),
-      must_haves: t(
-        "career.profile.context.pinned.must_haves",
-        "꼭 필요한 것"
-      ),
-      next_scope: t("career.profile.context.pinned.next_scope", "다음 역할"),
-    }),
-    [t]
-  );
-
-  const displayedBrief = useMemo(() => {
-    const pinnedRowsByKey = new Map<string, CareerTalentContext>();
-    for (const row of brief) {
-      if (
-        row.key &&
-        PINNED_BRIEF_KEY_SET.has(row.key) &&
-        !pinnedRowsByKey.has(row.key)
-      ) {
-        pinnedRowsByKey.set(row.key, row);
-      }
-    }
-
-    const pinnedRowIds = new Set(
-      Array.from(pinnedRowsByKey.values(), (row) => row.id)
-    );
-    return [
-      ...PINNED_BRIEF_KEYS.map((key) => {
-        const row = pinnedRowsByKey.get(key) ?? null;
-        return {
-          id: row ? `row-${row.id}` : `empty-${key}`,
-          label: row?.label ?? pinnedBriefLabels[key],
-          row,
-        };
-      }),
-      ...brief
-        .filter((row) => !pinnedRowIds.has(row.id))
-        .map((row) => ({
-          id: `row-${row.id}`,
-          label: row.label ?? "",
-          row,
-        })),
-    ];
-  }, [brief, pinnedBriefLabels]);
 
   const openEditor = (
     collection: CareerTalentContextCollection,
@@ -306,20 +242,33 @@ export default function CareerTalentContextSection({
       </div>
       <div className="career-glass career-work-surface p-4 md:p-5 md:py-6">
         <dl className="mt-0 divide-y divide-neutral-1000-a05">
-          {displayedBrief.map(({ id, label: rowLabel, row }, index) => (
-            <Fragment key={id}>
+          {engagementTypesControl ? (
+            <div className="grid gap-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6">
+              <dt className="text-[13px] font-normal sm:pt-1.5">
+                {t(
+                  "career.profile.career_profile_settings_section.engagement_types_label",
+                  "근무 형태"
+                )}
+              </dt>
+              <dd className="m-0 min-w-0">{engagementTypesControl}</dd>
+            </div>
+          ) : null}
+          {brief.map((row) => {
+            const rowLabel = row.label ?? "";
+            return (
               <div
                 className="grid gap-1 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6"
+                key={row.id}
               >
                 <dt className="text-[13px] font-normal">
-                  {briefEditMode && row ? (
+                  {briefEditMode ? (
                     <label htmlFor={`career-brief-${row.id}`}>{rowLabel}</label>
                   ) : (
                     rowLabel
                   )}
                 </dt>
                 <dd className="m-0 min-w-0">
-                  {briefEditMode && row ? (
+                  {briefEditMode ? (
                     <div className="flex items-start gap-2">
                       <Textarea
                         aria-label={rowLabel}
@@ -350,30 +299,29 @@ export default function CareerTalentContextSection({
                       </MuteButton>
                     </div>
                   ) : (
-                    <p
-                      className={`whitespace-pre-line text-[13px] font-normal leading-5 ${
-                        row ? "text-neutral-800/90" : "text-neutral-muted"
-                      }`}
-                    >
-                      {row?.content ?? t("career.profile.context.blank", "빈칸")}
+                    <p className="whitespace-pre-line text-[13px] font-normal leading-5 text-neutral-800/90">
+                      {row.content}
                     </p>
                   )}
                 </dd>
               </div>
-              {index === 0 && engagementTypesControl ? (
-                <div className="grid gap-2 py-4 sm:grid-cols-[130px_minmax(0,1fr)] sm:gap-6">
-                  <dt className="text-[13px] font-normal sm:pt-1.5">
-                    {t(
-                      "career.profile.career_profile_settings_section.engagement_types_label",
-                      "근무 형태"
-                    )}
-                  </dt>
-                  <dd className="m-0 min-w-0">{engagementTypesControl}</dd>
-                </div>
-              ) : null}
-            </Fragment>
-          ))}
+            );
+          })}
         </dl>
+        {brief.length === 0 ? (
+          <p
+            className={`text-[13px] font-normal leading-5 text-neutral-muted ${
+              engagementTypesControl
+                ? "mt-4 border-t border-neutral-1000-a05 pt-4"
+                : ""
+            }`}
+          >
+            {t(
+              "career.profile.context.brief_empty",
+              "아직 정해진 탐색 기준이 없어요."
+            )}
+          </p>
+        ) : null}
       </div>
 
       {/* <div className="flex items-center justify-between gap-4 rounded-lg border border-neutral-1000-a05 bg-bg-floating p-4">

@@ -36,6 +36,7 @@ import { updateEmailJob } from "./store";
 import { opsEmailTestToolBlock } from "./opsTest";
 import { readCareerCapabilityCoaching } from "@/lib/career/capabilities/server";
 import { formatPromptText } from "@/lib/llm/promptText";
+import { readTalentDocumentForTool } from "@/lib/talentOnboarding/documentTool";
 
 export async function emailCoachingContext(ctx: EmailJobContext) {
   const activity = await readCareerCapabilityCoaching({
@@ -164,7 +165,7 @@ export function emailToolSelection(
     function: {
       name: "upload_email_attachments",
       description:
-        "Save attachments from the current email as candidate documents. Choose their one-based indexes and document kinds. This does not send or share them with a company; use the shared contact_company tool with a returned documentId only when the user wants to send it.",
+        "Save attachments from the current email as candidate documents. Choose their one-based indexes and document kinds. The result gives each saved file's extracted text, or why it has none. This does not send or share them with a company; use the shared contact_company tool with a returned documentId only when the user wants to send it.",
       parameters: {
         type: "object",
         properties: {
@@ -356,7 +357,7 @@ async function executeChannelTool(
       args.input.documentUploads
     );
     if (!payload) return { ok: false, error: "invalid_attachment_index" };
-    return callEmailInternalApi(
+    const result = asObject(await callEmailInternalApi(
       "/api/internal/career/email-onboarding/ingest-profile",
       {
         userId: ctx.talentId,
@@ -364,13 +365,69 @@ async function executeChannelTool(
         source: "email_reply_tool",
         ...payload,
       }
-    );
+    ));
+    return { ...result, modelOutput: await projectEmailAttachmentUpload(ctx, result) };
   }
   if (args.name === "update_onboarding_progress")
     return executeEmailOnboardingProgress(ctx, args.input);
   if (args.name === TALENT_TOOL_NAMES.UPDATE_RECOMMENDED_OPPORTUNITY_FEEDBACK)
     return confirmEmailAcceptance(ctx, args.input, args.executeDefault);
   return args.executeDefault();
+}
+
+/** What was saved, and each saved file's readable text or why it has none. */
+export async function projectEmailAttachmentUpload(
+  ctx: Pick<EmailJobContext, "admin" | "talentId" | "images">,
+  result: Record<string, unknown>,
+  readDocument: typeof readTalentDocumentForTool = readTalentDocumentForTool
+) {
+  const shown = new Set((ctx.images ?? []).map((image) => image.name));
+  const files = await Promise.all(
+    (Array.isArray(result.attachments) ? result.attachments : []).map(async (value) => {
+      const item = asObject(value);
+      const fileName = String(item.fileName ?? "");
+      const documentId = typeof item.documentId === "string" ? item.documentId : "";
+      if (!documentId)
+        return {
+          fileName,
+          saved: false,
+          reason: item.error ?? (item.extractionStatus === "unsupported"
+            ? "This file type cannot be saved as a candidate document."
+            : "Not saved."),
+        };
+      const saved = { fileName, saved: true, documentId, kind: item.kind };
+      if (item.extractionStatus === "not_text")
+        return {
+          ...saved,
+          text: String(item.contentType ?? "").toLowerCase().startsWith("image/")
+            ? shown.has(fileName)
+              ? "None extracted: this is an image. The image itself is part of the current email input."
+              : "None extracted: this is an image, and it could not be shown to you."
+            : "None extracted: this file type has no text extraction.",
+        };
+      if (item.extractionStatus === "empty")
+        return { ...saved, text: "None: text extraction found no text in this file (for example, a scanned PDF)." };
+      try {
+        const read = await readDocument({
+          admin: ctx.admin,
+          userId: ctx.talentId,
+          input: { document_id: documentId },
+        });
+        return {
+          ...saved,
+          text: read.excerpt || "None.",
+          ...(read.hasMore ? { hasMore: true, nextOffset: read.nextOffset } : {}),
+        };
+      } catch (error) {
+        return { ...saved, text: `Not read: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    })
+  );
+  return formatPromptText({
+    ok: result.ok,
+    ...(result.error ? { error: result.error } : {}),
+    files,
+  });
 }
 
 export function resolveEmailAttachmentUploads(

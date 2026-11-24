@@ -27,6 +27,15 @@ function tool(
 
 const kindOf = (value: unknown): NoteKind | undefined => value === "think" || value === "work" ? value : undefined;
 const text = (value: unknown) => typeof value === "string" ? value : undefined;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// A blank ID is an omitted one. Any other ID that is not a UUID names no record;
+// say that instead of a uuid cast error.
+const idOf = (value: unknown, label: string) => {
+  const id = text(value)?.trim();
+  if (!id) return undefined;
+  if (!UUID.test(id)) throw new Error(`${label} ${id} is unavailable.`);
+  return id;
+};
 
 export const CAREER_NOTE_TOOLS: Record<string, TalentToolDefinition> = {
   read_notes: tool(
@@ -44,8 +53,9 @@ export const CAREER_NOTE_TOOLS: Record<string, TalentToolDefinition> = {
     [],
     async (i, c) => {
       const owner = profileToolContext(c, "read_notes", i, { readOnly: true });
-      if (text(i.noteId)) {
-        const note = await readNote(owner.admin, { userId: owner.userId, noteId: i.noteId });
+      const noteId = idOf(i.noteId, "Note");
+      if (noteId) {
+        const note = await readNote(owner.admin, { userId: owner.userId, noteId });
         const exploration = note.kind === "work" && note.matchingId
           ? await readExplorationSummary(owner.admin, { userId: owner.userId, matchingId: note.matchingId }).catch(() => undefined)
           : undefined;
@@ -58,7 +68,7 @@ export const CAREER_NOTE_TOOLS: Record<string, TalentToolDefinition> = {
       // Reading never adds a company to the shared directory.
       const company = text(i.company) ? await resolveLinkedCompany(owner.admin, i.company, { register: false }) : undefined;
       const page = await listNotes(owner.admin, {
-        userId: owner.userId, matchingId: text(i.matchingId), companyWorkspaceId: company?.id,
+        userId: owner.userId, matchingId: idOf(i.matchingId, "Matching"), companyWorkspaceId: company?.id,
         kind: kindOf(i.kind), query: text(i.query), cursor: text(i.cursor), limit: i.limit,
       });
       return {
@@ -94,21 +104,25 @@ export const CAREER_NOTE_TOOLS: Record<string, TalentToolDefinition> = {
     },
     ["action"],
     async (i, c) => {
+      // supabase-js drops an undefined argument, which would hide this behind a missing-function error.
+      if (!["create", "update", "delete"].includes(i.action)) throw new Error("action must be create, update or delete.");
       const owner = profileToolContext(c, "upsert_note", i);
+      const noteId = idOf(i.noteId, "Note");
+      const matchingId = idOf(i.matchingId, "Matching");
       const company = text(i.company) ? await resolveLinkedCompany(owner.admin, i.company) : undefined;
       const sourceRefs = i.action === "delete" ? [] : await conversationMailSources(owner.admin, {
         userId: owner.userId, conversationId: c?.conversationId,
       });
       const result = await writeNote(owner.admin, owner.userId, {
         action: i.action,
-        noteId: text(i.noteId),
+        noteId,
         expectedRevision: Number.isInteger(i.expectedRevision) ? i.expectedRevision : undefined,
         kind: kindOf(i.kind),
         title: text(i.title),
         content: text(i.content),
         append: text(i.append),
         replace: i.replace && typeof i.replace.old === "string" ? { old: i.replace.old, new: String(i.replace.new ?? "") } : undefined,
-        matchingId: text(i.matchingId),
+        matchingId,
         companyWorkspaceId: company?.id,
         sourceRefs,
       });

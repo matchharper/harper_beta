@@ -22,15 +22,22 @@ export const historyPredicates = {
 };
 
 /** Owner-scoped, read-only projection. Resolve each historical ID once, not once
- * per recommendation per membership. Materialization lasts only for this query. */
-export function careerOpportunityIndexSql(userId: string) {
+ * per recommendation per membership. Materialization lasts only for this query.
+ * Every step resolves within one opportunity target, so a read of known targets
+ * (`roleIds`) materializes only their rows instead of the owner's whole history. */
+export function careerOpportunityIndexSql(userId: string, roleIds?: string[]) {
   const owner = `${sqlLiteral(userId)}::uuid`;
+  const targets = roleIds
+    ? `ARRAY[${roleIds.map(sqlLiteral).join(",")}]::uuid[]`
+    : null;
   const tags = Object.entries(INTERNAL_PROGRESS_STAGES)
     .map(([tag, stage]) => `WHEN ${sqlLiteral(tag)} THEN ${sqlLiteral(stage)}`)
     .join(" ");
   return `WITH owned AS MATERIALIZED (
     SELECT id,talent_id,role_id,company_workspace_id,opportunity_type,created_at,feedback,feedback_at,saved_stage,viewed_at
-    FROM public.talent_opportunity_recommendation WHERE talent_id=${owner}
+    FROM public.talent_opportunity_recommendation WHERE talent_id=${owner}${
+      targets ? ` AND coalesce(role_id,company_workspace_id)=ANY(${targets})` : ""
+    }
   ), intro_targets AS MATERIALIZED (
     SELECT DISTINCT ON(t.role_id) t.role_id,t.id,t.created_at
     FROM public.company_intro_candidates i JOIN owned t
@@ -54,7 +61,7 @@ export function careerOpportunityIndexSql(userId: string) {
     SELECT DISTINCT ON(t.opportunity_id) t.opportunity_id,
       CASE lower(trim(t.tag)) ${tags} ELSE 'custom' END AS stage
     FROM public.talent_opportunity_tag t
-    WHERE t.talent_id=${owner} AND (lower(trim(t.tag)) IN (${Object.keys(INTERNAL_PROGRESS_STAGES).map(sqlLiteral).join(",")})
+    WHERE t.talent_id=${owner}${targets ? ` AND t.opportunity_id=ANY(${targets})` : ""} AND (lower(trim(t.tag)) IN (${Object.keys(INTERNAL_PROGRESS_STAGES).map(sqlLiteral).join(",")})
       OR lower(trim(t.tag)) LIKE '내부단계:%')
     ORDER BY t.opportunity_id,t.updated_at DESC
   ), normalized AS MATERIALIZED (

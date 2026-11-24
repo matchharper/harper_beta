@@ -1,0 +1,1502 @@
+<title>Career 화면 개편 제안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a reading column for the argument, full-width "sky stages" that reproduce the real /career surfaces for each proposal. */
+:root {
+  --bg: #f6f7f9;
+  --fg: #1d1d1f;
+  --muted: #5f6068;
+  --soft: #9a9ba3;
+  --line: rgba(20, 24, 33, .09);
+  --panel: #ffffff;
+  --accent: #0066e6;
+  --accent-soft: rgba(0, 102, 230, .08);
+  --warn: #a15c07;
+  --warn-soft: #fff6e3;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif;
+  /* Stage = the product itself. Career only ships a light sky look, so these stay fixed in both themes. */
+  --s-ink: #1d1d1f;
+  --s-ink2: #6e6e73;
+  --s-ink3: #aeaeb2;
+  --s-line: rgba(0, 0, 0, .06);
+  --s-line2: rgba(0, 0, 0, .09);
+  --s-action: #0066e6;
+  --s-face: #574f4f;
+  --s-pos: #1f9d55;
+  --s-neg: #d9534f;
+  --s-sky:
+    radial-gradient(760px 520px at 10% 6%, rgba(255,255,255,1), transparent 62%),
+    radial-gradient(820px 600px at 94% 98%, rgba(216,222,232,.9), transparent 66%),
+    radial-gradient(560px 440px at 55% 52%, rgba(255,255,255,.5), transparent 70%),
+    linear-gradient(180deg, #f5f6f8, #e9ecf0);
+  --s-glass: linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.42));
+  --s-work: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.5));
+  --s-shadow:
+    0 1px 0 rgba(255,255,255,.75) inset, 0 -1px 0 rgba(255,255,255,.25) inset,
+    0 0 0 .5px rgba(255,255,255,.35), 0 18px 40px -22px rgba(30,25,20,.22), 0 1px 2px rgba(30,25,20,.03);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121316; --fg: #ececef; --muted: #a6a7ae; --soft: #6c6d75;
+    --line: rgba(255,255,255,.1); --panel: #1b1c20; --accent: #5aa2ff;
+    --accent-soft: rgba(90,162,255,.14); --warn: #f2b65e; --warn-soft: rgba(242,182,94,.12);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121316; --fg: #ececef; --muted: #a6a7ae; --soft: #6c6d75;
+  --line: rgba(255,255,255,.1); --panel: #1b1c20; --accent: #5aa2ff;
+  --accent-soft: rgba(90,162,255,.14); --warn: #f2b65e; --warn-soft: rgba(242,182,94,.12);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font);
+  font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 40px 96px; }
+
+/* ---------- document chrome ---------- */
+.hero { display: grid; gap: 14px; padding-bottom: 28px; max-width: 720px; }
+.hero .date { font-size: 13px; color: var(--soft); letter-spacing: .02em; }
+.hero h1 { margin: 0; font-size: clamp(30px, 5vw, 42px); line-height: 1.15; letter-spacing: -.02em; font-weight: 650; text-wrap: balance; }
+.hero p { margin: 0; color: var(--muted); font-size: 16px; }
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; margin-inline: -4px; padding: 10px 4px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.toc a { flex: none; text-decoration: none; color: var(--muted); font-size: 13.5px; padding: 6px 12px; border-radius: 999px; transition: background .18s, color .18s; white-space: nowrap; }
+.toc a:hover { background: var(--line); color: var(--fg); }
+.toc a.on { background: var(--fg); color: var(--bg); }
+.toc .tag { font-size: 11px; margin-left: 4px; opacity: .7; }
+
+section.prop { padding-top: 64px; scroll-margin-top: 56px; display: grid; gap: 28px; }
+.eyebrow { font-size: 12.5px; letter-spacing: .04em; color: var(--soft); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.eyebrow .debate { color: var(--warn); background: var(--warn-soft); padding: 2px 8px; border-radius: 999px; letter-spacing: 0; }
+.prop h2 { margin: 6px 0 0; font-size: clamp(24px, 3.6vw, 30px); line-height: 1.25; letter-spacing: -.015em; font-weight: 650; text-wrap: balance; max-width: 760px; }
+.why { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.why > div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.why h3, .notes h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.why ul, .notes ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.why li, .notes li { font-size: 14.5px; }
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 40px; }
+.notes > div { min-width: 0; }
+.notes li b { font-weight: 600; }
+.notes .q li::marker { content: "? "; color: var(--warn); font-weight: 700; }
+@media (max-width: 760px) { .why, .notes { grid-template-columns: 1fr; } }
+
+.ctrlbar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--muted); }
+.seg { display: inline-flex; background: var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 5px 11px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); transition: background .18s, color .18s; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.ctrl { display: inline-flex; align-items: center; gap: 8px; }
+.hint { font-size: 13px; color: var(--soft); }
+
+.dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
+.dtable th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12.5px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.dtable td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.dtable tr.rec td { background: var(--accent-soft); }
+.tbl-scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+
+/* ---------- stage: the product surface ---------- */
+.stage { position: relative; border-radius: 22px; background: var(--s-sky); color: var(--s-ink); overflow: clip; border: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+.stage .caption { position: absolute; top: 12px; left: 16px; font-size: 11px; color: var(--s-ink3); letter-spacing: .04em; }
+.m-top { height: 64px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 20px; }
+.m-top .r { justify-self: end; display: flex; gap: 10px; align-items: center; }
+.m-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: var(--s-ink2); }
+.m-pill { display: inline-flex; background: rgba(255,255,255,.55); border-radius: 999px; padding: 3px; box-shadow: var(--s-shadow); }
+.m-pill span { padding: 6px 14px; border-radius: 999px; font-size: 13px; color: var(--s-ink2); display: inline-flex; align-items: center; gap: 6px; }
+.m-pill span.on { background: #1d1d1f; color: #fff; }
+.m-pill .n { font-size: 11px; background: rgba(0,0,0,.08); border-radius: 999px; padding: 0 6px; }
+.m-pill span.on .n { background: rgba(255,255,255,.2); }
+.m-settings { font-size: 12.5px; color: var(--s-ink2); display: inline-flex; gap: 5px; align-items: center; padding: 6px 10px; border-radius: 10px; background: rgba(255,255,255,.5); }
+.m-avatar { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; color: var(--s-ink2); box-shadow: 0 0 0 .5px rgba(0,0,0,.08); }
+
+.m-desk { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 40px; padding: 0 28px 28px; }
+.m-desk.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 660px); }
+.m-chat { display: flex; flex-direction: column; gap: 18px; padding-top: 20px; opacity: .45; min-width: 0; filter: saturate(.8); }
+.m-chat .stamp { align-self: center; font-size: 11.5px; color: var(--s-ink3); }
+.b-user { align-self: flex-end; max-width: 80%; background: rgba(255,255,255,.7); border-radius: 18px; padding: 9px 14px; font-size: 13.5px; box-shadow: var(--s-shadow); }
+.b-bot { max-width: 86%; font-size: 13.5px; }
+.m-composer { margin-top: auto; background: rgba(255,255,255,.6); border-radius: 16px; padding: 12px 14px 40px; color: var(--s-ink3); font-size: 13px; box-shadow: var(--s-shadow); position: sticky; bottom: 16px; }
+@media (max-width: 960px) { .m-desk, .m-desk.wide { grid-template-columns: minmax(0, 1fr); padding-inline: 12px; } .m-chat { display: none; } }
+
+/* opportunity panel */
+.m-panel { min-width: 0; padding-top: 8px; }
+.m-phead { display: flex; align-items: center; justify-content: space-between; padding: 6px 4px 14px; }
+.m-phead .t { font-size: 15px; font-weight: 500; }
+.m-phead .tabs { display: flex; gap: 14px; font-size: 13.5px; color: var(--s-ink2); align-items: center; }
+.m-phead .tabs b { color: var(--s-ink); font-weight: 600; }
+.m-phead .tabs i { font-style: normal; font-size: 11px; background: rgba(0,0,0,.06); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
+.grp { display: grid; gap: 6px; margin-bottom: 22px; }
+.grp-h { display: flex; align-items: baseline; gap: 8px; padding: 0 4px 4px; }
+.grp-h .t { font-size: 14px; font-weight: 600; }
+.grp-h .c { font-size: 12.5px; color: var(--s-ink3); }
+.grp-h.small .t { font-size: 12px; font-weight: 400; color: var(--s-ink2); }
+.opp { position: relative; padding: 12px 14px; border-radius: 12px; transition: background .18s, box-shadow .18s, transform .12s; }
+.opp:hover { background: rgba(255,255,255,.45); }
+.opp.top { background: var(--s-glass); box-shadow: var(--s-shadow); padding: 14px 16px; border-radius: 18px; }
+.opp.top:hover { background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.6)); }
+.opp.link { cursor: pointer; }
+.opp.link:active { transform: translateY(1px); }
+.opp .reason { font-size: 12.5px; font-weight: 600; color: var(--reason, var(--s-ink)); margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
+.opp .reason.cat { font-size: 11.5px; letter-spacing: .01em; }
+.opp .reason.cat::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
+.opp .r1 { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.logo { flex: none; width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 10.5px; font-weight: 700; color: #fff; }
+.opp .co { font-size: 14.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opp .dot { width: 5px; height: 5px; border-radius: 50%; background: #0092ff; flex: none; }
+.opp .kind { margin-left: auto; font-size: 12px; color: var(--s-ink3); white-space: nowrap; }
+.opp .role { font-size: 14.5px; margin-top: 3px; }
+.opp .meta { font-size: 13px; color: var(--s-ink2); margin-top: 2px; }
+.opp .meta .sal { color: var(--s-ink); }
+.opp .go { position: absolute; right: 14px; bottom: 14px; font-size: 12px; color: var(--s-action); opacity: 0; transition: opacity .18s; }
+.opp.link:hover .go, .opp.link:focus-visible .go { opacity: 1; }
+.fold { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 12px; background: rgba(0,0,0,.035); font-size: 13px; color: var(--s-ink2); cursor: pointer; border: 0; width: 100%; text-align: left; }
+.fold:hover { background: rgba(0,0,0,.055); }
+.m-empty-note { font-size: 13px; color: var(--s-ink2); padding: 4px 4px 0; }
+
+/* ---------- company detail ---------- */
+.detail { background: var(--s-work); box-shadow: var(--s-shadow); border-radius: 20px; padding: 22px 24px 28px; min-width: 0; display: grid; gap: 28px; }
+.d-col { min-width: 0; display: grid; }
+.d-col > * { grid-area: 1 / 1; }
+.view-in { animation: viewIn .28s cubic-bezier(.22,1,.36,1); }
+@keyframes viewIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .view-in { animation: none; } }
+.co-top { display: grid; gap: 12px; }
+.co-top .d-co .logo { width: 40px; height: 40px; font-size: 18px; border-radius: 11px; }
+.co-top .d-co .name { font-size: 17px; }
+.hr { height: 1px; background: rgba(0,0,0,.07); }
+.post { display: grid; gap: 18px; }
+.post h5 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.post ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; color: rgba(29,29,31,.86); }
+.post p { margin: 0; font-size: 13.5px; color: rgba(29,29,31,.86); }
+.post .posted { font-size: 12.5px; color: var(--s-ink2); display: inline-flex; padding: 4px 10px; border-radius: 8px; background: rgba(255,255,255,.6); justify-self: start; }
+.post .src-link { font-size: 12.5px; color: var(--s-ink2); text-decoration: underline; text-underline-offset: 3px; justify-self: start; }
+.ppl { display: grid; gap: 4px; }
+.ppl-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 10px; transition: background .15s; }
+.ppl-row:hover { background: rgba(255,255,255,.65); }
+.plogo { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; font-weight: 800; letter-spacing: -.02em; box-shadow: 0 0 0 .5px rgba(0,0,0,.08); }
+.plogo.round { border-radius: 50%; font-size: 11px; }
+.ppl-mid { min-width: 0; display: grid; gap: 4px; }
+.ppl-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ppl-bar { height: 4px; border-radius: 999px; background: rgba(0,0,0,.06); overflow: hidden; }
+.ppl-bar i { display: block; height: 100%; border-radius: 999px; background: #1d1d1f; }
+.ppl-n { font-size: 12.5px; color: var(--s-ink2); font-variant-numeric: tabular-nums; }
+.ppl-sum { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--s-ink2); }
+.avs { display: flex; }
+.avs span { width: 26px; height: 26px; border-radius: 50%; margin-left: -7px; box-shadow: 0 0 0 2px #f4f6f9; display: grid; place-items: center; font-size: 10.5px; font-weight: 600; color: #fff; }
+.avs span:first-child { margin-left: 0; }
+.d-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.d-tabs { display: inline-flex; background: rgba(0,0,0,.05); border-radius: 12px; padding: 3px; gap: 2px; }
+.d-tabs button { border: 0; background: transparent; padding: 6px 14px; border-radius: 9px; font-size: 13px; color: var(--s-ink2); cursor: pointer; transition: background .18s, color .18s, box-shadow .18s; }
+.d-tabs button[aria-selected="true"] { background: #fff; color: var(--s-ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.d-pane { display: grid; gap: 28px; min-width: 0; }
+.co-sum { display: grid; gap: 14px; padding: 16px 18px; border-radius: 16px; background: rgba(255,255,255,.5); box-shadow: 0 0 0 .5px rgba(0,0,0,.06); }
+.co-sum .d-co .logo { width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
+.co-sum .d-co .name { font-size: 16px; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.sum-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.sum-facts .k { display: block; font-size: 12px; color: var(--s-ink2); }
+.sum-facts .v { font-size: 14px; font-weight: 500; white-space: nowrap; }
+.sum-facts em { font-style: normal; font-size: 12px; font-weight: 500; color: #1f9d55; margin-left: 4px; }
+.sum-facts em.n { color: var(--s-action); }
+.btn.ghost { background: transparent; box-shadow: none; font-weight: 500; }
+.btn.ghost:hover { background: rgba(255,255,255,.65); }
+@media (max-width: 560px) { .sum-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.d-back { font-size: 13px; color: var(--s-ink2); display: inline-flex; gap: 6px; align-items: center; }
+.d-role h3 { margin: 6px 0 2px; font-size: 22px; font-weight: 500; letter-spacing: -.3px; line-height: 1.3; }
+.d-role .meta { font-size: 13.5px; color: var(--s-ink2); }
+.d-memo { margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.55); font-size: 13.5px; display: grid; gap: 6px; }
+.d-memo .lbl { font-size: 12px; color: var(--s-ink2); }
+.d-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.btn { border: 0; border-radius: 12px; padding: 9px 14px; font-size: 13.5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; background: rgba(255,255,255,.75); color: var(--s-ink); box-shadow: 0 0 0 .5px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04); transition: background .18s, transform .12s; }
+.btn:hover { background: #fff; }
+.btn:active { transform: translateY(1px); }
+.btn.dark { background: #1d1d1f; color: #fff; }
+.btn.dark:hover { background: #000; }
+.btn.on { background: #1d1d1f; color: #fff; }
+.d-nav { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px); z-index: 2; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; margin: 0 -8px; padding: 6px 8px; background: rgba(244,246,249,.82); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-radius: 12px; }
+.d-nav button { flex: none; border: 0; background: transparent; font-size: 13px; color: var(--s-ink2); padding: 5px 10px; border-radius: 8px; cursor: pointer; }
+.d-nav button:hover { background: rgba(0,0,0,.05); }
+.d-nav button.on { background: #fff; color: var(--s-ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.d-sec { display: grid; gap: 14px; scroll-margin-top: 120px; }
+.d-sec > h4 { margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.d-sec > h4 .sub { font-size: 12.5px; font-weight: 400; color: var(--s-ink3); }
+.d-co { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.d-co .logo { width: 44px; height: 44px; border-radius: 12px; font-size: 20px; }
+.d-co .name { font-size: 18px; font-weight: 600; }
+.d-co .one { font-size: 13.5px; color: var(--s-ink2); }
+.d-desc { font-size: 14px; color: rgba(29,29,31,.86); margin: 0; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--s-line2); border-radius: 14px; overflow: hidden; }
+.facts > div { background: rgba(255,255,255,.72); padding: 12px 14px; min-width: 0; }
+.facts .k { font-size: 12px; color: var(--s-ink2); }
+.facts .v { font-size: 15px; font-weight: 500; margin-top: 2px; }
+.facts .v small { font-size: 12px; color: var(--s-ink3); font-weight: 400; }
+.follow-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.follow-row .note { font-size: 12.5px; color: var(--s-ink2); }
+@media (max-width: 560px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.newbadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--s-action); background: rgba(0,102,230,.08); padding: 3px 9px; border-radius: 999px; }
+.catbar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; gap: 2px; }
+.catbar button { border: 0; padding: 0; cursor: pointer; transition: opacity .18s; }
+.catlegend { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.6); color: var(--s-ink2); box-shadow: 0 0 0 .5px rgba(0,0,0,.07); transition: background .18s; }
+.chip:hover { background: #fff; }
+.chip .sw { width: 8px; height: 8px; border-radius: 2px; }
+.chip b { color: var(--s-ink); font-weight: 600; }
+.chip[aria-pressed="true"] { background: #1d1d1f; color: #fff; }
+.chip[aria-pressed="true"] b { color: #fff; }
+.roles-wrap { overflow-x: auto; border-radius: 14px; background: rgba(255,255,255,.6); box-shadow: 0 0 0 .5px rgba(0,0,0,.06); }
+table.roles { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; min-width: 560px; }
+table.roles th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--s-ink2); padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,.07); white-space: nowrap; background: rgba(255,255,255,.5); }
+table.roles td { padding: 7px 10px; border-bottom: 1px solid rgba(0,0,0,.05); white-space: nowrap; }
+table.roles tr:last-child td { border-bottom: 0; }
+table.roles tbody tr { cursor: default; transition: background .12s; }
+table.roles tbody tr:hover { background: rgba(255,255,255,.7); }
+table.roles .t { font-weight: 500; color: var(--s-ink); white-space: normal; min-width: 200px; }
+table.roles .team { display: block; font-size: 11.5px; color: var(--s-ink3); font-weight: 400; }
+table.roles .num { text-align: right; }
+table.roles .new { color: var(--s-action); font-weight: 500; }
+table.roles .fit { display: block; font-size: 11.5px; color: var(--s-action); font-weight: 500; white-space: normal; }
+table.roles tr.gh td { font-size: 11.5px; font-weight: 600; color: var(--s-ink2); padding: 9px 10px 5px; background: rgba(0,0,0,.025); border-bottom: 1px solid rgba(0,0,0,.05); }
+@media (max-width: 560px) {
+  table.roles { min-width: 0; }
+  table.roles th:nth-child(2), table.roles td:nth-child(2), table.roles th:nth-child(3), table.roles td:nth-child(3) { display: none; }
+  table.roles .t { min-width: 150px; }
+  .m-settings { display: none; }
+}
+.roles-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.search { flex: 1 1 200px; display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.75); border-radius: 10px; padding: 7px 10px; box-shadow: 0 0 0 .5px rgba(0,0,0,.08); }
+.search input { border: 0; background: transparent; outline: none; font: inherit; font-size: 13px; width: 100%; color: var(--s-ink); }
+.search input::placeholder { color: #8b8b93; }
+.more { border: 0; background: transparent; color: var(--s-ink); font-size: 13px; font-weight: 500; padding: 10px 12px; width: 100%; text-align: left; cursor: pointer; border-radius: 10px; display: flex; justify-content: space-between; }
+.more:hover { background: rgba(255,255,255,.6); }
+
+.chart-box { background: rgba(255,255,255,.6); border-radius: 14px; padding: 14px 14px 10px; box-shadow: 0 0 0 .5px rgba(0,0,0,.06); position: relative; }
+.chart-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart-box text { font-family: var(--font); }
+.kpis { display: flex; gap: 22px; flex-wrap: wrap; }
+.kpi .k { font-size: 12px; color: var(--s-ink2); }
+.kpi .v { font-size: 24px; font-weight: 300; letter-spacing: -.6px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 13px; font-weight: 500; letter-spacing: 0; }
+.kpi .v .up { color: var(--s-pos); }
+.tip { position: absolute; pointer-events: none; background: #1d1d1f; color: #fff; font-size: 12px; padding: 7px 10px; border-radius: 9px; line-height: 1.45; white-space: normal; max-width: 260px; width: max-content; opacity: 0; transition: opacity .12s; transform: translate(-50%, -100%); z-index: 3; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--s-ink2); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend i.line { height: 2px; width: 14px; border-radius: 1px; }
+.src { font-size: 11.5px; color: var(--s-ink3); }
+
+.timeline { display: grid; }
+.tl { display: grid; grid-template-columns: 64px 18px 1fr; gap: 0 10px; }
+.tl .date { font-size: 12.5px; color: var(--s-ink2); padding-top: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.tl .rail { position: relative; }
+.tl .rail::before { content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,.1); }
+.tl:first-child .rail::before { top: 18px; }
+.tl:last-child .rail::before { bottom: calc(100% - 18px); }
+.tl .rail::after { content: ""; position: absolute; left: 4px; top: 14px; width: 9px; height: 9px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px #1d1d1f; }
+.tl:first-child .rail::after { background: #1d1d1f; }
+.tl .body { padding: 8px 0 14px; min-width: 0; }
+.tl .line1 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.round { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: rgba(0,0,0,.06); }
+.tl .amt { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tl .inv { font-size: 12.5px; color: var(--s-ink2); }
+
+.bars { display: grid; gap: 7px; }
+.bar-row { display: grid; grid-template-columns: 76px 1fr 28px; gap: 10px; align-items: center; font-size: 12.5px; }
+.bar-row .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-row .track { height: 8px; background: rgba(0,0,0,.05); border-radius: 999px; overflow: hidden; }
+.bar-row .fill { height: 100%; background: #1d1d1f; border-radius: 999px; }
+.bar-row .n { text-align: right; color: var(--s-ink2); font-variant-numeric: tabular-nums; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.two > div { min-width: 0; }
+.two h5 { margin: 0 0 10px; font-size: 13px; font-weight: 500; color: var(--s-ink2); }
+@media (max-width: 560px) { .two { grid-template-columns: 1fr; } }
+
+/* ---------- face ---------- */
+/* The rig in JS drives every pose through springs; CSS only loops the small decorations. */
+.face { color: var(--s-face); overflow: visible; display: block; }
+.face .st { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.face.sm .st { stroke-width: 3.2; }
+.face .fl, .face .f-mouth { fill: currentColor; }
+.face .f-dots circle, .face .f-zzz text, .face .f-spark path, .face .f-sweat path, .face .f-waves path, .face .f-glint { transform-box: fill-box; transform-origin: center; }
+.face .f-dots circle { animation: bub 1.6s ease-in-out infinite; }
+.face .f-dots circle:nth-child(2) { animation-delay: .18s; }
+.face .f-dots circle:nth-child(3) { animation-delay: .36s; }
+@keyframes bub { 0%, 100% { opacity: .2; transform: translateY(1px) scale(.75); } 45% { opacity: 1; transform: translateY(-1px) scale(1); } }
+.face .f-zzz text { animation: zz 3s ease-in-out infinite; opacity: 0; }
+.face .f-zzz text:nth-child(2) { animation-delay: 1s; }
+.face .f-zzz text:nth-child(3) { animation-delay: 2s; }
+@keyframes zz { 0% { opacity: 0; transform: translate(-2px, 5px) rotate(-12deg) scale(.6); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(4px, -7px) rotate(10deg) scale(1.1); } }
+.face .f-spark path { animation: spark 1.8s ease-in-out infinite; }
+.face .f-spark path:nth-child(2) { animation-delay: .5s; }
+.face .f-spark path:nth-child(3) { animation-delay: 1s; }
+@keyframes spark { 0%, 100% { opacity: .2; transform: scale(.4) rotate(0deg); } 40% { opacity: 1; transform: scale(1.15) rotate(45deg); } 70% { opacity: .7; transform: scale(.9) rotate(70deg); } }
+.face .f-sweat path { animation: sweat 2.4s cubic-bezier(.5,0,.9,.6) infinite; }
+@keyframes sweat { 0% { opacity: 0; transform: translateY(-3px) scale(.6); } 20% { opacity: 1; transform: translateY(0) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(7px) scale(.9); } }
+.face .f-waves path { animation: wave 1.1s ease-out infinite; }
+.face .f-waves path:nth-child(2) { animation-delay: .25s; }
+@keyframes wave { 0% { opacity: 0; transform: translateX(-2px) scale(.8); } 35% { opacity: 1; } 100% { opacity: 0; transform: translateX(2px) scale(1.1); } }
+.face .f-glint { animation: glint 3.4s ease-in-out infinite; opacity: 0; }
+@keyframes glint { 0%, 70%, 100% { opacity: 0; } 76% { opacity: .9; } 84% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .face * { animation: none !important; } .face .f-zzz text { opacity: 1; } }
+
+.face-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; padding: 20px; }
+.face-hero { background: var(--s-glass); box-shadow: var(--s-shadow); border-radius: 20px; display: grid; place-items: center; padding: 28px 20px 22px; gap: 14px; text-align: center; min-height: 320px; align-content: center; }
+.face-hero .label { font-size: 17px; font-weight: 500; }
+.face-hero .when { font-size: 13px; color: var(--s-ink2); max-width: 300px; }
+.face-hero .ev { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; color: var(--s-ink2); background: rgba(0,0,0,.05); border-radius: 6px; padding: 2px 8px; }
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; align-content: start; }
+.states button { border: 0; cursor: pointer; text-align: left; padding: 10px 12px; border-radius: 14px; background: rgba(255,255,255,.5); box-shadow: 0 0 0 .5px rgba(0,0,0,.06); display: grid; gap: 2px; transition: background .18s, transform .12s; color: var(--s-ink); }
+.states button:hover { background: rgba(255,255,255,.85); }
+.states button:active { transform: translateY(1px); }
+.states button[aria-pressed="true"] { background: #1d1d1f; color: #fff; }
+.states button b { font-size: 13.5px; font-weight: 500; }
+.states button span { font-size: 11.5px; opacity: .65; }
+.place { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; padding: 0 20px 20px; }
+.place > div { min-width: 0; }
+.place h5, .sim h5 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--s-ink2); }
+.frame { padding-bottom: 6px; background: rgba(255,255,255,.35); border-radius: 16px; box-shadow: 0 0 0 .5px rgba(0,0,0,.06); overflow: hidden; }
+.frame .m-top { height: 56px; padding: 0 14px; }
+.frame .m-pill span { padding: 5px 12px; }
+.frame .m-pill .face { width: 18px; height: 18px; color: #fff; }
+.phone { max-width: 300px; }
+.phone .m-top { grid-template-columns: auto 1fr auto; gap: 8px; }
+.phone .m-top .c { justify-self: center; }
+.phone .m-pill span { padding: 5px 10px; font-size: 12.5px; }
+.phone .mface { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.75); box-shadow: var(--s-shadow); display: grid; place-items: center; }
+.phone .mface .face { width: 26px; height: 26px; }
+.frame-body { padding: 4px 16px 16px; font-size: 12.5px; color: var(--s-ink2); min-height: 44px; }
+.sim { padding: 0 20px 20px; }
+.sim-box { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; background: rgba(255,255,255,.4); border-radius: 16px; padding: 16px; box-shadow: 0 0 0 .5px rgba(0,0,0,.06); }
+.sim-log { display: flex; flex-direction: column; gap: 8px; min-height: 180px; font-size: 13px; }
+.sim-log .u { align-self: flex-end; background: rgba(255,255,255,.85); padding: 7px 12px; border-radius: 14px; max-width: 85%; }
+.sim-log .a { max-width: 90%; }
+.sim-log .w { font-size: 12px; color: var(--s-ink2); display: inline-flex; gap: 8px; align-items: center; }
+.sim-log .w code { font-size: 11px; background: rgba(0,0,0,.05); padding: 1px 6px; border-radius: 5px; }
+.sim-side { display: grid; gap: 10px; justify-items: center; width: 132px; }
+.sim-side .face { width: 92px; height: 92px; }
+.sim-side .now { font-size: 12px; color: var(--s-ink2); text-align: center; min-height: 18px; }
+@media (max-width: 860px) { .face-stage, .place { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .sim-box { grid-template-columns: minmax(0, 1fr); } .sim-side { width: auto; grid-auto-flow: column; align-items: center; justify-content: start; } .sim-side .face { width: 56px; height: 56px; } }
+
+/* ---------- salary ---------- */
+.sal-stage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 20px; }
+.sal-stage > div { min-width: 0; display: grid; gap: 10px; align-content: start; }
+.sal-stage h5 { margin: 0; font-size: 12px; font-weight: 500; color: var(--s-ink2); }
+.sal-box { background: var(--s-glass); box-shadow: var(--s-shadow); border-radius: 18px; padding: 16px 18px; display: grid; gap: 10px; }
+.sal-box .k { font-size: 12px; color: var(--s-ink2); display: flex; gap: 6px; align-items: center; }
+.est { font-size: 10.5px; font-weight: 600; color: var(--s-ink2); background: rgba(0,0,0,.06); padding: 1px 6px; border-radius: 5px; letter-spacing: .02em; }
+.sal-box .v { font-size: 22px; font-weight: 400; letter-spacing: -.4px; font-variant-numeric: tabular-nums; }
+.range { position: relative; height: 34px; }
+.range .axis { position: absolute; left: 0; right: 0; top: 10px; height: 6px; border-radius: 999px; background: rgba(0,0,0,.06); }
+.range .band { position: absolute; top: 8px; height: 10px; border-radius: 999px; background: repeating-linear-gradient(135deg, #1d1d1f 0 3px, #555 3px 6px); opacity: .85; }
+.range .ticks { position: absolute; left: 0; right: 0; top: 20px; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--s-ink3); font-variant-numeric: tabular-nums; }
+.sal-box details { font-size: 12.5px; color: var(--s-ink2); }
+.sal-box summary { cursor: pointer; color: var(--s-ink); }
+.optgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.opt { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.opt .lbl { font-size: 12px; color: var(--soft); }
+.opt h4 { margin: 0; font-size: 15px; font-weight: 600; }
+.opt .ex { background: var(--s-sky); color: var(--s-ink); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.opt p { margin: 0; font-size: 13.5px; color: var(--muted); }
+.opt .pc { font-size: 13px; display: grid; gap: 2px; }
+.opt .pc .p::before { content: "+ "; color: #1f9d55; font-weight: 700; }
+.opt .pc .c::before { content: "− "; color: #d9534f; font-weight: 700; }
+@media (max-width: 860px) { .sal-stage, .optgrid { grid-template-columns: minmax(0, 1fr); } }
+.concept { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 20px; align-items: center; }
+.concept svg { width: 100%; height: auto; display: block; }
+.concept p { margin: 0; font-size: 14px; color: var(--muted); }
+.concept .lbl { font-size: 12px; color: var(--soft); margin-bottom: 4px; }
+@media (max-width: 760px) { .concept { grid-template-columns: minmax(0, 1fr); } }
+
+.decide td { vertical-align: middle; }
+.decide td:last-child { width: 1%; white-space: nowrap; }
+footer { margin-top: 64px; font-size: 13px; color: var(--soft); border-top: 1px solid var(--line); padding-top: 18px; }
+.flash { animation: flash 1.4s ease-out; }
+@keyframes flash { 0% { box-shadow: 0 0 0 3px rgba(0,102,230,.5), var(--s-shadow); } 100% { box-shadow: var(--s-shadow); } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="date">2026년 11월 23일 · 논의 전 초안</div>
+    <h1>Career 화면 개편 제안</h1>
+    <p>/career에서 바꾸고 싶은 네 가지를 정리했어요. 항목마다 지금 무엇이 불편한지, 바꾸면 무엇을 기대하는지, 바뀐 화면이 어떻게 보일지를 담았어요. 화면 예시는 지금 Career 스타일 그대로 만들었고 직접 눌러 볼 수 있어요.</p>
+    <p class="hint" style="color:var(--soft);font-size:13px">회사 이름과 숫자는 모두 가상의 예시예요.</p>
+  </header>
+
+  <nav class="toc" aria-label="목차">
+    <a href="#opportunities">1. 기회 목록 나누기</a>
+    <a href="#company">2. 회사 정보 자세히</a>
+    <a href="#face">3. Harper 얼굴<span class="tag">논의</span></a>
+    <a href="#salary">4. 추정 연봉<span class="tag">논의</span></a>
+    <a href="#decide">결정할 것</a>
+  </nav>
+
+  <!-- ============ 1 ============ -->
+  <section class="prop" id="opportunities">
+    <div>
+      <div class="eyebrow">제안 1 · /career/history 오른쪽 패널</div>
+      <h2>기회를 Top 추천과 볼만한 것으로 나누고, 카드마다 이유를 붙여요</h2>
+    </div>
+    <div class="why">
+      <div>
+        <h3>왜 바꾸나</h3>
+        <ul>
+          <li>추천 수가 날마다 달라요. 어떤 날은 두세 개, 어떤 날은 열 개가 넘어요.</li>
+          <li>기회는 시간이 갈수록 쌓이는데 지금은 최신순 목록 하나뿐이라, 무엇부터 봐야 할지 한눈에 구분되지 않아요.</li>
+          <li>Harper가 왜 골랐는지는 카드를 펼쳐야 보여요.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>무엇을 기대하나</h3>
+        <ul>
+          <li>몇 개가 오든 Top 추천만 보면 오늘 볼 것은 끝나요.</li>
+          <li>기회가 쌓여도 화면 구조가 그대로라 헷갈리지 않아요.</li>
+          <li>이유 한 줄을 보고 펼치기 전에 볼지 말지 정할 수 있어요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="ctrlbar" role="group" aria-label="예시 화면 설정">
+      <span class="ctrl">기회 수
+        <span class="seg" data-ctl="volume"><button aria-pressed="false" data-v="few">적을 때</button><button aria-pressed="true" data-v="many">많을 때</button></span>
+      </span>
+      <span class="ctrl">표시
+        <span class="seg" data-ctl="rtype"><button aria-pressed="true" data-v="reason">이유 문장</button><button aria-pressed="false" data-v="cat">카테고리</button></span>
+      </span>
+      <span class="ctrl">색
+        <span class="seg" data-ctl="rcolor"><button aria-pressed="true" data-v="ink">진한 검정</button><button aria-pressed="false" data-v="action">파랑</button></span>
+      </span>
+    </div>
+
+    <div class="stage" aria-label="기회 패널 예시">
+      <div class="m-top">
+        <div><span class="m-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span></div>
+        <div class="m-pill"><span>채팅</span><span class="on">기회 <i class="n" data-count>12</i></span></div>
+        <div class="r"><span class="m-settings">⚙ 설정</span><span class="m-avatar">PC</span></div>
+      </div>
+      <div class="m-desk">
+        <div class="m-chat" aria-hidden="true">
+          <div class="stamp">오늘 오전 9:12</div>
+          <div class="b-bot">밤사이 새 기회를 찾아봤어요. 지금 조건에 가장 맞는 것부터 위에 올려 뒀어요.</div>
+          <div class="b-user">Morrow Labs는 처음 들어보는데 어떤 회사야?</div>
+          <div class="b-bot">작년부터 빠르게 크고 있는 업무용 AI agent 회사예요. 오른쪽에서 투자와 인원 변화를 같이 볼 수 있어요.</div>
+          <div class="m-composer">새로운 조건이나 궁금한 점을 남겨주세요</div>
+        </div>
+        <div class="m-panel">
+          <div class="m-phead">
+            <span class="t">기회</span>
+            <span class="tabs"><b>새 기회<i data-count>12</i></b><span>내 기회<i>3</i></span></span>
+          </div>
+          <div id="oppList"></div>
+        </div>
+      </div>
+    </div>
+    <p class="hint">Morrow Labs 카드를 누르면 제안 2의 상세 화면으로 이동해요.</p>
+
+    <div class="notes">
+      <div>
+        <h3>바뀌는 점</h3>
+        <ul>
+          <li><b>Top 추천</b>은 글라스 카드로 크게, <b>볼만한 것</b>은 지금처럼 투명한 행으로 보여 줘요. 크기와 표면만으로 우선순위가 구분돼요.</li>
+          <li>본 지 오래된 추천은 <b>지난 추천</b>으로 접어 둬요. 쌓여도 위쪽은 늘 짧게 유지돼요.</li>
+          <li>회사명 위에 이유나 카테고리를 한 줄로 붙여요. 지원 방식은 지금처럼 오른쪽 위 작은 글씨로 남겨요.</li>
+          <li>“답이 필요해요”는 지금처럼 맨 위에 둬요.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>논의할 것</h3>
+        <ul>
+          <li>Top 추천 개수를 고정할지 정해야 해요. 고정하지 않고 추천할 때 Harper가 판단해 정하는 쪽을 제안해요.</li>
+          <li>이유 문장과 카테고리 중 무엇을 쓸지 정해야 해요. 문장은 구체적이지만 길어지고, 카테고리는 훑기 쉽지만 정보가 적어요.</li>
+          <li>색은 검정과 파랑 중에 골라야 해요. text-action(#0092ff)은 12px 글자에서 대비가 낮아서, 예시의 파랑은 action-strong(#0066e6)이에요.</li>
+          <li>지난 추천으로 넘기는 기준이 필요해요. 본 뒤 며칠이 지났을 때와 다음 추천이 왔을 때 중에서 골라야 해요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section class="prop" id="company">
+    <div>
+      <div class="eyebrow">제안 2 · 기회 상세 (데스크톱·모바일 공통)</div>
+      <h2>기회를 누르면 위에는 회사 요약, 아래에는 공고 정보를 보여 주고, 회사는 따로 열어 자세히 봐요</h2>
+    </div>
+    <div class="why">
+      <div>
+        <h3>왜 바꾸나</h3>
+        <ul>
+          <li>지금 상세에는 Harper 메모, 하는 일, 회사 요약 글 정도만 있어요.</li>
+          <li>회사가 크고 있는지, 사람이 빠지고 있는지, 어떤 사람들이 다니는지는 LinkedIn이나 the VC에서 따로 찾아봐야 해요.</li>
+          <li>같은 회사의 다른 직무가 카드로 나열돼서 몇 개만 넘겨도 길어져요.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>무엇을 기대하나</h3>
+        <ul>
+          <li>기회를 열면 어떤 회사인지 먼저 보고, 바로 아래에서 Harper 메모와 공고 내용을 이어서 읽어요.</li>
+          <li>더 알고 싶을 때만 회사를 따로 열어 채용·투자·인원·구성원까지 Harper 안에서 다 봐요.</li>
+          <li>투자와 인원 흐름이 그래프로 보여서 성장 중인 회사인지 금방 감이 와요.</li>
+          <li>직무를 표로 줄여 나와 맞는 것만 먼저 보고, 나머지는 펼쳐서 검색해요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage" aria-label="기회 상세 예시">
+      <div class="m-top">
+        <div><span class="m-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span></div>
+        <div class="m-pill"><span>채팅</span><span class="on">기회 <i class="n">12</i></span></div>
+        <div class="r"><span class="m-settings">⚙ 설정</span><span class="m-avatar">PC</span></div>
+      </div>
+      <div class="m-desk wide">
+        <div class="m-chat" aria-hidden="true">
+          <div class="stamp">오늘 오전 9:14</div>
+          <div class="b-user">Morrow Labs는 처음 들어보는데 어떤 회사야?</div>
+          <div class="b-bot">작년부터 빠르게 크고 있는 업무용 AI agent 회사예요. 6월에 Series B를 받고 한 달에 6~8명씩 뽑고 있어요.</div>
+          <div class="m-composer">새로운 조건이나 궁금한 점을 남겨주세요</div>
+        </div>
+        <div class="d-col">
+        <article class="detail" id="detail">
+          <span class="d-back">← 기회</span>
+          <div class="co-top">
+            <div class="d-co">
+              <span class="logo" style="background:#2f4b9a">M</span>
+              <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
+            </div>
+            <p class="d-desc clamp">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요.</p>
+            <div class="sum-facts">
+              <div><span class="k">인원</span><span class="v">142명<em>1년 +35%</em></span></div>
+              <div><span class="k">최근 투자</span><span class="v">Series B · 600억</span></div>
+              <div><span class="k">채용 중</span><span class="v"><span data-jobcount>42</span>개<em class="n">새 <span data-newcount>16</span></em></span></div>
+              <div><span class="k">본사</span><span class="v">서울 성동구</span></div>
+            </div>
+            <div class="follow-row">
+              <button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button>
+              <button class="btn ghost" data-open-company>회사 정보 더 보기 →</button>
+            </div>
+          </div>
+          <div class="hr"></div>
+          <div class="post">
+            <div class="d-role">
+              <h3>Applied AI Engineer, Agent Platform</h3>
+              <div class="meta">서울 성수 · 대면 + 원격 · 풀타임 · 경력 5년 이상</div>
+            </div>
+            <span class="posted">게시일 2026. 11. 20.</span>
+            <div class="d-memo" style="margin-top:0">
+              <span class="lbl">Harper 메모</span>
+              <span>원하던 agent 제품 팀이고, 평가 파이프라인을 직접 만든 경험과 맞아요.</span>
+              <span>Series B 직후라 지금 들어가면 플랫폼 초기 설계를 맡게 될 가능성이 커요.</span>
+            </div>
+            <div><h5>하는 일</h5><p>고객사 문서를 읽고 업무를 처리하는 agent의 계획·도구 호출·평가 파이프라인을 설계하고 운영해요. 새 고객사에 붙일 때 생기는 실패 사례를 모아 모델과 프롬프트를 개선해요.</p></div>
+            <div><h5>자격 요건</h5><ul><li>LLM 기반 제품을 실제 운영해 본 경험 2년 이상</li><li>Python, TypeScript 중 하나로 프로덕션 서비스 개발</li><li>오프라인·온라인 평가를 설계해 본 경험</li></ul></div>
+            <div><h5>우대 사항</h5><ul><li>B2B 고객사 연동 경험</li><li>검색·RAG 시스템 개선 경험</li></ul></div>
+            <span class="src-link">원문 보기</span>
+            <div class="d-actions" style="margin-top:0"><button class="btn">이번엔 넘길게요</button><button class="btn dark">관심 있어요</button></div>
+          </div>
+        </article>
+
+        <article class="detail" id="companyView" hidden>
+          <button class="d-back" data-close-company style="border:0;background:none;padding:0;cursor:pointer;justify-self:start">← Applied AI Engineer</button>
+          <div class="d-sec" id="d-about">
+            <div class="d-co">
+              <span class="logo" style="background:#2f4b9a">M</span>
+              <div><div class="name">Morrow Labs</div><div class="one">기업 문서·메일을 읽고 반복 업무를 대신 처리하는 업무용 AI agent</div></div>
+            </div>
+            <p class="d-desc">금융·제조 대기업의 백오피스 업무를 agent가 처리하도록 만드는 회사예요. 고객사 시스템에 붙는 통합 플랫폼과 agent를 직접 설계하는 Agent Studio를 함께 팔아요. 2024년부터 일본에 진출해 도쿄 사무소를 두고 있어요. 첫 고객은 증권사 리서치 팀이었고, 지금은 금융·제조 대기업 40여 곳이 쓰고 있어요.</p>
+            <div class="facts">
+              <div><div class="k">전체 인원</div><div class="v">142명</div></div>
+              <div><div class="k">본사</div><div class="v">서울 성동구</div></div>
+              <div><div class="k">설립</div><div class="v">2021년 4월</div></div>
+              <div><div class="k">최근 투자</div><div class="v">Series B <small>2026.06</small></div></div>
+              <div><div class="k">누적 투자</div><div class="v">900억 원</div></div>
+              <div><div class="k">분야</div><div class="v">B2B · AI agent</div></div>
+            </div>
+            <div class="follow-row"><button class="btn follow" aria-pressed="false">＋ 회사 팔로우</button></div>
+          </div>
+            <nav class="d-nav" aria-label="회사 정보 목차">
+              <button data-go="d-jobs" class="on">채용 <span data-jobcount>42</span></button>
+              <button data-go="d-fund">투자</button>
+              <button data-go="d-team">인원</button>
+              <button data-go="d-people">구성원</button>
+            </nav>
+
+            <div class="d-sec" id="d-jobs">
+              <h4>채용 중 <span data-jobcount>42</span> <span class="newbadge" id="newBadge"></span></h4>
+              <div class="catbar" id="catBar" role="group" aria-label="직군별 채용 수"></div>
+              <div class="catlegend" id="catLegend"></div>
+              <div class="roles-tools" id="rolesTools" hidden>
+                <label class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b8b93" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="roleSearch" type="search" placeholder="직무, 팀 검색" aria-label="직무 검색"></label>
+              </div>
+              <div class="roles-wrap">
+                <table class="roles">
+                  <thead><tr><th>직무</th><th>직군</th><th>경력</th><th>위치</th><th class="num">추정 연봉(만원)</th><th class="num">올라온 날</th></tr></thead>
+                  <tbody id="rolesBody"></tbody>
+                </table>
+                <button class="more" id="moreRoles"></button>
+              </div>
+            </div>
+
+            <div class="d-sec" id="d-fund">
+              <h4>투자</h4>
+              <div class="chart-box"><svg id="fundChart" viewBox="0 0 600 160" role="img" aria-label="라운드별 투자 금액"></svg><div class="tip" id="fundTip"></div></div>
+            </div>
+
+            <div class="d-sec" id="d-team">
+              <h4>인원</h4>
+              <div class="kpis">
+                <div class="kpi"><div class="k">지금</div><div class="v">142<small>명</small></div></div>
+                <div class="kpi"><div class="k">1년 전보다</div><div class="v"><span class="up">+37</span><small> (+35%)</small></div></div>
+                <div class="kpi"><div class="k">최근 12개월 입사 · 퇴사</div><div class="v">50 · 13</div></div>
+              </div>
+              <div class="chart-box">
+                <div class="legend" style="margin-bottom:6px"><span><i class="line" style="background:#1d1d1f"></i>인원</span><span><i style="background:#1f9d55"></i>입사</span><span><i style="background:#d9534f"></i>퇴사</span></div>
+                <svg id="teamChart" viewBox="0 0 600 250" role="img" aria-label="월별 인원과 입사·퇴사"></svg>
+                <div class="tip" id="teamTip"></div>
+              </div>
+            </div>
+
+            <div class="d-sec" id="d-people">
+              <h4>구성원</h4>
+              <div class="ppl-sum"><span class="avs"><span style="background:#5b6b8a">JH</span><span style="background:#8a5b6b">SY</span><span style="background:#5b8a7a">MK</span><span style="background:#8a7a5b">DW</span><span style="background:#6b5b8a">EJ</span></span>평균 경력 7.2년 · 엔지니어 58%</div>
+              <div class="two">
+                <div><h5>이전 회사</h5><div class="bars" id="prevCo"></div></div>
+                <div><h5>출신 학교</h5><div class="bars" id="schools"></div></div>
+              </div>
+            </div>
+        </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>화면 구성</h3>
+        <ul>
+          <li><b>기회 상세</b>: 위에는 회사 설명 세 줄과 인원·최근 투자·채용 중·본사, 팔로우와 ‘회사 정보 더 보기’를 둬요. 아래에는 지금처럼 게시일, Harper 메모, 하는 일, 자격 요건, 원문 보기와 행동 버튼이 그대로 이어져요.</li>
+          <li><b>회사 상세</b>: ‘회사 정보 더 보기’를 누르면 지금 회사 상세처럼 따로 열려요. 회사 설명 전체와 핵심 정보, 팔로우 아래로 채용·투자·인원·구성원이 이어지고, 위쪽 목차로 바로 이동해요. 뒤로 가면 보던 기회로 돌아가요.</li>
+          <li><b>채용</b>: 직군별 개수를 많은 순으로 보여 주고, 최근 14일 동안 새로 올라온 직무 수를 붙여요. 이 사람과 관련된 직무를 위에 먼저 보여 주고, 나머지는 접어 둬요. 펼치면 검색과 직군 필터를 쓸 수 있어요.</li>
+          <li><b>투자</b>: 라운드별 금액을 시간축 막대로 보여 줘요. 막대에 마우스를 올리면 날짜와 투자사가 보여요.</li>
+          <li><b>인원</b>: 국민연금 월별 자료로 위에는 입사, 아래에는 퇴사 막대를 그리고 인원 수는 선으로 겹쳐요. 막대에 마우스를 올리면 그 달 숫자가 보여요.</li>
+          <li><b>구성원</b>: 이전 회사와 출신 학교를 로고와 함께 많은 순으로 보여 줘요. 예시의 로고 자리는 실제 회사·학교 로고로 바뀌어요.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>논의할 것</h3>
+        <ul>
+          <li>투자·국민연금·구성원 자료가 회사마다 얼마나 있는지 확인해야 해요. 자료가 없는 블록은 빈칸 대신 숨겨요.</li>
+          <li>구성원이 몇 명 이상일 때 통계를 보여 줄지 정해야 해요. 프로필이 적은 회사는 한두 명이 결과를 좌우해요.</li>
+          <li>국민연금 자료는 최신 달이 늦게 반영돼요. 기준 월은 그래프의 마지막 달로 충분하다고 봐요.</li>
+          <li>모바일에서는 같은 내용을 전체 화면 시트로 보여 줘요. 표는 직군·경력 열을 빼고 가로 스크롤로 둬요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section class="prop" id="face">
+    <div>
+      <div class="eyebrow">제안 3 · 상단 탐색 <span class="debate">의견이 갈릴 수 있어요</span></div>
+      <h2>Harper 얼굴로 지금 하는 일을 보여 줘요</h2>
+    </div>
+    <div class="why">
+      <div>
+        <h3>왜 바꾸나</h3>
+        <ul>
+          <li>얼굴이 보여야 누구와 이야기하는지 느껴지고 신뢰가 생겨요.</li>
+          <li>얼굴 그림이 있는데 지금은 첫 로딩 화면에서만 써요.</li>
+          <li>Harper가 회사를 조사하거나 브라우저로 지원서를 쓰는 동안 화면에는 작은 상태 문구만 보여요.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>무엇을 기대하나</h3>
+        <ul>
+          <li>늘 같은 자리에 있는 얼굴이 지금 Harper가 무엇을 하는지 보여 줘요.</li>
+          <li>기다리는 시간이 덜 지루하고, 일하는 모습이 보이니 맡겨도 된다는 느낌이 들어요.</li>
+          <li>Meta Muse도 agent가 뒤에서 하는 일을 보여 주려고 마스코트를 만들었고, 앱 상단에서 키보드를 두드리는 식으로 움직여요. (<a href="https://axios.com/2026/09/25/ai-doom-meta-muse-mascot" target="_blank" rel="noopener">Axios</a>)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage" aria-label="얼굴 상태 예시">
+      <div class="face-stage">
+        <div class="face-hero">
+          <svg class="face" data-face width="190" height="196" viewBox="-12 -16 72 74" aria-hidden="true"></svg>
+          <div class="label" id="faceLabel">기본</div>
+          <div class="when" id="faceWhen"></div>
+          <div class="ev" id="faceEv"></div>
+        </div>
+        <div class="states" id="stateBtns" role="group" aria-label="얼굴 상태 선택"></div>
+      </div>
+      <div class="place">
+        <div>
+          <h5>데스크톱 · 채팅 탭 안</h5>
+          <div class="frame">
+            <div class="m-top">
+              <div><span class="m-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span></div>
+              <div class="m-pill"><span class="on"><svg class="face sm" data-face viewBox="-9 -12 64 66" aria-hidden="true"></svg>채팅</span><span>기회 <i class="n">12</i></span></div>
+              <div class="r"><span class="m-avatar">PC</span></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h5>모바일 · 왼쪽 위</h5>
+          <div class="frame phone">
+            <div class="m-top">
+              <span class="mface"><svg class="face sm" data-face viewBox="-9 -12 64 66" aria-hidden="true"></svg></span>
+              <div class="c m-pill"><span>홈</span><span class="on">채팅</span><span>기회</span></div>
+              <span class="m-avatar">PC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sim">
+        <h5>한 번의 대화에서 얼굴이 바뀌는 흐름</h5>
+        <div class="sim-box">
+          <div class="sim-side">
+            <svg class="face" data-face-sim viewBox="-12 -16 72 74" aria-hidden="true"></svg>
+            <div class="now" id="simNow">대기</div>
+            <button class="btn dark" id="simBtn">재생</button>
+          </div>
+          <div class="sim-log" id="simLog" aria-live="polite"><span class="w">재생을 누르면 실제 도구 호출 순서대로 얼굴이 바뀌어요.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>설계 원칙</h3>
+        <ul>
+          <li>상태는 실제 실행 이벤트로만 바꿔요. 도구 호출 시작과 끝, 답변 스트리밍, 통화, 예약 대기가 입력이에요. 화면마다 애니메이션을 따로 붙이지 않아요.</li>
+          <li>모든 상태와 전환을 한 파일에 미리 설계해요. 상태를 추가할 때도 그 파일만 고쳐요.</li>
+          <li>한 상태는 최소 0.8초 유지해서 깜빡이지 않게 해요. 같은 소품을 쓰는 도구가 이어지면 소품을 넣었다 꺼내지 않아요.</li>
+          <li>지원서를 준비한 것과 실제로 제출한 것은 다른 상태로 보여 줘요.</li>
+          <li>모든 움직임은 스프링으로 이어져서 상태가 바뀌어도 끊기지 않아요. 바뀌는 순간에는 살짝 움츠렸다 펴지고, 소품은 튕기듯 들어와요.</li>
+          <li>시선은 커서를 따라가고, 눈·눈썹·코·입이 서로 다른 거리만큼 움직여 고개를 돌리는 것처럼 보여요. 깜빡임과 눈동자 움직임은 매번 간격이 달라요.</li>
+          <li>동작 줄이기 설정을 켜면 움직임 없이 표정과 소품만 바꿔요.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>논의할 것</h3>
+        <ul>
+          <li>데스크톱 위치를 정해야 해요. 채팅 탭 안과 대화 말풍선 옆 중에서 골라야 해요.</li>
+          <li>지금의 선 얼굴을 그대로 쓸지 정해야 해요. 알아보기 쉽고 소품을 얹기 좋아서 유지를 제안해요.</li>
+          <li>Rive 파일을 누가 만들지 정해야 해요. 외주와 팀 내부 중에서 골라야 해요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tbl-scroll">
+      <table class="dtable">
+        <thead><tr><th>도구</th><th>상태 전환</th><th>Harper에 맞는 점</th><th>아쉬운 점</th></tr></thead>
+        <tbody>
+          <tr class="rec"><td><b>Rive</b> (추천)</td><td>파일 안의 state machine이 처리. 코드는 “browsing=true” 같은 입력값만 넘김</td><td>상태와 전환을 디자이너가 에디터에서 한 번에 설계. 웹·iOS·Android 런타임이 같은 파일을 씀</td><td>새 도구라 처음 만들 사람이 필요</td></tr>
+          <tr><td>Lottie</td><td>코드가 클립을 골라 재생</td><td>디자이너에게 익숙하고 자료가 많음</td><td>클립 사이 전환이 끊기고, 상태 로직이 코드에 흩어짐</td></tr>
+          <tr><td>CSS·SVG 직접 (지금 방식)</td><td>코드가 클래스로 전환</td><td>추가 의존성 없음. 이 문서의 예시도 이 방식</td><td>상태가 늘수록 화면마다 애니메이션이 따로 생김</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section class="prop" id="salary">
+    <div>
+      <div class="eyebrow">제안 4 · 기회 카드와 상세 <span class="debate">의견이 갈릴 수 있어요</span></div>
+      <h2>추정 연봉을 운영 화면에서도 보여 줘요</h2>
+    </div>
+    <div class="why">
+      <div>
+        <h3>왜 바꾸나</h3>
+        <ul>
+          <li>추정 연봉 데이터와 표시 형식은 이미 있어요. 다만 카드와 상세 모두 개발 환경에서만 보여요.</li>
+          <li>아주 대략이라도 연봉은 회사 수준을 보여 줘요. 여러 회사를 보다 보면 은근히 비교 기준이 돼요.</li>
+          <li>다른 곳에서 보기 어려운 정보예요. 100% 정확하지 않아도, 이런 정보를 준다는 것만으로 서비스를 좋아하게 될 수 있어요.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>조심할 점</h3>
+        <ul>
+          <li>값싸게 추정한 값이라 틀릴 확률이 높아요.</li>
+          <li>추정값은 가운데로 몰려요. 연봉이 아주 높은 회사는 낮게, 낮은 회사는 높게 보일 수 있어요.</li>
+          <li>그래서 정확해 보이는 표기를 피하고, 추정이라는 사실을 숫자 바로 옆에 붙여요.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="sal-stage">
+        <div>
+          <h5>새 기회 카드</h5>
+          <div class="opp top" style="--reason:#1d1d1f">
+            <div class="reason">원하던 agent 제품 · 팀 확장 중</div>
+            <div class="r1"><span class="logo" style="background:#2f4b9a">M</span><span class="co">Morrow Labs</span><i class="dot"></i><span class="kind">채용 공고</span></div>
+            <div class="role">Applied AI Engineer</div>
+            <div class="meta">서울 · 대면 + 원격 · 풀타임 · <span class="sal">8,500 ~ 11,000만원</span> <span class="est">추정</span></div>
+          </div>
+          <div class="opp">
+            <div class="r1"><span class="logo" style="background:#8a5a2b">C</span><span class="co">Cedar</span><span class="kind">직접 지원</span></div>
+            <div class="role">Forward Deployed Engineer</div>
+            <div class="meta">San Francisco · 원격 시작 · 풀타임 · <span class="sal">USD 170,000 ~ 210,000</span> <span class="est">추정</span></div>
+          </div>
+        </div>
+        <div>
+          <h5>기회 상세</h5>
+          <div class="sal-box">
+            <div class="k">연봉 <span class="est">추정</span></div>
+            <div class="v">8,500 ~ 11,000만원</div>
+            <div class="range" aria-hidden="true">
+              <div class="axis"></div>
+              <div class="band" style="left:28.1%;width:15.6%"></div>
+              <div class="ticks"><span>4천</span><span>8천</span><span>1.2억</span><span>1.6억</span><span>2억</span></div>
+            </div>
+            <details>
+              <summary>어떻게 추정했나요?</summary>
+              <p style="margin:6px 0 0">Harper가 추정한 연봉으로, 정확하지 않을 수 있습니다. 회사가 공개한 연봉이 있으면 그 값을 대신 보여 드려요.</p>
+            </details>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="optgrid">
+      <div class="opt">
+        <span class="lbl">표기 A · 지금 개발 환경 형식</span>
+        <h4>범위 + 추정</h4>
+        <div class="ex">8,500 ~ 11,000만원 (추정)</div>
+        <div class="pc"><span class="p">구현이 이미 있어요</span><span class="c">숫자가 정확해 보여요</span></div>
+      </div>
+      <div class="opt">
+        <span class="lbl">표기 B · 위 예시</span>
+        <h4>범위 + 추정 배지 + 범위 막대</h4>
+        <div class="ex">8,500 ~ 11,000만원 <span class="est">추정</span></div>
+        <div class="pc"><span class="p">추정이라는 사실이 눈에 띄어요</span><span class="p">막대로 다른 기회와 비교하기 쉬워요</span><span class="c">카드 한 줄이 길어져요</span></div>
+      </div>
+      <div class="opt">
+        <span class="lbl">표기 C</span>
+        <h4>대략적인 구간만</h4>
+        <div class="ex">약 9천만~1억대</div>
+        <div class="pc"><span class="p">정확도에 맞는 표현이에요</span><span class="c">회사 간 차이가 잘 안 보여요</span></div>
+      </div>
+    </div>
+
+    <div class="concept">
+      <svg id="conceptChart" viewBox="0 0 360 150" role="img" aria-label="실제 연봉 분포와 추정값 분포 개념도"></svg>
+      <div>
+        <div class="lbl">개념도 · 실제 데이터가 아니에요</div>
+        <p>추정은 비슷한 직무의 평균에 기대기 때문에 실제보다 좁고 가운데로 몰려요. 상위권 회사는 실제보다 낮게, 하위권 회사는 높게 보일 수 있어요. 그래서 추정 연봉은 회사 수준을 가늠하는 데만 쓰고, 정렬이나 필터 기준으로는 쓰지 않는 것을 제안해요.</p>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>바뀌는 점</h3>
+        <ul>
+          <li>지금 개발 환경에서만 보이는 추정 연봉을 운영에서도 보여 줘요.</li>
+          <li>카드는 조건 줄 끝에, 상세는 범위 막대와 설명을 함께, 회사 채용 표는 열 하나로 보여 줘요.</li>
+          <li>공개된 연봉이 있으면 추정 대신 공개 값을 보여 줘요. 지금 코드도 둘을 구분해요.</li>
+        </ul>
+      </div>
+      <div class="q">
+        <h3>논의할 것</h3>
+        <ul>
+          <li>보여 줄지 자체를 먼저 정해야 해요. 틀린 숫자 때문에 신뢰를 잃을 위험과 보여 줬을 때 얻는 호감 중 무엇이 큰지 판단이 필요해요.</li>
+          <li>A·B·C 중 어떤 표기를 쓸지 골라야 해요.</li>
+          <li>정렬·필터에서 빼는 것에 동의하는지 확인이 필요해요.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="prop" id="decide">
+    <div>
+      <div class="eyebrow">정리</div>
+      <h2>결정할 것</h2>
+    </div>
+    <div class="tbl-scroll">
+      <table class="dtable decide">
+        <thead><tr><th>제안</th><th>넣을까요?</th></tr></thead>
+        <tbody>
+          <tr><td>1. 기회를 Top 추천과 볼만한 것으로 나누고 이유 붙이기</td><td><span class="seg yn"><button aria-pressed="false">넣기</button><button aria-pressed="false">빼기</button></span></td></tr>
+          <tr><td>2. 기회 상세에 회사 요약, 회사 정보 탭에 자세한 정보</td><td><span class="seg yn"><button aria-pressed="false">넣기</button><button aria-pressed="false">빼기</button></span></td></tr>
+          <tr><td>3. Harper 얼굴로 지금 하는 일 보여 주기</td><td><span class="seg yn"><button aria-pressed="false">넣기</button><button aria-pressed="false">빼기</button></span></td></tr>
+          <tr><td>4. 추정 연봉을 운영에서도 보여 주기</td><td><span class="seg yn"><button aria-pressed="false">넣기</button><button aria-pressed="false">빼기</button></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <footer>참고: Meta Muse 마스코트 — <a href="https://axios.com/2026/09/25/ai-doom-meta-muse-mascot" target="_blank" rel="noopener">Axios</a>, <a href="https://fortune.com/2026/10/02/meta-openai-ai-agent-mascots-jolly-dots-trust/" target="_blank" rel="noopener">Fortune</a>. 화면 예시의 회사·투자사·숫자는 모두 가상이에요.</footer>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  /* ================= 1. opportunity list ================= */
+  const O = {
+    needAnswer: [
+      { co: "Harper Portfolio Team", c: "#4a4a4f", role: "Applied AI Engineer", meta: "서울 · 대면 + 원격 · 풀타임", kind: "먼저 온 관심", reason: "회사가 먼저 관심을 보냈어요", cat: "연결 요청" }
+    ],
+    top: [
+      { co: "Morrow Labs", c: "#2f4b9a", role: "Applied AI Engineer", meta: "서울 · 대면 + 원격 · 풀타임", kind: "채용 공고", reason: "원하던 agent 제품 · 팀 확장 중", cat: "조건 일치", link: true, dot: true },
+      { co: "Orbit Labs", c: "#16785a", role: "Founding Product Engineer", meta: "서울 · 대면 · 풀타임", kind: "직접 지원", reason: "지금보다 보상과 책임이 모두 커요", cat: "성장 기회", dot: true },
+      { co: "Cedar", c: "#8a5a2b", role: "Forward Deployed Engineer", meta: "San Francisco · 원격 시작 · 풀타임", kind: "직접 지원", reason: "SF 본사인데 서울에서 원격으로 시작해요", cat: "조건 일치" }
+    ],
+    worth: [
+      { co: "Preview Analytics", c: "#6b4fa0", role: "Founding GTM Lead", meta: "서울 · 대면 + 원격 · 풀타임", kind: "채용 공고", reason: "fractional advisory로도 열려 있어요", cat: "새 형태" },
+      { co: "Frontier Robotics Lab", c: "#3a6b8a", role: "Research Engineer", meta: "도쿄 · 대면 · 풀타임", kind: "직접 지원", reason: "연구 비중이 높아 확인이 필요해요", cat: "확인 필요" },
+      { co: "Northwind AI", c: "#9a3b3b", role: "ML Platform Engineer", meta: "서울 · 원격 · 풀타임", kind: "채용 공고", reason: "이전 동료 2명이 다니고 있어요", cat: "연결 가능" },
+      { co: "Tessera", c: "#3d3d8f", role: "Senior Backend Engineer, Agents", meta: "판교 · 대면 + 원격 · 풀타임", kind: "채용 공고", reason: "Series A 직후 첫 agent 팀이에요", cat: "성장 기회" },
+      { co: "Halcyon Health", c: "#2b7a78", role: "Applied Scientist", meta: "서울 · 대면 · 풀타임", kind: "직접 지원", reason: "도메인은 낯설지만 문제 구조가 비슷해요", cat: "새 분야" },
+      { co: "Pinecrest", c: "#7a6a2b", role: "AI Product Lead", meta: "Remote · 계약직 6개월", kind: "채용 공고", reason: "계약직이지만 범위가 넓어요", cat: "새 형태" }
+    ],
+    past: 14,
+    pastItems: [
+      { co: "Lumen Bio", c: "#5b7a2b", role: "ML Engineer, Protein Design", meta: "서울 · 대면 · 풀타임", kind: "채용 공고", reason: "연구 비중이 높지만 팀이 작아요", cat: "확인 필요" },
+      { co: "Quill", c: "#7a2b5b", role: "Founding Engineer", meta: "Remote · 풀타임", kind: "직접 지원", reason: "초기 멤버 지분이 커요", cat: "성장 기회" },
+      { co: "Arcadia Labs", c: "#2b5b7a", role: "Applied AI Engineer", meta: "판교 · 대면 + 원격 · 풀타임", kind: "채용 공고", reason: "원하던 직무와 같아요", cat: "조건 일치" }
+    ]
+  };
+  const S = { volume: "many", rtype: "reason", rcolor: "ink" };
+
+  const oppHTML = (o, top) => {
+    const reason = S.rtype === "reason" ? `<div class="reason">${esc(o.reason)}</div>` : `<div class="reason cat">${esc(o.cat)}</div>`;
+    const attrs = o.link ? ` class="opp ${top ? "top" : ""} link" tabindex="0" role="link" aria-label="${esc(o.co)} 상세 보기"` : ` class="opp ${top ? "top" : ""}"`;
+    return `<article${attrs}>${reason}<div class="r1"><span class="logo" style="background:${o.c}">${esc(o.co[0])}</span><span class="co">${esc(o.co)}</span>${o.dot ? '<i class="dot"></i>' : ""}<span class="kind">${esc(o.kind)}</span></div><div class="role">${esc(o.role)}</div><div class="meta">${esc(o.meta)}</div>${o.link ? '<span class="go">자세히 →</span>' : ""}</article>`;
+  };
+  let pastOpen = false;
+  function renderOpps() {
+    const list = $("#oppList");
+    list.style.setProperty("--reason", S.rcolor === "ink" ? "#1d1d1f" : "var(--s-action)");
+    const many = S.volume === "many";
+    const top = many ? O.top : O.top.slice(0, 1);
+    const worth = many ? O.worth : O.worth.slice(0, 1);
+    let h = "";
+    if (many) h += `<div class="grp"><div class="grp-h small"><span class="t">답이 필요해요</span></div>${O.needAnswer.map((o) => oppHTML(o, false)).join("")}</div>`;
+    h += `<div class="grp"><div class="grp-h"><span class="t">Top 추천</span><span class="c">${top.length}</span></div>${top.map((o) => oppHTML(o, true)).join("")}</div>`;
+    h += `<div class="grp"><div class="grp-h"><span class="t">볼만한 것</span><span class="c">${worth.length}</span></div>${worth.map((o) => oppHTML(o, false)).join("")}</div>`;
+    if (many) {
+      h += `<div class="grp"><button class="fold" id="pastFold" aria-expanded="${pastOpen}"><span>지난 추천 ${O.past}</span><span>${pastOpen ? "접기" : "펼치기"}</span></button>`;
+      if (pastOpen) h += O.pastItems.map((o) => oppHTML(o, false)).join("") + `<button class="fold" style="background:transparent">${O.past - O.pastItems.length}개 더 보기</button>`;
+      h += `</div>`;
+    }
+    list.innerHTML = h;
+    const total = (many ? 1 : 0) + top.length + worth.length + (many ? O.past : 0);
+    $$("#opportunities [data-count]").forEach((n) => (n.textContent = total));
+    const pf = $("#pastFold");
+    if (pf) pf.onclick = () => { pastOpen = !pastOpen; renderOpps(); $("#pastFold").focus(); };
+    $$(".opp.link", list).forEach((el) => {
+      const go = () => {
+        closeCompany();
+        if (location.hash !== "#company") location.hash = "company"; else goHash();
+        const d = $("#detail");
+        d.classList.remove("flash"); void d.offsetWidth; d.classList.add("flash");
+      };
+      el.onclick = go;
+      el.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    });
+  }
+  $$("#opportunities .seg").forEach((seg) => {
+    seg.addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      $$("button", seg).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      S[seg.dataset.ctl] = b.dataset.v; renderOpps();
+    });
+  });
+  renderOpps();
+
+  /* ================= 2. company detail ================= */
+  const CATS = [
+    { k: "Engineering", ko: "엔지니어링", c: "#0b3d91" },
+    { k: "Product", ko: "프로덕트", c: "#1f5fbf" },
+    { k: "Sales", ko: "세일즈", c: "#3d7fe0" },
+    { k: "Operations", ko: "운영", c: "#6ea1ec" },
+    { k: "Design", ko: "디자인", c: "#9dbff2" },
+    { k: "Data", ko: "데이터", c: "#c7daf7" }
+  ];
+  // [title, team, cat, exp, loc, min, max, daysAgo, why]
+  const REC = [
+    ["Applied AI Engineer, Agent Platform", "Agent Platform", "Engineering", "5년+", "서울 · 원격", 8500, 11000, 3, "원하던 agent 제품 · 평가 경험과 맞음"],
+    ["Product Engineer, Enterprise Agents", "Enterprise", "Engineering", "4년+", "서울", 7800, 10000, 6, "고객 문제를 직접 맡는 역할"],
+    ["Staff ML Engineer, Evaluation", "Evaluation", "Engineering", "8년+", "서울", 11000, 14000, 12, "평가 시스템 경험 · 책임 범위가 큼"]
+  ];
+  const ROLES = [
+    ["Senior Backend Engineer, Platform", "Platform", "Engineering", "5년+", "서울", 7500, 10000, 2],
+    ["Backend Engineer, Integrations", "Integrations", "Engineering", "3년+", "서울", 6000, 8000, 5],
+    ["Frontend Engineer, Agent Studio", "Agent Studio", "Engineering", "3년+", "서울", 6000, 8000, 9],
+    ["Senior Frontend Engineer", "Agent Studio", "Engineering", "6년+", "서울", 7800, 10500, 21],
+    ["Infrastructure Engineer", "Infra", "Engineering", "4년+", "서울", 7000, 9500, 12],
+    ["Security Engineer", "Security", "Engineering", "5년+", "서울", 7500, 10000, 33],
+    ["Forward Deployed Engineer", "Enterprise", "Engineering", "3년+", "서울 · 고객사", 6800, 9000, 4],
+    ["Forward Deployed Engineer, Japan", "Enterprise", "Engineering", "3년+", "도쿄", 7000, 9500, 18],
+    ["Search Engineer", "Retrieval", "Engineering", "4년+", "서울", 7200, 9600, 27],
+    ["ML Engineer, Document AI", "Document AI", "Engineering", "3년+", "서울", 7000, 9500, 40],
+    ["Engineering Manager, Platform", "Platform", "Engineering", "8년+", "서울", 10000, 13500, 15],
+    ["QA Engineer", "Quality", "Engineering", "2년+", "서울", 5000, 6800, 51],
+    ["iOS Engineer", "Agent App", "Engineering", "3년+", "서울", 6000, 8200, 63],
+    ["Site Reliability Engineer", "Infra", "Engineering", "4년+", "서울", 7000, 9400, 6],
+    ["Product Manager, Agent Studio", "Agent Studio", "Product", "5년+", "서울", 7500, 10000, 11],
+    ["Senior Product Manager, Enterprise", "Enterprise", "Product", "7년+", "서울", 9000, 12000, 3],
+    ["Product Manager, Integrations", "Integrations", "Product", "3년+", "서울", 6000, 8000, 24],
+    ["Technical Program Manager", "Delivery", "Product", "5년+", "서울", 7000, 9000, 36],
+    ["Product Owner, Japan", "Japan", "Product", "4년+", "도쿄", 7000, 9000, 45],
+    ["Product Analyst", "Growth", "Product", "2년+", "서울", 5000, 6500, 58],
+    ["Enterprise Account Executive", "Sales", "Sales", "5년+", "서울", 7000, 9500, 8],
+    ["Account Executive, Financial Services", "Sales", "Sales", "4년+", "서울", 6500, 8500, 19],
+    ["Solutions Engineer", "Pre-sales", "Sales", "4년+", "서울", 7000, 9000, 1],
+    ["Sales Development Representative", "Sales", "Sales", "1년+", "서울", 4200, 5500, 30],
+    ["Partnerships Manager", "Partnerships", "Sales", "5년+", "서울", 6500, 8500, 42],
+    ["Head of Sales, Japan", "Japan", "Sales", "10년+", "도쿄", 12000, 16000, 13],
+    ["Customer Success Manager", "Customer Success", "Operations", "3년+", "서울", 5500, 7200, 7],
+    ["Talent Acquisition Partner", "People", "Operations", "4년+", "서울", 5500, 7500, 26],
+    ["People Operations Manager", "People", "Operations", "5년+", "서울", 6000, 8000, 49],
+    ["Finance Manager", "Finance", "Operations", "6년+", "서울", 7000, 9000, 38],
+    ["Legal Counsel", "Legal", "Operations", "5년+", "서울", 8000, 11000, 70],
+    ["Product Designer, Agent Studio", "Agent Studio", "Design", "4년+", "서울", 6000, 8000, 10],
+    ["Senior Product Designer", "Design", "Design", "7년+", "서울", 7500, 10000, 22],
+    ["Brand Designer", "Brand", "Design", "3년+", "서울", 5000, 6800, 47],
+    ["Design Engineer", "Agent Studio", "Design", "4년+", "서울", 6500, 8500, 34],
+    ["Data Engineer", "Data", "Data", "3년+", "서울", 6000, 8000, 16],
+    ["Analytics Engineer", "Data", "Data", "3년+", "서울", 5800, 7800, 29],
+    ["Data Scientist, Growth", "Growth", "Data", "4년+", "서울", 6500, 8500, 55],
+    ["Research Scientist, Agents", "Research", "Data", "박사 또는 4년+", "서울", 9000, 13000, 20]
+  ];
+  const ALL = [...REC, ...ROLES];
+  const nf = new Intl.NumberFormat("ko-KR");
+  const catKo = Object.fromEntries(CATS.map((c) => [c.k, c.ko]));
+  const counts = CATS.map((c) => ({ ...c, n: ALL.filter((r) => r[2] === c.k).length })).sort((a, b) => b.n - a.n);
+  const newN = ALL.filter((r) => r[7] <= 14).length;
+  $$("[data-jobcount]").forEach((n) => (n.textContent = ALL.length));
+  $("#newBadge").textContent = `최근 14일 새 직무 ${newN}개`;
+  $$("[data-newcount]").forEach((n) => (n.textContent = newN));
+  const R = { open: false, q: "", cat: null };
+  const ago = (d) => (d === 0 ? "오늘" : d < 7 ? `${d}일 전` : d < 30 ? `${Math.floor(d / 7)}주 전` : `${Math.floor(d / 30)}달 전`);
+  const rowHTML = (r, rec) => `<tr><td class="t">${esc(r[0])}${rec ? `<span class="fit">${esc(r[8])}</span>` : `<span class="team">${esc(r[1])}</span>`}</td><td>${catKo[r[2]]}</td><td>${esc(r[3])}</td><td>${esc(r[4])}</td><td class="num">${nf.format(r[5])}–${nf.format(r[6])}</td><td class="num ${r[7] <= 14 ? "new" : ""}">${ago(r[7])}</td></tr>`;
+  function renderCats() {
+    const total = ALL.length;
+    $("#catBar").innerHTML = counts.map((c) => `<button style="flex:${c.n};background:${c.c};opacity:${R.cat && R.cat !== c.k ? .25 : 1}" data-cat="${c.k}" aria-label="${c.ko} ${c.n}개" title="${c.ko} ${c.n}개 · ${Math.round((c.n / total) * 100)}%"></button>`).join("");
+    $("#catLegend").innerHTML = counts.map((c) => `<button class="chip" data-cat="${c.k}" aria-pressed="${R.cat === c.k}"><i class="sw" style="background:${c.c}"></i>${c.ko} <b>${c.n}</b></button>`).join("");
+  }
+  function renderRoles() {
+    const q = R.q.trim().toLowerCase();
+    const match = (r) => (!R.cat || r[2] === R.cat) && (!q || (r[0] + " " + r[1] + " " + catKo[r[2]]).toLowerCase().includes(q));
+    const rest = ROLES.filter(match).sort((a, b) => a[7] - b[7]);
+    const recs = REC.filter(match);
+    let h = recs.length ? `<tr class="gh"><td colspan="6">나와 맞는 직무 ${recs.length}</td></tr>` + recs.map((r) => rowHTML(r, true)).join("") : "";
+    if (R.open || q || R.cat) {
+      if (rest.length) h += `<tr class="gh"><td colspan="6">${q || R.cat ? "검색 결과" : "나머지"} ${rest.length}</td></tr>`;
+      h += rest.map((r) => rowHTML(r, false)).join("");
+      if (!recs.length && !rest.length) h = `<tr><td colspan="6" style="color:var(--s-ink2);padding:14px 10px">찾는 직무가 없어요</td></tr>`;
+    }
+    $("#rolesBody").innerHTML = h;
+    const more = $("#moreRoles");
+    const filtering = q || R.cat;
+    more.hidden = Boolean(filtering);
+    more.innerHTML = R.open ? `<span>접기</span><span>↑</span>` : `<span>나머지 ${ROLES.length}개 전체 보기</span><span>↓</span>`;
+    $("#rolesTools").hidden = !(R.open || filtering);
+  }
+  $("#d-jobs").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-cat]");
+    if (!b) return;
+    R.cat = R.cat === b.dataset.cat ? null : b.dataset.cat;
+    renderCats(); renderRoles();
+  });
+  $("#moreRoles").onclick = () => { R.open = !R.open; renderRoles(); if (R.open) $("#roleSearch").focus({ preventScroll: true }); };
+  $("#roleSearch").addEventListener("input", (e) => { R.q = e.target.value; renderRoles(); });
+  renderCats(); renderRoles();
+
+  $$(".follow").forEach((b) => b.addEventListener("click", () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    $$(".follow").forEach((x) => { x.setAttribute("aria-pressed", String(on)); x.classList.toggle("on", on); x.textContent = on ? "✓ 팔로우 중" : "＋ 회사 팔로우"; });
+  }));
+  function openCompany() {
+    $("#detail").hidden = true; const v = $("#companyView"); v.hidden = false;
+    v.classList.remove("view-in"); void v.offsetWidth; v.classList.add("view-in");
+    if (v.getBoundingClientRect().top < 0) v.scrollIntoView({ block: "start" });
+  }
+  function closeCompany() {
+    $("#companyView").hidden = true; const d = $("#detail"); d.hidden = false;
+    d.classList.remove("view-in"); void d.offsetWidth; d.classList.add("view-in");
+    if (d.getBoundingClientRect().top < 0) d.scrollIntoView({ block: "start" });
+  }
+  $("[data-open-company]").addEventListener("click", openCompany);
+  $("[data-close-company]").addEventListener("click", closeCompany);
+  $$(".d-nav button").forEach((b) => b.addEventListener("click", () => {
+    $$(".d-nav button").forEach((x) => x.classList.toggle("on", x === b));
+    document.getElementById(b.dataset.go).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }));
+
+  // funding
+  const FUND = [
+    { d: "2021.09", t: 2021.67, r: "Seed", a: 15, inv: "Orchard Ventures" },
+    { d: "2022.07", t: 2022.5, r: "Pre-A", a: 45, inv: "새벽파트너스 · Orchard Ventures" },
+    { d: "2023.10", t: 2023.75, r: "Series A", a: 180, inv: "Lantern Capital (리드) · 북극성벤처스 · 새벽파트너스" },
+    { d: "2024.12", t: 2024.92, r: "Bridge", a: 60, inv: "Lantern Capital · 북극성벤처스" },
+    { d: "2026.06", t: 2026.45, r: "Series B", a: 600, inv: "Granite Growth (리드) · Riverline Partners · Lantern Capital" }
+  ];
+  const tipAt = (tip, svg, W, px, py, html) => {
+    const r = svg.getBoundingClientRect(), br = svg.parentElement.getBoundingClientRect(), k = r.width / W;
+    tip.innerHTML = html; tip.style.opacity = 1;
+    const half = tip.offsetWidth / 2;
+    tip.style.left = Math.max(half + 4, Math.min(br.width - half - 4, r.left - br.left + px * k)) + "px";
+    tip.style.top = (r.top - br.top + py * k - 10) + "px";
+  };
+  (() => {
+    const W = 600, H = 160, L = 10, Rr = 10, T = 34, B = 26;
+    const x = (t) => L + ((t - 2021) / (2027 - 2021)) * (W - L - Rr);
+    const y = (a) => H - B - (a / 600) * (H - T - B);
+    let s = "";
+    for (let yr = 2021; yr <= 2026; yr++) s += `<line x1="${x(yr)}" x2="${x(yr)}" y1="8" y2="${H - B}" stroke="rgba(0,0,0,.06)"/><text x="${x(yr) + 4}" y="${H - 8}" font-size="11" fill="#8e8e93">${yr}</text>`;
+    s += `<line x1="${L}" x2="${W - Rr}" y1="${H - B}" y2="${H - B}" stroke="rgba(0,0,0,.18)"/>`;
+    FUND.forEach((f, i) => {
+      const cx = x(f.t), top = y(f.a), bw = 28, last = i === FUND.length - 1;
+      s += `<g class="fb" data-i="${i}" style="cursor:default"><rect x="${cx - 30}" y="0" width="60" height="${H - B}" fill="transparent"/>`;
+      s += `<rect class="bar" x="${cx - bw / 2}" y="${top}" width="${bw}" height="${H - B - top}" rx="4" fill="${last ? "#1d1d1f" : "#9aa3b2"}"/>`;
+      s += `<text x="${cx}" y="${top - 6}" font-size="11.5" text-anchor="middle" fill="#1d1d1f" font-weight="600">${f.a}억</text>`;
+      s += `<text x="${cx}" y="${top - 20}" font-size="10.5" text-anchor="middle" fill="#6e6e73">${f.r}</text></g>`;
+    });
+    const svg = $("#fundChart"), tip = $("#fundTip");
+    svg.innerHTML = s;
+    svg.addEventListener("pointermove", (e) => {
+      const g = e.target.closest(".fb"); if (!g) return;
+      const f = FUND[+g.dataset.i];
+      $$(".fb .bar", svg).forEach((b) => (b.style.opacity = b.parentNode === g ? 1 : .45));
+      tipAt(tip, svg, W, x(f.t), y(f.a) - 26, `<b>${f.d} · ${f.r} · ${nf.format(f.a)}억 원</b><br>${esc(f.inv)}`);
+    });
+    svg.addEventListener("pointerleave", () => { tip.style.opacity = 0; $$(".fb .bar", svg).forEach((b) => (b.style.opacity = 1)); });
+  })();
+
+  // team size (NPS)
+  (() => {
+    const hires = [3,2,4,2,3,1,4,3,2,3,2,4, 3,2,3,4,2,3,5,4,3,7,8,6];
+    const leaves = [1,1,0,2,1,1,0,1,2,1,1,1, 0,1,2,1,1,0,1,2,1,1,1,2];
+    const months = []; let hc = 84; const heads = [];
+    for (let i = 0; i < 24; i++) {
+      const m = (9 + i) % 12 + 1, yr = 2024 + Math.floor((9 + i) / 12);
+      months.push({ y: yr, m }); hc += hires[i] - leaves[i]; heads.push(hc);
+    }
+    const W = 600, H = 250, L = 28, Rr = 36, plotW = W - L - Rr;
+    const lineTop = 14, lineBot = 120, base = 182, up = 50, dn = 26;
+    const step = plotW / 24, bw = Math.min(14, step * .55);
+    const cx = (i) => L + step * (i + .5);
+    const hMin = 80, hMax = 150;
+    const ly = (v) => lineBot - ((v - hMin) / (hMax - hMin)) * (lineBot - lineTop);
+    const maxBar = 8;
+    let s = "";
+    [80, 100, 120, 140].forEach((v) => { s += `<line x1="${L}" x2="${W - Rr}" y1="${ly(v)}" y2="${ly(v)}" stroke="rgba(0,0,0,.06)"/><text x="${W - Rr + 6}" y="${ly(v) + 4}" font-size="10.5" fill="#8e8e93">${v}</text>`; });
+    s += `<line x1="${L}" x2="${W - Rr}" y1="${base}" y2="${base}" stroke="rgba(0,0,0,.2)"/>`;
+    s += `<text x="${L - 6}" y="${base - up + 4}" font-size="10" text-anchor="end" fill="#8e8e93">+8</text><text x="${L - 6}" y="${base + 4}" font-size="10" text-anchor="end" fill="#8e8e93">0</text><text x="${L - 6}" y="${base + (3 / maxBar) * up + 4}" font-size="10" text-anchor="end" fill="#8e8e93">−3</text>`;
+    // Series B marker (2026.06 = index 20)
+    s += `<line x1="${cx(20)}" x2="${cx(20)}" y1="${lineTop - 4}" y2="${base + dn}" stroke="#1d1d1f" stroke-dasharray="3 3" opacity=".35"/><text x="${cx(20) - 4}" y="${lineTop + 2}" font-size="10.5" text-anchor="end" fill="#6e6e73">Series B</text>`;
+    hires.forEach((v, i) => { const h = (v / maxBar) * up; s += `<rect x="${cx(i) - bw / 2}" y="${base - h}" width="${bw}" height="${h}" rx="2" fill="#1f9d55" opacity=".85"/>`; });
+    leaves.forEach((v, i) => { const h = (v / maxBar) * up; if (h) s += `<rect x="${cx(i) - bw / 2}" y="${base + 1}" width="${bw}" height="${h}" rx="2" fill="#d9534f" opacity=".75"/>`; });
+    const path = heads.map((v, i) => `${i ? "L" : "M"}${cx(i).toFixed(1)},${ly(v).toFixed(1)}`).join(" ");
+    s += `<path d="${path} L${cx(23)},${lineBot} L${cx(0)},${lineBot} Z" fill="rgba(29,29,31,.05)"/>`;
+    s += `<path d="${path}" fill="none" stroke="#1d1d1f" stroke-width="1.8" stroke-linejoin="round"/>`;
+    s += `<circle cx="${cx(23)}" cy="${ly(heads[23])}" r="3.5" fill="#1d1d1f"/><text x="${cx(23) - 6}" y="${ly(heads[23]) - 8}" font-size="11" text-anchor="end" font-weight="600" fill="#1d1d1f">${heads[23]}명</text>`;
+    months.forEach((mo, i) => { if (mo.m === 1 || i === 0) s += `<text x="${cx(i)}" y="${H - 14}" font-size="10.5" text-anchor="middle" fill="#8e8e93">${mo.m === 1 ? mo.y : `${String(mo.y).slice(2)}.${mo.m}`}</text>`; else if (mo.m % 3 === 1) s += `<text x="${cx(i)}" y="${H - 14}" font-size="10" text-anchor="middle" fill="#aeaeb2">${mo.m}월</text>`; });
+    s += `<line id="hoverLine" x1="0" x2="0" y1="${lineTop}" y2="${base + dn}" stroke="#1d1d1f" opacity="0"/>`;
+    months.forEach((_, i) => { s += `<rect class="hit" data-i="${i}" x="${L + step * i}" y="0" width="${step}" height="${H - 20}" fill="transparent"/>`; });
+    const svg = $("#teamChart"); svg.innerHTML = s;
+    const tip = $("#teamTip"), box = svg.parentElement, hl = $("#hoverLine");
+    const show = (i) => {
+      const r = svg.getBoundingClientRect(), br = box.getBoundingClientRect(), k = r.width / W;
+      const mo = months[i];
+      tip.innerHTML = `<b>${mo.y}.${String(mo.m).padStart(2, "0")}</b> · ${heads[i]}명<br>입사 ${hires[i]} · 퇴사 ${leaves[i]}`;
+      let left = r.left - br.left + cx(i) * k; left = Math.max(70, Math.min(br.width - 70, left));
+      tip.style.left = left + "px"; tip.style.top = (r.top - br.top + ly(heads[i]) * k - 10) + "px"; tip.style.opacity = 1;
+      hl.setAttribute("x1", cx(i)); hl.setAttribute("x2", cx(i)); hl.setAttribute("opacity", ".25");
+    };
+    const hide = () => { tip.style.opacity = 0; hl.setAttribute("opacity", "0"); };
+    svg.addEventListener("pointermove", (e) => { const t = e.target.closest(".hit"); if (t) show(+t.dataset.i); });
+    svg.addEventListener("pointerleave", hide);
+  })();
+
+  const bars = (el, rows, round) => {
+    const max = Math.max(...rows.map((r) => r[1]));
+    $(el).className = "ppl";
+    $(el).innerHTML = rows.map(([l, n, mark, bg, fg]) => `<div class="ppl-row"><span class="plogo${round ? " round" : ""}" style="background:${bg};color:${fg}">${mark}</span><span class="ppl-mid"><span class="ppl-name">${esc(l)}</span><span class="ppl-bar"><i style="width:${(n / max) * 100}%"></i></span></span><span class="ppl-n">${n}명</span></div>`).join("");
+  };
+  bars("#prevCo", [["네이버", 14, "N", "#03c75a", "#fff"], ["카카오", 11, "K", "#fee500", "#3c1e1e"], ["쿠팡", 8, "c", "#fff", "#e52528"], ["토스", 7, "t", "#0064ff", "#fff"], ["삼성전자", 6, "S", "#1428a0", "#fff"], ["당근", 5, "당", "#ff6f0f", "#fff"], ["LINE", 5, "L", "#06c755", "#fff"]]);
+  bars("#schools", [["서울대", 17, "S", "#0f0f70", "#fff"], ["KAIST", 15, "K", "#004191", "#fff"], ["해외 대학", 13, `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>`, "#eef1f5", "#1d1d1f"], ["연세대", 10, "Y", "#003876", "#fff"], ["고려대", 9, "K", "#8b0029", "#fff"], ["POSTECH", 6, "P", "#c80150", "#fff"]], true);
+
+  /* ================= 3. face ================= */
+  const FACE = `
+    <g class="f-root">
+      <g class="f-dots" opacity="0" fill="currentColor"><circle cx="45" cy="-1.5" r="1.4"/><circle cx="50.5" cy="-6" r="2"/><circle cx="57" cy="-11.5" r="2.7"/></g>
+      <g class="f-zzz" opacity="0" fill="currentColor" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-weight="700"><text x="44" y="0" font-size="8">z</text><text x="50" y="-6" font-size="6.5">z</text><text x="55" y="-11" font-size="5">z</text></g>
+      <g class="f-spark" opacity="0" fill="currentColor"><path d="M50 -9 l1.3 3.4 3.4 1.3 -3.4 1.3 -1.3 3.4 -1.3 -3.4 -3.4 -1.3 3.4 -1.3z"/><path d="M-5 -2 l1 2.5 2.5 1 -2.5 1 -1 2.5 -1 -2.5 -2.5 -1 2.5 -1z"/><path d="M55 8 l.8 2 2 .8 -2 .8 -.8 2 -.8 -2 -2 -.8 2 -.8z"/></g>
+      <g class="f-sweat" opacity="0"><path d="M47.5 1 q-2.6 3.8 0 5.4 q2.6 -1.6 0 -5.4z" fill="#8fbbe9"/></g>
+      <g class="f-headset" opacity="0">
+        <path class="st" d="M-3 17 C-4.5 -14 50.5 -14 49 17"/>
+        <rect class="fl" x="-7.5" y="12" width="7" height="13" rx="3.5"/><rect class="fl" x="46.5" y="12" width="7" height="13" rx="3.5"/>
+        <path class="st" d="M-3 24 C-2 35 5 40.5 12 41"/><circle class="fl" cx="13.6" cy="41.1" r="2.1"/>
+        <g class="f-waves" opacity="0"><path class="st" d="M40 39.5 q2.6 3 0 6" stroke-width="1.5"/><path class="st" d="M43.6 37.5 q4 5 0 10" stroke-width="1.5"/></g>
+      </g>
+      <path class="st f-browL" d="M19 6C19 6 16.83 1 10 1C3.44 1 1 6 1 6"/>
+      <path class="st f-browR" d="M45 6C45 6 42.83 1 36 1C29.44 1 27 6 27 6"/>
+      <g class="f-eyes"><ellipse class="fl f-eyeL" cx="10" cy="12.67" rx="3" ry="4.5"/><ellipse class="fl f-eyeR" cx="36" cy="12.67" rx="3" ry="4.5"/></g>
+      <path class="st f-happy" opacity="0" d="M6.4 14.2 Q10 8.6 13.6 14.2 M32.4 14.2 Q36 8.6 39.6 14.2"/>
+      <g class="f-glasses" opacity="0">
+        <circle class="st" cx="10" cy="12.7" r="7.3" stroke-width="1.7"/><circle class="st" cx="36" cy="12.7" r="7.3" stroke-width="1.7"/>
+        <path class="st" d="M17.3 11.6 Q23 8.4 28.7 11.6" stroke-width="1.7"/><path class="st" d="M2.8 10.8 L-4 8.2" stroke-width="1.7"/><path class="st" d="M43.2 10.8 L50 8.2" stroke-width="1.7"/>
+        <path class="st f-glint" d="M5.4 9.6 q1.6 -2.1 4 -2.4" stroke-width="1.2" opacity="0"/>
+      </g>
+      <path class="st f-nose" d="M21.5 10L13 29H26"/>
+      <path class="st f-mouth" d="M16.4 42.4 Q27.5 47 36.1 38.8 Q27.5 47 16.4 42.4Z"/>
+    </g>
+    <g class="f-laptop" opacity="0">
+      <path d="M2 34.5 h42 a3 3 0 0 1 3 3 v15.5 h-48 v-15.5 a3 3 0 0 1 3 -3z" fill="#eceef2" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <circle class="f-logo" cx="23" cy="43.5" r="2.4" fill="currentColor" opacity=".35"/>
+      <path d="M-5.5 54.5 H51.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+    </g>`;
+
+  const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const PTR = { x: 0, y: 0, t: -1e9 };
+  addEventListener("pointermove", (e) => { PTR.x = e.clientX; PTR.y = e.clientY; PTR.t = performance.now(); }, { passive: true });
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const f2 = (v) => Math.round(v * 100) / 100;
+  // [stiffness, damping] — lower damping on props gives a small overshoot when they land.
+  const SPR = { hx: [170, 15], hy: [170, 14], hr: [140, 15], sx: [300, 12], sy: [300, 12], ex: [560, 40], ey: [560, 40], lid: [1500, 62],
+    happy: [220, 22], bLy: [260, 22], bLr: [220, 20], bRy: [260, 22], bRr: [220, 20], open: [720, 34], curve: [240, 24],
+    glasses: [210, 12], laptop: [190, 13], headset: [210, 14], lj: [1300, 26], dots: [140, 22], zzz: [120, 22], spark: [180, 16], sweat: [140, 22], waves: [200, 24] };
+
+  class Rig {
+    constructor(svg) {
+      svg.innerHTML = FACE;
+      const q = (c) => svg.querySelector(c);
+      this.svg = svg;
+      this.e = { root: q(".f-root"), bL: q(".f-browL"), bR: q(".f-browR"), eyes: q(".f-eyes"), eL: q(".f-eyeL"), eR: q(".f-eyeR"), happy: q(".f-happy"),
+        gl: q(".f-glasses"), nose: q(".f-nose"), mouth: q(".f-mouth"), lap: q(".f-laptop"), hs: q(".f-headset"), waves: q(".f-waves"),
+        dots: q(".f-dots"), zzz: q(".f-zzz"), spark: q(".f-spark"), sweat: q(".f-sweat") };
+      this.p = {};
+      for (const k in SPR) { const v = k === "sx" || k === "sy" || k === "curve" ? 1 : 0; this.p[k] = { x: v, v: 0, t: v, k: SPR[k][0], c: SPR[k][1] }; }
+      const now = performance.now();
+      this.state = "idle"; this.since = now;
+      this.n = { blink: now + rnd(600, 2200), sacc: 0, syll: 0, key: 0, nod: now + 800, glance: now + 2500, speak: 0 };
+      this.sac = { x: 0, y: 0 }; this.talkOpen = 0; this.emph = 0; this.line = 0; this.lineStart = now;
+      this.glanceUntil = 0; this.blinkRelease = 0; this.speaking = true; this.rect = null; this.rectAt = 0;
+    }
+    set(s) {
+      if (s === this.state) return;
+      const now = performance.now(), p = this.p;
+      this.state = s; this.since = now; this.line = 0; this.lineStart = now; this.speaking = true; this.n.speak = now + rnd(1500, 2400);
+      if (RM) return;
+      p.sy.v -= 2.4; p.sx.v += 1.8;                     // anticipation squash
+      if (s !== "scheduled" && s !== "done") this.blinkNow(now);
+      if (s === "done") { p.hy.v -= 60; p.sy.v += 3; }   // little hop
+    }
+    blinkNow(now) { this.p.lid.t = 1; this.blinkRelease = now + 85; }
+    gaze(now) {
+      if (now - PTR.t < 2500) {
+        if (now - this.rectAt > 400) { this.rect = this.svg.getBoundingClientRect(); this.rectAt = now; }
+        const r = this.rect, dx = (PTR.x - (r.left + r.width / 2)) / 380, dy = (PTR.y - (r.top + r.height / 2)) / 380;
+        const m = Math.hypot(dx, dy), f = m > 1 ? 1 / m : 1;
+        return { x: clamp(dx * f * 2.7, -2.7, 2.7), y: clamp(dy * f * 2.1, -2.1, 2.1) };
+      }
+      if (now > this.n.sacc) {
+        this.n.sacc = now + rnd(650, 2600);
+        this.sac = Math.random() < .35 ? { x: 0, y: 0 } : { x: rnd(-2.3, 2.3), y: rnd(-1.4, 1.1) };
+      }
+      return this.sac;
+    }
+    talk(now, T) {
+      if (now > this.n.syll) {
+        const pause = Math.random() < .12;
+        this.n.syll = now + (pause ? rnd(170, 320) : rnd(70, 150));
+        this.talkOpen = pause ? 0 : rnd(.2, 1) * (Math.random() < .3 ? 1 : .72);
+        if (this.talkOpen > .82) this.emph = now + 200;
+      }
+      T.open = this.talkOpen;
+      if (now < this.emph) { T.bLy -= .9; T.bRy -= .9; }
+    }
+    tick(now, dt) {
+      const p = this.p, st = this.state, el = (now - this.since) / 1000;
+      const T = { hx: 0, hy: 0, hr: 0, sx: 1, sy: 1, ex: 0, ey: 0, happy: 0, bLy: 0, bLr: 0, bRy: 0, bRr: 0, open: 0, curve: 1,
+        glasses: 0, laptop: 0, headset: 0, lj: 0, dots: 0, zzz: 0, spark: 0, sweat: 0, waves: 0 };
+      let lidLock = null, g;
+      switch (st) {
+        case "idle": g = this.gaze(now); T.ex = g.x; T.ey = g.y; T.hr = g.x * .9; T.hx = g.x * .25; break;
+        case "listening":
+          g = this.gaze(now); T.ex = g.x * .35; T.ey = 2.2 + g.y * .2; T.hr = 3; T.curve = 1.12; T.bLy = T.bRy = -.4;
+          if (now > this.n.nod) { this.n.nod = now + rnd(1400, 2500); if (!RM) p.hy.v += 15; }
+          break;
+        case "thinking":
+          T.ex = 2.3 + Math.sin(now / 900) * .5; T.ey = -2.5 + Math.sin(now / 1300) * .35; T.bRy = -2; T.bRr = -7; T.bLy = -.5;
+          T.hr = -5 + Math.sin(now / 1100); T.hx = -.6; T.curve = .3; T.dots = 1; lidLock = null; break;
+        case "talking":
+          g = this.gaze(now); T.ex = g.x * .5; T.ey = g.y * .4; this.talk(now, T); T.curve = .85;
+          T.hy = -T.open * .7; T.hr = g.x * .5 + Math.sin(now / 700) * 1.3; break;
+        case "reading": {
+          const LD = 1250;
+          if (now - this.lineStart >= LD) { this.lineStart = now; this.line = (this.line + 1) % 3; if (Math.random() < .35) this.blinkNow(now); }
+          T.glasses = 1; T.ex = -2.3 + 4.6 * clamp((now - this.lineStart) / LD, 0, 1); T.ey = .2 + this.line * .8;
+          T.bLy = T.bRy = -.9; T.hy = .6; T.hr = -1.5; T.curve = .55; break;
+        }
+        case "browsing": {
+          if (now > this.n.glance) { this.n.glance = now + rnd(3200, 6000); this.glanceUntil = now + 800; }
+          const up = now < this.glanceUntil;
+          T.laptop = 1; T.ex = up ? 0 : Math.sin(now / 600) * 1.3; T.ey = up ? -.3 : 3.1; T.hy = -2.6; T.curve = .7;
+          T.hr = up ? 0 : Math.sin(now / 1700) * 1.6;
+          if (!up && now > this.n.key && !RM) { this.n.key = now + rnd(55, 150); p.lj.v += rnd(4, 14); if (Math.random() < .15) p.hy.v += 5; }
+          break;
+        }
+        case "calling":
+          if (now > this.n.speak) { this.speaking = !this.speaking; this.n.speak = now + (this.speaking ? rnd(1500, 2600) : rnd(1100, 1900)); }
+          g = this.gaze(now); T.headset = 1; T.hr = 4; T.ex = g.x * .4; T.ey = g.y * .4;
+          if (this.speaking) { this.talk(now, T); T.waves = 1; T.hy = -T.open * .6; T.curve = .85; }
+          else if (now > this.n.nod) { this.n.nod = now + rnd(900, 1500); if (!RM) p.hy.v += 12; }
+          break;
+        case "scheduled":
+          lidLock = 1; T.hr = 7; T.hy = 1.6 + Math.sin(now / 5000 * Math.PI * 2) * .9; T.zzz = 1; T.curve = .55; T.bLy = T.bRy = .7; T.ey = .8; break;
+        case "done":
+          lidLock = 0; T.happy = 1; T.curve = 1.45; T.open = .22; T.spark = 1; T.bLy = T.bRy = -1;
+          T.hr = Math.sin(now / 240) * 2.4 * Math.exp(-el * .7) + Math.sin(now / 900); break;
+        case "stuck":
+          T.bLr = -13; T.bLy = .7; T.bRr = 13; T.bRy = .7; T.curve = -.4; T.ey = 1.3; T.ex = -.8; T.sweat = 1; T.hr = -2;
+          T.hx = Math.sin(el * 24) * 1.9 * Math.exp(-el * 3.2); break;
+      }
+      // blinking
+      if (lidLock !== null) { p.lid.t = lidLock; this.blinkRelease = 0; }
+      else {
+        if (!RM && now > this.n.blink) { this.blinkNow(now); this.n.blink = now + (Math.random() < .18 ? rnd(150, 230) : rnd(2200, 5600)); }
+        if (this.blinkRelease && now > this.blinkRelease) { p.lid.t = 0; this.blinkRelease = 0; }
+        if (RM) p.lid.t = 0;
+      }
+      for (const k in T) p[k].t = T[k];
+      // integrate
+      const steps = dt > 1 / 90 ? 2 : 1, h = dt / steps;
+      for (const k in p) {
+        const sp = p[k];
+        if (RM) { sp.x = sp.t; sp.v = 0; continue; }
+        for (let i = 0; i < steps; i++) { sp.v += (sp.k * (sp.t - sp.x) - sp.c * sp.v) * h; sp.x += sp.v * h; }
+      }
+      this.render(now);
+    }
+    render(now) {
+      const P = (k) => this.p[k].x, e = this.e;
+      const breath = RM ? 0 : Math.sin(now / 3600 * Math.PI * 2) * .3;
+      const ex = P("ex"), ey = P("ey"), lid = clamp(P("lid"), 0, 1), hap = clamp(P("happy"), 0, 1);
+      e.root.setAttribute("transform", `translate(${f2(P("hx"))} ${f2(P("hy") + breath)}) rotate(${f2(P("hr"))} 23 26) translate(23 26) scale(${f2(P("sx"))} ${f2(P("sy"))}) translate(-23 -26)`);
+      const ry = f2(Math.max(.45, 4.5 * (1 - lid))), cy = f2(12.67 + lid * 1.3);
+      e.eL.setAttribute("ry", ry); e.eR.setAttribute("ry", ry); e.eL.setAttribute("cy", cy); e.eR.setAttribute("cy", cy);
+      e.eyes.setAttribute("transform", `translate(${f2(ex)} ${f2(ey)})`); e.eyes.setAttribute("opacity", f2(1 - hap));
+      e.happy.setAttribute("opacity", f2(hap)); e.happy.setAttribute("transform", `translate(${f2(ex * .8)} ${f2(ey * .6 - (1 - hap) * 1.5)})`);
+      e.bL.setAttribute("transform", `translate(${f2(ex * .55)} ${f2(ey * .3 + P("bLy"))}) rotate(${f2(P("bLr"))} 10 3.5)`);
+      e.bR.setAttribute("transform", `translate(${f2(ex * .55)} ${f2(ey * .3 + P("bRy"))}) rotate(${f2(P("bRr"))} 36 3.5)`);
+      e.nose.setAttribute("transform", `translate(${f2(ex * .45)} ${f2(ey * .25)})`);
+      const c = P("curve"), o = clamp(P("open"), 0, 1.2), Cy = 40.6 + 6.4 * c;
+      e.mouth.setAttribute("d", `M16.4 42.4 Q27.5 ${f2(Cy - o * 4.6)} 36.1 38.8 Q27.5 ${f2(Cy + o * 5.6)} 16.4 42.4Z`);
+      e.mouth.setAttribute("transform", `translate(${f2(ex * .4)} ${f2(ey * .2)})`);
+      const g = P("glasses"), l = P("laptop"), hs = P("headset");
+      e.gl.setAttribute("transform", `translate(${f2(ex * .75)} ${f2(ey * .4 - (1 - g) * 9)})`); e.gl.setAttribute("opacity", f2(clamp(g * 1.3, 0, 1)));
+      e.lap.setAttribute("transform", `translate(0 ${f2((1 - l) * 26 + P("lj"))})`); e.lap.setAttribute("opacity", f2(clamp(l * 1.6, 0, 1)));
+      e.hs.setAttribute("transform", `translate(${f2(ex * .25)} ${f2(-(1 - hs) * 10)})`); e.hs.setAttribute("opacity", f2(clamp(hs * 1.5, 0, 1)));
+      for (const k of ["dots", "zzz", "spark", "sweat", "waves"]) e[k].setAttribute("opacity", f2(clamp(P(k), 0, 1)));
+    }
+  }
+
+  const STATES = [
+    { k: "idle", n: "기본", s: "커서를 따라 봐요", when: "할 일이 없을 때", ev: "turn idle" },
+    { k: "listening", n: "듣기", s: "입력창을 보며 끄덕여요", when: "사용자가 입력하고 있을 때", ev: "composer typing" },
+    { k: "thinking", n: "생각", s: "위를 보며 고민해요", when: "답을 계획하거나 thinking 중일 때", ev: "thinking" },
+    { k: "talking", n: "말하기", s: "말하며 고개를 움직여요", when: "답변을 스트리밍할 때", ev: "text delta" },
+    { k: "reading", n: "조사", s: "안경을 쓰고 줄을 읽어요", when: "웹 검색, 회사 조사, 문서를 읽을 때", ev: "web_search · company research" },
+    { k: "browsing", n: "브라우저", s: "노트북 너머로 타이핑", when: "브라우저로 지원서를 작성할 때", ev: "browser session" },
+    { k: "calling", n: "통화", s: "헤드셋 쓰고 말하고 들어요", when: "음성 통화 중일 때", ev: "call active" },
+    { k: "scheduled", n: "대기", s: "고개를 기울이고 졸아요", when: "예약한 작업이나 회신을 기다릴 때", ev: "scheduled wakeup" },
+    { k: "done", n: "완료", s: "폴짝 뛰고 웃어요", when: "지원서 준비처럼 큰 일을 끝냈을 때", ev: "task completed" },
+    { k: "stuck", n: "막힘", s: "고개를 젓고 땀 흘려요", when: "오류가 났거나 확인이 필요할 때", ev: "tool error · needs input" }
+  ];
+  const SM = Object.fromEntries(STATES.map((s) => [s.k, s]));
+  const rigs = $$("svg[data-face]").map((svg) => new Rig(svg));
+  const simRig = new Rig($("svg[data-face-sim]"));
+  const allRigs = [...rigs, simRig];
+  let last = performance.now();
+  const loop = (now) => { const dt = Math.min(.05, (now - last) / 1000); last = now; allRigs.forEach((r) => r.tick(now, dt)); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+
+  $("#stateBtns").innerHTML = STATES.map((s) => `<button data-s="${s.k}" aria-pressed="${s.k === "idle"}"><b>${s.n}</b><span>${s.s}</span></button>`).join("");
+  function setFace(k) {
+    const st = SM[k];
+    rigs.forEach((r) => r.set(k));
+    $("#faceLabel").textContent = st.n; $("#faceWhen").textContent = st.when; $("#faceEv").textContent = st.ev;
+    $$("#stateBtns button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.s === k)));
+  }
+  $("#stateBtns").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setFace(b.dataset.s); });
+  setFace("idle");
+
+  // one-turn simulation
+  const SEQ = [
+    { s: "listening", ms: 1400, add: () => ({ cls: "u", html: "Morrow Labs 어때? 괜찮으면 지원해 줘" }) },
+    { s: "thinking", ms: 1300, add: () => ({ cls: "w", html: "생각하는 중" }) },
+    { s: "reading", ms: 2600, add: () => ({ cls: "w", html: "회사 자료를 읽는 중 <code>web_search</code><code>company_research</code>" }) },
+    { s: "talking", ms: 2400, add: () => ({ cls: "a", html: "6월에 Series B를 받고 1년 사이 37명이 늘었어요. 평가 파이프라인 경험이 Agent Platform 팀과 잘 맞아서 지원서를 준비해 볼게요." }) },
+    { s: "browsing", ms: 3000, add: () => ({ cls: "w", html: "브라우저에서 지원서 작성 중 <code>browser_session</code>" }) },
+    { s: "done", ms: 2200, add: () => ({ cls: "a", html: "지원서를 준비했어요. 내용을 확인해 주시면 제출할게요." }) },
+    { s: "scheduled", ms: 2200, add: () => ({ cls: "w", html: "확인을 기다리는 중" }) }
+  ];
+  let simTimer = null;
+  function runSim() {
+    clearTimeout(simTimer);
+    const log = $("#simLog"); log.innerHTML = "";
+    const btn = $("#simBtn"); btn.disabled = true; btn.textContent = "재생 중";
+    let i = 0;
+    const step = () => {
+      if (i >= SEQ.length) { btn.disabled = false; btn.textContent = "다시 재생"; simRig.set("idle"); $("#simNow").textContent = "대기"; return; }
+      const it = SEQ[i++]; const m = it.add();
+      const el = document.createElement("div"); el.className = m.cls; el.innerHTML = m.html; log.appendChild(el);
+      simRig.set(it.s); $("#simNow").textContent = SM[it.s].n;
+      simTimer = setTimeout(step, it.ms);
+    };
+    step();
+  }
+  $("#simBtn").onclick = runSim;
+
+  /* ================= 4. salary concept ================= */
+  (() => {
+    const W = 360, H = 150, L = 12, Rr = 12, base = 118;
+    const gx = (z) => L + ((z + 3.2) / 6.4) * (W - L - Rr);
+    const curve = (sd, amp) => { let d = ""; for (let z = -3.2; z <= 3.21; z += .1) { const y = base - amp * Math.exp(-(z * z) / (2 * sd * sd)); d += `${d ? "L" : "M"}${gx(z).toFixed(1)},${y.toFixed(1)}`; } return d; };
+    let s = `<line x1="${L}" x2="${W - Rr}" y1="${base}" y2="${base}" style="stroke:var(--soft)"/>`;
+    s += `<path d="${curve(1.25, 46)} L${gx(3.2)},${base} L${gx(-3.2)},${base}Z" fill="rgba(110,110,115,.18)"/><path d="${curve(1.25, 46)}" fill="none" style="stroke:var(--muted)" stroke-width="1.5"/>`;
+    s += `<path d="${curve(.55, 92)}" fill="none" style="stroke:var(--accent)" stroke-width="2"/>`;
+    s += `<text x="${gx(-2.4)}" y="${base - 38}" font-size="11" style="fill:var(--muted)">실제 연봉</text>`;
+    s += `<text x="${gx(.7)}" y="${base - 84}" font-size="11" style="fill:var(--accent)">추정값</text>`;
+    s += `<text x="${L}" y="${H - 12}" font-size="10.5" style="fill:var(--soft)">낮음</text><text x="${W - Rr}" y="${H - 12}" font-size="10.5" text-anchor="end" style="fill:var(--soft)">높음</text>`;
+    s += `<path d="M${gx(2.5)},${base - 4} C${gx(2.2)},${base - 20} ${gx(1.6)},${base - 24} ${gx(1.25)},${base - 26}" fill="none" stroke="#d9534f" stroke-width="1.2" marker-end="url(#ah)"/>`;
+    s += `<path d="M${gx(-2.5)},${base - 4} C${gx(-2.2)},${base - 20} ${gx(-1.6)},${base - 24} ${gx(-1.25)},${base - 26}" fill="none" stroke="#d9534f" stroke-width="1.2" marker-end="url(#ah)"/>`;
+    s = `<defs><marker id="ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L6,3 L0,6z" fill="#d9534f"/></marker></defs>` + s;
+    $("#conceptChart").innerHTML = s;
+  })();
+
+  /* ================= nav ================= */
+  const ids = ["opportunities", "company", "face", "salary", "decide"];
+  const links = $$(".toc a");
+  let raf = 0;
+  const markToc = () => {
+    raf = 0;
+    const line = innerHeight * .35;
+    let cur = null;
+    ids.forEach((id) => { const el = document.getElementById(id); if (el && el.getBoundingClientRect().top <= line) cur = id; });
+    links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + cur));
+  };
+  addEventListener("scroll", () => { if (!raf) raf = requestAnimationFrame(markToc); }, { passive: true });
+  markToc();
+  const goHash = () => { const id = location.hash.slice(1); if (ids.includes(id)) document.getElementById(id).scrollIntoView(); };
+  $$(".seg.yn").forEach((seg) => seg.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    $$("button", seg).forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  }));
+  window.addEventListener("hashchange", goHash);
+  if (location.hash) goHash();
+})();
+</script>

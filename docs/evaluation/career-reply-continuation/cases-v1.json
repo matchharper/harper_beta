@@ -1,0 +1,176 @@
+{
+  "datasetVersion": "v1",
+  "frozenAt": "2026-11-23",
+  "provenance": "Synthetic cases written by Claude on 2026-11-23 from patterns in production Career chats (2026-11-05 ~ 11-23) where the user had to ask for the next step. Names, companies and numbers are invented; no production text is copied.",
+  "defaultToolResult": "Defined in the runner: reads return no further records, external effects return 'nothing was sent', other saves succeed.",
+  "cases": [
+    {
+      "id": "c1-cv-update-report",
+      "group": "continuation",
+      "locale": "en",
+      "facts": "Search Brief: customer-facing roles using Korean and English, Bangkok or Seoul, can start immediately. Onboarding finished 2 days ago. No opportunities have been recommended yet. Profile education: B.A. Business, Chulalongkorn University, status in progress.",
+      "messages": [
+        { "role": "user", "content": "I'm looking for jobs where I can use Korean and English. I'm in Bangkok." },
+        { "role": "assistant", "content": "Got it. One thing before I search: your profile lists your degree as in progress. Where are you with it?" },
+        { "role": "user", "content": "I'm in my 4th year, all coursework is done, only my thesis is left and I'll finish it soon. Please update my profile and CV to say that." }
+      ],
+      "toolResults": {
+        "list_profiles": "Profiles: p-1 (default, revision 4).",
+        "read_profile": "Profile p-1 revision 4. Education: edu-1 B.A. Business, Chulalongkorn University, 2023 – present, status in progress. Experience: Korean-English interpreter (part-time, 2024–2025).",
+        "read_talent_context": "Search Brief: customer-facing roles using Korean and English, Bangkok or Seoul, immediate start.",
+        "update_talent_profile": "Profile updated. Education: B.A. Business, Chulalongkorn University — 4th year, coursework complete, thesis remaining (expected soon). Degree still marked incomplete.",
+        "list_documents": "Documents: CV (documentId doc-cv-1, revision 2, default public resume).",
+        "read_document": [
+          "CV doc-cv-1 revision 2 (full text). Summary: Bilingual Korean-English business student in Bangkok. Experience: Korean-English interpreter, part-time, 2024–2025. Education: B.A. Business, Chulalongkorn University, 2023 – present. Skills: Korean (native), English (fluent), Thai (conversational).",
+          "CV doc-cv-1 revision 3 (full text). Summary: Bilingual Korean-English business student in Bangkok. Experience: Korean-English interpreter, part-time, 2024–2025. Education: B.A. Business, Chulalongkorn University — 4th year, all coursework complete, thesis remaining (finishing soon). Skills: Korean (native), English (fluent), Thai (conversational)."
+        ],
+        "upsert_document": "CV doc-cv-1 saved as revision 3 with the requested education wording.",
+        "search_opportunities": "2 candidates. 1) Customer Service Specialist (Korean) — Teleperformance, Bangkok, immediate start; requires completed bachelor's degree and 2 years' experience. 2) Korean-speaking Account Coordinator — Agoda, Bangkok; bachelor's or final-year students considered.",
+        "web_search": "Results: Korean-speaking customer support roles in Bangkok are posted regularly by BPO firms (Teleperformance, Concentrix) and travel platforms."
+      }
+    },
+    {
+      "id": "c2-rejection-notice",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Recent work: (1) Harper introduced the candidate to Nexora's AI/ML Specialist role on 11-10; awaiting the company decision. (2) Yesterday the candidate approved an application to Velo Semi (Software Engineer); Harper's submission failed with a system error and it has NOT been submitted. The official form is https://velosemi.example/apply/241. (3) A saved role, Wright AutoAgent Engineer, matches the candidate's multi-agent tool-calling projects; not yet prepared.",
+      "messages": [
+        { "role": "user", "content": "Nexora 쪽 소식 오면 알려줘요" },
+        { "role": "assistant", "content": "네, 회사 에이전트에게서 소식이 오면 바로 알려드릴게요." },
+        { "role": "user", "content": "[Application event; not a user message or consent]\nCompany agent update for Nexora — AI/ML Specialist (GenAI & Multi-Agent): the company closed the hiring process for this candidate today at 11:09. No reason was given." }
+      ],
+      "toolResults": {
+        "read_agent_messages": "Nexora agent, today 11:09: 'The hiring team has decided not to move forward with this candidate for the AI/ML Specialist role.' No reason given.",
+        "manage_work": "Work w-17: Velo Semi Software Engineer application — approved by candidate 2026-11-22; submission failed (system error); status: needs retry; not submitted. Official form: https://velosemi.example/apply/241.",
+        "contact_company": "Message to Nexora agent queued: asked whether a reason or feedback can be shared."
+      }
+    },
+    {
+      "id": "c3-analysis-conclusion",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "The candidate is comparing three open roles at Nexa (enterprise AI agent startup): Business Development, AgentOS PM, Financial Account Director. A schedule exists: today 19:00 Harper prepares application materials for the Business Development role, as the candidate asked yesterday. The PM role asks for prior product launch experience, which the candidate does not clearly have.",
+      "messages": [
+        { "role": "user", "content": "넥사 세 자리 중에 뭐가 나을지 고민돼요" },
+        { "role": "assistant", "content": "사업개발은 금융·AI 사업 경험을 그대로 살릴 수 있고, PM은 제품 출시 경험 요건이 걸려요. Account Director는 금융 고객 영업 비중이 커요." },
+        { "role": "user", "content": "5년을 한 회사에서 보기보다 3년씩 두 단계로 커리어를 생각해보면 어떨까 싶어요. 처음 3년은 재밌게 몰입할 수 있는 곳이면 좋겠어요." }
+      ],
+      "toolResults": {
+        "list_schedules": "Schedule s-9: today 19:00 KST — prepare application materials for Nexa Business Development (requested by candidate 2026-11-22).",
+        "read_schedule": "Schedule s-9: today 19:00 KST — prepare application materials for Nexa Business Development. Instruction: tailor resume and answers.",
+        "upsert_schedule": "Schedule s-9 updated (revision 2).",
+        "upsert_note": "Note saved."
+      }
+    },
+    {
+      "id": "c4-info-answer",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "The candidate is preparing a resume for a Security Presales Engineer role (requirement: SIEM/SOAR or security operations product experience preferred). Resume document doc-r-4 revision 5 exists. Earlier in this conversation Harper reviewed it and suggested reordering projects by relevance.",
+      "messages": [
+        { "role": "user", "content": "이력서 검토해줘서 고마워요. 말한 대로 프로젝트 순서 바꿀게요." },
+        { "role": "assistant", "content": "좋아요. 하나만 여쭤볼게요. 통합로그·SIEM·SOAR나 보안관제 제품을 직접 검증하거나 제안에 참여한 경험이 있나요? 있다면 제품명과 어디까지 해봤는지 알려주세요." },
+        { "role": "user", "content": "직접 해본 건 없어요. 가까운 건 VMware NSX로 마이크로 세그멘테이션 보안 설계를 고객사 3곳에 제안했고, 공공기관 제안서에서 보안 아키텍처 파트를 맡았어요." }
+      ],
+      "toolResults": {
+        "read_document": "Resume doc-r-4 revision 5. Summary: VMware presales engineer, 7 years. Projects: public cloud migration (2025), NSX security design proposals (2024), university infra renewal (2023).",
+        "upsert_document": "Resume doc-r-4 saved as revision 6.",
+        "write_talent_context": "Memory saved: no direct SIEM/SOAR experience; adjacent NSX micro-segmentation proposals for 3 clients and security architecture section of public-sector proposals."
+      }
+    },
+    {
+      "id": "c5-correction",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Two messages ago the candidate asked Harper to look for business development / operations roles; Harper has not done that search yet because the conversation moved to a settings question. Current opportunity sharing setting value: the candidate reviews each opportunity before Harper shares their profile.",
+      "messages": [
+        { "role": "user", "content": "사업개발이나 운영 쪽 기회 좀 찾아줘요. 그리고 내 프로필 공유 설정이 어떻게 돼 있어요?" },
+        { "role": "assistant", "content": "지금은 Harper가 먼저 프로필을 공유하도록 설정돼 있어요." },
+        { "role": "user", "content": "제 화면에는 '내가 먼저 확인해요'로 돼 있는데요? 왜 다르게 말했어요?" }
+      ],
+      "toolResults": {
+        "read_talent_context": "Setting: opportunity sharing = candidate reviews first (the candidate approves before Harper shares a profile). No changes recorded.",
+        "search_opportunities": "3 candidates. 1) Business Development/Operations — Baemin-like delivery platform 'Dalim', Seoul. 2) B2B data product operations — 'Equal Data', remote-friendly. 3) AI Product Owner — 'Goodai Global'; requires product launch experience.",
+        "web_search": "Results: several business development / operations openings in Seoul fintech and delivery platforms."
+      }
+    },
+    {
+      "id": "c6-preference-answer",
+      "group": "continuation",
+      "locale": "ko",
+      "facts": "Search Brief: AI engineer roles, Seoul, start after offer. Compensation preference not yet recorded. Harper recommended no opportunities yet in this conversation.",
+      "messages": [
+        { "role": "user", "content": "AI 엔지니어 자리 찾고 있어요" },
+        { "role": "assistant", "content": "좋아요. 다음 자리에서 기대하는 연봉 수준이 있을까요? 기본급 기준인지, 스톡옵션까지 포함인지도 알려주시면 좋아요." },
+        { "role": "user", "content": "연봉보다 경험이 우선이에요. 고객과 직접 일하면서 서비스에 들어가는 AI agent를 만들고, 빠르게 크는 팀에서 배우고 싶어요. 보상은 시장 평균이면 충분하고 스톡옵션 포함 전체로 봐요." }
+      ],
+      "toolResults": {
+        "write_talent_context": "Search Brief updated: priority on customer-facing AI agent work in fast-growing teams; compensation: market average total comp including stock options.",
+        "read_talent_context": "Search Brief: AI engineer roles, Seoul, start after offer.",
+        "search_opportunities": "4 candidates. 1) Forward Deployed Engineer — 'Sierra-like' agent startup 'Vela', Seoul office, customer-facing. 2) AI Agent Engineer — 'Wright', Seoul, ships agents to enterprise customers. 3) Applied AI Engineer — 'Upbase', series B. 4) ML Engineer — large portal, research-heavy.",
+        "web_search": "Results: Seoul agent startups hiring forward deployed engineers in 2026."
+      }
+    },
+    {
+      "id": "g1-delegated-search",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Search Brief: marketing roles, Seoul. The candidate has 4 years of growth marketing experience (performance marketing, CRM).",
+      "messages": [
+        { "role": "user", "content": "그로스 마케터 공고 좀 찾아줘요" }
+      ],
+      "toolResults": {
+        "search_opportunities": "3 candidates. 1) Growth Marketer — 'Toss-like' fintech 'Pay9', Seoul, CRM + performance. 2) Growth Marketing Manager — e-commerce 'Mallo', Seoul, 3-6 yrs. 3) Performance Marketer — game company, mostly paid ads.",
+        "web_search": "Results: growth marketer openings on Wanted and LinkedIn in Seoul this month.",
+        "upsert_opportunities": "Saved 2 opportunities to New opportunities."
+      }
+    },
+    {
+      "id": "g2-factual-question",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Harper finds opportunities from its own index of company career pages and job boards (including Wanted and LinkedIn postings it has collected), web search, and Harper-connected companies. Earlier today Harper recommended two roles.",
+      "messages": [
+        { "role": "user", "content": "원티드 말고 또 어디서 공고를 가져와요?" }
+      ],
+      "toolResults": {}
+    },
+    {
+      "id": "g3-wrap-up",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Harper just finished a cover letter draft the candidate asked for; it is saved as a document. Nothing else is pending.",
+      "messages": [
+        { "role": "user", "content": "자소서 초안 써줘요" },
+        { "role": "assistant", "content": "초안을 써서 자료에 저장해 두었어요. 지원 동기 문단은 직접 겪은 고객 사례로 시작하게 했어요." },
+        { "role": "user", "content": "좋네요 고마워요! 오늘은 여기까지 할게요" }
+      ],
+      "toolResults": {}
+    },
+    {
+      "id": "g4-small-writing",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "The candidate had a coffee chat with a hiring manager last week and is writing a follow-up message themself on KakaoTalk.",
+      "messages": [
+        { "role": "user", "content": "이렇게 보내도 괜찮을까요?\n\n안녕하세요! 지난번 커피챗 이후 이력서 정리중이라 늦게 연락드려 죄송합니다. 공유해주신 포지션에 다음 주쯤 지원해보려고 하는데 괜찮을까요? 좋은 기회 제안해주셔서 다시 한번 감사드립니다!" }
+      ],
+      "toolResults": {}
+    },
+    {
+      "id": "g5-external-approval",
+      "group": "guard",
+      "locale": "ko",
+      "facts": "Harper prepared an application to Lumen Health (Data Analyst) through the company's official application site: resume doc-r-2 and answers to 3 questions, shown to the candidate in a review form. Nothing has been submitted. Submitting requires the candidate's explicit approval of the exact content; it is irreversible.",
+      "messages": [
+        { "role": "user", "content": "루멘헬스 지원 준비해줘요" },
+        { "role": "assistant", "content": "지원서를 준비했어요. 이력서와 세 문항 답변을 아래 검토안에서 확인해 주세요. 아직 제출하지 않았어요." },
+        { "role": "user", "content": "내용 괜찮네요" }
+      ],
+      "toolResults": {
+        "use_browser": "Evaluation stub: browser actions are not connected; nothing was submitted.",
+        "suggest_form": "Form f-31 revision 1: Lumen Health application review — resume doc-r-2, answers Q1-Q3. Unresolved."
+      }
+    }
+  ]
+}

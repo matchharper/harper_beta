@@ -22,7 +22,16 @@ const TICK_MS = 3200;
  * Harper가 지금 하는 일을 한 줄씩 보여 준다.
  * 알약 너비는 문장 길이에 맞춰 부드럽게 바뀌고, 초록 점은 아주 느리게 숨 쉬듯 깜빡인다.
  */
-function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
+function Ticker({
+  label,
+  shortLabel,
+  ticks,
+}: {
+  label: string;
+  /** 모바일에서 라벨 대신 보여 준다. 바뀌는 문구가 쓸 폭을 남기기 위해서다. */
+  shortLabel: string;
+  ticks: readonly string[];
+}) {
   const [index, setIndex] = useState(0);
   const [textWidth, setTextWidth] = useState<number | null>(null);
   const measureRef = useRef<HTMLSpanElement | null>(null);
@@ -42,7 +51,12 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
   }, [text]);
 
   return (
-    <div className={cn(tw.ticker, "bg-action/14 text-action font-medium")}>
+    <div
+      className={cn(
+        tw.ticker,
+        "max-w-full bg-action/14 text-action font-medium"
+      )}
+    >
       <span className="flex size-7 shrink-0 items-center justify-center rounded-full text-action">
         <Image
           src="/svgs/face.svg"
@@ -53,9 +67,10 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
         />
       </span>
       {/* <span className={tw.liveDot} aria-hidden="true" /> */}
-      <div className="text-black">
-        <span>{label}</span>
-      </div>
+      <span className="shrink-0 whitespace-nowrap text-black">
+        <span className="md:hidden">{shortLabel}</span>
+        <span className="hidden md:inline">{label}</span>
+      </span>
       <span
         ref={measureRef}
         aria-hidden="true"
@@ -64,7 +79,7 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
         {text}
       </span>
       <motion.span
-        className="relative inline-grid h-5 overflow-hidden text-left"
+        className="relative inline-grid h-5 min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden text-left"
         initial={false}
         animate={{ width: textWidth ?? "auto" }}
         transition={{ duration: 0.5, ease: EASE }}
@@ -72,7 +87,7 @@ function Ticker({ label, ticks }: { label: string; ticks: readonly string[] }) {
         <AnimatePresence initial={false} mode="popLayout">
           <motion.span
             key={text}
-            className="col-start-1 row-start-1 whitespace-nowrap leading-5"
+            className="col-start-1 row-start-1 truncate leading-5"
             initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
@@ -91,6 +106,7 @@ function useHeroCopy() {
   const c = useC();
   return {
     working: c("Harper가 일하는 중", "Harper is working"),
+    workingShort: c("일하는 중", "Working"),
     ticks: [
       c(
         "Cognition 서울 기회를 살펴봤어요",
@@ -170,8 +186,12 @@ export function HeroSection({
           "relative flex flex-col items-center text-center"
         )}
       >
-        <motion.div {...enter(0)}>
-          <Ticker label={copy.working} ticks={copy.ticks} />
+        <motion.div className="max-w-full" {...enter(0)}>
+          <Ticker
+            label={copy.working}
+            shortLabel={copy.workingShort}
+            ticks={copy.ticks}
+          />
         </motion.div>
         <motion.h1
           className={cn(

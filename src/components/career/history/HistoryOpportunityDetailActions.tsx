@@ -5,9 +5,11 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
+import { cn } from "@/lib/utils";
 import {
   getInternalOpportunityDecisionAvailability,
   isInternalRoleCandidateDecisionAvailable,
@@ -25,10 +27,36 @@ import {
   type CareerOpportunityManagementStatus,
 } from "./savedOpportunityStatus";
 
+/** Button class shared by every opportunity decision row. */
+export const opportunityActionClass =
+  "py-2.5 rounded-sm font-normal text-sm truncate";
+
+/**
+ * Two-column row for an opportunity's decision buttons. On mobile a lone last
+ * button moves to the right column, so the main action sits under the thumb.
+ */
+export function OpportunityActionGrid({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-2 items-center gap-2 max-md:[&>button:last-child:nth-child(odd)]:col-start-2",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function HistoryOpportunityDetailActions({
   item,
   pending,
-  compact = false,
   onApply,
   onSavedStatusChange,
   onKeepDecision,
@@ -36,7 +64,6 @@ export default function HistoryOpportunityDetailActions({
 }: {
   item: CareerHistoryOpportunity;
   pending: boolean;
-  compact?: boolean;
   onApply: () => void;
   onSavedStatusChange?: (status: CareerOpportunityManagementStatus) => void;
   onKeepDecision?: (action: "accept" | "decline") => void;
@@ -51,25 +78,21 @@ export default function HistoryOpportunityDetailActions({
     isCareerHistoryOpportunityExpired(item) || item.status === "deleted";
   const { canRevert, canStopProcess } =
     getInternalOpportunityDecisionAvailability(item);
-  const actionClass = "py-2.5 rounded-sm font-normal text-sm";
-  const rowClass = compact
-    ? "flex flex-wrap items-center gap-2"
-    : "grid grid-cols-2 gap-2 pt-4 [&>button]:h-full [&>button]:min-w-0 [&>button]:whitespace-normal";
 
   if (isInternal) {
     if (item.feedback === "keep" && onKeepDecision) {
       return (
-        <div>
+        <div className="space-y-2">
           <p className="text-sm text-neutral-muted">
             {t(
               "career.history.keep.notice",
               "저장됨 · 아직 수락하거나 거절하지 않았어요. 회사에는 전달되지 않습니다."
             )}
           </p>
-          <div className={rowClass}>
+          <OpportunityActionGrid>
             <MuteButton
               disabled={pending}
-              className={actionClass}
+              className={opportunityActionClass}
               onClick={() => onKeepDecision("decline")}
             >
               <ThumbsDown aria-hidden className="size-3.5" />
@@ -79,7 +102,7 @@ export default function HistoryOpportunityDetailActions({
             isInternalRoleCandidateDecisionAvailable(item.status) ? (
               <MuteButton
                 disabled={pending}
-                className={actionClass}
+                className={opportunityActionClass}
                 variant="primary"
                 onClick={() => onKeepDecision("accept")}
               >
@@ -89,18 +112,18 @@ export default function HistoryOpportunityDetailActions({
                 {getCareerPositiveActionLabel(item.opportunityType, t)}
               </MuteButton>
             ) : null}
-          </div>
+          </OpportunityActionGrid>
         </div>
       );
     }
     if (!onInternalDecisionAction || (!canRevert && !canStopProcess))
       return null;
     return (
-      <div className={rowClass}>
+      <OpportunityActionGrid>
         {canRevert ? (
           <MuteButton
             disabled={pending}
-            className={actionClass}
+            className={opportunityActionClass}
             onClick={() => onInternalDecisionAction("revert")}
           >
             <RotateCcw aria-hidden className="size-3.5" />
@@ -113,7 +136,7 @@ export default function HistoryOpportunityDetailActions({
         {canStopProcess ? (
           <MuteButton
             disabled={pending}
-            className={actionClass}
+            className={opportunityActionClass}
             onClick={() => onInternalDecisionAction("stop_process")}
           >
             {t(
@@ -122,32 +145,23 @@ export default function HistoryOpportunityDetailActions({
             )}
           </MuteButton>
         ) : null}
-      </div>
+      </OpportunityActionGrid>
     );
   }
 
   const canApply =
     !expired &&
     (status === "saved" || status === "hidden" || status === "archived");
-  const applyButton = canApply ? (
-    <MuteButton
-      disabled={pending}
-      className={compact ? undefined : `${actionClass} col-start-2`}
-      variant="primary"
-      onClick={onApply}
-    >
-      {getExternalOpportunityApplyLabel(item, t)}
-    </MuteButton>
-  ) : null;
-  if (compact) return applyButton;
+  if (!onSavedStatusChange && !canApply) return null;
 
   return (
-    <div className={rowClass}>
+    <OpportunityActionGrid>
       {onSavedStatusChange ? (
         status === "hidden" || status === "archived" ? (
           <MuteButton
             disabled={pending}
-            className={actionClass}
+            className={opportunityActionClass}
+            variant="neutral"
             onClick={() => onSavedStatusChange("saved")}
           >
             <ThumbsUp aria-hidden className="size-3.5" />
@@ -159,7 +173,7 @@ export default function HistoryOpportunityDetailActions({
         ) : (
           <MuteButton
             disabled={pending}
-            className={actionClass}
+            className={opportunityActionClass}
             onClick={() => onSavedStatusChange("hidden")}
           >
             <Archive aria-hidden className="size-3.5" />
@@ -174,7 +188,7 @@ export default function HistoryOpportunityDetailActions({
       (status === "saved" || status === "hidden" || status === "archived") ? (
         <MuteButton
           disabled={pending}
-          className={actionClass}
+          className={opportunityActionClass}
           onClick={() => onSavedStatusChange("applied")}
         >
           <ArrowRight aria-hidden className="size-3.5" />
@@ -184,7 +198,16 @@ export default function HistoryOpportunityDetailActions({
           )}
         </MuteButton>
       ) : null}
-      {applyButton}
-    </div>
+      {canApply ? (
+        <MuteButton
+          disabled={pending}
+          className={opportunityActionClass}
+          variant="primary"
+          onClick={onApply}
+        >
+          {getExternalOpportunityApplyLabel(item, t)}
+        </MuteButton>
+      ) : null}
+    </OpportunityActionGrid>
   );
 }

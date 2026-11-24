@@ -249,6 +249,7 @@ const triggerLabels: Record<string, string> = {
   career_source_reconciled: "변경 사항 재처리",
   career_internal_evaluation: "내부 기회 평가",
   onboarding_internal_evaluation: "온보딩 내부 기회 평가",
+  career_reply_unseen: "안 본 답장 메일 검토",
 };
 
 export function formatDailyDebugSlackMessages(report: DailyDebugReport) {

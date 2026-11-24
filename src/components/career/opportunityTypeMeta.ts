@@ -189,11 +189,11 @@ const buildCareerOpportunityTypeMeta = (
     info: {
       description: t(
         "career.common.opportunity_type_meta.0j09awb",
-        "열린 공고가 없어도 지금 경력으로 다가가 볼 만한 회사예요. 회사 사이트를 살펴보거나 다음 단계를 Harper에게 맡길 수 있어요."
+        "맞는 공고가 있든 없든 지금 경력으로 가 볼 만한 회사예요. 합류할 방법은 Harper가 찾아 드려요."
       ),
-      title: t("career.common.opportunity_type_meta.1fnb2v7", "회사 제안"),
+      title: t("career.common.opportunity_type_meta.1fnb2v7", "회사"),
     },
-    label: t("career.common.opportunity_type_meta.1fnb2v7_2", "회사 제안"),
+    label: t("career.common.opportunity_type_meta.1fnb2v7_2", "회사"),
     negativeActionLabel: t(
       "career.common.opportunity_type_meta.external_negative_action",
       "이번엔 넘길게요"
@@ -249,7 +249,7 @@ const buildCareerOpportunityTypeMeta = (
     savedStageLabels: {
       applied: t("career.common.opportunity_type_meta.1ht41ay", "연락함"),
     },
-    shortLabel: t("career.common.opportunity_type_meta.1fnb2v7_3", "회사 제안"),
+    shortLabel: t("career.common.opportunity_type_meta.1fnb2v7_3", "회사"),
   },
   [OpportunityType.InternalRecommendation]: {
     companySectionTitle: t("career.common.career.0ol21b2", "회사 정보"),

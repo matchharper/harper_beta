@@ -342,3 +342,19 @@ test("updates an existing URL by id without requiring a unique URL constraint", 
   assert.equal(getUpdated()?.markdown, "Refreshed Exa content");
   assert.equal(saved.documentId, 17);
 });
+
+test("a live read reuses a page captured within the last day and fetches an older one", async () => {
+  const url = "https://example.com/recent-posting";
+  for (const [hoursAgo, fetches] of [[2, 0], [30, 1]] as const) {
+    let calls = 0;
+    const { admin } = createOpenUrlAdmin({ id: 9, url, title: "Posting", markdown: "Saved posting body", source_scope: "public",
+      provenance: { contract: "exa-public-contents-v1" }, created_at: "2026-01-01T00:00:00Z",
+      last_successful_check_at: new Date(Date.now() - hoursAgo * 3_600_000).toISOString() });
+    const page = await openUrlWithDocumentsCache({ admin, url, maxAgeHours: 0, exa: { getContents: async () => {
+      calls += 1;
+      return { results: [{ url, text: "Fetched body" }], statuses: [{ id: url, status: "success", source: "crawled" }] };
+    } } as never });
+    assert.equal(calls, fetches);
+    assert.equal(page.cached, fetches === 0);
+  }
+});

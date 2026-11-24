@@ -1,0 +1,106 @@
+{
+ "version": "v1",
+ "note": "Harper's first message to people who signed up through the /career/onboarding page and have not written to Harper. Personas reuse the frozen market and profiles of career-first-recommendation v1 (base) without its onboarding interview, Brief or Memory. All people, companies and postings are synthetic.",
+ "market": "career-first-recommendation/cases-v1.json",
+ "requestTime": "2026-11-19T01:40:00Z",
+ "signedUpAt": "2026-11-19T01:36:00Z",
+ "cases": [
+  {
+   "id": "resume-backend",
+   "base": "backend-python",
+   "kind": "entry",
+   "summary": "이력서만 내고 일반 가입. 원하는 것·상황은 모름",
+   "receipt": "이력서를 제출했습니다.",
+   "setting": {
+    "profile_visibility": "open_to_matches",
+    "engagement_types": [
+     "full_time"
+    ]
+   }
+  },
+  {
+   "id": "resume-designer",
+   "base": "designer-ai",
+   "kind": "entry",
+   "summary": "포트폴리오를 내고 일반 가입. 풀타임과 파트타임·프로젝트를 고름",
+   "receipt": "이력서를 제출했습니다.",
+   "setting": {
+    "profile_visibility": "exceptional_only",
+    "engagement_types": [
+     "full_time",
+     "fractional"
+    ]
+   }
+  },
+  {
+   "id": "no-material",
+   "kind": "entry",
+   "summary": "자료 없이 가입. 이름과 이메일만 앎",
+   "receipt": "자료 없이 Harper와 시작할게요.",
+   "talent": {
+    "name": "김민지",
+    "headline": null,
+    "location": null,
+    "bio": null,
+    "resume_file_name": null,
+    "resume_text": null
+   },
+   "experiences": [],
+   "educations": [],
+   "extras": [],
+   "options": [],
+   "setting": {
+    "profile_visibility": "open_to_matches",
+    "engagement_types": [
+     "full_time"
+    ]
+   }
+  },
+  {
+   "id": "internal-role-entry",
+   "base": "ml-translation",
+   "kind": "entry",
+   "summary": "Harper 연결 공고(노을AI LLM 번역 품질 리드)의 Talk to Harper로 이력서와 함께 가입",
+   "receipt": "이력서를 제출했습니다.",
+   "setting": {
+    "profile_visibility": "open_to_matches",
+    "engagement_types": [
+     "full_time"
+    ]
+   },
+   "entryOpportunity": {
+    "companyName": "노을AI",
+    "roleTitle": "LLM 번역 품질 리드",
+    "verifiedActiveRoleId": "c2000000-0000-4000-8000-000000000001",
+    "hasLinkedRole": true,
+    "postingPath": "/jobs/noeul-ai-llm-translation-quality-lead-seoul",
+    "postingUpdatedAt": "2026-11-12T09:00:00Z",
+    "postingDetails": "노을AI · LLM 번역 품질 리드 (서울, 정규직)\n노을AI는 기업 문서를 12개 언어로 번역하는 LLM 번역 서비스를 만듭니다. 2026년 9월 시리즈 B(320억 원)를 마쳤고, 고객사는 국내 대기업과 로펌 140곳입니다.\n하는 일: 번역 품질 평가 체계를 처음부터 설계하고, 법률·의료 도메인 파인튜닝과 지식 증류로 품질과 추론 비용을 함께 개선합니다. ML 엔지니어 4명과 일하며 CTO에게 보고합니다.\n자격: 신경망 번역이나 LLM 학습·서빙 4년 이상, 대규모 서비스 운영 경험.\n보상: 기본급 1.3억~1.6억 원, 스톡옵션 별도. 서울 성수, 주 3일 출근."
+   }
+  },
+  {
+   "id": "scheduled-unanswered",
+   "base": "backend-python",
+   "kind": "scheduled",
+   "summary": "이력서만 내고 가입한 뒤 첫 메시지를 읽지 않고 떠남. 사흘 뒤 정기 Career 점검이 돈다",
+   "receipt": "이력서를 제출했습니다.",
+   "setting": {
+    "profile_visibility": "open_to_matches",
+    "engagement_types": [
+     "full_time"
+    ]
+   },
+   "earlierAssistantMessage": {
+    "at": "2026-11-16T01:37:00Z",
+    "content": "안녕하세요, 다훈님. 앞으로 다훈님 커리어를 맡아 함께 일할 Harper예요.\n\n이력서 읽어 봤어요. 모아로지스에서 정산 배치를 6시간에서 40분으로 줄이신 점이 눈에 띄었어요.\n\n바로 좋아하실 만한 곳을 찾아 알려 드리고 싶은데, 그 전에 하나만 여쭤볼게요. 요즘 어떤 상황이세요?\n\n[[CAREER_CHOICE_BUTTONS]]\n{\"choices\":[\"가능한 빨리 옮기려고 해요\",\"좋은 곳이 있으면 옮길 생각이 있어요\",\"가볍게 시장 상황만 알고 싶어요\"]}\n[[/CAREER_CHOICE_BUTTONS]]"
+   },
+   "signedUpAt": "2026-11-16T01:36:00Z",
+   "schedule": {
+    "id": "d3000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "title": "Career check-in",
+    "instruction": "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes."
+   }
+  }
+ ]
+}

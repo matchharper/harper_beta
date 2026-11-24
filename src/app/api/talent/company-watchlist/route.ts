@@ -8,6 +8,7 @@ import {
 import {
   fetchTalentCompanyWatchlistDetail,
   fetchTalentCompanyWatchlistPage,
+  fetchTalentCompanyWatchlistSummary,
   parseCompanyWatchlistTab,
 } from "@/lib/career/companyWatchlist";
 
@@ -62,6 +63,18 @@ export async function GET(req: NextRequest) {
         ?.preferred_locale ??
       req.nextUrl.searchParams.get("locale") ??
       req.cookies.get("NEXT_LOCALE")?.value;
+
+    // The overview loads apart from the detail: writing its language version
+    // the first time takes a while and should not hold the rest of the page.
+    if (companyDbId && req.nextUrl.searchParams.get("section") === "summary") {
+      const summary = await fetchTalentCompanyWatchlistSummary({
+        admin,
+        companyDbId,
+        preferredLocale,
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, summary });
+    }
 
     if (companyDbId) {
       const item = await fetchTalentCompanyWatchlistDetail({

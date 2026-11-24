@@ -1,6 +1,8 @@
+import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { Fragment, useState } from "react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
+import OpsMetricSnapshotStamp from "@/components/ops/metrics/OpsMetricSnapshotStamp";
 import { cx } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +21,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 
 const release = OPS_UPDATE_RELEASES[0];
+
+// Charts load with their own data, apart from the comparison table.
+const OpsEmailActionMetrics = dynamic(
+  () => import("@/components/ops/metrics/OpsEmailActionMetrics"),
+  { ssr: false }
+);
 
 function formatValue(unit: UpdateMetricUnit, value: number | null) {
   if (value === null || !Number.isFinite(value)) return "-";
@@ -110,6 +118,7 @@ export default function OpsUpdateMetricsWorkspace() {
     excludedEmails: exclusionTerms,
   });
   const data = query.data;
+  const isUpdating = query.isFetching || Boolean(data?.snapshot.refreshing);
   const beforeBuckets = data?.buckets.filter((bucket) => bucket.side === "before") ?? [];
   const afterBuckets = data?.buckets.filter((bucket) => bucket.side === "after") ?? [];
 
@@ -147,13 +156,14 @@ export default function OpsUpdateMetricsWorkspace() {
                 value={deployedOn}
               />
             </label>
+            <OpsMetricSnapshotStamp snapshots={[data?.snapshot]} />
             <MuteButton
-              aria-label="지표 새로고침"
-              disabled={!canFetch}
-              onClick={() => void query.refetch()}
+              aria-label="지표 다시 집계"
+              disabled={!canFetch || isUpdating}
+              onClick={() => void query.refresh()}
               variant="transparent"
             >
-              <RefreshCw className={cx("h-4 w-4", query.isFetching && "animate-spin")} />
+              <RefreshCw className={cx("h-4 w-4", isUpdating && "animate-spin")} />
             </MuteButton>
           </div>
         </div>
@@ -255,6 +265,7 @@ export default function OpsUpdateMetricsWorkspace() {
           집계 중
         </div>
       )}
+      <OpsEmailActionMetrics enabled={canFetch} excludedEmails={exclusionTerms} />
     </div>
   );
 }

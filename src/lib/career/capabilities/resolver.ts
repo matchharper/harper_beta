@@ -29,10 +29,16 @@ export function resolveCareerCapabilities(args: {
       ? c.tools.every(([name]) => eligibleNames.has(name))
       : c.tools.some(([name]) => eligibleNames.has(name))
   );
+  // A tool a channel adds for its own input (e.g. the current email's
+  // attachments) belongs to no capability, so no loader could offer it later.
+  const capabilityToolNames = new Set<string>(
+    CAREER_CAPABILITIES.flatMap((c) => c.tools.map(([name]) => name))
+  );
   const coreNames = new Set<string>([
     ...CAREER_CORE_TOOLS,
     ...CAREER_CONDITIONAL_TOOLS,
     ...(args.coreToolNames ?? []),
+    ...[...eligibleNames].filter((name) => !capabilityToolNames.has(name)),
   ]);
   const alwaysActive = (capability: (typeof catalog)[number]) =>
     capability.tools.every(([name]) => coreNames.has(name));

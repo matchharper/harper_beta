@@ -3,6 +3,8 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
+import { opsMetricExclusionKey } from "@/lib/ops/metricSnapshots";
+import { readOpsMetricSnapshotForRoute } from "@/lib/ops/metricSnapshots.server";
 import { fetchOpsUpdateMetrics } from "@/lib/ops/updateMetrics.server";
 
 export const runtime = "nodejs";
@@ -19,10 +21,12 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+    const excludedEmails = req.nextUrl.searchParams.getAll("excludedEmail");
     return NextResponse.json(
-      await fetchOpsUpdateMetrics({
-        deployedOn,
-        excludedEmails: req.nextUrl.searchParams.getAll("excludedEmail"),
+      await readOpsMetricSnapshotForRoute({
+        compute: () => fetchOpsUpdateMetrics({ deployedOn, excludedEmails }),
+        force: req.nextUrl.searchParams.get("refresh") === "1",
+        key: `update-metrics:${deployedOn}:${opsMetricExclusionKey(excludedEmails)}`,
       })
     );
   } catch (error) {

@@ -26,7 +26,10 @@ test("email adapts channel instructions without mutating the web prompt or its d
   const text = email.map((b) => b.text).join("\n");
   assert.match(text, /communicating through Email/);
   assert.equal(text.split(EMAIL_CHANNEL_RULES).length - 1, 1);
-  assert.doesNotMatch(text, /CAREER_CHOICE_BUTTONS|\[\[integration:gmail\]\]|Text Chat display contract/);
+  assert.doesNotMatch(text, /\[\[integration:gmail\]\]|Text Chat display contract/);
+  // Answer options keep only the email contract's version: buttons that open a reply or chat draft.
+  assert.equal(text.split("[[/CAREER_CHOICE_BUTTONS]]").length - 1, 1);
+  assert.match(EMAIL_CHANNEL_RULES, /opens the candidate's reply to this email/);
   assert.ok(!text.includes(CAREER_HARPER_LINK_OUTPUT_RULE));
   assert.ok(!email.some((b) => b.key === "mock_interview_offer"));
   for (const key of ["future_matching_insights", "tool_policy"]) {

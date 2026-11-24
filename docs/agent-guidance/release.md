@@ -10,9 +10,41 @@
 - A request to commit or push code is not deployment authorization. If the target branch or push can trigger deployment, stop before pushing and ask for explicit deployment approval.
 - Past deployment approval does not carry forward. Require explicit authorization again for every deployment task.
 
-## Repository deployment map
+## "배포해"를 받았을 때의 흐름
 
-- `harper_beta/` production deployment is triggered automatically by pushing the intended release commit to `origin/main`. Do not run a separate manual Vercel deploy for the ordinary production path; verify the Git-triggered Vercel deployment and its released commit after the push.
+배포 PR을 만들기 전과 Worker를 서버에 반영한 뒤에는 [harper_incidents](https://github.com/matchharper/harper_incidents) README의 최신본을 직접 읽고 그 규칙을 따른다. 관련 사건을 PR에 연결하는 방법과 Worker 반영을 알리는 방법이 그 문서에 있다. 이 문서에 요약해 두지 않는다.
+
+### 무엇을 내보낼지 정한다
+
+- "전체 배포해"는 harper_beta와 harper_worker를 모두 내보내라는 뜻이다. 두 저장소 checkout의 미커밋 변경과 아직 push하지 않은 로컬 커밋을 모두 커밋해 함께 내보낸다. 다른 세션이나 팀원이 만든 변경도 포함한다. 비밀값이 든 파일(`.env`, 키, 토큰 등)만 커밋하지 않고 알린다.
+  - harper_beta: 로컬 변경을 작업 브랜치에 커밋하고 `dev` 대상 PR로 머지한다.
+  - harper_worker: 로컬 변경을 작업 브랜치에 커밋하고 `main` 대상 PR로 머지한다.
+  - 로컬 브랜치가 `origin`보다 뒤처져 있거나 갈라져 있으면 `origin` 위에 합친다. 충돌이 나면 멈추고 알린다.
+- 요청이 범위를 말하면 그 범위만 내보낸다. 범위를 말하지 않은 "배포해"는 이번 작업에서 바뀐 저장소와 변경이 대상이다.
+- 로컬 변경을 합친 뒤, 이번에 운영으로 나갈 커밋 목록을 저장소별로 보여 준다. 커밋 해시, 제목, 작성자, 속한 PR을 적고, 따로 확인을 기다리지 않고 배포를 시작한다. 목록은 `origin` 기준으로 만든다.
+  - harper_beta: `origin/main..origin/dev`
+  - harper_worker: 운영 release의 `REVISION`부터 `origin/main`까지
+- 내보낼 코드가 운영 DB에 아직 없는 테이블·함수·칼럼을 쓰면, 읽기 전용으로 운영 DB를 확인한다. 빠진 것이 있으면 배포를 멈추고 사용자에게 알린다. 직접 적용하려면 그 migration에 대한 별도 승인이 필요하다. [운영 적용 기록](rollout-history.md)에서 먼저 적용한 migration인지도 확인한다.
+- 웹과 Worker가 함께 나가면, 아직 운영에 없는 API·필드·DB 객체를 부르는 쪽을 나중에 내보낸다.
+
+### harper_beta: `dev`에 모으고, `main` 머지가 곧 배포다
+
+1. 변경은 작업 브랜치에서 `dev` 대상 PR로 머지한다. `dev` 머지는 배포를 일으키지 않는다.
+2. `dev` → `main` PR을 만든다. 제목은 `release: dev → main (<담긴 PR 요약>)` 형태로 쓰고, 본문에는 담긴 PR과 먼저 적용한 운영 DB 변경을 적는다.
+3. 이 PR을 머지하면 Vercel이 운영에 배포한다. `main`에 직접 push하지 않는다. 수동 Vercel 배포도 하지 않는다.
+4. 머지 커밋의 Vercel production 배포가 Ready인지, 운영 도메인이 그 커밋을 서비스하는지 확인한다.
+
+### harper_worker: `main` 머지 뒤 서버에서 직접 반영한다
+
+1. 작업 브랜치에서 `main` 대상 PR을 머지한다. 머지만으로는 운영에 반영되지 않는다.
+2. EC2에서 머지된 `main` 커밋으로 새 release를 만든다. Opportunity는 `opportunity-current`를 바꾸고 scheduler만 재시작한다. 나머지 상시 서비스와 timer도 새 release를 쓰도록 바꾼 뒤, 진행 중 작업이 없는 것을 확인하고 하나씩 재시작한다.
+3. 서버 접속 방법, 서비스 목록 확인, 전환과 확인 순서는 harper_worker의 [재시작·배포 안전 계약](../../../harper_worker/docs/worker-restart-safety.md)을 따른다. harper_beta는 공개 저장소이므로 서버 주소와 접속 정보는 harper_worker에만 둔다.
+
+### 배포 뒤
+
+- Notion 문서는 아래 절에 따라 확인한다.
+- 이번 배포의 revision과 먼저 적용한 DB 변경, Worker 서버 기록 위치를 [운영 적용 기록](rollout-history.md) 맨 위에 남긴다.
+- 이번 배포가 `src/lib/ops/updateMetrics.ts`의 `OPS_UPDATE_RELEASES`에 있는 업데이트를 처음 운영에 내보냈다면 `deployedOn`을 배포일(KST)로 채운다. 이 변경은 다음 배포에 함께 나간다.
 
 ## Deployment execution scope
 

@@ -56,6 +56,7 @@ import {
   useCareerLiveSync,
   type CareerLiveSyncScope,
 } from "@/hooks/career/useCareerLiveSync";
+import { useCareerSeenReceipt } from "@/hooks/career/useCareerSeenReceipt";
 import { useCareerRuntimeActions } from "@/hooks/career/useCareerRuntimeActions";
 import {
   useCareerAutomaticSessionReengagement,
@@ -195,6 +196,16 @@ export const CareerFlowProvider = ({
     opportunityMention: CareerOpportunityMention;
     text: string;
   } | null>(null);
+  // A draft offered to the composer (from a link or an opportunity action) is used once: after the person sends a
+  // message it is not offered again, so a composer that mounts later (after a call) starts empty.
+  const offeredChatDraftKey =
+    preparedChatDraft?.key ||
+    initialChatDraftKey?.trim() ||
+    initialChatDraft?.trim() ||
+    undefined;
+  const [sentChatDraftKey, setSentChatDraftKey] = useState<string | null>(null);
+  const chatDraftOffered =
+    Boolean(offeredChatDraftKey) && offeredChatDraftKey !== sentChatDraftKey;
   const [
     pendingInternalOpportunityCallRequest,
     setPendingInternalOpportunityCallRequest,
@@ -637,6 +648,7 @@ export const CareerFlowProvider = ({
     getHistoryOpportunityPageFilterState,
     isHistoryOpportunityPageFilterLoading,
     loadHistoryOpportunityByRoleId,
+    loadHistoryOpportunityTimeline,
     loadMoreHistoryOpportunities,
     loadSavedStageHistoryOpportunityPages,
     onMarkHistoryOpportunityClicked,
@@ -884,6 +896,7 @@ export const CareerFlowProvider = ({
       clearSessionReengagementAction();
       cancelPendingCompanyFollowUp();
       cancelPendingOpportunityFeedbackFollowUp();
+      setSentChatDraftKey(offeredChatDraftKey ?? null);
       await sendChatMessageBase(args, {
         profilePending,
       });
@@ -892,6 +905,7 @@ export const CareerFlowProvider = ({
       cancelPendingCompanyFollowUp,
       cancelPendingOpportunityFeedbackFollowUp,
       clearSessionReengagementAction,
+      offeredChatDraftKey,
       profilePending,
       sendChatMessageBase,
     ]
@@ -1479,6 +1493,12 @@ export const CareerFlowProvider = ({
     onSync: syncCareerWorkspace,
     userId,
   });
+  useCareerSeenReceipt({
+    conversationId: userId ? conversationId : null,
+    messages,
+    targetRef: scrollRef,
+    fetchWithAuth,
+  });
 
   const handleRunSessionReengagement =
     useCallback(async (): Promise<boolean> => {
@@ -1967,15 +1987,16 @@ export const CareerFlowProvider = ({
       onCancelChat: cancelActiveChat,
       canStopChat,
       stopPending,
-      initialChatDraft:
-        preparedChatDraft?.text.trim() || initialChatDraft?.trim() || undefined,
-      initialChatDraftKey:
-        preparedChatDraft?.key || initialChatDraftKey?.trim() || undefined,
-      initialChatOpportunityMention:
-        preparedChatDraft?.opportunityMention ??
-        initialChatOpportunityMention ??
-        undefined,
-      initialChatDraftReplace: Boolean(preparedChatDraft),
+      initialChatDraft: chatDraftOffered
+        ? preparedChatDraft?.text.trim() || initialChatDraft?.trim() || undefined
+        : undefined,
+      initialChatDraftKey: chatDraftOffered ? offeredChatDraftKey : undefined,
+      initialChatOpportunityMention: chatDraftOffered
+        ? (preparedChatDraft?.opportunityMention ??
+          initialChatOpportunityMention ??
+          undefined)
+        : undefined,
+      initialChatDraftReplace: chatDraftOffered && Boolean(preparedChatDraft),
       onboardingWrapupPending,
       thinkingLogsByMessageId,
       chatPending,
@@ -2070,8 +2091,9 @@ export const CareerFlowProvider = ({
       handleUseChatOnly,
       inputMode,
       initialChatDraft,
-      initialChatDraftKey,
       initialChatOpportunityMention,
+      chatDraftOffered,
+      offeredChatDraftKey,
       preparedChatDraft,
       prepareChatDraft,
       forceCompletePending,
@@ -2228,6 +2250,7 @@ export const CareerFlowProvider = ({
       onLoadSavedStageHistoryOpportunityPages:
         loadSavedStageHistoryOpportunityPages,
       onLoadHistoryOpportunityByRoleId: loadHistoryOpportunityByRoleId,
+      onLoadHistoryOpportunityTimeline: loadHistoryOpportunityTimeline,
       onRefreshHistoryOpportunities: refreshLatestHistoryOpportunities,
       onChangeInternalHistoryOpportunityDecision,
       onUpdateHistoryOpportunityFeedback,
@@ -2247,6 +2270,7 @@ export const CareerFlowProvider = ({
       getHistoryOpportunityPageFilterState,
       isHistoryOpportunityPageFilterLoading,
       loadHistoryOpportunityByRoleId,
+      loadHistoryOpportunityTimeline,
       loadMoreHistoryOpportunities,
       loadSavedStageHistoryOpportunityPages,
       refreshLatestHistoryOpportunities,

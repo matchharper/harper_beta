@@ -24,6 +24,7 @@ import type {
   CompanyFollowClickHandler,
   CompanyLeadershipPayload,
   CompanyLeadershipPerson,
+  CompanySummary,
   CompanyWatchlistItem,
 } from "./watchlistTypes";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +33,7 @@ import { useMessages, type Locale } from "@/i18n/useMessage";
 import { useCareerT } from "@/i18n/useCareerT";
 import { Tooltips } from "@/components/ui/tooltip";
 import { formatCareerLocation } from "@/lib/career/locationDisplay";
+import { stripSentenceSourceLinks } from "@/lib/career/companies/sourceLinks";
 import { logger } from "@/utils/logger";
 import HistoryOpportunityRoleActions, {
   COMPANY_DETAIL_ROLE_ACTIONS,
@@ -297,23 +299,6 @@ const getFaviconUrl = (href: string) => {
   }
 };
 
-const formatSnapshotInvestigationDate = (
-  value: string | null | undefined,
-  locale: Locale
-) => {
-  const normalized = value?.trim() ?? "";
-  if (!normalized) return "";
-
-  const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return normalized;
-
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "ko-KR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-};
-
 const LinkPillIcon = ({ iconUrl }: { iconUrl: string }) => {
   if (!iconUrl) return null;
 
@@ -378,6 +363,28 @@ export const CompanyDetailView = ({
   const { fetchWithAuth } = useCareerApi();
   const companyDbId = item?.companyDbId ?? null;
   const companyWorkspaceId = item?.companyWorkspaceId ?? null;
+  // Fetched apart from the detail: the first read in a language writes that
+  // language's version, which takes a while.
+  const summaryQuery = useQuery({
+    queryKey: ["career-company-watchlist-summary", companyDbId, locale],
+    enabled: Boolean(companyDbId),
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        companyDbId: String(companyDbId),
+        section: "summary",
+        locale,
+      });
+      const response = await fetchWithAuth(
+        `/api/talent/company-watchlist?${params.toString()}`
+      );
+      if (!response.ok) return null;
+      const payload = (await response.json()) as {
+        summary?: CompanySummary | null;
+      };
+      return payload.summary ?? null;
+    },
+  });
   const leadershipQuery = useQuery({
     queryKey: [
       "career-company-leadership",
@@ -512,18 +519,15 @@ export const CompanyDetailView = ({
   ].filter((row) => row !== null);
   // The shared company overview is the current research; an older snapshot
   // remains only for companies that have none yet.
-  const snapshotMarkdown = item.companySummary?.markdown
-    ? item.companySummary.markdown
-    : item.companySnapshot?.fullMarkdown
-      ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
-      : "";
-  logger.log("snapshotMarkdown", snapshotMarkdown);
-  const snapshotInvestigationDate = formatSnapshotInvestigationDate(
-    item.companySummary?.markdown
-      ? item.companySummary.checkedAt
-      : item.companySnapshot?.investigationDate,
-    locale
+  const summaryLoading = summaryQuery.isLoading;
+  const snapshotMarkdown = stripSentenceSourceLinks(
+    summaryQuery.data?.markdown
+      ? summaryQuery.data.markdown
+      : !summaryLoading && item.companySnapshot?.fullMarkdown
+        ? stripCompanySnapshotChrome(item.companySnapshot.fullMarkdown)
+        : ""
   );
+  logger.log("snapshotMarkdown", snapshotMarkdown);
 
   const leadershipPeople = leadershipQuery.data ?? [];
   const showLeadershipSection =
@@ -638,18 +642,9 @@ export const CompanyDetailView = ({
       <div>
         {snapshotMarkdown ? (
           <DetailSection
-            title={t(
-              "career.company.company_detail_view.1im9ivy",
-              "Harper가 찾아본 내용"
-            )}
+            title={t("career.company.company_detail_view.0izicuk", "회사 설명")}
           >
             <div className="">
-              {snapshotInvestigationDate ? (
-                <div className="mb-4 inline-flex rounded-full bg-bg-weak px-2.5 py-1 text-[12px] font-medium leading-none text-neutral-muted">
-                  {t("career.company.snapshot.investigation_date", "조사일")}{" "}
-                  {snapshotInvestigationDate}
-                </div>
-              ) : null}
               <RichText
                 variant="career"
                 content={snapshotMarkdown}
@@ -660,6 +655,16 @@ export const CompanyDetailView = ({
                     "max-w-full overflow-x-hidden [overflow-wrap:anywhere] [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto"
                 )}
               />
+            </div>
+          </DetailSection>
+        ) : summaryLoading ? (
+          <DetailSection
+            title={t("career.company.company_detail_view.0izicuk", "회사 설명")}
+          >
+            <div className="space-y-2">
+              <div className="h-4 w-full animate-pulse rounded bg-bg-weak" />
+              <div className="h-4 w-11/12 animate-pulse rounded bg-bg-weak" />
+              <div className="h-4 w-2/3 animate-pulse rounded bg-bg-weak" />
             </div>
           </DetailSection>
         ) : (

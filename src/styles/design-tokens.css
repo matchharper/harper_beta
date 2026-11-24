@@ -238,9 +238,10 @@
   --shadow-toast: var(--shadow-lg);
   --blur-toast: var(--blur-surface);
 
-  --color-switch-track: var(--color-neutral-400);
-  --color-switch-checked: var(--color-control-checked);
-  --color-switch-thumb: var(--color-control-mark);
+  /* iOS switch colors: green when on, light gray when off, white thumb. */
+  --color-switch-track: #e9e9ea;
+  --color-switch-checked: #34c759;
+  --color-switch-thumb: #ffffff;
   --shadow-switch-thumb: var(--shadow-sm);
 
   --color-chat: var(--color-bg-basement);

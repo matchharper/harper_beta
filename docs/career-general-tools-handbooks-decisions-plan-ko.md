@@ -96,6 +96,8 @@ Harper 내부 Role의 소개·연결은 기존 `get_internal_roles`, `internal_r
 
 일반 Career agent 턴에서는 core인 `read_talent_context`, `write_talent_context`, `update_language_setting`, `update_setting`과 기존 조건부 도구의 자격 조건을 유지한다. `load_career_capabilities`, `load_handbook`도 기본 제공한다. 단, 계정·채널과 trusted caller의 `allowedToolNames`를 먼저 적용한다. 명시적인 빈 allowlist는 기존처럼 tool-free 실행이며 core/loader도 이 경계를 넓히지 못한다. 이 제한은 외부 페이지나 모델이 작성한 값이 아니라 서버 호출자가 정한다.
 
+채널이 자기 입력을 처리하려고 더하는 도구(메일 답장의 `upload_email_attachments`)는 어느 capability에도 속하지 않아 loader로 불러올 수 없다. 그래서 resolver는 어느 capability에도 속하지 않는 자격 도구를 core와 함께 처음부터 제공한다. 예전에는 progressive 모드가 이 도구를 조용히 뺐고, 그래서 온보딩을 마친 사용자가 메일에 붙인 이력서를 Harper가 읽지 못했다(운영 기록으로 2026-11-05 이후 확인)([harper_incidents#132](https://github.com/matchharper/harper_incidents/issues/132)). 메일에 붙은 JPEG·PNG·WebP·GIF는 비공개 storage에 저장해, 채팅에 올린 이미지처럼 그 메일 입력에만 모델 입력 이미지로 붙인다.
+
 | capability | 포함 도구/범위 | 변경 |
 | --- | --- | --- |
 | profile | update_talent_profile | 유지 |

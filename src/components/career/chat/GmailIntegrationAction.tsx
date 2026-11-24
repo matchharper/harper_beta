@@ -26,7 +26,7 @@ export function GmailIntegrationAction({ capability = "write", description }: { 
       onConnect={() => {
         setError("");
         void gmail
-          .connect({ capability, conversationId: context?.conversationId })
+          .connect({ capability, conversationId: context?.conversationId, source: "chat_card" })
           .catch(() =>
             setError(
               t(

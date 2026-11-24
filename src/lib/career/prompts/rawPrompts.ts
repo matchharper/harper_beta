@@ -94,6 +94,12 @@ Ask for information that helps the current work. In exploratory conversation, a 
 // 레거시 채널의 링크 출력 계약.
 export const CAREER_HARPER_LINK_OUTPUT_RULE = `- Do not output Markdown links, HTML \`<a>\` tags, or raw clickable URLs for Harper-owned domains (\`matchharper.com\`, \`www.matchharper.com\`, or any subdomain). If you need to point to an internal Harper page, describe the location in plain text instead, such as \`Career > Profile\`.`;
 
+// 웹 채팅의 답변 선택지 버튼. 온보딩과 메인 채팅이 같은 문장을 쓴다.
+export const CAREER_CHOICE_BUTTONS_RULE = `- A question with two to three answer options can include this raw block after the visible question. The UI renders each choice and sends the selected text as the user's reply. Keep choices self-contained and do not wrap the block in a code fence.
+[[CAREER_CHOICE_BUTTONS]]
+{"choices":["Option A","Option B"]}
+[[/CAREER_CHOICE_BUTTONS]]`;
+
 // 첫 방문 온보딩에서 표시하는 한국어 인사 문구. LLM 지침이 아닌 화면용 텍스트.
 export const CAREER_FIRST_VISIT_TEXT_KO = `
 안녕하세요. 하퍼에 처음 방문해주셔서 감사합니다.

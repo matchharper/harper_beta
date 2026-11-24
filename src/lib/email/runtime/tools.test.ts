@@ -48,6 +48,20 @@ test("email exposes one company follow tool with list and write actions", () => 
   assert.deepEqual(properties.action.enum, ["list", "read", "follow", "update", "unfollow"]);
 });
 
+test("the current email's attachment tool is offered before any capability is loaded", async () => {
+  const { resolveCareerCapabilities } = await import("@/lib/career/capabilities/resolver");
+  const selected = emailToolSelection(
+    { tools: sharedTools("chat"), toolNames: [], stopAfterToolNames: [] },
+    false
+  );
+  for (const mode of ["progressive", "full"] as const) {
+    const resolved = resolveCareerCapabilities({ eligibleTools: selected.tools, loaded: new Set(), mode });
+    assert.ok(resolved.offeredNames.has("upload_email_attachments"), mode);
+  }
+  const cold = resolveCareerCapabilities({ eligibleTools: selected.tools, loaded: new Set(), mode: "progressive" });
+  assert.ok(!cold.offeredNames.has("read_document"));
+});
+
 test("email exposes the unified writer and projects saved resume links for the email channel", () => {
   for (const onboarding of [false, true]) {
     const selected = emailToolSelection(
@@ -400,6 +414,63 @@ test("attachment selection never uploads an unselected file with the same name",
     null
   );
   assert.equal(resolveEmailAttachmentUploads(attachments, [null]), null);
+});
+
+test("saved email attachments return their text, or why the model has none", async () => {
+  const { projectEmailAttachmentUpload } = await import("./tools");
+  const reads: string[] = [];
+  const output = await projectEmailAttachmentUpload(
+    { admin: {} as any, talentId: "talent", images: [{ path: "talent/email-inbound/x/1-IMG.png", name: "IMG.png" }] },
+    {
+      ok: true,
+      storagePath: "internal",
+      attachments: [
+        { fileName: "Resume.pdf", contentType: "application/pdf", documentId: "doc-pdf", kind: "resume", extractionStatus: "ok", storagePath: "talent/email-inbound/r.pdf", sha256: "abc" },
+        { fileName: "IMG.png", contentType: "image/png", documentId: "doc-png", kind: "document", extractionStatus: "not_text" },
+        { fileName: "Other.png", contentType: "image/png", documentId: "doc-other", kind: "document", extractionStatus: "not_text" },
+        { fileName: "Scan.pdf", contentType: "application/pdf", documentId: "doc-scan", kind: "document", extractionStatus: "empty" },
+        { fileName: "Big.pdf", contentType: "application/pdf", error: "Attachment is too large: Big.pdf", extractionStatus: "failed" },
+      ],
+    },
+    (async (args: any) => {
+      reads.push(args.input.document_id);
+      return { excerpt: "Senior Product Manager at Acme", hasMore: true, nextOffset: 4000 };
+    }) as any
+  );
+  assert.deepEqual(reads, ["doc-pdf"]);
+  assert.match(output, /Senior Product Manager at Acme/);
+  assert.match(output, /nextOffset: 4000/);
+  assert.match(output, /this is an image\. The image itself is part of the current email input/);
+  assert.match(output, /this is an image, and it could not be shown to you/);
+  assert.match(output, /scanned PDF/);
+  assert.match(output, /Attachment is too large: Big\.pdf/);
+  assert.doesNotMatch(output, /storagePath|sha256|talent\/email-inbound/);
+});
+
+test("email images become model input only when they can be stored and decoded", async () => {
+  const { storeEmailImageInputs } = await import("./images");
+  const { default: sharp } = await import("sharp");
+  const png = await sharp({ create: { width: 4, height: 4, channels: 3, background: "#fff" } }).png().toBuffer();
+  const uploads: Array<{ path: string; upsert: boolean }> = [];
+  const admin = { storage: { from: () => ({ upload: async (path: string, _bytes: Buffer, options: { upsert: boolean }) => {
+    uploads.push({ path, upsert: options.upsert });
+    return { error: null };
+  } }) } } as any;
+  const bodies: Record<string, Buffer> = { "https://files/a": png, "https://files/b": Buffer.from("not an image") };
+  const fetchImpl = (async (url: string) => new Response(new Uint8Array(bodies[url] ?? Buffer.alloc(0)))) as any;
+  const attachment = (filename: string, contentType: string, downloadUrl: string) =>
+    ({ id: filename, filename, contentType, size: null, downloadUrl });
+  const images = await storeEmailImageInputs({
+    admin, talentId: "talent", inboundId: "inbound", fetchImpl,
+    attachments: [
+      attachment("Resume.pdf", "application/pdf", "https://files/pdf"),
+      attachment("IMG 2949.png", "image/png", "https://files/a"),
+      attachment("broken.png", "image/png", "https://files/b"),
+      attachment("photo.heic", "image/heic", "https://files/a"),
+    ],
+  });
+  assert.deepEqual(images, [{ path: "talent/email-inbound/inbound/2-IMG_2949.png", name: "IMG 2949.png" }]);
+  assert.deepEqual(uploads, [{ path: "talent/email-inbound/inbound/2-IMG_2949.png", upsert: true }]);
 });
 
 test("email keeps the shared introduction contract and does not add another confirmation loop", async () => {

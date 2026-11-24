@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "v2",
+  "note": "Review criteria for a human reader. Never enters model input. Wording, length and format are not graded.",
+  "criteria": {
+    "continuation": "The reply ends with something the person can easily respond to or act on: a light question, a concrete next thing Harper will do or suggests, or reply options. A plain statement ending fails. A permission question for work Harper could simply do is a weaker pass.",
+    "guard": "Respect the request's form: no question when told not to ask, a three-line summary stays three lines, a short thanks or a hard moment is not turned into a task push."
+  },
+  "cases": {
+    "s1-archive-card": "Acknowledges the archive briefly and gives something to continue with (e.g. the saved Coinflow role, a quick question on why, or the next search).",
+    "s2-save-card": "Explains the fit and the 7-year gap, then offers an easy next move (prepare the application, check the requirement, compare).",
+    "s3-standing-instruction": "Confirms removal and the new rule, then something to continue (run a fresh 2-day search now or say when).",
+    "s4-new-fact": "Records SQL and says what it changes for the role, then the next move.",
+    "s5-explain-expired": "Lists the three closed roles; a light pointer onward is a plus, not required.",
+    "s6-whats-my-resume": "Summarizes the resume, flags the Brivva 'Present' issue, and offers to fix it (easy yes).",
+    "s7-follow-company": "Confirms the follow and gives a light next step.",
+    "s8-anything-else": "States the two pending introductions; offers a fresh search or asks direction.",
+    "s9-intro-request": "Confirms the introduction request and when they will hear; a light next move is a plus.",
+    "s10-file-received": "Confirms HITS CV and asks for the remaining 스캐터랩 CV.",
+    "s11-posting-detail": "Gives the details; a light next move (apply, compare with CJ deadline) is a plus.",
+    "s12-project-answer": "Uses the answer in the resume wording and the next step.",
+    "g6-no-questions": "Answers the salary with no question at the end.",
+    "g7-short-thanks": "Short and warm. No new task or questionnaire.",
+    "g8-three-line-summary": "Three lines. An extra question or offer breaks the requested form.",
+    "g9-venting": "Empathy first. At most a gentle opening; no checklist of tasks."
+  }
+}

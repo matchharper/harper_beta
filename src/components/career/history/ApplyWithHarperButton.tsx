@@ -1,10 +1,91 @@
-import React, { useRef, useState } from "react";
-import { Zap } from "lucide-react";
+import React, { useCallback, useRef, useState } from "react";
 import { MuteButton, type MuteButtonProps } from "@/components/ui/button";
 import { useCareerT } from "@/i18n/useCareerT";
-import { useCareerChatPanelContext } from "../CareerChatPanelContext";
+import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 import type { CareerHistoryOpportunity } from "../types";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
+
+type ApplyWithHarperOptions = {
+  onOpenChat?: () => void;
+  onBeforeStart?: () => boolean | void | Promise<boolean | void>;
+  /** The chat message to send; {opportunity} is replaced with the role label. */
+  requestText?: (opportunity: string) => string;
+  source: "application_modal" | "role_detail" | "opportunity_card";
+};
+
+export const canApplyWithHarper = (item: CareerHistoryOpportunity) =>
+  !(
+    item.isInternal ||
+    item.sourceType === "internal" ||
+    item.savedStage === "connected" ||
+    item.savedStage === "offer" ||
+    item.savedStage === "closed" ||
+    item.status === "ended" ||
+    item.status === "deleted"
+  );
+
+/** Sends the opportunity to Harper in chat as the user's request. */
+export function useApplyWithHarper() {
+  const t = useCareerT();
+  const logCareerEvent = useCareerLogEvent();
+  const chat = useOptionalCareerChatPanelContext();
+  const sendingRef = useRef(false);
+  const [sending, setSending] = useState(false);
+  const unavailable =
+    !chat ||
+    !chat.user ||
+    !chat.conversationId ||
+    !chat.isOnboardingDone ||
+    chat.stage === "profile" ||
+    chat.sessionPending ||
+    chat.profilePending ||
+    chat.opportunityFeedbackFollowUpPending;
+
+  const start = useCallback(
+    async (
+      item: CareerHistoryOpportunity,
+      { onBeforeStart, onOpenChat, requestText, source }: ApplyWithHarperOptions
+    ) => {
+      if (!chat || unavailable || sendingRef.current || !canApplyWithHarper(item)) return;
+      logCareerEvent("click_apply_with_harper", {
+        roleId: item.roleId,
+        opportunityId: item.id,
+        source,
+      });
+      sendingRef.current = true;
+      setSending(true);
+      try {
+        if (onBeforeStart && (await onBeforeStart()) !== true) return;
+        const opportunity = {
+          label: item.title === item.companyName ? item.companyName : `${item.companyName} · ${item.title}`,
+          roleId: item.roleId,
+          ...(item.targetKind === "company" ? { targetKind: "company" as const } : {}),
+        };
+        const sent = chat.onSendChatMessage({
+          text: requestText
+            ? requestText(opportunity.label)
+            : t(
+                "career.history.apply_with_harper.mention_request",
+                "{opportunity}에 지원할게. 지원 방법을 알아보고 필요한 자료를 준비해서 보여줘.",
+                { values: { opportunity: opportunity.label } }
+              ),
+          opportunityMentions: [opportunity],
+        });
+        // Show the chat as soon as the request starts, while the reply streams.
+        onOpenChat?.();
+        await sent;
+      } catch {
+        // The shared chat handler displays the request error and allows a retry.
+      } finally {
+        sendingRef.current = false;
+        setSending(false);
+      }
+    },
+    [chat, logCareerEvent, t, unavailable]
+  );
+
+  return { start, sending, unavailable };
+}
 
 export default function ApplyWithHarperButton({
   item,
@@ -26,78 +107,24 @@ export default function ApplyWithHarperButton({
   /** The chat message to send; {opportunity} is replaced with the role label. */
   requestText?: (opportunity: string) => string;
 }) {
-  const t = useCareerT();
-  const logCareerEvent = useCareerLogEvent();
-  const chat = useCareerChatPanelContext();
-  const sendingRef = useRef(false);
-  const [sending, setSending] = useState(false);
-  const disabled =
-    pending ||
-    sending ||
-    !chat.user ||
-    !chat.conversationId ||
-    !chat.isOnboardingDone ||
-    chat.stage === "profile" ||
-    chat.sessionPending ||
-    chat.profilePending ||
-    chat.opportunityFeedbackFollowUpPending;
-
-  if (
-    item.isInternal ||
-    item.sourceType === "internal" ||
-    item.savedStage === "connected" ||
-    item.savedStage === "offer" ||
-    item.savedStage === "closed" ||
-    item.status === "ended" ||
-    item.status === "deleted"
-  )
-    return null;
-
-  const start = async () => {
-    if (disabled || sendingRef.current) return;
-    logCareerEvent("click_apply_with_harper", {
-      roleId: item.roleId,
-      opportunityId: item.id,
-      source: onBeforeStart ? "application_modal" : "role_detail",
-    });
-    sendingRef.current = true;
-    setSending(true);
-    try {
-      if (onBeforeStart && (await onBeforeStart()) !== true) return;
-      const opportunity = {
-        label: item.title === item.companyName ? item.companyName : `${item.companyName} · ${item.title}`,
-        roleId: item.roleId,
-        ...(item.targetKind === "company" ? { targetKind: "company" as const } : {}),
-      };
-      const sent = chat.onSendChatMessage({
-        text: requestText
-          ? requestText(opportunity.label)
-          : t(
-              "career.history.apply_with_harper.mention_request",
-              "{opportunity}에 지원할게. 지원 방법을 알아보고 필요한 자료를 준비해서 보여줘.",
-              { values: { opportunity: opportunity.label } }
-            ),
-        opportunityMentions: [opportunity],
-      });
-      // Show the chat as soon as the request starts, while the reply streams.
-      onOpenChat?.();
-      await sent;
-    } catch {
-      // The shared chat handler displays the request error and allows a retry.
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
-    }
-  };
+  const { start, sending, unavailable } = useApplyWithHarper();
+  if (!canApplyWithHarper(item)) return null;
 
   return (
     <MuteButton
       className={className}
       size={size}
       variant="primary"
-      disabled={disabled}
+      disabled={pending || sending || unavailable}
       aria-busy={sending}
-      onClick={() => void start()}
+      onClick={() =>
+        void start(item, {
+          onBeforeStart,
+          onOpenChat,
+          requestText,
+          source: onBeforeStart ? "application_modal" : "role_detail",
+        })
+      }
     >
       {children}
     </MuteButton>

@@ -16,7 +16,7 @@ function harness(anonymous = false) {
       if (name === "@/lib/supabaseServer") return { getRequestUser: async () => anonymous ? null : { id: "authenticated-owner" } };
       if (name === "@/lib/talentOnboarding/server") return { getTalentSupabaseAdmin: () => ({}) };
       if (name === "@/lib/career/postingLinks") return { isPostingRoleId };
-      if (name === "@/lib/talentOpportunity") return { fetchTalentOpportunityHistoryByRoleIds: async (args: Record<string, unknown>) => { calls.push(args); return [{ roleId }]; }, archiveEndedInternalOpportunitiesForTalent: () => { throw new Error("A display request must not mutate history"); } };
+      if (name === "@/lib/talentOpportunity") return { fetchTalentOpportunityHistoryByRoleIds: async (args: Record<string, unknown>) => { calls.push(args); return [{ roleId }]; }, fetchTalentOpportunityActivityTimeline: async (args: Record<string, unknown>) => { calls.push(args); return { confirmedMeetings: [], talentRoleActivities: [{ id: "activity" }] }; }, archiveEndedInternalOpportunitiesForTalent: () => { throw new Error("A display request must not mutate history"); } };
       return {};
     },
   });
@@ -36,4 +36,17 @@ test("anonymous and invalid collection requests do not reach the reader", async 
   const h = harness();
   for (const ids of ["", "bad-id", `${roleId},bad-id`]) assert.equal((await h.get(`roleIds=${ids}`)).status, 400);
   assert.equal(h.calls.length + anonymous.calls.length, 0);
+});
+test("a detail timeline read takes only the owner's activity for one listed opportunity", async () => {
+  const recommendationId = "00000000-0000-4000-8000-000000000002";
+  const h = harness();
+  const result = await h.get(`id=${roleId}&timeline=${recommendationId}&userId=another-user`);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.talentRoleActivities, [{ id: "activity" }]);
+  assert.equal(h.calls.length, 1);
+  assert.deepEqual({ ...h.calls[0], admin: undefined }, { admin: undefined, recommendationId, roleId, userId: "authenticated-owner" });
+  for (const query of [`id=${roleId}&timeline=bad-id`, `id=bad-id&timeline=${recommendationId}`, `timeline=${recommendationId}`])
+    assert.equal((await h.get(query)).status, 400);
+  assert.equal((await harness(true).get(`id=${roleId}&timeline=${recommendationId}`)).status, 401);
+  assert.equal(h.calls.length, 1);
 });

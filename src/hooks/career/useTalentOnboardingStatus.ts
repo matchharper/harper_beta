@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { EMAIL_CHOICE_DRAFT_PARAM, EMAIL_CHOICE_SIGNATURE_PARAM } from "@/lib/career/emailChoiceDraft";
 import { useRouter } from "next/router";
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
@@ -96,6 +97,10 @@ export function useTalentOnboardingRedirect({
       router.query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM]
     )?.trim() || "";
   const startQuery = getSingleQueryParam(router.query.start);
+  const emailChoiceDraft =
+    getSingleQueryParam(router.query[EMAIL_CHOICE_DRAFT_PARAM])?.trim() || "";
+  const emailChoiceSignature =
+    getSingleQueryParam(router.query[EMAIL_CHOICE_SIGNATURE_PARAM])?.trim() || "";
   const localId = getSingleQueryParam(router.query.lid)?.trim() || "";
   const source = normalizeCareerUtmSource(
     getSingleQueryParam(router.query.source)
@@ -129,12 +134,16 @@ export function useTalentOnboardingRedirect({
     if (officialJobRoleId) {
       query[OFFICIAL_JOBS_ONBOARDING_ROLE_ID_PARAM] = officialJobRoleId;
     }
+    if (emailChoiceDraft) query[EMAIL_CHOICE_DRAFT_PARAM] = emailChoiceDraft;
+    if (emailChoiceSignature) query[EMAIL_CHOICE_SIGNATURE_PARAM] = emailChoiceSignature;
 
     void router.replace({
       pathname: "/career/onboarding",
       query: Object.keys(query).length > 0 ? query : undefined,
     });
   }, [
+    emailChoiceDraft,
+    emailChoiceSignature,
     emailOnboardingToken,
     inviteToken,
     localId,

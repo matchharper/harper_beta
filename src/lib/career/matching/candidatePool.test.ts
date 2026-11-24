@@ -35,3 +35,9 @@ test("company facts fit on one line and leave out what is not on record", () => 
     "no open role indexed; careers page https://jobs.ashbyhq.com/x");
   assert.equal(formatCompanyFacts(undefined), "");
 });
+
+test("an option number with a matching ID that is not a UUID says the matching is unavailable before any read", async () => {
+  const { resolvePoolNumbers } = await import("./candidatePool");
+  const admin = { from: () => { throw new Error("no read expected"); } } as never;
+  await assert.rejects(resolvePoolNumbers(admin, "7bbbb", [1070]), /^Error: Matching 7bbbb is unavailable\.$/);
+});

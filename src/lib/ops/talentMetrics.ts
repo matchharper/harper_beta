@@ -10,10 +10,15 @@ export type OpsTalentMetricConversionSummary = {
   connectedTalentCount: number;
   internalAcceptedCount: number;
   internalAcceptanceRate: number | null;
-  internalMaturedRecommendationCount: number;
+  /**
+   * Internal Role recommendations (talent × Role) first made in the period, including those under 14 days old.
+   * Absent in a snapshot computed by get_ops_talent_metrics_conversion_v1, until it is recomputed.
+   */
+  internalRecommendationPairCount?: number;
   onboardingCompletedWithin14DaysCount: number;
   onboardingCompletionRate: number | null;
-  onboardingMaturedSignupCount: number;
+  /** Signups in the period, including those under 14 days old. Absent in a v1 snapshot, like the field above. */
+  onboardingSignupCount?: number;
   pendingConnectionTalentCount: number;
   recommendationAcceptRejectRatio: number | null;
   recommendationAcceptedCount: number;
@@ -141,3 +146,38 @@ export type OpsTalentMetricsResponseBySection = {
   engagement: OpsTalentMetricsEngagementResponse;
   retention: OpsTalentMetricsRetentionResponse;
 };
+
+const DAY_MS = 24 * 60 * 60 * 1_000;
+const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
+
+function toKstDateOnly(valueMs: number) {
+  return new Date(valueMs + KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Quick range buttons: the last N days, ending today (KST). */
+export const OPS_TALENT_METRICS_QUICK_RANGE_DAYS = [30, 90, 180] as const;
+
+export function opsTalentMetricsRollingRange(days: number, nowMs = Date.now()) {
+  return {
+    from: toKstDateOnly(nowMs - (days - 1) * DAY_MS),
+    to: toKstDateOnly(nowMs),
+  };
+}
+
+/**
+ * How a range is kept between views. A quick range is "the last N days", so tomorrow's view starts from today's
+ * result and is recomputed for tomorrow's dates; other ranges stay as their dates.
+ */
+export function opsTalentMetricsSnapshotRange(
+  range: { from: string; to: string },
+  nowMs = Date.now()
+): { key: string; resolve: (atMs: number) => { from: string; to: string } } {
+  const days = OPS_TALENT_METRICS_QUICK_RANGE_DAYS.find((value) => {
+    const rolling = opsTalentMetricsRollingRange(value, nowMs);
+    return rolling.from === range.from && rolling.to === range.to;
+  });
+  if (days) {
+    return { key: `last${days}`, resolve: (atMs) => opsTalentMetricsRollingRange(days, atMs) };
+  }
+  return { key: `${range.from}~${range.to}`, resolve: () => range };
+}

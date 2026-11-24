@@ -18,6 +18,10 @@ import {
   parseCareerInlineUi,
 } from "@/lib/career/inlineUi";
 import {
+  extractCareerChoiceBlocks,
+  type CareerChoice,
+} from "@/lib/career/choiceButtons";
+import {
   buildHarperEmailFooterHtml,
   HARPER_EMAIL_FOOTER_TEXT,
 } from "@/lib/email/harperFooter";
@@ -150,11 +154,63 @@ export function wrapEmailHtml(html: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${wrapHarperEmailBody(html)}</body></html>`;
 }
 
+const CHOICE_MARKER = (index: number) => `HARPEREMAILCHOICES${index}END`;
+
+function escapeEmailHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Outlook desktop ignores padding on a link; `mso-padding-alt` gives its cell the same padding there. */
+const CHOICE_BUTTON_PADDING = "6px 12px";
+
+function choiceButtonsHtml(links: { label: string; href: string }[]) {
+  const rows = links.map(({ label, href }) =>
+    `<tr><td style="padding:0 0 8px 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-radius:10px;background:#000000;mso-padding-alt:${CHOICE_BUTTON_PADDING};"><a href="${escapeEmailHtml(href)}" style="display:inline-block;padding:${CHOICE_BUTTON_PADDING};color:#ffffff;font-size:14px;line-height:1.4;font-weight:200;text-decoration:none;border-radius:8px;">${escapeEmailHtml(label)}</a></td></tr></table></td></tr>`
+  );
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 8px 0;">${rows.join("")}</table>`;
+}
+
+/** A plain-text reader answers by replying; a web choice keeps its link. */
+function choiceButtonsText(links: { label: string; href: string }[]) {
+  return links
+    .map(({ label, href }) => (href.startsWith("mailto:") ? `• ${label}` : `• ${label}: ${href}`))
+    .join("\n");
+}
+
+export type EmailChoiceHref = (choice: CareerChoice) => string;
+
 export function renderReplyEmail(
   content: string,
-  options: { baseUrl?: string; footer?: boolean; audience?: "talent" | "company" } = {}
+  options: {
+    baseUrl?: string;
+    footer?: boolean;
+    audience?: "talent" | "company";
+    /** Where each of Harper's answer options leads; without it they are left out. */
+    choiceHref?: EmailChoiceHref;
+  } = {}
 ) {
-  const markdown = options.audience === "company" ? content : emailVisibleMarkdown(content);
+  // Each block's buttons go where Harper wrote it; blocks without usable choices leave nothing behind.
+  const buttonSets: Array<{ marker: string; links: { label: string; href: string }[] }> = [];
+  const extracted =
+    options.audience === "company"
+      ? null
+      : extractCareerChoiceBlocks(content, (index) => `\n\n${CHOICE_MARKER(index)}\n\n`);
+  let withChoices = extracted?.content ?? content;
+  extracted?.blocks.forEach((choices, index) => {
+    const links = options.choiceHref
+      ? choices.flatMap((choice) => {
+          const href = options.choiceHref?.(choice) ?? "";
+          return href ? [{ label: choice.label, href }] : [];
+        })
+      : [];
+    if (links.length) buttonSets.push({ marker: CHOICE_MARKER(index), links });
+    else withChoices = withChoices.replace(CHOICE_MARKER(index), "");
+  });
+  const markdown = extracted ? emailVisibleMarkdown(withChoices) : content;
   const baseUrl = options.baseUrl ?? "https://matchharper.com";
   const processor = unified()
       .use(remarkParse)
@@ -168,10 +224,26 @@ export function renderReplyEmail(
       .use(rehypeStringify);
   // Both MIME parts use the same sanitized tree; no browser DOM is needed.
   const tree = processor.runSync(processor.parse(markdown));
-  const htmlBody = processor.stringify(tree);
-  const textBody = emailPlainText(tree as EmailAstNode)
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  let htmlBody = processor.stringify(tree);
+  let textBody = emailPlainText(tree as EmailAstNode);
+  // A marker that did not become its own paragraph (inside code, say) is removed and its buttons follow the body.
+  const trailing: typeof buttonSets = [];
+  for (const set of buttonSets) {
+    const paragraph = new RegExp(`<p[^>]*>${set.marker}</p>`);
+    if (paragraph.test(htmlBody)) {
+      htmlBody = htmlBody.replace(paragraph, () => choiceButtonsHtml(set.links));
+      textBody = textBody.replace(set.marker, () => choiceButtonsText(set.links));
+    } else {
+      htmlBody = htmlBody.replaceAll(set.marker, "");
+      textBody = textBody.replaceAll(set.marker, "");
+      trailing.push(set);
+    }
+  }
+  if (trailing.length) {
+    htmlBody += trailing.map((set) => choiceButtonsHtml(set.links)).join("");
+    textBody += `\n\n${trailing.map((set) => choiceButtonsText(set.links)).join("\n")}`;
+  }
+  textBody = textBody.replace(/\n{3,}/g, "\n\n").trim();
   return {
     text: options.footer
       ? `${textBody}\n\n${HARPER_EMAIL_FOOTER_TEXT}`

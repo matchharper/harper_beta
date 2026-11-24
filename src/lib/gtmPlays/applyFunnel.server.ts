@@ -23,15 +23,16 @@ const SHARED_HOSTS = [
   "imweb.me", "cafe24.com", "sites.google.com", "blogspot.com", "substack.com",
 ];
 
-/** Harper staff and test accounts, as /ops/jobs leaves them out (DEFAULT_ADMIN_EXCLUDED_EMAILS). */
+/** Harper staff (DEFAULT_ADMIN_EXCLUDED_EMAILS, as /ops/jobs leaves them out) and persona test accounts. */
 const EXCLUDED_EMAILS = [...DEFAULT_ADMIN_EXCLUDED_EMAILS];
 
 function staffCte(sql: GtmReadSql) {
   return sql`
     staff as (
       select user_id from public.talent_users
-      where email is not null and (lower(btrim(email)) = any(${EXCLUDED_EMAILS}::text[])
-        or '@' || split_part(lower(btrim(email)), '@', 2) = any(${EXCLUDED_EMAILS}::text[]))
+      where (email is not null and (lower(btrim(email)) = any(${EXCLUDED_EMAILS}::text[])
+        or '@' || split_part(lower(btrim(email)), '@', 2) = any(${EXCLUDED_EMAILS}::text[])))
+        or public.is_talent_test_account(user_id)
     )`;
 }
 

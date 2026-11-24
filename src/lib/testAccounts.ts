@@ -1,3 +1,4 @@
+import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 
 /**
@@ -21,6 +22,7 @@ type UntypedClient = {
 const CACHE_MS = 60_000;
 const accountCache = new Map<string, { value: boolean; expiresAt: number }>();
 let emailCache: { value: string[]; expiresAt: number } | null = null;
+let userIdCache: { value: string[]; expiresAt: number } | null = null;
 
 function admin() {
   return getTalentSupabaseAdmin() as unknown as UntypedClient;
@@ -52,6 +54,30 @@ export async function listTestTalentAccountEmails() {
     .filter(Boolean);
   emailCache = { value, expiresAt: Date.now() + CACHE_MS };
   return value;
+}
+
+/** User ids of test accounts, for ops lists that must not show or count them. */
+export async function listTestTalentAccountUserIds() {
+  if (userIdCache && userIdCache.expiresAt > Date.now()) return userIdCache.value;
+  const { data, error } = await admin()
+    .from("talent_test_accounts")
+    .select("user_id");
+  if (error) throw new Error(`Test account list failed: ${error.message}`);
+  const value = (data ?? []).map((row) => String(row.user_id ?? "")).filter(Boolean);
+  userIdCache = { value, expiresAt: Date.now() + CACHE_MS };
+  return value;
+}
+
+/** Staff emails plus test account emails, for analytics that exclude users by email. */
+export async function listAnalyticsExcludedEmails(extra: string[] = []) {
+  return [...DEFAULT_ADMIN_EXCLUDED_EMAILS, ...extra, ...(await listTestTalentAccountEmails())];
+}
+
+/** PostgREST filter value that excludes test accounts: `.not(column, "in", value)`. */
+export async function testTalentAccountExclusion() {
+  const ids = await listTestTalentAccountUserIds();
+  // An empty "in" list is invalid PostgREST; a nil uuid matches nobody.
+  return `(${(ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]).join(",")})`;
 }
 
 export const TEST_ACCOUNT_OUTWARD_ACTION_REFUSAL =

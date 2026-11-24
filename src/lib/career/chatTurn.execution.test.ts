@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 // A response hydration failure must not strand an already delivered invocation.
 function fixture(reply = "Hello") {
   const events: string[] = [];
+  const providerMessages: any[][] = [];
   let profileReads = 0;
   const source = { id: 1, user_id: "owner", conversation_id: "conversation", role: "user", content: "hi", message_type: "chat", payload: {} };
   const setting = { is_onboarding_done: true, preferred_locale: "ko" };
@@ -36,6 +37,9 @@ function fixture(reply = "Hello") {
     projectBriefsToLegacyInsights: () => ({}), renderTalentContextPrompt: () => "unchanged memory",
     getCareerCapabilityMode: () => "progressive", TALENT_INTERVIEW_FINAL_STEP: 10,
     formatTalentMessageContentForLlmPrompt: (row: any) => row.content,
+    formatTalentMessageContentForModel: (row: any) => row.content,
+    fitCareerHistoryToModel: (input: any) => ({ messages: input.messages, omitted: 0 }),
+    countUserChatTurns: async () => 0,
     formatTalentConversationReferencesForLlm: () => "",
     resolveCareerChatTools: () => ({ tools: [], toolNames: [], stopAfterToolNames: [] }),
     normalizeTalentEngagementTypes: () => [], normalizeTalentPeriodicIntervalDays: () => 7,
@@ -50,7 +54,8 @@ function fixture(reply = "Hello") {
       finish: async (content: string) => { events.push("persisted"); return { id: 2, content }; },
       interrupt: async () => null, readPlan: () => [],
     }),
-    runCareerChatAssistantStream: async () => reply, runCareerChatAssistant: async () => reply,
+    runCareerChatAssistantStream: async () => reply,
+    runCareerChatAssistant: async (input: any) => { providerMessages.push(input.messages); return reply; },
     readCareerDelegatedEvents: async () => [], normalizeNoMessageContent: (text: string) => text,
     resolveTalentOnboardingCompletion: () => ({ completed: false }),
     stripTalentOnboardingCompletionMarker: identity, ensureStandalonePostingLinksInText: identity,
@@ -74,7 +79,7 @@ function fixture(reply = "Hello") {
     initialConversation: { id: "conversation" }, initialSetting: setting, onLiveMessage() {},
     onArtifactMessage: () => events.push("delivered"), scheduleAfter() {},
   };
-  return { ...compiledModule.exports, args, events, profileReads: () => profileReads };
+  return { ...compiledModule.exports, args, events, providerMessages, source, profileReads: () => profileReads };
 }
 
 test("execution-only turn persists and delivers the original reply without hydrating an unused response", async () => {
@@ -112,4 +117,17 @@ for (const branch of ["no-message", "suppressed-delivery"]) test(`${branch} exec
   assert.ok(f.events.includes("completed"));
   assert.ok(f.events.includes("released"));
   assert.ok(!f.events.some(event => event.startsWith("response-")));
+});
+
+test("images that arrived with an email are shown with that email only", async () => {
+  const f = fixture();
+  const image = { path: "owner/email-inbound/inbound/1-IMG.png", name: "IMG.png" };
+  await f.executeCareerChatTurn({ ...f.args, onLiveMessage: undefined, adapter: {
+    sourceMessage: f.source, sourceImages: [image],
+    adaptPromptBlocks: (blocks: unknown) => blocks, adaptTools: (selection: unknown) => selection,
+    executeTool: async () => ({}), persistAssistant: async ({ content }: any) => ({ id: 2, content }),
+  } });
+  const messages = f.providerMessages.at(-1)!;
+  assert.equal(JSON.stringify(messages.filter(message => message.careerImages).map(message => [message.content, message.careerImages])),
+    JSON.stringify([["hi", [image]]]));
 });
