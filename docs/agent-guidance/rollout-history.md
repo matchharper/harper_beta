@@ -29,6 +29,19 @@
 
 0.15초 안팎은 측정한 곳과 DB 사이의 왕복 시간이다. DB 실행 시간은 5분 3,717초(평균 12.4개가 동시에 실행)에서 인덱스 뒤 10분 1,262초(2.1개)로 줄었다. 10초 넘는 쿼리는 10분당 55~109건(시간 초과 6~18건)에서 인덱스 직후 10분 14건(1건), 다음 10분 0건이 됐다. 저녁 시간대의 첫 30분만 본 것이라 낮 시간대에 다시 확인해야 한다. 공고 검색 SQL(`search_external_roles_filter_first`)은 고치지 않았다.
 
+## 2026-11-24 로컬 전체 배포 (웹·Worker·운영 DB 함수 3개)
+
+사용자가 "전체 배포해"라고 요청했다. 두 checkout의 커밋과 미커밋 변경을 모두 커밋해 내보냈다.
+
+- **운영 DB.** 함수 3개를 먼저 적용했다. 적용 전 본문을 백업했고(workspace `deploy-backups/20261124/`), 적용 뒤 본문 md5가 파일과 같음을 확인했다. 실행 권한은 바뀌지 않았다. 아래 함수를 다시 적용하지 않는다.
+  - `get_ops_talent_action_logs_v1`: [`20261123140000`](../../supabase/migrations/20261123140000_ops_talent_action_logs_career_coaching.sql), 이력 `ops_talent_action_logs_career_coaching`
+  - `finish_career_agent_email`: [`20261123170000`](../../supabase/migrations/20261123170000_career_email_history_without_footer.sql)의 함수 부분만, 이력 `career_email_history_without_footer_function`. 이 파일 아래쪽의 기존 메일 기록 정리(update 2개)는 적용하지 않았다. 대상이 파일 설명(276통)과 달리 보낸 메일 기록 76,472행 중 73,798행(본문 175MB)이라서다. 적용하려면 따로 승인을 받는다.
+  - `mutate_talent_career_coaching_activity`: [`20261124100000`](../../supabase/migrations/20261124100000_career_coaching_start_without_agenda.sql), 이력 `career_coaching_start_without_agenda` ([사건 #124](https://github.com/matchharper/harper_incidents/issues/124))
+  - 인덱스 `talent_external_evaluations_run_id_idx`(`20261123120000`)는 이미 있었다. 나머지 새 migration은 이미 운영 이력에 있었다.
+- **웹.** [#435](https://github.com/matchharper/harper_beta/pull/435)로 `dev`에 합치고 [#436](https://github.com/matchharper/harper_beta/pull/436)으로 `main`에 머지했다(`7a683fc1`). 운영으로 나간 커밋은 10개다(`b0d40de3`~`adcb1b50`). `origin/dev`와 합칠 때 생긴 충돌 처리는 #435 본문에 있다. `20261121120000_ops_metrics_event_paths.sql`은 지운 상태로 남겼다. Vercel 운영 배포 `dpl_74ANH88Eh1uLYnwoHn3nHHgFR7bp`가 14:10 KST에 Ready가 되어 `matchharper.com`에 붙었다. 앞서 쌓인 프리뷰 빌드 때문에 약 12분 기다렸다. 배포 뒤 15분 동안 새 런타임 오류 묶음은 없었다.
+- **Notion.** "Career Harper — 현재 가능한 기능과 한계"에 이번 변경(가입 직후 첫 인사, 보지 못한 답장 메일, 메일 선택지 버튼, 단체 메일 수신거부, 팀 전달, 긴 입력·반복 실패, 코칭 시작, 보낸 메일 기록, 회사 설명 번역, 화면)을 넣었다. "추천 방식 — 외부 공고와 내부 연결"에서는 가입 직후 내부 Role 사전 채점 문장을 고쳤다.
+- **Worker.** [harper_worker#75](https://github.com/matchharper/harper_worker/pull/75)를 머지하고 `0884198f`로 release를 만들었다. 13:58 KST에 `opportunity-current`를 바꾸고 scheduler만 재시작했다. 6개 슬롯이 모두 새 revision으로 돌고, 전환 뒤 실패한 run은 없다. 13:59에 이메일 답장 worker의 `release.conf`를 바꾸고(이전 파일 `release.conf.bak-20261124`) 재시작했다. company-first, external-sourcing, found-items-expiry, slack-agent는 바뀐 모듈(`opp.worker`, `email_reply.*`)을 쓰지 않아 그대로 두었다. 서버 기록은 `/home/ec2-user/deployment-records/20261124`, [사건 #1 댓글](https://github.com/matchharper/harper_incidents/issues/1#issuecomment-7122527385)에 있다.
+
 ## 2026-11-24 Career 연속 실패 상한 RPC와 실패 안내 번역 (운영 DB·번역 DB만, 웹 미배포)
 
 사용자 요청으로 커밋 `6cb3c1fc`의 migration [`20261123180000_career_invocation_failure_limit.sql`](../../supabase/migrations/20261123180000_career_invocation_failure_limit.sql)을 운영 DB에 적용했다(이력 version `20261123161608`, 11/24 01:16 KST). 적용 전에는 함수가 없었다. 적용 뒤 함수 본문 md5가 파일과 같고(`c9e75721…`), 실행 권한은 service_role뿐이며 `claim_career_invocations`는 바뀌지 않았다. 지금 배포된 웹은 이 함수를 부르지 않으므로 동작이 바뀌지 않는다.
