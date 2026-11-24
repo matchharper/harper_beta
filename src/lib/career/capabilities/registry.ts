@@ -133,7 +133,7 @@ export const CAREER_CAPABILITIES = [
     id: "schedules",
     turns: 2,
     summary:
-      "Read and record actual appointments, and reserve concrete future Career work. Nonurgent events and today's appointments are reviewed together; flexible same-day reservations can join that review. Preserve exact times explicitly requested by the user. The historical check-in schedule is only opted-in external discovery, disabled by stopped or external recommendations off. No generic recurring idle checks. Read current reservations before creating another.",
+      "Read and record actual appointments, and reserve concrete future Career work. Nonurgent events and today's appointments are reviewed together; flexible same-day reservations can join that review. Preserve exact times explicitly requested by the user. The historical check-in schedule is only external discovery, disabled by stopped or external recommendations off. No generic recurring idle checks. Read current reservations before creating another.",
     tools: [
       ["read_talent_schedules", "read actual appointments, times, related Roles and source references"],
       ["upsert_talent_schedules", "record, correct or cancel externally arranged appointments"],

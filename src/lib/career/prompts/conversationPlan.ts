@@ -70,6 +70,7 @@ import {
   buildCareerEntryFindSimilarRequest,
   buildCareerPostOnboardingContextSection,
   buildCareerPostOnboardingConversationGuide,
+  buildCareerSignupUnfinishedContext,
 } from "@/lib/career/prompts/postOnboardingGuide";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
@@ -151,6 +152,9 @@ export function buildCareerConversationPromptPlan(args: {
   isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
+  // False while Career still opens on the signup form (the onboarding redirect).
+  // Background work and email replies can run before that.
+  signupFinished?: boolean;
   officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
@@ -338,9 +342,14 @@ export function buildCareerConversationPromptPlan(args: {
       text: buildCareerPostOnboardingConversationGuide({
         channel: args.channel,
         delivery: args.backgroundInvocation || args.scheduledWork ? "email" : "chat",
+        signupFinished: args.signupFinished,
       }),
       cacheable: true,
     });
+  }
+
+  if (!isFirstContact && !isOnboardingActive && args.signupFinished === false) {
+    promptBlocks.push({ key: "signup_unfinished", text: buildCareerSignupUnfinishedContext(), cacheable: true });
   }
 
   if (isOnboardingActive) {
