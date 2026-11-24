@@ -29,6 +29,13 @@
 
 0.15초 안팎은 측정한 곳과 DB 사이의 왕복 시간이다. DB 실행 시간은 5분 3,717초(평균 12.4개가 동시에 실행)에서 인덱스 뒤 10분 1,262초(2.1개)로 줄었다. 10초 넘는 쿼리는 10분당 55~109건(시간 초과 6~18건)에서 인덱스 직후 10분 14건(1건), 다음 10분 0건이 됐다. 저녁 시간대의 첫 30분만 본 것이라 낮 시간대에 다시 확인해야 한다. 공고 검색 SQL(`search_external_roles_filter_first`)은 고치지 않았다.
 
+## 2026-11-24 안 본 답장 메일은 Harper를 닫았을 때만 (웹·운영 DB)
+
+같은 날 배포한 '안 본 답장 메일'은 채팅이 5분 동안 화면에 안 보이면 메일 후보가 됐다. 다른 탭·앱이나 Harper 안 다른 화면도 해당됐다. 사용자가 탭이나 브라우저를 닫았을 때만, 3분 넘게 걸린 답장이 30분 동안 안 보일 때만 보내도록 고쳤다([#438](https://github.com/matchharper/harper_beta/pull/438)). 처음 배포부터 이 수정까지 이 경로로 만들어진 실행은 0건이라 잘못 나간 메일은 없다.
+
+- **운영 DB.** 사용자 요청으로 [`20261124120000_career_reply_unseen_after_close.sql`](../../supabase/migrations/20261124120000_career_reply_unseen_after_close.sql)을 웹 머지 전에 적용했다(이력 이름 `career_reply_unseen_after_close`). 새 테이블 `career_page_presence`와 함수 `mark_career_page_presence_v1`, `career_pages_closed_v1`, `admit_career_unseen_replies_v2`를 만들고 `career_unseen_reply_current_v1`, `admit_career_unseen_replies_v1`(이제 v2를 부름)을 바꿨다. 다섯 함수 본문 md5가 파일과 같고 실행 권한은 `service_role`뿐이다. 이전 정의는 `20261123150000_career_reply_unseen_email.sql`과 같다. 다시 적용하지 않는다.
+- **웹.** [#439](https://github.com/matchharper/harper_beta/pull/439)로 `main`에 머지했다(`9b8b3512`). 15:17 KST에 운영 배포가 성공했고, 배포 직후 Career 페이지의 열림 기록이 쌓이기 시작했다.
+
 ## 2026-11-24 로컬 전체 배포 (웹·Worker·운영 DB 함수 3개)
 
 사용자가 "전체 배포해"라고 요청했다. 두 checkout의 커밋과 미커밋 변경을 모두 커밋해 내보냈다.
