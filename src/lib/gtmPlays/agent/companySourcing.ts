@@ -17,7 +17,8 @@ import type { AgentEvent } from "./types";
 /**
  * Why a hiring post gets no company mail (gtm_agent_people.skip_reason, exactly these words): a Harper customer, a
  * company mailed within 30 days, no Harper member fits, no address to write to (none found, the lookup found none, or
- * the address is on the opt-out list or refused the mail), or the post names no opening at a company.
+ * the address is on the opt-out list or refused the mail), the post names no opening at a company, or the company is
+ * one Ops blocked.
  */
 export const SOURCING_SKIP = {
   customer: "하퍼 고객사",
@@ -25,6 +26,8 @@ export const SOURCING_SKIP = {
   noMembers: "맞는 회원 0명",
   noAddress: "주소 없음",
   noOpening: "공고를 읽지 못함",
+  // Ops' blocked domains (recruiting platforms, search firms, HR companies; Shaun 11/24): exclusion.server.ts isBlockedCompany.
+  blocked: "막은 회사",
 } as const;
 export type SourcingSkipReason = (typeof SOURCING_SKIP)[keyof typeof SOURCING_SKIP];
 

@@ -42,6 +42,7 @@ export type AgentExcludeReason =
   | "duplicate" // the same person again in this run
   | "stale_signal" // the post or profile is older than SIGNAL_MAX_AGE_DAYS (30 days)
   | "not_job_seeking" // a recruiter, a company account, or no clear intent to move
+  | "blocked_company" // their address or current company is on Ops' blocked domains (recruiting platforms, search firms)
   // Email only: no personal address the agent may mail, and why (agent/emailLookup.ts noEmailReason):
   | "no_lookup_source" // found by a search with no profile or own link to look an address up from
   | "lookup_not_found" // the paid email lookup ended without an address the agent may use

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   AGENT_SIGNAL_SOURCES, EXPLORE_SOURCE, JUDGE_SCHEMA, ROLE_FAMILIES, SIGNAL_SOURCE_ID, SIGNAL_SOURCES, authorProfileUrl, cleanOpsText,
   concurrencyLimit, contactUrlOnPage, emailWrittenOn, exaSearchCost, exploreExcludeDomains, familiesWithoutPeople, identifyPerson,
-  isBlockedUrl, judgeBatch, judgePrompt, judgedResult, layoffCompanies, normalizeDomain, normalizeDomainList, normalizeSignalSource,
+  isBlockedUrl, onBlockedDomain, judgeBatch, judgePrompt, judgedResult, layoffCompanies, normalizeDomain, normalizeDomainList, normalizeSignalSource,
   personMemoryKeys, plainPageText, planPrompt, publishedLabel, rankSignalPeople, readPage, readSignalLogEntry, registrableDomain,
   resultFitsStage, roleFamilyCounts, signalHistorySection, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo,
   signalWindows, sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, windowDates, type SignalHistoryRun,
@@ -112,6 +112,14 @@ test("each source searches only its own domains; blocked domains never; the open
   assert.equal(resultFitsStage("https://www.zdnet.co.kr/view/1", EXPLORE_SOURCE, "explore"), false);
   assert.equal(isBlockedUrl("https://a.spam.com/x", ["spam.com"]), true);
   assert.equal(isBlockedUrl("https://exa.ai/people/x", []), true);
+  // Addresses and hosts on a blocked domain (Shaun 11/24: never mailed); subdomains count, a look-alike does not.
+  assert.equal(onBlockedDomain("jane@jobboard.example", ["jobboard.example"]), true);
+  assert.equal(onBlockedDomain("Jane@HR.Jobboard.example", ["jobboard.example"]), true);
+  assert.equal(onBlockedDomain("www.jobboard.example", ["jobboard.example"]), true);
+  assert.equal(onBlockedDomain("jane@notjobboard.example", ["jobboard.example"]), false);
+  assert.equal(onBlockedDomain("jane@gmail.com", ["jobboard.example"]), false);
+  assert.equal(onBlockedDomain(null, ["jobboard.example"]), false);
+  assert.equal(onBlockedDomain("jane@exa.ai", []), false);
   assert.equal(resultFitsStage("https://exa.ai/people/x", EXPLORE_SOURCE, "explore"), false);
   // Hacker News mirrors: the HN source reads the threads; the open web would find the same people again.
   assert.equal(resultFitsStage("https://hackerneue.com/item?id=1", EXPLORE_SOURCE, "explore"), false);

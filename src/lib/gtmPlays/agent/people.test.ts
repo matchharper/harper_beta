@@ -52,6 +52,9 @@ test("who is never contacted, in order", () => {
   assert.equal(exclusionReason({ ...base, method: "applicant", signalAt: null }, now, 90), null);
   assert.equal(exclusionReason({ ...base, method: "db", signalAt: null }, now, 90), null);
   assert.equal(exclusionReason({ ...base, notJobSeeking: true }, now, 90), "not_job_seeking");
+  // Address or current company on Ops' blocked domains (Shaun 11/24); a member stays "member".
+  assert.equal(exclusionReason({ ...base, isBlockedCompany: true }, now, 90), "blocked_company");
+  assert.equal(exclusionReason({ ...base, isBlockedCompany: true, isMember: true }, now, 90), "member");
 });
 
 test("send hours are Korea time", () => {

@@ -71,8 +71,8 @@ test("제외 without an address is split by why, and the same people are 제외 
 });
 
 test("the table accepts exactly the exclusion reasons the code writes", () => {
-  // The latest migration that sets the list (11/23: the channels migration widened the first one's).
-  const sql = readFileSync(new URL("../../../../supabase/migrations/20261123100000_gtm_agent_channels.sql", import.meta.url), "utf8");
+  // The latest migration that sets the list (11/24: blocked_company, after the 11/23 channels migration).
+  const sql = readFileSync(new URL("../../../../supabase/migrations/20261124190000_gtm_agent_blocked_company.sql", import.meta.url), "utf8");
   const list = /check \(exclude_reason in \(([^)]*)\)\)/.exec(sql)?.[1] ?? "";
   const allowed = [...list.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]).sort();
   const reasons = AGENT_EXCLUDE_BUCKETS.filter((bucket) => !["no_fit", "skipped", "failed"].includes(bucket)).sort();
