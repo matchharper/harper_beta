@@ -11,6 +11,10 @@ LLM 평가·모델 benchmark를 생성·수정·실행·비교할 때 적용한�
 - Keep executable runners canonical in the repository that owns the runtime path and link to them from the evaluation task README instead of copying implementation code into the registry.
 - Evaluation examples define expected behavior and regression coverage; do not translate them into scenario-specific runtime branches or state machines. Production test fixtures must also follow the test-only isolation rules below.
 
+## Persona tests
+
+For “페르소나 테스트해봐” requests, follow `harper_eval/personas/README.md` (https://github.com/matchharper/harper_eval/blob/main/personas/README.md). It owns the personas, scope judgment, test-account creation, the evaluation checklist, where reports are stored (`career_persona_test_runs`) and what to report. Persona runs use real public profiles, so their names and links stay in the private harper_eval repository.
+
 ## Prepared Career scenarios
 
 For “이 시나리오대로 실행/평가해” requests, inspect `harper_eval/scenarios/README.md`, the selected frozen cases, and `harper_beta/docs/evaluation/career-application-scenarios/README.md`. This registry separates fixed setup/action from reviewer-only expectations. Reuse the canonical runtime runner, inspect actual user-visible outputs and durable effects, record failures, fix their source paths when requested, and repeat the same cases before reporting a conclusion. Live account resets require that account's testing authorization; ordinary production capture remains read-only.

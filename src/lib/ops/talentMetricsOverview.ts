@@ -19,6 +19,8 @@ export type OverviewChannelKey = (typeof OVERVIEW_CHANNELS)[number]["key"];
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const FUNNEL_WINDOW_MS = 7 * DAY_MS;
 const GMAIL_FAST_WINDOW_MS = DAY_MS;
+const APPLY_FAST_WINDOW_MS = DAY_MS;
+const APPLY_HARPER_WINDOW_MS = 4 * DAY_MS;
 
 export type OpsTalentMetricOverviewSummary = {
   activeTalents: number;
@@ -32,6 +34,15 @@ export type OpsTalentMetricOverviewSummary = {
 
 export type OpsTalentMetricOverviewTrendPoint = {
   activeTalents: number;
+  /**
+   * Signups in the bucket who clicked 지원하기 / 'Harper와 지원하기' in the apply modal within 24 hours of signing up,
+   * out of all of them. A snapshot from an older build lacks these fields.
+   */
+  applyClickRate24h?: number | null;
+  applyHarperRate24h?: number | null;
+  /** The same within 96 hours: the share and the number of people. */
+  applyHarperRate96h?: number | null;
+  applyHarperTalents96h?: number;
   /** 'Harper와 지원하기' clicks. */
   applyDelegated: number;
   /** Applications the talent confirmed for Harper to carry out. */
@@ -42,7 +53,7 @@ export type OpsTalentMetricOverviewTrendPoint = {
   bucketStart: string;
   externalConnections: number;
   fullLabel: string;
-  /** Signups in the bucket who connected Gmail within 24 hours / 7 days (only signups whose window has passed). */
+  /** Signups in the bucket who connected Gmail within 24 hours / 7 days of signing up, out of all of them. */
   gmailRate24h: number | null;
   gmailRate7d: number | null;
   internalConnections: number;
@@ -58,8 +69,7 @@ export type OpsTalentMetricOverviewFunnelStep = {
 export type OpsTalentMetricOverviewChannelRow = {
   key: OverviewChannelKey;
   label: string;
-  /** Signups in the period whose first 7 days have passed: the base of the rates. */
-  matured: number;
+  /** Signups in the period: the base of the rates. */
   signups: number;
   firstChatRate: number | null;
   gmailRate: number | null;
@@ -117,6 +127,8 @@ export type OpsTalentMetricsOverviewResponse = {
 };
 
 export type OverviewSignupRow = {
+  applyClickedAt: string | Date | null;
+  applyHarperClickedAt: string | Date | null;
   bucketStart: string;
   connectedAt: string | Date | null;
   delegatedAt: string | Date | null;
@@ -261,9 +273,8 @@ export function buildOpsTalentMetricsOverview(args: {
   const comparisonSignups = args.signups.filter((row) => row.isComparison);
   const funnelSignups = args.signups.filter((row) => row.inFunnel);
   const funnelWindow = funnelDays(args.filters.to, args.generatedAt);
-  const matured = currentSignups.filter(
-    (row) => (time(row.signedUpAt) ?? now) + FUNNEL_WINDOW_MS <= now
-  );
+  // "가입 7일 안" counts every signup and what they reached in their first 7 days. A signup still inside those days
+  // counts with what they did so far, so the latest buckets rise as their days fill.
   const within = (row: OverviewSignupRow, key: keyof OverviewSignupRow) =>
     reachedWithin(
       time(row.signedUpAt) ?? 0,
@@ -300,13 +311,6 @@ export function buildOpsTalentMetricsOverview(args: {
       const bucketSignups = currentSignups.filter(
         (signup) => signup.bucketStart === row.key
       );
-      const fastBase = bucketSignups.filter(
-        (signup) =>
-          (time(signup.signedUpAt) ?? now) + GMAIL_FAST_WINDOW_MS <= now
-      );
-      const weekBase = bucketSignups.filter(
-        (signup) => (time(signup.signedUpAt) ?? now) + FUNNEL_WINDOW_MS <= now
-      );
       const bucketApplications = args.applications.filter(
         (application) =>
           application.isCurrent && application.bucketStart === row.key
@@ -322,10 +326,32 @@ export function buildOpsTalentMetricsOverview(args: {
           ).length,
         ])
       ) as Record<`signups_${OverviewChannelKey}`, number>;
+      const reached = (key: keyof OverviewSignupRow, windowMs: number) =>
+        bucketSignups.filter((signup) =>
+          reachedWithin(
+            time(signup.signedUpAt) ?? 0,
+            signup[key] as string | Date | null,
+            windowMs
+          )
+        ).length;
+      const applyHarperTalents96h = reached(
+        "applyHarperClickedAt",
+        APPLY_HARPER_WINDOW_MS
+      );
       return {
         ...bucketLabels(row.key, args.filters.interval),
         ...channelCounts,
         activeTalents: row.activeTalents,
+        applyClickRate24h: rate(
+          reached("applyClickedAt", APPLY_FAST_WINDOW_MS),
+          bucketSignups.length
+        ),
+        applyHarperRate24h: rate(
+          reached("applyHarperClickedAt", APPLY_FAST_WINDOW_MS),
+          bucketSignups.length
+        ),
+        applyHarperRate96h: rate(applyHarperTalents96h, bucketSignups.length),
+        applyHarperTalents96h,
         applyConfirmed: bucketApplications.length,
         applyDelegated: row.applyDelegated,
         applySubmitted,
@@ -333,18 +359,18 @@ export function buildOpsTalentMetricsOverview(args: {
         bucketStart: row.key,
         externalConnections: row.externalConnections,
         gmailRate24h: rate(
-          fastBase.filter((signup) =>
+          bucketSignups.filter((signup) =>
             reachedWithin(
               time(signup.signedUpAt) ?? 0,
               signup.gmailAt,
               GMAIL_FAST_WINDOW_MS
             )
           ).length,
-          fastBase.length
+          bucketSignups.length
         ),
         gmailRate7d: rate(
-          weekBase.filter((signup) => within(signup, "gmailAt")).length,
-          weekBase.length
+          bucketSignups.filter((signup) => within(signup, "gmailAt")).length,
+          bucketSignups.length
         ),
         internalConnections: row.internalConnections,
       };
@@ -384,9 +410,8 @@ export function buildOpsTalentMetricsOverview(args: {
     const signups = currentSignups.filter(
       (row) => channelOf(row.userId) === channel.key
     );
-    const base = matured.filter((row) => channelOf(row.userId) === channel.key);
     const share = (key: keyof OverviewSignupRow) =>
-      rate(base.filter((row) => within(row, key)).length, base.length);
+      rate(signups.filter((row) => within(row, key)).length, signups.length);
     return {
       connectedRate: share("connectedAt"),
       delegatedRate: share("delegatedAt"),
@@ -394,7 +419,6 @@ export function buildOpsTalentMetricsOverview(args: {
       gmailRate: share("gmailAt"),
       key: channel.key,
       label: channel.label,
-      matured: base.length,
       signups: signups.length,
     };
   });

@@ -77,23 +77,16 @@ import {
   renderUserTextWithLinks,
 } from "@/components/ui/reference-link";
 import { parseCareerInlineUi } from "@/lib/career/inlineUi";
+import { extractCareerChoiceButtons } from "@/lib/career/choiceButtons";
 import CareerInlineUi, {
   CareerInlineUiUnavailable,
 } from "./inline/CareerInlineUi";
 
 const HIGHLIGHT_PATTERN = /<<([\s\S]+?)>>/g;
 const CALL_ACTION_MARKER = "[[CALL]]";
-const CAREER_CHOICE_BUTTONS_START_FRAGMENT = "[[CAREER_CHOICE_BUTTONS";
-const CAREER_CHOICE_BUTTONS_PATTERN =
-  /\[\[CAREER_CHOICE_BUTTONS\]\]\s*([\s\S]*?)\s*\[\[\/CAREER_CHOICE_BUTTONS\]\]/g;
 const INTERNAL_CALL_REQUEST_START_FRAGMENT = "[[INTERNAL_";
 const INTERNAL_CALL_REQUEST_PATTERN =
   /\[\[INTERNAL_OPPORTUNITY_CALL_REQUEST:([^\]]+)\]\]/g;
-
-type AssistantChoice = {
-  label: string;
-  value: string;
-};
 
 export type CareerAssistantChoiceSelection = {
   assistantMessageId: string;
@@ -137,72 +130,6 @@ type Props = {
 
 function stripCallActionMarker(content: string) {
   return content.replaceAll(CALL_ACTION_MARKER, "").trim();
-}
-
-function normalizeAssistantChoice(value: unknown): AssistantChoice | null {
-  if (typeof value === "string") {
-    const label = value.trim();
-    return label ? { label, value: label } : null;
-  }
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const label = typeof record.label === "string" ? record.label.trim() : "";
-  const choiceValue =
-    typeof record.value === "string" ? record.value.trim() : label;
-
-  if (!label || !choiceValue) return null;
-  return { label, value: choiceValue };
-}
-
-function extractAssistantChoiceBlocks(content: string) {
-  const choices: AssistantChoice[] = [];
-  const seenValues = new Set<string>();
-
-  let strippedContent = content.replace(
-    CAREER_CHOICE_BUTTONS_PATTERN,
-    (_match, payload: string) => {
-      try {
-        const parsed = JSON.parse(payload.trim()) as unknown;
-        const rawChoices = Array.isArray(parsed)
-          ? parsed
-          : parsed && typeof parsed === "object"
-            ? (parsed as Record<string, unknown>).choices
-            : null;
-
-        if (!Array.isArray(rawChoices)) return "";
-
-        for (const rawChoice of rawChoices) {
-          const choice = normalizeAssistantChoice(rawChoice);
-          if (!choice || seenValues.has(choice.value)) continue;
-          seenValues.add(choice.value);
-          choices.push(choice);
-          if (choices.length >= 3) break;
-        }
-      } catch {
-        // Hide malformed UI metadata instead of exposing raw markers in chat.
-      }
-
-      return "";
-    }
-  );
-
-  const incompleteBlockStart = strippedContent.indexOf(
-    CAREER_CHOICE_BUTTONS_START_FRAGMENT
-  );
-  if (incompleteBlockStart !== -1) {
-    strippedContent = strippedContent.slice(0, incompleteBlockStart);
-  }
-
-  strippedContent = strippedContent.trim();
-
-  return {
-    choices: choices.length >= 2 ? choices : [],
-    content: strippedContent,
-  };
 }
 
 function toInternalCallRequestMarker(
@@ -446,7 +373,7 @@ const CareerMessageBubbleContent = ({
     ? extractInternalCallRequestMarkers(callActionStrippedContent)
     : { content: callActionStrippedContent, markers: [] };
   const choiceBlockExtraction = !isUser
-    ? extractAssistantChoiceBlocks(internalCallRequestExtraction.content)
+    ? extractCareerChoiceButtons(internalCallRequestExtraction.content)
     : { content: internalCallRequestExtraction.content, choices: [] };
   const reengagementActionExtraction = !isUser
     ? extractCareerReengagementActions(choiceBlockExtraction.content)

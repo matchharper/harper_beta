@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import type { OpsTalentMetricInterval } from "@/lib/ops/talentMetrics";
+import {
+  opsTalentMetricsRollingRange,
+  type OpsTalentMetricInterval,
+} from "@/lib/ops/talentMetrics";
 
 export type OpsTalentMetricsQuickRangeDays = 30 | 90 | 180;
 
@@ -26,11 +29,6 @@ type OpsTalentMetricsFilterStoreState = OpsTalentMetricsStoredFilters & {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
-const KST_OFFSET_MS = 9 * 60 * 60 * 1_000;
-
-function toKstDateOnly(valueMs: number) {
-  return new Date(valueMs + KST_OFFSET_MS).toISOString().slice(0, 10);
-}
 
 function normalizeDateOnly(value: unknown) {
   const normalized = String(value ?? "").trim();
@@ -78,10 +76,7 @@ export function createOpsTalentMetricsPresetRange(
   days: OpsTalentMetricsQuickRangeDays,
   nowMs = Date.now()
 ) {
-  return {
-    from: toKstDateOnly(nowMs - (days - 1) * DAY_MS),
-    to: toKstDateOnly(nowMs),
-  };
+  return opsTalentMetricsRollingRange(days, nowMs);
 }
 
 export function normalizeOpsTalentMetricsStoredFilters(

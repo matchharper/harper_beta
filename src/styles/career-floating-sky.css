@@ -388,7 +388,9 @@
 }
 .career-right-scroll {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  /* Vertical only: a contained x axis would swallow the macOS back swipe,
+     since overflow-y: auto also makes the panel a horizontal scroller. */
+  overscroll-behavior-y: contain;
   /* Vertical scroll also clips horizontally: reserve space for card shadows.
      Matching negative margins preserve the cards' original width and position. */
   padding: 0 calc(var(--career-panel-shadow-gutter) + 3px) 32px;
@@ -704,10 +706,6 @@
   .career-workspace-body[data-call="true"] .career-right-column {
     display: none;
   }
-}
-[data-opportunity-detail] .career-opportunity-actions {
-  opacity: 1;
-  pointer-events: auto;
 }
 @media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
   .career-workspace-body[data-panel="history"] {

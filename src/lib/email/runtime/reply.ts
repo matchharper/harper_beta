@@ -11,7 +11,7 @@ import { dispatchCareerCheckpoint } from "@/lib/career/agentContinuation";
 import { emailAssistantModel } from "./model";
 import { isOpsEmailTest, opsEmailTestInput } from "./opsTest";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
-import { loadEmailReferenceContext } from "./context";
+import { loadEmailReferenceContext, threadSubject } from "./context";
 import {
   buildReplySubject,
   htmlToPlainText,
@@ -19,7 +19,8 @@ import {
   normalizeEmailAddress,
   stripQuotedEmailText,
 } from "@/lib/email/parse";
-import { getDefaultResendFromEmail } from "@/lib/email/send";
+import { getDefaultResendFromEmail, getResendEmail } from "@/lib/email/send";
+import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
 import { getCareerOnboardingChecklistCoverage } from "@/lib/talentOnboarding/calls";
 import { buildOnboardingRuntimeStateSection } from "@/lib/career/prompts/conversationSections";
 import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
@@ -28,11 +29,13 @@ import {
   getReceivedAttachments,
   normalizeAttachments,
   automaticEmailReason,
+  namesNoEarlierMessage,
   replyHeaders,
   deliverEmail,
   type EmailDelivery,
 } from "./transport";
 import { adaptEmailPromptBlocks } from "./prompt";
+import { storeEmailImageInputs } from "./images";
 import {
   EMAIL_SHARED_TOOL_NAMES,
   emailToolSelection,
@@ -69,6 +72,7 @@ import {
   type EmailAdmin,
   type EmailJobContext,
   type EmailRow,
+  type ReceivedEmail,
 } from "./types";
 
 export async function processEmailReply(
@@ -322,6 +326,12 @@ export async function processEmailReply(
       ]
         .filter(Boolean)
         .join("\n\n");
+      ctx.images = await storeEmailImageInputs({
+        admin,
+        talentId: ctx.talentId,
+        inboundId: String(inbound.id),
+        attachments: ctx.attachments,
+      });
       const model = emailAssistantModel(job);
       await runCareerChatTurn({
         admin,
@@ -347,6 +357,7 @@ export async function processEmailReply(
           replyJobId: job.id,
           onboardingActive: onboarding,
           sourceMessage,
+          sourceImages: ctx.images,
           adaptPromptBlocks: (blocks) =>
             adaptEmailPromptBlocks(blocks, ctx, extra),
           adaptTools: (selection) => emailToolSelection(selection, onboarding),
@@ -394,8 +405,16 @@ export async function processEmailReply(
       from: getDefaultResendFromEmail(),
       to: replyTo,
       subject: buildReplySubject(subject),
-      ...renderReplyEmail(assistant.content),
-      headers: replyHeaders(received, inbound.message_id),
+      ...renderReplyEmail(assistant.content, {
+        choiceHref: careerEmailChoiceHref({ talentId: ctx.talentId, recipient: replyTo, replyTo: replyAlias, subject }),
+      }),
+      headers: await careerReplyHeaders(admin, {
+        received,
+        fallbackMessageId: inbound.message_id,
+        talentId: ctx.talentId,
+        replyAlias,
+        subject,
+      }),
       replyTo: replyAlias,
       idempotencyKey: `email-reply/${job.id}`,
     };
@@ -435,6 +454,49 @@ export async function processEmailReply(
   const saved = await readRow(admin, "email_reply_jobs", job.id);
   if (!saved) throw new Error("Email reply job disappeared after delivery");
   await finishEmailReply(admin, saved, owner);
+}
+
+/**
+ * Gmail threads a message by the IDs its References name. Mail sent from an
+ * email button names none, so answering it by its own ID would leave the
+ * conversation apart from the email the person answered. When such a mail
+ * answers that email (same subject), naming only that email keeps Harper's
+ * answer in its thread (checked in Gmail 2026-11-23). A new subject is a new
+ * conversation and keeps the ordinary reply headers.
+ */
+async function careerReplyHeaders(
+  admin: EmailAdmin,
+  args: {
+    received: ReceivedEmail;
+    fallbackMessageId: string;
+    talentId: string;
+    replyAlias: string;
+    subject: string;
+  }
+) {
+  if (!namesNoEarlierMessage(args.received))
+    return replyHeaders(args.received, args.fallbackMessageId);
+  const { data, error } = await (admin as any)
+    .from("career_email_messages")
+    .select("subject,metadata")
+    .eq("talent_id", args.talentId)
+    .eq("direction", "outbound")
+    .eq("status", "sent")
+    .contains("metadata", { replyTo: args.replyAlias })
+    .order("occurred_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  const resendEmailId = String(asObject(data?.metadata).resendEmailId ?? "");
+  if (!resendEmailId || threadSubject(String(data?.subject ?? "")) !== threadSubject(args.subject))
+    return replyHeaders(args.received, args.fallbackMessageId);
+  // Threading is presentation only; a provider lookup failure must not hold the reply.
+  const original = await getResendEmail(resendEmailId)
+    .then((email) => email.message_id?.trim() || null)
+    .catch(() => null);
+  return original
+    ? { "In-Reply-To": original, References: original }
+    : replyHeaders(args.received, args.fallbackMessageId);
 }
 
 async function finishEmailReply(

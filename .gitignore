@@ -55,3 +55,4 @@ next-env.d.ts
 
 # Generated from pinned font/Paged.js packages by next.config.mjs.
 /public/resume-assets/
+/.next-persona*/

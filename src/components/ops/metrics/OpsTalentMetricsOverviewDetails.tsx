@@ -273,7 +273,7 @@ function ChannelSection({
   return (
     <Section>
       <DetailTitle
-        description="선택 기간 가입자를 채널별로 나눴습니다. 비율은 그중 가입 후 7일이 지난 사람이 7일 안에 각 단계에 도달한 비율입니다. 맡김·연결의 정의는 퍼널과 같습니다."
+        description="선택 기간 가입자를 채널별로 나눴습니다. 비율은 그 채널 가입자 전원 중 가입부터 7일 안에 각 단계에 도달한 비율입니다. 가입한 지 7일이 안 된 사람은 지금까지 도달한 단계만 셉니다. 맡김·연결의 정의는 퍼널과 같습니다."
         title="채널별 전환"
       />
       <div className="mt-3 overflow-x-auto">

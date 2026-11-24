@@ -242,14 +242,15 @@ export async function refreshCompanySummaryIfDue(context: ResourceContext, works
   return note ? "failed" as const : "refreshed" as const;
 }
 
-/** The saved overview shown on company and opportunity screens, keyed by the given workspace. */
-export async function readCompanySummaries(admin: ResourceContext["admin"], workspaceIds: string[]) {
-  const summaries = new Map<string, { markdown: string; checkedAt: string | null }>();
-  for (const bundle of await readCompanyBundles(admin, workspaceIds, null)) {
-    if (bundle.summary && bundle.requestedId)
-      summaries.set(bundle.requestedId, { markdown: bundle.summary.content, checkedAt: bundle.summary.checkedAt ?? null });
-  }
-  return summaries;
+/** The saved overview shown on company and opportunity screens in the reader's language, keyed by the given workspace. */
+export async function readCompanySummaries(admin: ResourceContext["admin"], workspaceIds: string[], locale: string | null | undefined) {
+  const { readCompanySummariesInLanguage } = await import("../companies/summaryLanguage");
+  const found = (await readCompanyBundles(admin, workspaceIds, null)).flatMap(bundle =>
+    bundle.summary && bundle.requestedId ? [{ requestedId: bundle.requestedId, summary: bundle.summary }] : []);
+  const text = await readCompanySummariesInLanguage(admin, found.map(entry => entry.summary), locale);
+  return new Map(found.map(({ requestedId, summary }) => [requestedId, {
+    markdown: text.get(summary.dataRef.id) ?? summary.content, checkedAt: summary.checkedAt ?? null,
+  }]));
 }
 
 export async function readCompanyDetails(context: ResourceContext, targets: CompanyTarget[], options: CompanyReadOptions) {

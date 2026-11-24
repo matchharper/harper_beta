@@ -10,6 +10,7 @@ import {
 } from "@/lib/talentOnboarding/server";
 import {
   assertCurrentTalentRecommendation,
+  fetchTalentOpportunityActivityTimeline,
   fetchTalentOpportunityHistoryByIds,
   fetchTalentOpportunityHistoryByRoleIds,
   fetchTalentOpportunityHistoryCounts,
@@ -421,6 +422,20 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Invalid roleIds" }, { status: 400 });
       const items = await fetchTalentOpportunityHistoryByRoleIds({ admin, locale, roleIds, userId: user.id });
       return NextResponse.json({ ok: true, items: items.map(toCandidateOpportunityResponse) });
+    }
+
+    // Only the detail timeline of an opportunity the browser already listed.
+    const timelineRecommendationId = req.nextUrl.searchParams.get("timeline");
+    if (timelineRecommendationId !== null) {
+      if (!isPostingRoleId(timelineRecommendationId) || !isPostingRoleId(roleId))
+        return NextResponse.json({ error: "Invalid timeline request" }, { status: 400 });
+      const timeline = await fetchTalentOpportunityActivityTimeline({
+        admin,
+        recommendationId: timelineRecommendationId.toLowerCase(),
+        roleId: roleId.toLowerCase(),
+        userId: user.id,
+      });
+      return NextResponse.json({ ok: true, ...timeline });
     }
 
     if (roleId) {

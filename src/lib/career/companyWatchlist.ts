@@ -106,7 +106,6 @@ export type TalentCompanySummary = {
 export type TalentCompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
-  companySummary: TalentCompanySummary | null;
   companyDbId: number;
   companySnapshot: TalentCompanySnapshotDossier | null;
   companyWorkspaceId: string | null;
@@ -403,10 +402,11 @@ async function fetchWorkspaceMapByIds(
 
 async function fetchCompanySummaryByWorkspaceIds(
   admin: AdminClient,
-  workspaceIds: string[]
+  workspaceIds: string[],
+  locale: string | null | undefined
 ) {
   const { readCompanySummaries } = await import("@/lib/career/resources/companyData");
-  return readCompanySummaries(admin as any, uniqueUuidList(workspaceIds));
+  return readCompanySummaries(admin as any, uniqueUuidList(workspaceIds), locale);
 }
 
 async function fetchBestWorkspaceByCompanyDbIds(
@@ -601,7 +601,6 @@ async function fetchActiveFollowRows(
 
 function mapCompanyWatchlistItem(args: {
   activeRoleStats?: ActiveRoleStats | null;
-  companySummary?: TalentCompanySummary | null;
   companyDb: CompanyDbRow;
   companySnapshot?: TalentCompanySnapshotDossier | null;
   fallbackWorkspace?: CompanyWorkspaceRow | null;
@@ -616,7 +615,6 @@ function mapCompanyWatchlistItem(args: {
   return {
     activeRoleCount,
     careerUrl: workspace?.career_url ?? null,
-    companySummary: args.companySummary ?? null,
     companyDbId: Number(args.companyDb.id),
     companySnapshot: args.companySnapshot ?? null,
     companyWorkspaceId:
@@ -782,23 +780,46 @@ export async function fetchTalentCompanyWatchlistDetail(args: {
   if (!companyDb) return null;
   const follow = followByCompanyDbId.get(companyDbId) ?? null;
   const workspace = fallbackWorkspaceByCompanyDbId.get(companyDbId) ?? null;
-  const companyWorkspaceId =
-    follow?.company_workspace_id ?? workspace?.company_workspace_id ?? null;
-  const companySummaries = await fetchCompanySummaryByWorkspaceIds(
-    args.admin,
-    companyWorkspaceId ? [companyWorkspaceId] : []
-  ).catch(() => new Map<string, TalentCompanySummary>());
 
   return mapCompanyWatchlistItem({
     activeRoleStats: activeRoleStatsByCompanyDbId.get(companyDbId),
-    companySummary: companyWorkspaceId
-      ? companySummaries.get(companyWorkspaceId) ?? null
-      : null,
     companyDb,
     companySnapshot,
     follow,
     workspace,
   });
+}
+
+/**
+ * The company detail's shared overview in the reader's language, read on its own
+ * so the rest of the detail is not held while a language version is written.
+ * It reads the workspace the detail shows: the followed one, else the best one.
+ */
+export async function fetchTalentCompanyWatchlistSummary(args: {
+  admin: AdminClient;
+  companyDbId: number;
+  preferredLocale?: string | null;
+  userId: string;
+}): Promise<TalentCompanySummary | null> {
+  const companyDbId = Number(args.companyDbId);
+  if (!Number.isFinite(companyDbId) || companyDbId <= 0) {
+    throw new Error("companyDbId is required");
+  }
+  const [workspaceByCompanyDbId, followByCompanyDbId] = await Promise.all([
+    fetchBestWorkspaceByCompanyDbIds(args.admin, [companyDbId]),
+    fetchActiveFollowRows(args.admin, args.userId, [companyDbId]),
+  ]);
+  const companyWorkspaceId =
+    followByCompanyDbId.get(companyDbId)?.company_workspace_id ??
+    workspaceByCompanyDbId.get(companyDbId)?.company_workspace_id ??
+    null;
+  if (!companyWorkspaceId) return null;
+  const summaries = await fetchCompanySummaryByWorkspaceIds(
+    args.admin,
+    [companyWorkspaceId],
+    args.preferredLocale
+  );
+  return summaries.get(companyWorkspaceId) ?? null;
 }
 
 async function assertConversationAccess(args: {

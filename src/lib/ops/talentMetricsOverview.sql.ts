@@ -137,7 +137,11 @@ select
   steps.first_chat_at as "firstChatAt",
   steps.gmail_at as "gmailAt",
   least(steps.clicked_at, steps.confirmed_at, steps.introduced_at) as "delegatedAt",
-  least(steps.submitted_at, steps.introduced_at) as "connectedAt"
+  least(steps.submitted_at, steps.introduced_at) as "connectedAt",
+  -- 지원하기 opens the apply modal; a 'Harper와 지원하기' click in that modal also means they opened it
+  -- (the chat card opens the same modal without logging 지원하기).
+  least(steps.apply_clicked_at, steps.modal_harper_at) as "applyClickedAt",
+  steps.modal_harper_at as "applyHarperClickedAt"
 from signups
 cross join lateral (
   select
@@ -157,7 +161,20 @@ cross join lateral (
     (select min(click.created_at) from delegation_clicks click where click.user_id = signups.user_id) as clicked_at,
     (select min(application.confirmed_at) from applications application where application.user_id = signups.user_id) as confirmed_at,
     (select min(connection.connected_at) from external_connections connection where connection.user_id = signups.user_id) as submitted_at,
-    (select min(connection.connected_at) from internal_connections connection where connection.user_id = signups.user_id) as introduced_at
+    (select min(connection.connected_at) from internal_connections connection where connection.user_id = signups.user_id) as introduced_at,
+    (
+      select min(log.created_at)
+      from public.logs log
+      where log.type = 'career_click_history_external_apply'
+        and log.user_id = signups.user_id
+    ) as apply_clicked_at,
+    (
+      select min(log.created_at)
+      from public.logs log
+      where log.type = 'career_click_apply_with_harper'
+        and log.user_id = signups.user_id
+        and log.meta_data ->> 'source' = 'application_modal'
+    ) as modal_harper_at
 ) steps
 order by signups.created_at
 `;
@@ -215,10 +232,7 @@ activity as (
   cross join lateral (
     values (recommendation.viewed_at), (recommendation.clicked_at), (recommendation.feedback_at)
   ) event(occurred_at)
-  -- A recommendation with an event in the window has its latest event in it too or later: this reads only those.
-  where greatest(recommendation.viewed_at, recommendation.clicked_at, recommendation.feedback_at)
-      >= (select comparison_start_at from params)
-    and event.occurred_at >= (select comparison_start_at from params)
+  where event.occurred_at >= (select comparison_start_at from params)
     and event.occurred_at < (select end_at from params)
     and not exists (select 1 from test_only_roles role where role.role_id = recommendation.role_id)
 ),

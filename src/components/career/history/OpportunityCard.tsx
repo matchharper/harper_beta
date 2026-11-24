@@ -334,7 +334,6 @@ export default function OpportunityCard({
   onOpenLink,
   collapsedActions,
   collapsedFooter,
-  headerActions,
   headerFooter,
   titleClassName,
   titleAdornment,
@@ -349,7 +348,6 @@ export default function OpportunityCard({
   onOpenLink?: (item: CareerHistoryOpportunity, url: string) => void;
   collapsedActions?: ReactNode;
   collapsedFooter?: ReactNode;
-  headerActions?: ReactNode;
   headerFooter?: ReactNode;
   titleClassName?: string;
   titleAdornment?: ReactNode;
@@ -428,13 +426,12 @@ export default function OpportunityCard({
               )}
               {headerFooter ?? (!expanded ? collapsedFooter : null)}
             </div>
-            {headerActions || (!expanded && collapsedActions) ? (
+            {!expanded && collapsedActions ? (
               <div
                 className="career-opportunity-actions"
                 data-career-card-action="true"
               >
-                {headerActions}
-                {!expanded && collapsedActions}
+                {collapsedActions}
               </div>
             ) : null}
           </div>

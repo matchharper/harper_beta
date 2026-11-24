@@ -3425,7 +3425,8 @@ export async function sendCareerTalentMailAndRecord(args: {
   const historyRowCreated = await createCareerEmailMessage({
     admin: untypedAdmin,
     payload: {
-      body_text: bodyText,
+      // Career reads this back as what was said to the person; the footer is transport, not the message.
+      body_text: args.content,
       created_at: now,
       created_by: args.createdBy,
       direction: "outbound",

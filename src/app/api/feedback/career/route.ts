@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isTestTalentAccount } from "@/lib/testAccounts";
+import { postCareerInquirySlack, saveCareerInquiry } from "@/lib/careerInquiry.server";
 import { getRequestUser, supabaseServer } from "@/lib/supabaseServer";
-import { postUserFeedbackSlackMessage } from "@/lib/userFeedbackSlack";
 
 const CAREER_INQUIRY_SOURCE = "career-inquiry";
 
@@ -13,12 +12,6 @@ type CareerInquiryBody = {
 
 const isValidEmail = (value: string) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-function getKstTimestamp() {
-  return new Date().toLocaleString("ko-KR", {
-    timeZone: "Asia/Seoul",
-  });
-}
 
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
@@ -58,38 +51,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const savedContent = `[Career Inquiry]\nUser ID: ${user.id}\nEmail: ${email}\nPage: ${pagePath}\n\n${content}`;
-
-  const { data, error } = await supabaseServer
-    .from("feedback")
-    .insert({
-      user_id: user.id,
-      content: savedContent,
-      from: CAREER_INQUIRY_SOURCE,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data?.id) {
+  const inquiry = {
+    userId: user.id,
+    title: "Career Inquiry",
+    fields: [["Email", email], ["Page", pagePath]] as Array<[string, string]>,
+    content,
+  };
+  let saved: { id: number };
+  try {
+    saved = await saveCareerInquiry({ ...inquiry, db: supabaseServer, source: CAREER_INQUIRY_SOURCE });
+  } catch (error) {
     return NextResponse.json(
-      { error: error?.message ?? "Failed to save inquiry" },
+      { error: error instanceof Error ? error.message : "Failed to save inquiry" },
       { status: 500 }
     );
   }
 
   try {
-    if (!(await isTestTalentAccount(user.id))) await postUserFeedbackSlackMessage({
-      text: `✉️ *Career Inquiry*
-
-• *User ID*: ${user.id}
-• *Email*: ${email}
-• *Page*: ${pagePath}
-• *Content*: ${content}
-• *Time(Standard Korea Time)*: ${getKstTimestamp()}`,
-    });
+    await postCareerInquirySlack(inquiry);
   } catch (slackError) {
     console.error("career inquiry slack notify failed:", slackError);
   }
 
-  return NextResponse.json({ ok: true, id: data.id }, { status: 200 });
+  return NextResponse.json({ ok: true, id: saved.id }, { status: 200 });
 }

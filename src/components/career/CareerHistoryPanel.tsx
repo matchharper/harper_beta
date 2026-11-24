@@ -66,6 +66,8 @@ import NewOpportunityList from "./history/NewOpportunityList";
 import { NewOpportunityDecisionActions } from "./history/NewOpportunityCard";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import ExternalOpportunityApplyModal from "./history/ExternalOpportunityApplyModal";
+import { useApplyWithHarper } from "./history/ApplyWithHarperButton";
+import { getCompanyJoinRequestText, isCompanyOpportunity } from "./history/hiringPost";
 import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
 import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
@@ -573,6 +575,7 @@ const CareerHistoryPanel = () => {
     onLoadSavedStageHistoryOpportunityPages,
     getHistoryOpportunityPageFilterState,
     onLoadHistoryOpportunityByRoleId,
+    onLoadHistoryOpportunityTimeline,
     onMarkHistoryOpportunityClicked,
     onMarkHistoryOpportunityViewed,
     onChangeInternalHistoryOpportunityDecision,
@@ -891,6 +894,7 @@ const CareerHistoryPanel = () => {
     [negativePromptOpportunityId, opportunityById]
   );
 
+  // A link to an opportunity the list has not loaded reads the whole opportunity.
   const detailQuery = useQuery({
     queryKey: ["career-history-role", user?.id, locale, requestedRoleId],
     queryFn: async () =>
@@ -900,8 +904,24 @@ const CareerHistoryPanel = () => {
       user &&
       requestedRoleId &&
       !historyLoading &&
-      !requestedOpportunity?.activityTimelineLoaded
+      !requestedOpportunity
     ),
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  // A listed opportunity already has everything but its activity timeline.
+  const timelineOpportunity =
+    requestedOpportunity && !requestedOpportunity.activityTimelineLoaded
+      ? requestedOpportunity
+      : null;
+  const timelineQuery = useQuery({
+    queryKey: ["career-history-timeline", user?.id, timelineOpportunity?.id],
+    queryFn: async () => {
+      if (timelineOpportunity)
+        await onLoadHistoryOpportunityTimeline(timelineOpportunity);
+      return true;
+    },
+    enabled: Boolean(user && timelineOpportunity),
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -1077,15 +1097,36 @@ const CareerHistoryPanel = () => {
     ]
   );
 
-  const handleApplyOpportunity = useCallback(
+  const applyWithHarper = useApplyWithHarper();
+  const openChatAfterHarperRequest = useEventCallback(() => {
+    feedbackRoleQueryIgnoreRef.current = null;
+    updateHistoryLocation("saved", "saved", {
+      roleId: requestedRoleId,
+    });
+  });
+  const handleApplyOpportunity = useEventCallback(
     (item: CareerHistoryOpportunity) => {
       logCareerEvent("click_history_external_apply", {
         roleId: item.roleId,
         opportunityId: item.id,
       });
-      setExternalApplyOpportunity(item);
+      if (!isCompanyOpportunity(item)) {
+        setExternalApplyOpportunity(item);
+        return;
+      }
+      void applyWithHarper.start(item, {
+        source: "opportunity_card",
+        onBeforeStart: () => {
+          logCareerEvent("click_history_external_apply_with_harper", {
+            roleId: item.roleId,
+            opportunityId: item.id,
+          });
+          return onUpdateHistoryOpportunitySavedStage(item.id, "saved", item);
+        },
+        onOpenChat: openChatAfterHarperRequest,
+        requestText: (opportunity) => getCompanyJoinRequestText(opportunity, t),
+      });
     },
-    [logCareerEvent],
   );
   const handleKeepOpportunity = useEventCallback(
     (item: CareerHistoryOpportunity) => {
@@ -1429,8 +1470,13 @@ const CareerHistoryPanel = () => {
     />
   );
 
-  const detailError =
-    detailQuery.isError && !requestedOpportunity?.activityTimelineLoaded ? (
+  const failedQuery =
+    detailQuery.isError && !requestedOpportunity
+      ? detailQuery
+      : timelineQuery.isError && timelineOpportunity
+        ? timelineQuery
+        : null;
+  const detailError = failedQuery ? (
       <div
         role="alert"
         className="flex flex-wrap items-center justify-between gap-2 rounded-control bg-critical-faded px-3 py-2 text-sm text-critical"
@@ -1441,8 +1487,8 @@ const CareerHistoryPanel = () => {
         )}
         <MuteButton
           size="sm"
-          disabled={detailQuery.isFetching}
-          onClick={() => void detailQuery.refetch()}
+          disabled={failedQuery.isFetching}
+          onClick={() => void failedQuery.refetch()}
         >
           {t("career.tasks.retry", "다시 불러오기")}
         </MuteButton>
@@ -1450,9 +1496,7 @@ const CareerHistoryPanel = () => {
     ) : null;
 
   const missingDetail =
-    detailQuery.isSuccess &&
-    detailQuery.data === null &&
-    !requestedOpportunity?.activityTimelineLoaded;
+    detailQuery.isSuccess && detailQuery.data === null && !requestedOpportunity;
   if (requestedRoleId && (!requestedOpportunity || missingDetail)) {
     return (
       <section className="space-y-4" aria-busy={detailQuery.isFetching}>
@@ -1557,7 +1601,6 @@ const CareerHistoryPanel = () => {
               decisionActions={
                 activeTab === "new" ? (
                   <NewOpportunityDecisionActions
-                    className="pt-3"
                     item={modalOpportunity}
                     pending={pendingOpportunityIds.has(modalOpportunity.id)}
                     onApply={handleApplyOpportunity}
@@ -1585,10 +1628,7 @@ const CareerHistoryPanel = () => {
               }
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={(url) => openHistoryLink(modalOpportunity, url)}
-              onApply={() => {
-                logCareerEvent("click_history_external_apply");
-                setExternalApplyOpportunity(modalOpportunity);
-              }}
+              onApply={() => handleApplyOpportunity(modalOpportunity)}
               onInternalDecisionAction={(action) =>
                 setInternalDecisionChangeRequest({
                   action,

@@ -179,6 +179,10 @@ export const CAREER_MATCHING_TOOLS: Record<string, TalentToolDefinition> = {
         throw new Error(`${action} requires the runId returned by search_opportunities.`);
       if (action === "search" && i.runId)
         throw new Error("Use read or resume with an existing runId.");
+      // A search reads these as objects; text would be read as string properties (e.g. String.prototype.at).
+      if (action === "search") for (const field of ["postings", "companies"] as const)
+        if (i[field] != null && (typeof i[field] !== "object" || Array.isArray(i[field])))
+          throw new Error(`${field} must be an object, not ${typeof i[field] === "string" ? "text" : typeof i[field]}. Top-level arguments stay outside it.`);
       const args = profileToolContext(c, "search_opportunities", i, {
         readOnly: Boolean(i.runId && action !== "resume" && action !== "cancel"),
       });

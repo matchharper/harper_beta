@@ -4,6 +4,12 @@ export type EstimatedAnnualSalary = {
   currency: string;
 };
 
+// Estimates are shown and stored in 100,000 KRW steps; finer digits imply
+// precision the estimate does not have.
+export function roundEstimatedKrw(value: number) {
+  return Math.round(value / 100_000) * 100_000;
+}
+
 export type EstimatedSalaryFields = {
   salary_is_predicted?: boolean | null;
   salary_min?: number | null;
@@ -37,8 +43,11 @@ export function formatEstimatedAnnualSalary(
   locale: string
 ) {
   const number = new Intl.NumberFormat(locale === "ko" ? "ko-KR" : "en-US");
-  if (salary.currency === "KRW" && locale === "ko") {
-    return `${number.format(salary.min / 10_000)} ~ ${number.format(salary.max / 10_000)}만원`;
+  const krw = salary.currency === "KRW";
+  const min = krw ? roundEstimatedKrw(salary.min) : salary.min;
+  const max = krw ? roundEstimatedKrw(salary.max) : salary.max;
+  if (krw && locale === "ko") {
+    return `${number.format(min / 10_000)} ~ ${number.format(max / 10_000)}만원`;
   }
-  return `${salary.currency} ${number.format(salary.min)} ~ ${number.format(salary.max)}`;
+  return `${salary.currency} ${number.format(min)} ~ ${number.format(max)}`;
 }

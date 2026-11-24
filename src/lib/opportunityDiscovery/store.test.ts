@@ -282,10 +282,15 @@ test("serializes a career chat run as active without locking conversation input"
 
 test("agent correspondence and private evaluations are not displayed as searches", () => {
   for (const status of ["queued", "running", "completed", "failed"] as const) {
-    assert.equal(serializeOpportunityRun(createRun({ status,
-      trigger: "agent_contact_received", trigger_payload: { runContract: "career_agent_v1" },
-    })), null);
-    assert.equal(serializeOpportunityRun(createRun({ status, trigger: "career_internal_evaluation" })), null);
+    for (const [trigger, runContract] of [
+      ["agent_contact_received", "career_agent_v1"],
+      ["career_internal_evaluation", "career_internal_evaluation_v1"],
+      ["onboarding_internal_evaluation", "career_onboarding_internal_evaluation_v1"],
+    ] as const) {
+      assert.equal(serializeOpportunityRun(createRun({ status,
+        trigger: trigger as any, trigger_payload: { runContract },
+      })), null);
+    }
   }
 });
 

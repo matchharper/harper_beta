@@ -3,6 +3,7 @@ import { renderCareerBackgroundInvocation } from "@/lib/career/background/prompt
 import { prepareCareerInboxContext } from "@/lib/career/background/inbox";
 import type { CareerBackgroundRun } from "@/lib/career/background/types";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
+import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
 import { InternalApiError } from "@/lib/internalApi";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { summarizeLlmDebugCalls, type LlmDebugCall } from "@/lib/llm/debugUsage";
@@ -13,6 +14,7 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import type { CareerRunContact, CareerRunStreamEvent } from "./careerRunDebug";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
 import type { CareerSchedule } from "@/lib/career/schedules/server";
+import { isTestTalentAccount } from "@/lib/testAccounts";
 
 const readTools = new Set([
   "list_schedules", "read_schedule", "read_talent_schedules", "read_talent_context",
@@ -36,7 +38,7 @@ export async function runCareerRunDebug(
   // Replay an actual scheduled occurrence with the candidate's current context.
   // This reads the existing event and never collects, claims or advances work.
   const [account, previous, setting] = await Promise.all([
-    admin.from("talent_users").select("name").eq("user_id", userId).is("deleted_at", null).maybeSingle(),
+    admin.from("talent_users").select("name,email").eq("user_id", userId).is("deleted_at", null).maybeSingle(),
     admin.from("opportunity_discovery_run")
       .select("id,talent_id,conversation_id,status,trigger,trigger_payload,created_at")
       .eq("talent_id", userId)
@@ -55,8 +57,11 @@ export async function runCareerRunDebug(
   // Its event is built in memory from the same fields the scheduler reads.
   let run = previous.data as CareerBackgroundRun | null;
   if (run?.status !== "handed_off") {
+    // Test accounts keep schedules paused so nothing runs on its own;
+    // persona tests still preview what their next occurrence would write.
+    const statuses = await isTestTalentAccount(userId) ? ["active", "paused"] : ["active"];
     const schedules = admin.from("talent_agent_schedules" as never)
-      .select("*").eq("talent_id", userId).eq("status", "active")
+      .select("*").eq("talent_id", userId).in("status", statuses)
       .not("next_run_at", "is", null);
     if (setting?.status === "stopped" || setting?.get_external_recommendation === false)
       schedules.or("schedule_key.is.null,schedule_key.neq.career_check_in");
@@ -159,7 +164,11 @@ export async function runCareerRunDebug(
                 throw new Error("Contact requires a body and email requires a subject");
               if (channel === "chat" || !contacts.some(contact => contact.channel === "email")) {
                 const contact = channel === "email"
-                  ? { channel, subject, text: renderReplyEmail(body, { footer: true }).text } as const
+                  ? { channel, subject, text: renderReplyEmail(body, {
+                    footer: true,
+                    // The same options a real send shows; no reply address exists in a preview.
+                    choiceHref: careerEmailChoiceHref({ talentId: userId, recipient: String(account.data?.email ?? ""), subject }),
+                  }).text } as const
                   : { channel, text: body } as const;
                 contacts.push(contact);
                 send({ type: "contact", contact });

@@ -10,7 +10,6 @@ import ApplyWithHarperButton from "./ApplyWithHarperButton";
 import {
   getExternalOpportunityApplyLabel,
   getHiringPostContactText,
-  isCompanyOpportunity,
   isHiringPostOpportunity,
 } from "./hiringPost";
 
@@ -40,9 +39,9 @@ export default function ExternalOpportunityApplyModal({
   const [applying, setApplying] = useState(false);
   const busy = pending || applying;
   const hiringPost = isHiringPostOpportunity(item) ? item.hiringPost : null;
-  const company = isCompanyOpportunity(item);
-  // A hiring post and a company both lead to contacting someone, not to a form.
-  const reachOut = company || Boolean(hiringPost);
+  // A hiring post leads to contacting its poster, not to a form. A company
+  // opportunity does not open this modal: its action goes straight to Harper.
+  const reachOut = Boolean(hiringPost);
   const applyLink =
     hiringPost?.contactMethod === "apply_link" ? hiringPost.applyUrl : null;
   const postUrl = applyLink ?? item.externalJdUrl ?? item.href;
@@ -73,12 +72,7 @@ export default function ExternalOpportunityApplyModal({
       showCloseButton={!busy}
       title={getExternalOpportunityApplyLabel(item, t)}
       description={
-        company
-          ? t(
-              "career.history.external_opportunity_apply_modal.1b3k5bo",
-              "공고 하나가 아니라 회사 자체를 추천드려요. 회사를 살펴보고 맞는 공고로 지원하거나 직접 연락할 수 있고, 연락할 사람과 방법은 Harper에게 맡길 수 있어요."
-            )
-          : hiringPost
+        hiringPost
           ? t(
               "career.history.hiring_post.description",
               "채용 공고가 아니라 회사 사람이 올린 글이에요. 글에서 안내한 방법으로 연락하면 돼요."
@@ -99,9 +93,7 @@ export default function ExternalOpportunityApplyModal({
                 disabled={busy}
                 onClick={() => onOpenLink(postUrl)}
               >
-                {company
-                  ? t("career.history.external_opportunity_apply_modal.1d047t7", "회사 사이트 열기")
-                  : applyLink
+                {applyLink
                   ? t(
                       "career.history.hiring_post.open_apply_link",
                       "지원 링크 열기"
@@ -121,17 +113,11 @@ export default function ExternalOpportunityApplyModal({
                 onOpenChat();
               }}
               requestText={(opportunity) =>
-                company
-                  ? t(
-                      "career.history.external_opportunity_apply_modal.05q2dvh",
-                      "{opportunity}에 다가가 보고 싶어. 연락할 사람과 경로를 찾고 보낼 메시지를 같이 준비해줘.",
-                      { values: { opportunity } }
-                    )
-                  : t(
-                      "career.history.hiring_post.harper_request",
-                      "{opportunity} 채용 글 작성자에게 연락하고 싶어. 보낼 메시지를 같이 준비해줘.",
-                      { values: { opportunity } }
-                    )
+                t(
+                  "career.history.hiring_post.harper_request",
+                  "{opportunity} 채용 글 작성자에게 연락하고 싶어. 보낼 메시지를 같이 준비해줘.",
+                  { values: { opportunity } }
+                )
               }
             >
               {t(

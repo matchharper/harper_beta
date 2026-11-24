@@ -3,8 +3,14 @@ import {
   requireInternalApiUser,
   toInternalApiErrorResponse,
 } from "@/lib/internalApi";
-import type { OpsTalentMetricInterval } from "@/lib/ops/talentMetrics";
+import { opsMetricExclusionKey } from "@/lib/ops/metricSnapshots";
+import { readOpsMetricSnapshotForRoute } from "@/lib/ops/metricSnapshots.server";
+import {
+  opsTalentMetricsSnapshotRange,
+  type OpsTalentMetricInterval,
+} from "@/lib/ops/talentMetrics";
 import { fetchOpsTalentMetricsOverview } from "@/lib/ops/talentMetricsOverview.server";
+import { parseOpsTalentMetricsRange } from "@/lib/ops/talentMetricsServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,12 +32,19 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
+    const interval = readInterval(req.nextUrl.searchParams.get("interval"));
+    const excludedEmails = req.nextUrl.searchParams.getAll("excludedEmail");
+    const range = opsTalentMetricsSnapshotRange(parseOpsTalentMetricsRange(from, to));
     return NextResponse.json(
-      await fetchOpsTalentMetricsOverview({
-        excludedEmails: req.nextUrl.searchParams.getAll("excludedEmail"),
-        from,
-        interval: readInterval(req.nextUrl.searchParams.get("interval")),
-        to,
+      await readOpsMetricSnapshotForRoute({
+        compute: () =>
+          fetchOpsTalentMetricsOverview({
+            excludedEmails,
+            interval,
+            ...range.resolve(Date.now()),
+          }),
+        force: req.nextUrl.searchParams.get("refresh") === "1",
+        key: `talent-metrics:overview:${range.key}:${interval}:${opsMetricExclusionKey(excludedEmails)}`,
       })
     );
   } catch (error) {

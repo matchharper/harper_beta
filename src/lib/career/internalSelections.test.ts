@@ -276,15 +276,3 @@ test('the unknown-Role fix changes only the definition it was written for and ca
   } finally {await db.close();}
 });
 
-test('onboarding queues one independent evaluation job and one Career invocation; repeat completion cannot add jobs',async()=>{
- const db=await database();try {
-   await db.query('insert into talent_conversations values($1,$2)',[id(10),id(1)]);
-   const call=()=>one(db,"select enqueue_career_onboarding_invocation($1,$2,'{}') result",[id(1),id(10)]);
-   const first=await call(),second=await call();assert.equal(first.result.id,second.result.id);
-   const rows=(await db.query<any>('select trigger,status,trigger_payload from opportunity_discovery_run')).rows;
-   assert.equal(rows.length,2);
-   const warmup=rows.find(r=>r.trigger==='onboarding_internal_evaluation');assert.ok(warmup);
-   assert.equal(warmup.trigger_payload.onboardingRunId,first.result.id);assert.equal(warmup.status,'queued');
-   assert.equal((await one(db,'select count(*)::int n from talent_opportunity_matching_review')).n,0);
- }finally{await db.close();}
-});

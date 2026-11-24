@@ -1,0 +1,17 @@
+[
+  {"id": "T01", "runId": "4f81b675-c82a-4771-a0ab-5987268972be", "group": "treatment", "locale": "ko", "schedule": "pre_onboarding_instruction", "lastEmail": "11/20", "searchedInRun": false, "recordedReason": "직전 대화에서 후보를 충분히 줬고 선택을 기다린다"},
+  {"id": "T02", "runId": "f9ba4415-ccb3-4312-b985-a515899a1157", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/20", "searchedInRun": false, "recordedReason": "추천 목록에 이미 10개가 있다"},
+  {"id": "T03", "runId": "beb5a569-bcc3-4e0c-9530-84005ee7a95c", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/20", "searchedInRun": false, "recordedReason": "11/20에 4개를 보냈고 그 뒤 소식이 없다"},
+  {"id": "T04", "runId": "1763a625-7651-4426-a040-54eed7931c01", "group": "treatment", "locale": "ko", "schedule": "discovery", "lastEmail": "11/20", "searchedInRun": false, "recordedReason": "11/20에 보낸 두 건에 답이 없다"},
+  {"id": "T05", "runId": "e3048047-d112-49cb-8f4a-8368ff53733d", "group": "treatment", "locale": "ko", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "마지막 탐색(11/21) 이후 새 추천이 없다"},
+  {"id": "T06", "runId": "e93ad256-0ed9-46af-bc4c-7577fe8717b7", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": true, "recordedReason": "검색했지만 보낼 만큼 강한 것이 없다"},
+  {"id": "T07", "runId": "ac328bbf-f327-48d9-a058-b7f31cc0b8c1", "group": "treatment", "locale": "ko", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": true, "recordedReason": "검색 결과가 이미 추천한 곳과 겹친다"},
+  {"id": "T08", "runId": "b6ce5e3b-9bd2-4b20-b297-4f641545c789", "group": "treatment", "locale": "ko", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "3일 안에 여러 자리를 보냈고 답이 없다"},
+  {"id": "T09", "runId": "3c6ce116-6650-477a-a16c-bfa7b9dd4dc5", "group": "treatment", "locale": "ko", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "web 검색으로 10개를 봤지만 맞지 않는다"},
+  {"id": "T10", "runId": "3fa7cf50-6691-4fb8-8961-8d209eeceef6", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "마지막 검색(11/21) 결과 두 개를 이미 다뤘다"},
+  {"id": "T11", "runId": "64f48cdd-2a42-42b8-b6b8-10e85d302c32", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "11/22 검색 결과가 이미 채팅에 있다"},
+  {"id": "T12", "runId": "2c23e1a5-3a89-449d-9196-4c59028d255a", "group": "treatment", "locale": "en", "schedule": "discovery", "lastEmail": "11/21", "searchedInRun": false, "recordedReason": "11/21에 이미 다뤘다"},
+  {"id": "C01", "runId": "424e587b-666f-4cd0-b94b-4ae06138f707", "group": "control", "locale": "en", "schedule": "pre_onboarding_instruction", "lastEmail": "11/22", "searchedInRun": false, "recordedReason": "두 시간 전 채팅에서 답했고 후속 질문이 열려 있다"},
+  {"id": "C02", "runId": "200f6ec9-659a-4a7c-89bc-69f382677f60", "group": "control", "locale": "en", "schedule": "pre_onboarding_instruction", "lastEmail": null, "searchedInRun": false, "recordedReason": "프로필·경력·희망 조건이 모두 비어 있다"},
+  {"id": "C03", "runId": "0330b50d-ce7a-4be1-ac44-c5f2fe50011f", "group": "control", "locale": "ko", "schedule": "pre_onboarding_instruction", "lastEmail": "08/10", "searchedInRun": false, "recordedReason": "프로필이 비어 있고 두 번 물었지만 답이 없다"}
+]

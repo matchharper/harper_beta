@@ -50,7 +50,6 @@ export type CompanySummary = {
 export type CompanyWatchlistItem = {
   activeRoleCount: number;
   careerUrl: string | null;
-  companySummary: CompanySummary | null;
   companyDbId: number;
   companySnapshot: CompanySnapshotDossier | null;
   companyWorkspaceId: string | null;

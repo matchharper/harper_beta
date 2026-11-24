@@ -338,14 +338,18 @@ test("an ended linked Role keeps the exact-posting guidance", async () => {
   assert.match(text, /get_internal_roles/);
 });
 
-test("an anonymous linked Role is named by its real company in the conversation", async () => {
+test("a linked Role whose posting hides the company is named by its real company in the conversation", async () => {
   const { admin } = createFakeAdmin({
     talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-18T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:gpu-cloud-fde" }] },
     official_jobs: { single: { company_name: "$17M-Funded GPU Cloud Startup", role_id: "role-123", role_title: "Forward Deployed Engineer" } },
     company_roles: { single: { expires_at: null, information: {}, is_expired: false, source_type: "internal", status: "active",
-      company: { company_name: "VESSL AI" }, internal: { is_anonymous: true } } },
+      company: { company_name: "VESSL AI" } } },
   });
   const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1" });
   assert.equal(context?.entryOpportunity?.companyName, "VESSL AI");
   assert.equal(context?.entryOpportunity?.verifiedActiveRoleId, "role-123");
+  const { buildCareerPostOnboardingContextSection } = await import("./prompts/postOnboardingGuide");
+  const text = buildCareerPostOnboardingContextSection({ context, factsOnly: true });
+  assert.match(text, /Company: "?VESSL AI/);
+  assert.doesNotMatch(text, /GPU Cloud Startup/);
 });

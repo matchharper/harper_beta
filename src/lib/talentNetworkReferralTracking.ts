@@ -14,25 +14,3 @@ export function buildTalentNetworkReferralVisitLogType(token: string) {
     ? `${TALENT_NETWORK_REFERRAL_VISIT_LOG_PREFIX}${normalizedToken}`
     : "";
 }
-
-export function isTalentNetworkReferralVisitLogType(
-  value: string | null | undefined
-) {
-  return String(value ?? "").startsWith(
-    TALENT_NETWORK_REFERRAL_VISIT_LOG_PREFIX
-  );
-}
-
-export function getTalentNetworkReferralTokenFromVisitLogType(
-  value: string | null | undefined
-) {
-  const normalized = String(value ?? "").trim();
-  if (!normalized.startsWith(TALENT_NETWORK_REFERRAL_VISIT_LOG_PREFIX)) {
-    return null;
-  }
-
-  return (
-    normalized.slice(TALENT_NETWORK_REFERRAL_VISIT_LOG_PREFIX.length).trim() ||
-    null
-  );
-}

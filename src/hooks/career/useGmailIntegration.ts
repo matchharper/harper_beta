@@ -90,7 +90,12 @@ export function useGmailIntegration(
   }, [enabled, refresh, userId]);
 
   const connect = useCallback(
-    async (options?: { capability?: "write" | "read"; conversationId?: string | null }) => {
+    async (options?: {
+      capability?: "write" | "read";
+      conversationId?: string | null;
+      /** Where the person pressed connect, for the connection logs. */
+      source?: "chat_card" | "settings";
+    }) => {
       setPendingAction("connect");
       try {
         const payload = await fetchWithInternalAuth<GmailConnectPayload>(
@@ -101,6 +106,7 @@ export function useGmailIntegration(
             body: JSON.stringify({
               ...(options?.capability ? { capability: options.capability } : {}),
               ...(options?.conversationId ? { conversationId: options.conversationId } : {}),
+              ...(options?.source ? { source: options.source } : {}),
               returnTo: window.location.pathname + window.location.search,
             }),
           }

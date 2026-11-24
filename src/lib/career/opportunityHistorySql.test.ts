@@ -11,7 +11,7 @@ const id = (n: number) =>
 async function fixture() {
   const db = new PGlite();
   await db.exec(`
-    create table talent_opportunity_recommendation(id uuid primary key,talent_id uuid,role_id uuid,opportunity_type text,created_at timestamptz,feedback text,feedback_at timestamptz,saved_stage text,viewed_at timestamptz);
+    create table talent_opportunity_recommendation(id uuid primary key,talent_id uuid,role_id uuid,opportunity_type text,created_at timestamptz,feedback text,feedback_at timestamptz,saved_stage text,viewed_at timestamptz,company_workspace_id uuid);
     create table company_intro_candidates(talent_id uuid,role_id uuid,recommendation_id uuid);
     create table talent_opportunity_memberships(id uuid,talent_id uuid,matching_id uuid,recommendation_id uuid,explanation text,archived_at timestamptz,updated_at timestamptz);
     create table talent_opportunity_tag(talent_id uuid,opportunity_id uuid,tag text,updated_at timestamptz);
@@ -45,11 +45,22 @@ async function page(
   db: PGlite,
   options: Parameters<typeof historySelectionSql>[0]
 ) {
-  return (
+  const rows = (
     await db.query<any>(
       `${careerOpportunityIndexSql(id(1))} ${historySelectionSql(options)}`
     )
   ).rows;
+  // A read of known targets materializes only them and must match the full index.
+  if (options.roleIds)
+    assert.deepEqual(
+      (
+        await db.query<any>(
+          `${careerOpportunityIndexSql(id(1), options.roleIds)} ${historySelectionSql(options)}`
+        )
+      ).rows,
+      rows
+    );
+  return rows;
 }
 test("new pages are ordered before hydration, have no overlap, and summaries count the same collection", async () => {
   const db = await fixture();
@@ -119,6 +130,10 @@ test("reads preserve explicit stages, resolve legacy closure, and hide ended una
       update talent_opportunity_recommendation set feedback='like' where id='${id(35)}';
       insert into talent_opportunity_tag values('${id(1)}','${id(35)}','내부:프로세스중단',now());`);
     assert.equal((await page(db, { ids: [id(33)] }))[0].saved_stage, "hidden");
+    assert.equal(
+      (await page(db, { roleIds: [id(33), id(34), id(35)] })).length,
+      3
+    );
     assert.equal(
       (await page(db, { historyTab: "saved", savedStage: "connected" }))[0].id,
       id(34)

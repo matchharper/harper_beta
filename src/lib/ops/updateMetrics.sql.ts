@@ -2,6 +2,9 @@
 // Shared parameters: $1 window start, $2 window end (timestamptz), $3 excluded email terms.
 // The people and test-only Role rules match /ops/metrics (talentMetricsOverview.sql.ts).
 
+import { OPERATIONAL_OPPORTUNITY_FEEDBACK_REASON } from "@/lib/career/opportunityFeedbackSignals";
+import { TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST } from "@/lib/talentOnboarding/onboarding";
+
 const BASE_CTES = String.raw`
 included_users as materialized (
   select users.user_id, users.created_at, users.resume_storage_path, users.resume_file_name, users.resume_links
@@ -24,8 +27,9 @@ test_only_roles as materialized (
 /**
  * One row per talent who signed up in [$1, $2), with what happened in their first 3 days.
  * 자료: a resume file or a LinkedIn URL on the profile now. 좋아요/싫어요: feedback given in the first 3 days
- * on a recommendation made in the first 3 days. 비용·시간: llm_logs for that talent in the first 3 days,
- * without the per-tool attribution rows (they repeat the parent call's cost).
+ * on a recommendation made in the first 3 days. An exclusion because the person already applied counts as 좋아요:
+ * it is a good opportunity they had already applied to, and until 2026-11-21 it was stored as a like.
+ * 비용·시간 come from UPDATE_METRICS_LLM_USAGE_SQL.
  */
 export const UPDATE_METRICS_SIGNUPS_SQL = String.raw`
 with ${BASE_CTES},
@@ -48,51 +52,56 @@ recommendations as materialized (
     recommendation.talent_id,
     count(*) as received,
     count(*) filter (
-      where lower(coalesce(recommendation.feedback, '')) in ('like', 'positive')
+      where feedback.value = 'like'
         and recommendation.feedback_at < signups.created_at + interval '3 days'
     ) as liked,
     count(*) filter (
-      where lower(coalesce(recommendation.feedback, '')) in ('dislike', 'negative')
+      where feedback.value = 'dislike'
         and recommendation.feedback_at < signups.created_at + interval '3 days'
     ) as disliked
   from public.talent_opportunity_recommendation recommendation
   join signups on signups.user_id = recommendation.talent_id
+  cross join lateral (
+    select case
+      when lower(coalesce(recommendation.feedback, '')) in ('like', 'positive') then 'like'
+      when lower(coalesce(recommendation.feedback, '')) not in ('dislike', 'negative') then null
+      when position('${OPERATIONAL_OPPORTUNITY_FEEDBACK_REASON.AlreadyApplied}' in coalesce(recommendation.feedback_reason, '')) > 0 then 'like'
+      else 'dislike'
+    end as value
+  ) feedback
   where recommendation.recommended_at < signups.created_at + interval '3 days'
     and not exists (select 1 from test_only_roles role where role.role_id = recommendation.role_id)
   group by recommendation.talent_id
 ),
--- Narrow the rows before the join: sorting whole llm_logs rows (with meta) is what makes this slow.
--- Only these signups' calls: llm_logs_user_key_created_idx finds them, and the heap is read in page order.
-llm_calls as materialized (
-  select
-    coalesce(log.user_id::text, log.meta ->> 'userId') as user_key,
-    log.created_at,
-    log.estimated_cost_usd as cost_usd,
-    case when (log.meta ->> 'elapsedMs') ~ '^[0-9]+(\.[0-9]+)?$' then (log.meta ->> 'elapsedMs')::numeric end as elapsed_ms
-  from public.llm_logs log
-  where coalesce(log.user_id::text, log.meta ->> 'userId') = any(array(select signups.user_id::text from signups))
-    and log.created_at >= $1::timestamptz
-    and log.created_at < $2::timestamptz + interval '3 days'
-    and coalesce(log.meta ->> 'costKind', '') <> 'attribution'
-),
-usage as materialized (
-  select signups.user_id, sum(call.cost_usd) as cost_usd, sum(call.elapsed_ms) as elapsed_ms
-  from llm_calls call
-  join signups on signups.user_id::text = call.user_key
-  where call.created_at >= signups.created_at
-    and call.created_at < signups.created_at + interval '3 days'
-  group by signups.user_id
+-- Harper's chat reply showed the Gmail connection card ([[integration:gmail]] or [[integration:gmail-read]]).
+-- No index reaches a talent's assistant messages, so read the window once instead of once per signup.
+gmail_proposals as materialized (
+  select message.user_id, min(message.created_at) as proposed_at
+  from public.talent_messages message
+  join signups on signups.user_id = message.user_id
+  where message.role = 'assistant'
+    and message.created_at >= $1::timestamptz
+    and message.created_at < $2::timestamptz + interval '3 days'
+    and position('[[integration:gmail' in message.content) > 0
+  group by message.user_id
 )
 select
   signups.user_id::text as "userId",
   signups.created_at as "signedUpAt",
   signups.has_materials as "hasMaterials",
+  -- A turn the person sent Harper in chat: typed, or sent by a chat button (more open positions, an introduction
+  -- request, a form answer). Onboarding submission, card save/exclude notes, calls and mail are not chat turns.
   (
     select min(message.created_at)
     from public.talent_messages message
     where message.user_id = signups.user_id
       and message.role = 'user'
-      and coalesce(message.message_type, 'chat') = 'chat'
+      and coalesce(message.message_type, 'chat') in (
+        'chat',
+        '${TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST}',
+        'agent_introduction_action',
+        'career_form_response'
+      )
   ) as "firstChatAt",
   (
     select min(log.created_at)
@@ -104,6 +113,7 @@ select
     from public.talent_integrations integration
     where integration.talent_id = signups.user_id and integration.provider = 'gmail'
   ) as "gmailAt",
+  gmail_proposals.proposed_at as "gmailProposedAt",
   (
     select min(log.created_at)
     from public.logs log
@@ -111,13 +121,48 @@ select
   ) as "applyWithHarperAt",
   coalesce(recommendations.received, 0)::int as "recommendations3d",
   coalesce(recommendations.liked, 0)::int as "liked3d",
-  coalesce(recommendations.disliked, 0)::int as "disliked3d",
-  coalesce(usage.cost_usd, 0)::float8 as "costUsd3d",
-  coalesce(usage.elapsed_ms, 0)::float8 as "llmMs3d"
+  coalesce(recommendations.disliked, 0)::int as "disliked3d"
 from signups
 left join recommendations on recommendations.talent_id = signups.user_id
-left join usage on usage.user_id = signups.user_id
+left join gmail_proposals on gmail_proposals.user_id = signups.user_id
 order by signups.created_at
+`;
+
+/**
+ * 비용·시간 of the talents who signed up in [$1, $2): llm_logs for that talent in the first 3 days, without the
+ * per-tool attribution rows (they repeat the parent call's cost). Talents with no calls have no row.
+ * Run with index scans off: these calls are spread over a third of the window's heap pages, and reading them in page
+ * order (bitmap heap scan) measured twice as fast as following llm_logs_user_key_created_idx row by row.
+ */
+export const UPDATE_METRICS_LLM_USAGE_SQL = String.raw`
+with ${BASE_CTES},
+signups as materialized (
+  select users.user_id, users.created_at
+  from included_users users
+  where users.created_at >= $1::timestamptz
+    and users.created_at < $2::timestamptz
+),
+llm_calls as materialized (
+  select
+    coalesce(log.user_id::text, log.meta ->> 'userId') as user_key,
+    log.created_at,
+    log.estimated_cost_usd as cost_usd,
+    case when (log.meta ->> 'elapsedMs') ~ '^[0-9]+(\.[0-9]+)?$' then (log.meta ->> 'elapsedMs')::numeric end as elapsed_ms
+  from public.llm_logs log
+  where coalesce(log.user_id::text, log.meta ->> 'userId') = any(array(select signups.user_id::text from signups))
+    and log.created_at >= $1::timestamptz
+    and log.created_at < $2::timestamptz + interval '3 days'
+    and coalesce(log.meta ->> 'costKind', '') <> 'attribution'
+)
+select
+  signups.user_id::text as "userId",
+  coalesce(sum(call.cost_usd), 0)::float8 as "costUsd3d",
+  coalesce(sum(call.elapsed_ms), 0)::float8 as "llmMs3d"
+from llm_calls call
+join signups on signups.user_id::text = call.user_key
+where call.created_at >= signups.created_at
+  and call.created_at < signups.created_at + interval '3 days'
+group by signups.user_id
 `;
 
 /**

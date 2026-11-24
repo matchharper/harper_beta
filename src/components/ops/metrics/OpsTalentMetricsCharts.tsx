@@ -4,7 +4,6 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  LabelList,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -627,7 +626,7 @@ export function OpsTalentMetricsConversionCharts({
       />
       <MetricChart
         data={trend}
-        description="선은 처음 internal 추천을 받은 뒤 14일의 판단 기간이 모두 지난 추천 중, 14일 안에 talent가 수락한 비율입니다(왼쪽 축). 막대는 각 기간의 Internal Role 추천 건수로, 미응답과 추천 후 14일이 지나지 않은 건도 포함합니다(오른쪽 축). 같은 Role을 여러 후보자에게 추천하면 각각 집계합니다."
+        description="선은 그 기간에 처음 받은 internal 추천 전원 중, 추천 후 14일 안에 talent가 수락한 비율입니다(왼쪽 축). 추천받은 지 14일이 안 된 건은 지금까지 수락한 것만 세므로, 최근 기간의 값은 시간이 지나며 오를 수 있습니다. 막대는 각 기간의 Internal Role 추천 건수입니다(오른쪽 축). 같은 Role을 여러 후보자에게 추천하면 각각 집계합니다."
         percentAxis
         rightAxisFormatter={(value) => `${value.toLocaleString("ko-KR")}건`}
         series={[
@@ -648,21 +647,6 @@ export function OpsTalentMetricsConversionCharts({
           },
         ]}
         title="Internal 추천 수락률"
-      />
-      <MetricChart
-        data={trend}
-        description="가입 후 14일이 모두 지난 talent 중 가입일부터 14일 안에 온보딩을 완료한 비율입니다. 각 점은 가입한 일·주·월 cohort 기준입니다."
-        percentAxis
-        series={[
-          {
-            color: "var(--color-primary)",
-            formatter: formatPercent,
-            key: "onboardingCompletionRate",
-            label: "14일 내 완료율",
-            type: "line",
-          },
-        ]}
-        title="온보딩 완료율"
       />
     </div>
   );
@@ -727,122 +711,274 @@ function formatCount(unit: string) {
   return (value: number) => `${value.toLocaleString("ko-KR")}${unit}`;
 }
 
-const APPLY_SERIES = [
-  { color: "var(--color-neutral-1000-a10)", key: "applyDelegated", label: "맡김" },
-  { color: "var(--color-action)", key: "applyConfirmed", label: "최종 컨펌" },
-  { color: "var(--color-positive)", key: "applySubmitted", label: "제출 완료" },
-] as const;
+type OverviewValueKey = {
+  [K in keyof OpsTalentMetricOverviewTrendPoint]-?: OpsTalentMetricOverviewTrendPoint[K] extends
+    | number
+    | null
+    | undefined
+    ? K
+    : never;
+}[keyof OpsTalentMetricOverviewTrendPoint];
 
-/** 대신 지원 stages side by side per bucket; the success rate (제출 완료 / 최종 컨펌) sits above each group. */
-function ApplyChart({ trend }: { trend: OpsTalentMetricOverviewTrendPoint[] }) {
-  const data = trend.map((point) => ({
-    ...point,
-    labelAnchor: Math.max(
-      point.applyDelegated,
-      point.applyConfirmed,
-      point.applySubmitted
-    ),
-  }));
-  const labels = new Map(APPLY_SERIES.map((item) => [item.key, item.label]));
+type OverviewSeries = {
+  axis?: "left" | "right";
+  color: string;
+  format: (value: number) => string;
+  key: OverviewValueKey;
+  label: string;
+};
+
+type NestedOverviewPoint = OpsTalentMetricOverviewTrendPoint & {
+  nestedInner: number | null;
+  nestedRest: number | null;
+};
+
+function SeriesLegend({ items }: { items: OverviewSeries[] }) {
+  return (
+    <div className="flex flex-wrap gap-x-3 gap-y-1">
+      {items.map((item) => (
+        <span
+          className="inline-flex items-center gap-1.5 text-[11px] text-neutral-muted"
+          key={item.key}
+        >
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: item.color }}
+          />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function OverviewSeriesTooltip({
+  active,
+  payload,
+  series,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload?: OpsTalentMetricOverviewTrendPoint }>;
+  series: OverviewSeries[];
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  return (
+    <div className="rounded-popover border border-popover-border bg-popover p-3 text-xs text-popover-foreground shadow-(--shadow-popover)">
+      <div className="mb-2 font-medium">{point.fullLabel}</div>
+      {series.map((item) => {
+        const value = point[item.key];
+        return (
+          <div className="flex items-center justify-between gap-5 py-0.5" key={item.key}>
+            <span className="inline-flex items-center gap-2">
+              <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: item.color }} />
+              {item.label}
+            </span>
+            <span className="tabular-nums">
+              {typeof value === "number" ? item.format(value) : "-"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Per bucket, a bar for `nested.outer` with `nested.inner` filling it from the bottom in its own color (as the WAU
+ * chart stacks weekdays), and `lines` over it. The bar is drawn as inner + (outer − inner); the tooltip shows the
+ * values themselves.
+ */
+function OverviewTrendChart({
+  lines = [],
+  nested,
+  trend,
+}: {
+  lines?: OverviewSeries[];
+  nested?: { inner: OverviewSeries; outer: OverviewSeries };
+  trend: OpsTalentMetricOverviewTrendPoint[];
+}) {
+  const data: NestedOverviewPoint[] = trend.map((point) => {
+    const outer = nested ? point[nested.outer.key] : null;
+    const inner = nested ? point[nested.inner.key] : null;
+    const innerValue = typeof inner === "number" ? inner : null;
+    return {
+      ...point,
+      nestedInner: innerValue,
+      nestedRest: typeof outer === "number" ? Math.max(0, outer - (innerValue ?? 0)) : null,
+    };
+  });
+  const series = [...(nested ? [nested.outer, nested.inner] : []), ...lines];
+  const left = nested?.outer ?? lines.find((line) => line.axis !== "right");
+  const right = lines.find((line) => line.axis === "right");
+  return (
+    <ResponsiveContainer height="100%" width="100%">
+      <ComposedChart data={data} margin={{ left: 0, right: 6, top: 8 }}>
+        <CartesianGrid
+          stroke="color-mix(in srgb, var(--color-neutral-1000) 6%, transparent)"
+          vertical={false}
+        />
+        <XAxis
+          axisLine={false}
+          dataKey="label"
+          fontSize={11}
+          minTickGap={20}
+          tick={{ fill: "var(--color-neutral-soft)" }}
+          tickLine={false}
+        />
+        <YAxis
+          allowDecimals={left?.format === formatPercent}
+          axisLine={false}
+          domain={[0, "auto"]}
+          fontSize={11}
+          tick={{ fill: "var(--color-neutral-soft)" }}
+          tickFormatter={left?.format}
+          tickLine={false}
+          width={46}
+          yAxisId="left"
+        />
+        {right ? (
+          <YAxis
+            allowDecimals={right.format === formatPercent}
+            axisLine={false}
+            domain={[0, "auto"]}
+            fontSize={11}
+            orientation="right"
+            tick={{ fill: "var(--color-neutral-soft)" }}
+            tickFormatter={right.format}
+            tickLine={false}
+            width={46}
+            yAxisId="right"
+          />
+        ) : null}
+        <Tooltip content={<OverviewSeriesTooltip series={series} />} />
+        {/* recharts 2 finds Bar children by type, so they cannot sit inside a fragment. */}
+        {nested ? (
+          <Bar
+            dataKey="nestedInner"
+            fill={nested.inner.color}
+            isAnimationActive={false}
+            maxBarSize={32}
+            stackId="nested"
+            yAxisId="left"
+          />
+        ) : null}
+        {nested ? (
+          <Bar
+            dataKey="nestedRest"
+            fill={nested.outer.color}
+            isAnimationActive={false}
+            maxBarSize={32}
+            radius={[2, 2, 0, 0]}
+            stackId="nested"
+            yAxisId="left"
+          />
+        ) : null}
+        {lines.map((line) => (
+          <Line
+            activeDot={{ fill: line.color, r: 4, strokeWidth: 0 }}
+            connectNulls={false}
+            dataKey={line.key}
+            dot={{ fill: line.color, r: 2, strokeWidth: 0 }}
+            isAnimationActive={false}
+            key={line.key}
+            stroke={line.color}
+            strokeWidth={2}
+            type="monotone"
+            yAxisId={line.axis ?? "left"}
+          />
+        ))}
+      </ComposedChart>
+    </ResponsiveContainer>
+  );
+}
+
+const APPLY_CONFIRMED: OverviewSeries = {
+  color: "var(--color-action)",
+  format: formatCount("건"),
+  key: "applyConfirmed",
+  label: "최종 컨펌",
+};
+const APPLY_SUBMITTED: OverviewSeries = {
+  color: "var(--color-positive)",
+  format: formatCount("건"),
+  key: "applySubmitted",
+  label: "제출 완료",
+};
+const APPLY_SUCCESS_RATE: OverviewSeries = {
+  axis: "right",
+  color: "var(--color-primary)",
+  format: formatPercent,
+  key: "applySuccessRate",
+  label: "성공률",
+};
+
+function ApplySuccessChart({ trend }: { trend: OpsTalentMetricOverviewTrendPoint[] }) {
   return (
     <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
       <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <ChartTitle
-          description="맡김은 'Harper와 지원하기'를 누른 횟수, 최종 컨펌은 talent가 Harper에게 실행을 승인한 지원, 제출 완료는 그중 Gmail 발송이 성공했거나 회사 사이트 제출이 확인된 지원입니다(컨펌한 기간 기준). 막대 위 숫자는 성공률(제출 완료 ÷ 최종 컨펌)입니다. 사이트 제출은 실행 보고의 첫 문장이 제출 완료를 말할 때만 셉니다."
-          title="대신 지원"
+          description="최종 컨펌은 talent가 Harper에게 실행을 승인한 지원이고, 제출 완료는 그중 Gmail 발송이 성공했거나 회사 사이트 제출이 확인된 지원입니다(컨펌한 기간 기준). 성공률은 제출 완료 ÷ 최종 컨펌입니다. 사이트 제출은 실행 보고의 첫 문장이 제출 완료를 말할 때만 셉니다."
+          title="대신지원 성공률"
         />
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {APPLY_SERIES.map((item) => (
-            <span
-              className="inline-flex items-center gap-1.5 text-[11px] text-neutral-muted"
-              key={item.key}
-            >
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              {item.label}
-            </span>
-          ))}
-        </div>
+        <SeriesLegend items={[APPLY_CONFIRMED, APPLY_SUBMITTED, APPLY_SUCCESS_RATE]} />
       </div>
       <div className="mt-3 h-[260px] w-full">
-        <ResponsiveContainer height="100%" width="100%">
-          <ComposedChart data={data} margin={{ left: 0, right: 6, top: 22 }}>
-            <CartesianGrid
-              stroke="color-mix(in srgb, var(--color-neutral-1000) 6%, transparent)"
-              vertical={false}
-            />
-            <XAxis
-              axisLine={false}
-              dataKey="label"
-              fontSize={11}
-              minTickGap={20}
-              tick={{ fill: "var(--color-neutral-soft)" }}
-              tickLine={false}
-            />
-            <YAxis
-              allowDecimals={false}
-              axisLine={false}
-              fontSize={11}
-              tick={{ fill: "var(--color-neutral-soft)" }}
-              tickLine={false}
-              width={42}
-            />
-            <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(value, name) =>
-                name === "labelAnchor"
-                  ? [null, null]
-                  : [
-                      `${Number(value).toLocaleString("ko-KR")}건`,
-                      labels.get(name as (typeof APPLY_SERIES)[number]["key"]) ??
-                        String(name),
-                    ]
-              }
-              labelFormatter={(_, payload) => {
-                const point = payload?.[0]?.payload as
-                  | OpsTalentMetricOverviewTrendPoint
-                  | undefined;
-                if (!point) return "";
-                return `${point.fullLabel} · 성공률 ${
-                  point.applySuccessRate === null
-                    ? "-"
-                    : formatPercent(point.applySuccessRate)
-                }`;
-              }}
-            />
-            {APPLY_SERIES.map((item) => (
-              <Bar
-                dataKey={item.key}
-                fill={item.color}
-                key={item.key}
-                maxBarSize={14}
-                radius={[2, 2, 0, 0]}
-              />
-            ))}
-            <Line
-              activeDot={false}
-              dataKey="labelAnchor"
-              dot={false}
-              isAnimationActive={false}
-              legendType="none"
-              stroke="none"
-              tooltipType="none"
-            >
-              <LabelList
-                dataKey="applySuccessRate"
-                fill="var(--color-neutral-primary)"
-                fontSize={11}
-                formatter={(value: unknown) =>
-                  typeof value === "number" ? `${Math.round(value * 100)}%` : ""
-                }
-                position="top"
-              />
-            </Line>
-          </ComposedChart>
-        </ResponsiveContainer>
+        <OverviewTrendChart
+          lines={[APPLY_SUCCESS_RATE]}
+          nested={{ inner: APPLY_SUBMITTED, outer: APPLY_CONFIRMED }}
+          trend={trend}
+        />
+      </div>
+    </section>
+  );
+}
+
+const APPLY_CLICK_24H: OverviewSeries = {
+  color: "var(--color-info)",
+  format: formatPercent,
+  key: "applyClickRate24h",
+  label: "24시간 안 지원하기",
+};
+const APPLY_HARPER_24H: OverviewSeries = {
+  color: "var(--color-primary)",
+  format: formatPercent,
+  key: "applyHarperRate24h",
+  label: "24시간 안 Harper와 지원하기",
+};
+const APPLY_HARPER_96H_RATE: OverviewSeries = {
+  color: "var(--color-blue-700)",
+  format: formatPercent,
+  key: "applyHarperRate96h",
+  label: "96시간 안 Harper와 지원하기 비율",
+};
+const APPLY_HARPER_96H_TALENTS: OverviewSeries = {
+  axis: "right",
+  color: "var(--color-neutral-600)",
+  format: formatCount("명"),
+  key: "applyHarperTalents96h",
+  label: "96시간 안 Harper와 지원하기 인원",
+};
+
+function ApplyDelegationChart({ trend }: { trend: OpsTalentMetricOverviewTrendPoint[] }) {
+  return (
+    <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
+      <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <ChartTitle
+          description="그 기간 가입자 전원 중 가입부터 24시간·96시간 안에 기회 카드의 '지원하기'를 누른 사람과, 그 창에서 'Harper와 지원하기'를 한 번이라도 누른 사람의 비율입니다. 채팅 카드에서 연 지원 창은 '지원하기' 기록이 없어 'Harper와 지원하기'를 누른 경우만 셉니다. 가입한 지 24시간·96시간이 안 된 사람은 지금까지 누른 것만 세므로, 최근 기간의 값은 시간이 지나며 오를 수 있습니다."
+          title="대신 지원을 맡기는 비율"
+        />
+        <SeriesLegend
+          items={[APPLY_CLICK_24H, APPLY_HARPER_24H, APPLY_HARPER_96H_RATE, APPLY_HARPER_96H_TALENTS]}
+        />
+      </div>
+      <div className="mt-3 h-[260px] w-full">
+        <OverviewTrendChart
+          lines={[APPLY_HARPER_96H_RATE, APPLY_HARPER_96H_TALENTS]}
+          nested={{ inner: APPLY_HARPER_24H, outer: APPLY_CLICK_24H }}
+          trend={trend}
+        />
       </div>
     </section>
   );
@@ -907,7 +1043,7 @@ export function OpsTalentMetricsOverviewCharts({
       />
       <MetricChart
         data={trend}
-        description="그 기간 가입자 중 가입 후 24시간·7일 안에 Gmail을 연동한 비율입니다. 24시간·7일이 아직 지나지 않은 가입자는 뺍니다. 연동을 끊으면 기록이 지워져 세지 않습니다."
+        description="그 기간 가입자 전원 중 가입부터 24시간·7일 안에 Gmail을 연동한 비율입니다. 가입한 지 24시간·7일이 안 된 사람은 지금까지 연동한 것만 세므로, 최근 기간의 값은 시간이 지나며 오를 수 있습니다. 연동을 끊으면 기록이 지워져 세지 않습니다."
         leftAxisFormatter={formatPercent}
         series={[
           {
@@ -927,7 +1063,8 @@ export function OpsTalentMetricsOverviewCharts({
         ]}
         title="Gmail 연동률"
       />
-      <ApplyChart trend={trend} />
+      <ApplyDelegationChart trend={trend} />
+      <ApplySuccessChart trend={trend} />
     </div>
   );
 }

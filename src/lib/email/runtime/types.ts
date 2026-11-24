@@ -3,6 +3,7 @@ import type {
   TalentAdminClient,
   TalentMessageRow,
 } from "@/lib/talentOnboarding/server";
+import type { CareerDocumentImage } from "@/lib/talentOnboarding/documentImages.server";
 
 export type EmailRuntimeKind = "reply" | "contact" | "onboarding_review";
 export type EmailRuntimeMessage = {
@@ -32,6 +33,8 @@ export type EmailJobContext = {
   subject: string;
   recipients: string[];
   attachments: EmailAttachment[];
+  /** Images from this email shown to the model with its input. */
+  images?: CareerDocumentImage[];
   talentId: string;
   conversationId: string;
   replyAlias: string;

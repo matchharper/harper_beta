@@ -106,3 +106,18 @@ git apply docs/evaluation/career-agent-autonomy/restore-a.patch
 - **공고 카드(4~6회차에 시험, 되돌림):** 답변의 `[posting](roleId)`는 쓴 자리에 보이지 않는다. 한 줄로 쓴 것은 본문에서 빠지고, 모든 카드가 답변 아래 한 줄에 모인다. 이 화면 사실을 main에 적어 봤다. 번호 매긴 섹션을 쓴 답변은 3~6회차에 3·4·3·3개로 줄지 않았다. 대신 백엔드가 `[Ledgerly · …](roleId)`처럼 이름을 붙인 링크를 쓴 회차가 4~6회차 18회 중 2번 나왔다(1~3회차는 0번). 화면은 이 링크로 카드도 링크도 만들지 않는다. 링크 글자를 posting 그대로 두라는 사실을 더해도 다시 나와서, 원래 문장으로 되돌렸다.
 - **마크다운(5회차에 시험, 되돌림):** "Use Markdown for readability"를 "Markdown renders in this chat"이라는 사실로 바꿔 봤다. 번호 매긴 섹션이 줄지 않아 되돌렸다.
 - **기회마다 설명하라는 handbook 문장(9회차, 남김):** opportunity_search handbook의 "Explain the options you lead with by what makes each worth this person's move compared with the alternatives, and the tradeoffs that matter for that choice"를 지웠다(v39). main("make each worth moving for")과 post-onboarding guide("why each option would be worth leaving")가 같은 것을 이미 말한다. 6명을 두 번씩 돌렸다. 번호를 매긴 답변(제목이나 목록)은 12개 중 9개로, 지금 코드의 7·8회차 12개 중 11개와 큰 차이가 없었다. '확인' 표현도 1회 평균 4.3번으로 같았다. 나빠진 것은 없었다. 시니어 리더는 두 번 모두 Helio 하나만 추천했고, Ledgerly를 뺀 이유(연봉 하단 2.4억, 지분 언급 없음)를 밝혔다. 중복을 없앤 상태로 두되, 뼈대 문제는 이것으로 풀리지 않았다.
+
+## 2026-11-23 답변 끝맺음 (로컬, 미배포)
+
+운영 대화에서 Harper가 결과 보고, "이해했어요", 사과로 끝나면 사용자가 "그래서 다음은?"이라고 되물었다. main prompt 끝에 `## Ending a reply` 절을 더했다. 현재 요청과 기존 위임 안의 다음 일은 제안하지 말고 한다. 사람이 필요하면 그 요청으로 끝내되 채널의 답변 수단으로 쉽게 답하게 한다. 결과나 새 정보가 무엇을 바꾸고 다음에 무엇이 오는지(열려 있는 관련 작업 포함) 말한다. 마무리하는 대화는 닫는다. "항상 질문으로 끝내라"는 규칙은 바로 할 일을 허락받는 질문을 늘리므로 넣지 않았다. 같은 내용을 Communication 문단 안에 넣은 두 안은 효과가 없었다. 첫 문단의 "A clear small request can finish within that scope"를 바꾸는 실험도 효과가 분명하지 않아 되돌렸다. C 선택은 유지한다. A 복원 패치는 `mainPrompt2.ts`에서 충돌할 수 있으니 `git apply --check`로 먼저 확인한다. 전후 결과와 남은 문제(CV 수정 보고 사례, 남아 있는 "원하시면" 제안)는 [답변 끝맺음 평가](../evaluation/career-reply-continuation/reports/2026-11-23-ending-a-reply.md)에 있다.
+
+## 2026-11-24 대화의 목표를 '결정 돕기'에서 '회사와의 대화'로 (로컬, 미배포)
+
+사용자는 Harper가 추천하고 끝내지 않고, 마음에 드는지와 이유를 듣고 지원과 연결까지 이끌기를 바랐다. 강압적인 규칙은 원하지 않았다. main `## Work toward the outcome`의 첫 문단에서 "Help the candidate decide what to do next."와 "the candidate decides whether to approach anyone."을 지웠다. 그 자리에 성공을 '원하는 회사와 실제로 이야기하게 되는 것'으로 정의하는 문장을 넣었다. 끌리는 기회가 있으면 그 기회로 가는 일과 회사가 답할 확률을 높이는 일을 돕는다는 내용이다. 다른 문장은 지우지 않았다. 목적이 범위를 정한다는 문장과 권한 문장은 그대로다.
+
+같은 대본으로 페르소나 네 명을 변경 전·후 한 번씩 돌렸다(기록 이름 "11/24 적극성 · 변경 전/후", `localhost:3200`, 운영 DB). 대본은 가입, 상황 답, 첫 추천, "○○ 괜찮네요", "나머지는 좀 별로예요" 순서다.
+
+- **변경 후 늘어난 것:** 호진·Javier에서 관심 기회의 연락 경로를 찾았다. Suno 연구원이 공개 글에서 연락하라고 한 경로를 찾아 미국 취업 자격을 물었다. 'Suno 지원 조건 확인', 'AIsa 지원 준비하기' 같은 할 일도 만들었다. 변경 전 같은 자리에는 'Sierra 역할 확인하기' 정도였다.
+- **그대로인 것:** 채팅은 여전히 "어떤 점이 끌리세요?" 같은 선호 질문으로 끝났다. 다음 메시지가 다른 기회 이야기("나머지는 별로예요")면 세 명 모두 그 이유만 묻고, 관심 기회의 흐름을 놓았다. Shaun은 변경 전에만 '지원 준비' 선택지 버튼이 나왔다.
+- **부작용:** 시장만 보려는 Chris에게는 두 조건 모두 지원을 권하지 않았고 마무리 말에 대화를 닫았다.
+- **한계:** 사람마다 한 번씩만 돌렸고 웹 검색 결과가 실행마다 달라, 차이의 일부는 흔들림일 수 있다.

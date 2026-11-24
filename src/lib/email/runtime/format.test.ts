@@ -126,3 +126,34 @@ test("company navigation is rendered as real workspace links in HTML and text", 
   assert.match(result.text, /roleId=role-123/);
   assert.doesNotMatch(result.html, /href="role:|href="https:\/\/matchharper.com\/roles"/);
 });
+
+test("Harper's answer options become email buttons where the block was written", () => {
+  const content = `이번 주에 이야기 나눠 보실래요?\n\n[[CAREER_CHOICE_BUTTONS]]\n{"choices":["네, 소개받고 싶어요","이번엔 괜찮아요"]}\n[[/CAREER_CHOICE_BUTTONS]]\n\n다른 질문도 편하게 주세요.`;
+  const email = renderReplyEmail(content, {
+    choiceHref: (choice) => `mailto:reply+abc@reply.matchharper.com?body=${encodeURIComponent(choice.value)}`,
+  });
+  const question = email.html.indexOf("이번 주에");
+  const button = email.html.indexOf(">네, 소개받고 싶어요</a>");
+  const after = email.html.indexOf("다른 질문도");
+  assert.ok(question < button && button < after);
+  assert.match(email.html, /href="mailto:reply\+abc@reply\.matchharper\.com\?body=%EC%9D%B4%EB%B2%88/);
+  assert.doesNotMatch(email.html, /CAREER_CHOICE_BUTTONS|HARPEREMAILCHOICES/);
+  assert.match(email.text, /• 네, 소개받고 싶어요\n• 이번엔 괜찮아요/);
+  assert.doesNotMatch(email.text, /mailto:/);
+});
+
+test("answer options without a destination are left out of the email", () => {
+  const content = `어느 쪽이 좋으세요?\n\n[[CAREER_CHOICE_BUTTONS]]\n{"choices":["A","B"]}\n[[/CAREER_CHOICE_BUTTONS]]`;
+  for (const email of [renderReplyEmail(content), renderReplyEmail(content, { choiceHref: () => "" })]) {
+    assert.doesNotMatch(email.html, /<a |HARPEREMAILCHOICES|CAREER_CHOICE_BUTTONS/);
+    assert.equal(email.text, "어느 쪽이 좋으세요?");
+  }
+});
+
+test("web answer options keep their link in the plain-text part", () => {
+  const email = renderReplyEmail(
+    `고르시겠어요?\n\n[[CAREER_CHOICE_BUTTONS]]\n{"choices":["첫째","둘째"]}\n[[/CAREER_CHOICE_BUTTONS]]`,
+    { choiceHref: (choice) => `https://matchharper.com/career/email-choice?c=${encodeURIComponent(choice.value)}` }
+  );
+  assert.match(email.text, /• 첫째: https:\/\/matchharper\.com\/career\/email-choice\?c=/);
+});

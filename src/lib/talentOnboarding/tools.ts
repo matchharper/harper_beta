@@ -45,6 +45,7 @@ import {
   formatTalentRoleActivitiesForPrompt,
   formatUpcomingHarperMeetingForPrompt,
   InternalRoleAcceptanceError,
+  isExpiredOpportunityRole,
   updateTalentOpportunityHistoryItem,
   type TalentOpportunityFeedback,
   type TalentOpportunityHistoryItem,
@@ -396,6 +397,7 @@ export const DEFAULT_ENABLED_TALENT_TOOL_NAMES = [
   TALENT_TOOL_NAMES.MANAGE_ACTION_ITEMS,
   TALENT_TOOL_NAMES.MANAGE_CONTENT_SUGGESTIONS,
   TALENT_TOOL_NAMES.UPSERT_PLAN,
+  "contact_harper_team",
   ...Object.keys(CAREER_AGENTIC_TOOLS),
   TALENT_TOOL_NAMES.USE_BROWSER,
   TALENT_TOOL_NAMES.SUGGEST_FORM,
@@ -1054,7 +1056,8 @@ export async function runGetRoleContext(args: {
         type: normalizeRoleContextStringArray(row.type),
         seniorityLevel: optionalToolString(row.seniority_level),
         salaryRange: optionalToolString(row.salary_range),
-        ...(!isInternalRole ? {status: optionalToolString(row.status)} : {}),
+        ...(!isInternalRole ? {status: optionalToolString(row.status),
+          hiring: !isExpiredOpportunityRole({ expiresAt: optionalToolString(row.expires_at), isExpired: row.is_expired === true, status: optionalToolString(row.status) })} : {}),
         postedAt: optionalToolString(row.posted_at),
         expiresAt: optionalToolString(row.expires_at),
         sourceType: optionalToolString(row.source_type),
@@ -4521,7 +4524,8 @@ function getToolParameters(tool: TalentToolDefinition) {
     tool.name === TALENT_TOOL_NAMES.END_CALL ||
     tool.name === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING ||
     tool.name === TALENT_TOOL_NAMES.READ_CAREER_COACHING_LIST ||
-    tool.name === TALENT_TOOL_NAMES.UPSERT_PLAN
+    tool.name === TALENT_TOOL_NAMES.UPSERT_PLAN ||
+    tool.name === "contact_harper_team"
     ? tool.parameters
     : withUiStatusMessageParameter(tool.parameters);
 }
@@ -4701,9 +4705,9 @@ export async function executeTalentTool(args: {
     if (args.persistTelemetry !== false) await insertToolFailureLogFromContext({
       context: args.context,
       name: tool.name,
+      error,
     });
     if (shouldLog) {
-      error,
       logTalentToolError({
         durationMs: Date.now() - startedAt,
         error,

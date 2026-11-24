@@ -595,10 +595,10 @@ export const HistoryOpportunityInlinePage = ({
   const archived = savedStatus === "archived";
   const external = !(item.isInternal || item.sourceType === "internal");
   const companyUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
-  const actions = decisionActions ? null : (
+  // Every detail shows its buttons in one place, right under the card.
+  const actions = decisionActions ?? (
     <HistoryOpportunityDetailActions
       item={item}
-      compact={!archived}
       pending={pending}
       onApply={onApply}
       onSavedStatusChange={onSavedStatusChange}
@@ -648,11 +648,9 @@ export const HistoryOpportunityInlinePage = ({
               <OpportunityPostingSummary item={item} />
             ) : undefined
           }
-          headerActions={!archived && external ? actions : undefined}
           showUnreadIndicator={false}
-          actions={archived ? actions : undefined}
         />
-        {decisionActions}
+        <div className="pt-3 empty:hidden">{actions}</div>
       </header>
       {archived ? (
         <>
@@ -696,7 +694,6 @@ export const HistoryOpportunityInlinePage = ({
                 }
                 fallbackMeeting={item.upcomingMeeting}
               />
-              {!external && !inProgress && actions}
               <TalentRoleActivityTimeline
                 showMemo
                 item={item}
@@ -704,7 +701,6 @@ export const HistoryOpportunityInlinePage = ({
                 loadError={timelineError}
                 onAddTalentMemo={onUpdateTalentMemo}
               />
-              {!external && inProgress && actions}
               {!inProgress && (
                 <HistoryOpportunityRoleActions
                   className={cn(!roleActionsOnDesktop && "md:hidden")}

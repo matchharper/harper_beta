@@ -89,6 +89,8 @@ export const CAREER_CHAT_POST_ONBOARDING_TOOL_NAMES = [
   "manage_action_items",
   "manage_content_suggestions",
   "upsert_plan",
+  // 사용자가 Harper 팀에 전달해 달라고 직접 요구할 때.
+  "contact_harper_team",
   TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING,
   // 최신/외부 웹 정보가 필요한 질문용. 예: 최근 투자, 최신 뉴스.
   TALENT_TOOL_NAMES.WEB_SEARCH,
@@ -223,6 +225,8 @@ function shouldExposeCareerChatTool(
 
   if (toolName === TALENT_TOOL_NAMES.DELIVER_CAREER_EMAIL) return args.background === true;
   if (toolName === "contact_user") return args.background === true;
+  // A background run has no user asking for it.
+  if (toolName === "contact_harper_team") return args.background !== true;
 
   if (
     toolName === TALENT_TOOL_NAMES.UPDATE_LANGUAGE_SETTING &&

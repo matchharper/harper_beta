@@ -6,7 +6,10 @@ import {
   type OnboardingChecklistLocationContext,
 } from "@/lib/talentOnboarding/insightChecklist";
 import type { ActiveInternalFitHoldQuestion } from "@/lib/talentOnboarding/internalFitHoldQuestion";
-import { CAREER_HARPER_LINK_OUTPUT_RULE } from "@/lib/career/prompts/rawPrompts";
+import {
+  CAREER_CHOICE_BUTTONS_RULE,
+  CAREER_HARPER_LINK_OUTPUT_RULE,
+} from "@/lib/career/prompts/rawPrompts";
 import {
   cleanCareerPromptInlineValue,
   formatCareerPromptCompactDateTime,
@@ -44,14 +47,7 @@ export function buildCareerChannelContextRules(channel: CareerPromptChannel, all
     "- Use Markdown for better readability.",
     "- Do not begin a reply with a timestamp or relative-time label.",
     "- Do not use emojis.",
-    ...(allowChoiceButtons ? [
-    "- When asking a question to the user to choose one of 2 answer options, you can append exactly one raw choice button block after the visible question. But do not use this too frequently.",
-    "  [[CAREER_CHOICE_BUTTONS]]",
-    '  {"choices":["Option A","Option B"]}',
-    "  [[/CAREER_CHOICE_BUTTONS]]",
-    "- Keep each choice short and self-contained, including simple yes/no choices. The front end will render the choices as vertical full-width buttons and send the selected choice text back as the user's reply.",
-    "- Do not put the choice button block inside a Markdown code block.",
-    ] : ["The application question tools own structured questions; ordinary chat replies contain prose, not choice-button payloads."]),
+    ...(allowChoiceButtons ? [CAREER_CHOICE_BUTTONS_RULE] : ["The application question tools own structured questions; ordinary chat replies contain prose, not choice-button payloads."]),
     CAREER_HARPER_LINK_OUTPUT_RULE,
     "",
   ].join("\n");

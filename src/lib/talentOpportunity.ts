@@ -2163,7 +2163,7 @@ async function fetchUpcomingMeetingsForHistoryItems(args: {
 
 async function fetchConfirmedMeetingsForHistoryItems(args: {
   admin: AdminClient;
-  items: TalentOpportunityHistoryItem[];
+  items: Pick<TalentOpportunityHistoryItem, "id">[];
   userId: string;
 }) {
   const recommendationIds = Array.from(
@@ -2277,7 +2277,7 @@ function normalizeTalentOpportunitySavedStageValue(value: unknown) {
 
 async function fetchTalentRoleActivitiesForHistoryItems(args: {
   admin: AdminClient;
-  items: TalentOpportunityHistoryItem[];
+  items: Pick<TalentOpportunityHistoryItem, "roleId">[];
   userId: string;
 }) {
   const roleIds = Array.from(
@@ -2690,7 +2690,7 @@ async function selectHistory(
 ) {
   const [row] = await executeSql<{ items: HistorySelection[] }>(
     args.admin,
-    `${careerOpportunityIndexSql(args.userId)} SELECT coalesce(jsonb_agg(page),'[]'::jsonb) AS items FROM (${historySelectionSql(args)}) page`,
+    `${careerOpportunityIndexSql(args.userId, args.roleIds)} SELECT coalesce(jsonb_agg(page),'[]'::jsonb) AS items FROM (${historySelectionSql(args)}) page`,
     1
   );
   if (!row || !Array.isArray(row.items))
@@ -2895,6 +2895,25 @@ export async function fetchTalentOpportunityHistoryByRoleIds(args: {
   return [...new Set(args.roleIds)].flatMap((id) =>
     byRoleId.has(id) ? [byRoleId.get(id)!] : []
   );
+}
+
+/** The detail timeline of an opportunity the browser already has: the user's own
+ * open activity on the role and confirmed meetings of the recommendation. */
+export async function fetchTalentOpportunityActivityTimeline(args: {
+  admin: AdminClient;
+  recommendationId: string;
+  roleId: string;
+  userId: string;
+}) {
+  const items = [{ id: args.recommendationId, roleId: args.roleId }];
+  const [meetings, activities] = await Promise.all([
+    fetchConfirmedMeetingsForHistoryItems({ ...args, items }),
+    fetchTalentRoleActivitiesForHistoryItems({ ...args, items }),
+  ]);
+  return {
+    confirmedMeetings: meetings.get(args.recommendationId) ?? [],
+    talentRoleActivities: activities.get(args.roleId) ?? [],
+  };
 }
 
 export async function fetchTalentPostingCardsByRoleIds(args: {

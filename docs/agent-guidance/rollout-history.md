@@ -17,6 +17,43 @@
 
 `write_talent_context`가 Brief에 호환 key를 주거나 지울 수 있게 하면서, 공통 RPC `mutate_talent_contexts`의 update가 `key`를 받게 했다. 값이 있으면 설정하고 빈 문자열이면 지운다. Memory 행에 key를 주면 다른 update 오류와 같이 `PT409`로 거절한다. 사용자 승인으로 운영 DB에 [`20261123170000_talent_context_update_key.sql`](../../supabase/migrations/20261123170000_talent_context_update_key.sql)을 적용했다(이력 version `20261123132749`, 22:27 KST). 적용 전 운영 함수 본문이 이 파일의 기준본과 같은지 md5로 대조했고(`0114a766…` → `1ec17a84…`), 실행 권한(`service_role`)과 `security definer`·`search_path`는 그대로다. 되돌리는 transaction 안의 임시 사용자로 key 설정, 다른 행이 가진 key 요청(`23505`, `talent_contexts_active_key_uidx`), 빈 문자열로 해제, Memory key 거절을 확인했고 남은 행은 없다. 지금 배포된 웹은 update에 key를 보내지 않으므로 동작이 바뀌지 않는다. 원하는 조건 화면의 고정 칸 제거와 `write_talent_context` key는 웹 배포 전이다. 이 migration을 다시 적용하지 않는다.
 
+## 2026-11-23 /ops 옛 기준 리텐션 집계 삭제 (운영 DB 행 1개)
+
+`ops_metric_snapshots`의 `local:talent-metrics:retention:last90:week:` 행은 11:00 KST에 집계돼 리텐션 기준 변경(`20261123110000`, 11:50 KST 적용) 전 값이었다(10/19 가입 주 W4 35.2%, 11/09 가입 주 W1 40.4%). 사용자 승인으로 이 행만 지웠다. 저장 결과는 빌드와 시각으로만 오래됐는지 판단하므로, 위 리텐션 항목의 "5분이 지나면 다시 집계한다"는 옛 값을 먼저 보여 준 뒤 바뀐다는 뜻이다. 앞으로 지표 함수를 바꾸는 migration은 같은 transaction에서 그 지표의 저장 행을 지운다([metricSnapshots.ts](../../src/lib/ops/metricSnapshots.ts)). 남은 12행은 모두 기준을 바꾼 뒤 집계한 것이다. 운영 웹은 아직 저장 결과를 쓰지 않는다.
+
+## 2026-11-23 안 본 Career 답장 메일 (운영 DB만, 웹 미배포)
+
+사용자가 질문하고 떠나 보지 못한 답장을 원본 Career agent가 메일로도 전하게 했다([harness 3.2](../career-agent-harness-ko.md)). 사용자 승인으로 운영 DB에 테이블과 함수만 만들었다. 웹 코드는 배포하지 않았다. 아래 migration을 다시 적용하지 않는다.
+
+- **migration.** `supabase/migrations/20261123150000_career_reply_unseen_email.sql`(md5 `e42e99ba…`)을 `lock_timeout` 3초로 적용했다. 이력에는 `20261123100045 career_reply_unseen_email`로 남았다. 새 테이블 `career_conversation_seen`과 함수 `mark_career_messages_seen_v1`, `career_unseen_reply_current_v1`, `admit_career_unseen_replies_v1`을 만들었다. 기존 테이블과 함수는 바꾸지 않았다.
+- **확인.** 세 함수의 운영 정의가 로컬 파일과 같다(PG 17 PGlite에서 만든 정의와 md5 일치). 실행 권한은 `service_role`에만 있고, 테이블은 RLS를 켰다. 운영에서 한 번씩 호출해 보니 만든 실행 0건, 기록 0행이었다. 아직 읽음 기록이 없으므로 웹을 배포하기 전에는 아무 실행도 만들어지지 않는다. 같은 스캔 쿼리(읽음 join 제외)는 운영 데이터에서 80ms가 걸렸고 인덱스를 탔다.
+- **남은 것.** 웹을 배포해야 브라우저가 읽음을 기록하고, `collect_due`가 안 본 답장을 찾기 시작한다. 배포 뒤에는 `career_reply_unseen` 실행 몇 건의 실제 모델 입력, 메일 여부와 내용, 비용을 확인한다.
+
+## 2026-11-23 /ops 주간 리텐션에서 Harper 비용 기록 제외 (운영 DB만, 웹 배포 필요 없음)
+
+`career_provider_usage`는 Harper 서버가 외부 서비스를 부를 때 남기는 비용 기록인데, 이름이 `career_`로 시작해 11/17부터 리텐션의 활동으로 세어졌다. 11/16 주에 활동으로 잡힌 사람의 42%가 이 기록만 있었다. 11/22 migration(`20261122080000`)은 DAU·WAU에서만 이 기록을 뺐다. 사용자 승인으로 리텐션 함수에서도 뺐다. 아래 migration을 다시 적용하지 않는다.
+
+- **migration.** `supabase/migrations/20261123110000_ops_retention_exclude_provider_usage.sql`을 적용했고 이력에는 `20261123025041 ops_retention_exclude_provider_usage`로 남았다. 운영 정의(md5 `5fb19370…`, `20261121090000`과 같음)에 logs 조건 한 줄만 더했다.
+- **확인.** 운영 정의가 로컬 파일과 같고(md5 `3d5ef3df…`), anon·authenticated는 실행할 수 없다. 9/28~11/23로 조회하면 11/17 이전 칸은 그대로이고 11/16 주 칸만 내려간다. 10/19 가입 주 W4는 35.2%에서 17.4%로, 11/09 가입 주 W1은 40.4%에서 29.8%로 바뀌었다.
+- **남은 것.** 웹은 같은 RPC를 읽으므로 배포할 것이 없다. 화면은 저장된 집계(`ops_metric_snapshots`)를 먼저 보여 주고 5분이 지나면 다시 집계한다.
+
+## 2026-11-23 /ops 전환 지표 v2 (운영 DB만, 웹 미배포)
+
+온보딩 14일 완료율과 internal 추천 14일 수락률은 14일이 지난 가입자·추천만 분모에 넣었다. 그래서 최근 주는 표본이 몇 명뿐이라 값이 튀었다(11/9 주 internal 수락률이 37쌍 중 16.2%, 전체로는 277쌍 중 43.3%). 사용자 승인으로 운영 DB에 그 기간 가입자·추천 전원을 분모로 두는 `get_ops_talent_metrics_conversion_v2`를 추가했다. 아래 migration을 다시 적용하지 않는다.
+
+- **migration.** `supabase/migrations/20261123100000_ops_conversion_metrics_v2_all_signups.sql`을 적용했고 이력에는 `20261123020429 ops_conversion_metrics_v2_all_signups`로 남았다. 운영 `_v1` 정의를 그대로 옮긴 뒤 14일 경과 조건 4곳과 분모 필드 이름(`internalRecommendationPairCount`, `onboardingSignupCount`)만 바꿨다. 배포된 웹이 읽는 `_v1`은 그대로다(md5 `85eef47e…`).
+- **확인.** 운영 `_v2` 정의가 로컬 파일과 같고(md5 `d303be0b…`), anon·authenticated는 실행할 수 없다. 로컬 서버 코드로 10/19~11/23 주간을 읽어 11/9 주 온보딩 63.1%·internal 43.3%, 11/16 주 64.1%·43.1%가 나오는 것을 확인했다.
+- **남은 것.** 웹 코드(`RPC_BY_SECTION.conversion`이 `_v2`를 부른다)를 배포해야 운영 화면이 바뀐다. 배포 뒤 `_v1`을 지울지는 따로 정한다.
+
+## 2026-11-23 /ops 지표 집계 결과 저장 테이블 (운영 DB만, 웹 미배포)
+
+`/ops` 지표 화면을 열 때마다 로딩이 길다는 보고를 받았다. 화면마다 기간 전체를 다시 집계했고, 결과는 서버 인스턴스 메모리와 브라우저에 2분만 남았다. 사용자 승인으로 운영 DB에 테이블만 만들었고, 웹 코드는 배포하지 않았다. 아래 migration을 다시 적용하지 않는다.
+
+- **측정(운영 DB, 90일·주 단위).** 단독 실행 기준 업데이트 지표 가입 33초·LLM 비용 42초, overview 가입 13초, engagement 11초였다. 화면처럼 동시에 보내면 업데이트 지표 66초, Talent 지표 29초가 걸렸다.
+- **migration.** `supabase/migrations/20261123090000_ops_metric_snapshots.sql`을 한 transaction에서 실행하고(`lock_timeout` 3초) 이력에 `20261123015252 ops_metric_snapshots`로 기록했다. 새 테이블 하나뿐이며 RLS를 켜고 `service_role`만 쓴다.
+- **확인.** 로컬 서버 코드로 운영 DB에 붙여 보니 업데이트 지표는 처음 72초, 다시 열면 0.18초였다. 다시 집계 버튼은 0.4초 안에 돌아오고, 집계는 응답 뒤에 한 번만 돈다. Talent 지표(overview·engagement·retention)는 처음 49초, 다시 열면 0.18초였다. 저장한 값은 계산한 값과 같았다. conversion은 `get_ops_talent_metrics_conversion_v2`가 운영에 적용된 뒤 확인했다. 처음 2.8초, 다시 열면 0.19초였다.
+- **남은 것.** 웹 코드를 배포해야 운영 화면에 반영된다. 로컬에서 만든 결과는 `local:` key로 저장돼 운영 화면에 섞이지 않는다.
+
 ## 2026-11-21 /ops 지표 읽기 경로 (운영 DB만, 웹·Worker 미배포)
 
 `/ops/metrics`를 처음 열면 85초가 걸린다는 보고를 받아 원인을 측정했다. 사용자 승인으로 운영 DB에만 적용했고, 웹 코드는 바꾸지 않았다. 아래 migration을 다시 적용하지 않는다.
@@ -569,3 +606,7 @@ Worker는 기존 호스트의 불변 release artifact를 준비하고 해당 rel
 `localhost:3000`은 기존 계정의 운영 DB를 읽는다. 비교 자료 목록에 필요한 `career_views` 테이블과 개인 기회 목록의 `career_list_opportunities_v1` 함수가 없어서 DB는 PGRST205/PGRST202를, 웹은 두 요청에 400을 반환했다. 운영 migration `20261116020651` (`career_resource_storage_and_entitled_readers`)에 아래 11개 로컬 migration 정의를 순서대로 적용했다. 후속 배포에서 이 묶음을 다시 실행하지 않는다. 회사 검색 GIN 인덱스 `career_company_text_search`는 같은 정의로 별도 `CREATE INDEX CONCURRENTLY`로 생성하고 `indisready`와 `indisvalid`를 확인했다.
 
 `20261113105340`, `20261113111611`, `20261113112306`, `20261113153813`, `20261113154219`, `20261113162900`, `20261113164300`, `20261113173100`, `20261113174900`, `20261113182700`, `20261113182800`이 해당한다. 이메일 자료의 접근 확인에 필요한 `talent_integrations.career_mail_sync` 컬럼만 리소스 기반 정의에 포함했다. 메일 이벤트·메일 동기화 backfill (`20261113155626`), 위임 복구 (`20261113155021`), 온보딩 변경, 웹·Worker 배포는 이 적용 범위 밖이다. 현재 서버 역할로만 새 테이블 여섯 개에 접근할 수 있고 RLS는 모두 활성이다. 확정된 두 목록 reader는 기존 로그인으로 다시 연 3000 화면에서 11:07:42 KST 둘 다 DB HTTP 200이었다. 기존 추천 화면에는 새 기회 7개가 보였고 신규 자료 목록은 모두 0건이었다.
+
+## 2026-11-23 Career 진입 시 내부 Role 전체 채점 중단
+
+사용자 승인으로 운영 migration `20261123072923`(`career_entry_without_internal_warmup`)을 적용했다. 로컬 정본은 `supabase/migrations/20261123130000_career_entry_without_internal_warmup.sql`이다. `enqueue_career_onboarding_continuation`은 이제 원본 Career agent 이어가기 run만 만들고 `onboarding_internal_evaluation` run을 만들지 않는다. 호출하는 곳이 없던 `enqueue_career_onboarding_invocation`은 지웠다. 적용할 때 대기·실행 중인 채점 run은 0건이었다. 적용 뒤 함수 본문, `service_role`만 실행할 수 있는 권한, 옛 함수 삭제를 확인했다. 검색 카드 기준을 바꾼 웹 코드(`serializeOpportunityRun`)와 처리 분기를 지운 Worker 코드는 아직 배포하지 않았다.

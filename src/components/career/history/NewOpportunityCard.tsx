@@ -10,7 +10,6 @@ import { AnimatedHandshake } from "@/components/ui/animated-handshake";
 import { MuteButton } from "@/components/ui/button";
 import { Tooltips } from "@/components/ui/tooltip";
 import { useCareerT } from "@/i18n/useCareerT";
-import { cn } from "@/lib/utils";
 import {
   getCareerNegativeActionLabel,
   getCareerPositiveActionIcon,
@@ -20,10 +19,13 @@ import type { CareerHistoryOpportunity } from "../types";
 import OpportunityCard from "./OpportunityCard";
 import { OpportunitySwipeRow } from "./OpportunitySwipeRow";
 import { getExternalOpportunityApplyLabel } from "./hiringPost";
+import {
+  OpportunityActionGrid,
+  opportunityActionClass,
+} from "./HistoryOpportunityDetailActions";
 
-type OpportunityAction = (
-  item: CareerHistoryOpportunity
-) => void | Promise<unknown>;
+// Callers may return whatever their handler returns; the card ignores it.
+type OpportunityAction = (item: CareerHistoryOpportunity) => unknown;
 export type NewOpportunityCardActions = {
   onApply: OpportunityAction;
   onNegative: OpportunityAction;
@@ -185,14 +187,8 @@ export function NewOpportunityDecisionActions({
   const PositiveActionIcon = getCareerPositiveActionIcon(item.opportunityType);
   const positiveLabel = getCareerPositiveActionLabel(item.opportunityType, t);
   const negativeLabel = getCareerNegativeActionLabel(item.opportunityType, t);
-  const actionClass = "py-2.5 rounded-sm font-normal text-sm truncate";
   return (
-    <div
-      className={cn(
-        "grid grid-cols-2 items-center gap-2 max-md:[&>button:last-child:nth-child(odd)]:col-start-2",
-        className
-      )}
-    >
+    <OpportunityActionGrid className={className}>
       {isInternal ? (
         <Tooltips
           text={t("career.history.keep.tooltip", "저장해두고 나중에 결정")}
@@ -202,7 +198,7 @@ export function NewOpportunityDecisionActions({
             onClick={() => onKeep(item)}
             size="md"
             variant="neutral"
-            className={actionClass}
+            className={opportunityActionClass}
           >
             <Bookmark aria-hidden className="size-3.5" />
             {t("career.history.keep.action", "저장하고 나중에 결정")}
@@ -213,7 +209,7 @@ export function NewOpportunityDecisionActions({
         disabled={pending}
         onClick={() => onNegative(item)}
         size="md"
-        className={actionClass}
+        className={opportunityActionClass}
       >
         <ThumbsDown aria-hidden className="size-3.5 stroke-0.5" />
         {negativeLabel}
@@ -223,7 +219,7 @@ export function NewOpportunityDecisionActions({
         onClick={() => onPositive(item)}
         size="md"
         variant={isInternal ? "primary" : "neutral"}
-        className={actionClass}
+        className={opportunityActionClass}
       >
         {pending ? (
           <Loader2 aria-hidden className="size-3.5 animate-spin" />
@@ -238,11 +234,11 @@ export function NewOpportunityDecisionActions({
           onClick={() => onApply(item)}
           size="md"
           variant="primary"
-          className={actionClass}
+          className={opportunityActionClass}
         >
           {getExternalOpportunityApplyLabel(item, t)}
         </MuteButton>
       ) : null}
-    </div>
+    </OpportunityActionGrid>
   );
 }

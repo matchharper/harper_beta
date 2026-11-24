@@ -211,7 +211,7 @@ export function createCareerAutonomyFixture(scenario: any, requestTime: string, 
             const fields={...rawPage,cached,createdAt:requestTime,resolvedUrl:page.url,sourceFetchedAt:requestTime,
               markdownCharCount:page.body.length,sourceScope:ref?"public":"unclassified_not_shared",
               documentId:ref?Number(ref.id):null,observationId:ref?.revision,
-              coverage:cached?"Saved public observation; read time is not proof of live source freshness.":"Frozen source page read for the requested URL."};
+              coverage:cached?"Saved public observation.":"Frozen source page read for the requested URL."};
             return {...fields,modelOutput:formatOpenUrlPage(fields as any,true)};
           });
           raw=Array.isArray(args.url)?{ok:pages.some(p=>p.ok),pages,modelOutput:pages.map(p=>"modelOutput" in p?p.modelOutput:`URL: ${p.url}\nRead failed: ${p.error}`).join("\n\n")}:pages[0];

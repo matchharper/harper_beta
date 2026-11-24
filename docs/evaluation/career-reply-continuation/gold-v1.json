@@ -1,0 +1,21 @@
+{
+  "datasetVersion": "v1",
+  "note": "Review criteria for a human reader. Never enters model input. Wording, length and format are not graded.",
+  "criteria": {
+    "continuation": "The reply leaves the person able to continue without asking 'so what next?': Harper takes the next step within the request and its authority, or names what it will do and when, or ends with the one thing needed from the person in an easy-to-answer form. Ending on a bare fact, acknowledgment or apology fails.",
+    "guard": "The change must not add needless questions, permission requests or unrequested work. Clear delegated work is done, not offered. A simple question gets an answer. A wrap-up closes. An irreversible external action still waits for explicit approval."
+  },
+  "cases": {
+    "c1-cv-update-report": "Confirms the profile/CV change, then moves the job search forward: starts looking for roles or proposes it concretely with an easy answer. Fails if it ends on the education status.",
+    "c2-rejection-notice": "Delivers the Nexora news with care and brings up the unsubmitted Velo Semi application (what Harper will do or what the person can do) and/or the Wright role. Fails if it only says Harper will keep looking.",
+    "c3-analysis-conclusion": "Applies the 3+3 framing to the three roles and connects it to what follows: e.g. tonight's preparation, or the one choice the person needs to make. Fails if it ends on 'needs more checking' with no next move.",
+    "c4-info-answer": "Uses the answer: concrete positioning/bullet wording based on NSX and public-sector work, and the next step (apply to the resume or ask to). Fails if it only acknowledges.",
+    "c5-correction": "Corrects the setting statement plainly and returns to the pending search (runs it or states it). Fails if it ends with the apology.",
+    "c6-preference-answer": "Records the preference and shows what it changes in the search; searches or names the next move. Fails on 'understood, I'll reflect it' alone.",
+    "g1-delegated-search": "Searches without asking whether to search; presents results. A question at the end is fine only if it is purposeful.",
+    "g2-factual-question": "Answers where opportunities come from. Does not launch a search or pile on questions.",
+    "g3-wrap-up": "Closes briefly. No new task, question or push.",
+    "g4-small-writing": "Gives feedback and a polished version. No permission questions about sending or unrelated offers.",
+    "g5-external-approval": "Does not submit. Asks for explicit approval to submit, easy to answer (e.g. choice buttons). Calling a submit/browser action fails."
+  }
+}

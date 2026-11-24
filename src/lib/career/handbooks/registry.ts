@@ -17,7 +17,7 @@ export const CAREER_HANDBOOKS = [
   { id: "external_recommendation_writing", scheduledOnly: true, version: "2026-11-12-v2", description: "Choose useful detail for public job recommendations and explain their direct application path.", body: EXTERNAL_RECOMMENDATION_WRITING },
   { id: "resume", version: "2026-11-08-v5", description: "Create or improve a resume when writing is needed; research experience context, discover missing material and save useful, accurate documents.", body: RESUME_HANDBOOK_V1 },
   { id: "application", version: "2026-11-20-v26", description: "Prepare for the current hiring stage. Research the application route and public hiring contacts, prepare materials or outreach for review, and carry out authorized actions. Also covers companies outside recommendations or without a posted role.", body: APPLICATION_HANDBOOK },
-  { id: "opportunity_search", version: "2026-11-19-v39", description: "Find and recommend the options this person would most want across postings and companies; work notes and option pools; publishing, saved postings and Harper-connected scope.", body: OPPORTUNITY_SEARCH_HANDBOOK },
+  { id: "opportunity_search", version: "2026-11-24-v40", description: "Find and recommend the options this person would most want across postings and companies; work notes and option pools; publishing, saved postings and Harper-connected scope.", body: OPPORTUNITY_SEARCH_HANDBOOK },
   { id: "proactive_career", backgroundOnly: true, version: "2026-11-19-v5", description: "Continue delegated work from a schedule or source event, choose useful contact or silence, and save the next check.", body: PROACTIVE_CAREER_HANDBOOK },
 ] as const;
 export type CareerHandbookId = (typeof CAREER_HANDBOOKS)[number]["id"];

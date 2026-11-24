@@ -8,6 +8,7 @@ import { resumeCareerAgentAfterWork } from "@/lib/career/agentContinuation";
 import { requestExternalMatchingSearch, recoverCareerMatchingSearches, publishCareerMatchingSearch } from "@/lib/career/matching/externalSearch";
 import { recoverInternalEvaluations } from "@/lib/career/matching/internalScoring/backend";
 import { recoverResourceOperations } from "@/lib/career/resources/queue";
+import { admitUnseenCareerReplies } from "@/lib/career/background/unseenReply";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,6 +34,11 @@ export async function POST(request: NextRequest) {
         recovery: () => recoverCareerBackgroundRuns(admin),
         deliveries: () => recoverCareerEmailDeliveries(admin),
         resources: () => recoverResourceOperations(admin),
+        // An optional notification must never withhold the collected work receipt above.
+        unseenReplies: () => admitUnseenCareerReplies(admin).catch((error) => {
+          console.warn("[career-agent] unseen reply scan deferred", String(error?.message ?? error));
+          return { admitted: 0, deferred: 0, error: "deferred" };
+        }),
       };
       const results = await Promise.allSettled(Object.entries(scans).map(async ([name, scan]) => {
         const startedAt = Date.now();
@@ -44,10 +50,10 @@ export async function POST(request: NextRequest) {
       }));
       const failed = results.find((result) => result.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
-      const [work, matching, internalMatching, recovery, deliveries, resources] = results.map((result) =>
+      const [work, matching, internalMatching, recovery, deliveries, resources, unseenReplies] = results.map((result) =>
         result.status === "fulfilled" ? result.value : undefined
       );
-      return NextResponse.json({ work, matching, internalMatching, recovery, deliveries, resources });
+      return NextResponse.json({ work, matching, internalMatching, recovery, deliveries, resources, unseenReplies });
     }
     if (["evaluation_complete", "external_follow_evaluation", "external_evaluation_ready"].includes(body.action)) {
       const { data: run, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", body.discoveryRunId).single();

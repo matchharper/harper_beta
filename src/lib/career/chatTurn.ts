@@ -165,6 +165,8 @@ export type CareerTextTurnAdapter = {
   artifactsVisible?: boolean;
   onboardingActive?: boolean;
   sourceMessage: TalentMessageRow;
+  /** Images that arrived with the source message, shown only with that input. */
+  sourceImages?: import("@/lib/talentOnboarding/documentImages.server").CareerDocumentImage[];
   adaptPromptBlocks: (blocks: Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"]) => Parameters<typeof runCareerChatAssistant>[0]["systemBlocks"];
   adaptTools: (selection: ReturnType<typeof resolveCareerChatTools>) => ReturnType<typeof resolveCareerChatTools>;
   executeTool: (args: {
@@ -846,6 +848,8 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     )
     .map((item) => ({
       role: item.role as "user" | "assistant",
+      ...(args.adapter?.sourceImages?.length && Number(item.id) === Number(args.adapter.sourceMessage.id)
+        ? { careerImages: args.adapter.sourceImages } : {}),
       content: formatTalentMessageContentForModel(item, {
         includeCreatedAt: item.message_type !== "conversation_summary",
         preferredLocale: responseLocale,
@@ -938,7 +942,11 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
       talentContextSection,
       currentPreferences,
       gmailCapability,
-      userChatTurnCount: isOnboardingActiveForTurn ? userTurnCount : await countUserChatTurns({ admin, conversationId }),
+      // Email replies count: the person has written to Harper. A message this turn answers
+      // but did not save (an email reply) is also theirs.
+      userChatTurnCount: isOnboardingActiveForTurn ? userTurnCount
+        : await countUserChatTurns({ admin, conversationId, messageTypes: ["chat", "call_transcript", "mail"] })
+          + (rawUserMessage && !insertedUserMessage ? 1 : 0),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn
@@ -1222,10 +1230,6 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
   markLatency("model_prepared");
   let firstTextReceived = false;
   let assistantText: string;
-  try {
-    const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
-      toolRuntime,
-      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message"))),
   // Older history yields first when the whole request would exceed the
   // model's documented input limit; within it nothing changes.
   const fittedHistory = fitCareerHistoryToModel({
@@ -1239,6 +1243,10 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     console.warn("[career-input-fit] history reduced", { userId, conversationId, omitted: fittedHistory.omitted });
     llmMessages.splice(0, llmMessages.length, ...fittedHistory.messages);
   }
+  try {
+    const assistantArgs: Omit<Parameters<typeof runCareerChatAssistant>[0], "onToolStart"> = {
+      toolRuntime,
+      hasDeliveredArtifact: () => (!args.adapter || args.adapter.artifactsVisible === true) && (Array.from(artifactMessages.values()).some(message => message.messageType !== "career_turn_activity" || message.workEvents?.some(event => event.kind === "message"))),
       onAssistantMessage: args.backgroundInvocation || args.adapter ? undefined : async (text) => {
         const visibleText = normalizeNoMessageContent(text, noMessageMarker);
         if (!visibleText) return;

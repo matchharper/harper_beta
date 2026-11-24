@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readCompanySummariesInLanguage } from "@/lib/career/companies/summaryLanguage";
 import { readCompanyProjections } from "@/lib/career/resources/companyData";
 import { getRequestUser } from "@/lib/supabaseServer";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
@@ -9,7 +10,7 @@ const UUID_PATTERN =
 /**
  * The saved shared overview of an opportunity's company. The employer is
  * resolved under the viewer's access, so an anonymous Role reveals nothing.
- * This read never starts a new search.
+ * This read never starts a new search. The overview comes in the reader's language.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -22,16 +23,29 @@ export async function GET(req: NextRequest) {
     if ((kind !== "role" && kind !== "company_workspace") || !UUID_PATTERN.test(id)) {
       return NextResponse.json({ error: "kind and id are required" }, { status: 400 });
     }
+    const admin = getTalentSupabaseAdmin();
     const projections = await readCompanyProjections(
-      { admin: getTalentSupabaseAdmin(), userId: user.id },
+      { admin, userId: user.id },
       [{ kind, id }],
       { mode: "detail" }
     );
     const summary = projections.get(`${kind}:${id}`)?.summary ?? null;
+    const locale =
+      req.nextUrl.searchParams.get("locale") ??
+      req.cookies.get("NEXT_LOCALE")?.value ??
+      null;
+    const text = summary
+      ? await readCompanySummariesInLanguage(admin, [summary], locale, {
+          signal: req.signal,
+        })
+      : null;
     return NextResponse.json({
       ok: true,
       summary: summary
-        ? { markdown: summary.content, checkedAt: summary.checkedAt ?? null }
+        ? {
+            markdown: text?.get(summary.dataRef.id) ?? summary.content,
+            checkedAt: summary.checkedAt ?? null,
+          }
         : null,
     });
   } catch (error) {

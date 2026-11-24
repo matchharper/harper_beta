@@ -181,37 +181,34 @@ export default function AboutPage({ harperJobs, locale }: AboutPageProps) {
                 <br />
                 {copy.thanks}
                 {harperJobs.length > 0 ? (
-                  <div className={cn(tw.glassStrong, "mt-8 p-2")}>
+                  <ul className="mt-6 list-disc space-y-1.5 pl-5 marker:text-(--tl-ink-3)">
                     {harperJobs.map((job) => (
-                      <div
-                        key={job.id}
-                        className="group/job rounded-[12px] px-4 py-3 transition-colors hover:bg-white/70"
-                      >
+                      <li key={job.id} className="group/job">
                         <OfficialJobsCtaLink
                           job={job}
                           locale={aboutLocale}
                           variant="transparent"
-                          className="min-h-0 w-full justify-start p-0 text-left text-[15px] font-medium leading-6 text-(--tl-ink) hover:bg-transparent md:border-0 md:bg-transparent"
+                          className="min-h-0 justify-start p-0 text-left text-[15px] font-normal leading-[1.7] text-action hover:bg-transparent md:border-0 md:bg-transparent"
                         >
-                          <div className="flex w-full flex-row items-center justify-between gap-3">
+                          <span className="inline-flex items-center gap-1.5">
                             <span>{job.roleTitle}</span>
                             {/* Slide Blur Swap (슬라이드 블러 스왑): 기존 아이콘은 오른쪽으로 흐려지며 퇴장,
                                 새 아이콘은 왼쪽에서 선명해지며 등장. 500ms / 6px / blur 3px.
                                 공통 사용 기준: src/styles/Design.md의 Slide Blur Swap. */}
                             <span
                               aria-hidden="true"
-                              className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center text-(--tl-ink-3)"
+                              className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center"
                             >
                               <ArrowRight className="absolute h-3.5 w-3.5 translate-x-0 opacity-100 blur-[0px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-1.5 group-hover/job:opacity-0 group-hover/job:blur-[3px] group-focus-within/job:translate-x-1.5 group-focus-within/job:opacity-0 group-focus-within/job:blur-[3px] motion-reduce:transition-none" />
                               <span className="absolute -translate-x-1.5 text-[13px] leading-none opacity-0 blur-[3px] transition-[translate,opacity,filter] duration-500 ease-in-out group-hover/job:translate-x-0 group-hover/job:opacity-100 group-hover/job:blur-[0px] group-focus-within/job:translate-x-0 group-focus-within/job:opacity-100 group-focus-within/job:blur-[0px] motion-reduce:transition-none">
                                 💼
                               </span>
                             </span>
-                          </div>
+                          </span>
                         </OfficialJobsCtaLink>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 ) : null}
                 <div className="mt-8 flex flex-wrap items-center gap-2">
                   <span>Contact</span>
