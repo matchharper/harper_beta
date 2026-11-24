@@ -6,8 +6,11 @@ import { cx, opsTheme } from "@/components/ops/theme";
 import { MuteButton } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Tooltips } from "@/components/ui/tooltip";
+import { OpsChangeMarksProvider } from "@/components/ops/metrics/OpsChartTooltip";
 import OpsMetricSnapshotStamp from "@/components/ops/metrics/OpsMetricSnapshotStamp";
 import OpsTalentMetricsOverviewDetails from "@/components/ops/metrics/OpsTalentMetricsOverviewDetails";
+import { useOpsTrackedChanges } from "@/hooks/ops/useOpsUpdateMetrics";
+import { OPS_TRACKED_CHANGES } from "@/lib/ops/updateMetrics";
 import {
   useOpsTalentMetrics,
   useOpsTalentMetricsOverview,
@@ -240,7 +243,26 @@ function SectionState({
   );
 }
 
-export default function OpsTalentMetricsWorkspace() {
+/**
+ * 그래프마다 그 그래프에 영향을 주는 추적 중인 변화만 배포일에 표시한다. 마우스를 올리면 무엇을 바꿨는지 보이고, 표시를
+ * 누르면 /ops/update-metrics의 그 변화가 열린다(OpsChartTooltip, 원칙은 src/lib/ops/updateMetrics.ts).
+ */
+export default function OpsTalentMetricsWorkspaceWithChanges() {
+  const interval = useOpsTalentMetricsFilterStore((state) => state.interval);
+  const authLoading = useAuthStore((state) => state.loading);
+  const userEmail = useAuthStore((state) => state.user?.email);
+  const tracking = useOpsTrackedChanges(!authLoading && isInternalEmail(userEmail));
+  return (
+    <OpsChangeMarksProvider
+      changes={OPS_TRACKED_CHANGES.filter((change) => !tracking.ended.has(change.key))}
+      interval={interval}
+    >
+      <OpsTalentMetricsWorkspace />
+    </OpsChangeMarksProvider>
+  );
+}
+
+function OpsTalentMetricsWorkspace() {
   const from = useOpsTalentMetricsFilterStore((state) => state.from);
   const hasHydratedFilters = useOpsTalentMetricsFilterStore(
     (state) => state.hasHydrated

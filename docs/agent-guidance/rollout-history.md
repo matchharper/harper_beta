@@ -2,6 +2,19 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+## 2026-11-24 가입을 마치지 않은 사람의 첫 연락과 가입 양식 이동 (#441) — 웹 배포 후 운영 DB 적용
+
+#441을 dev에 머지하고 #442(dev → main, 머지 커밋 `bdccda4a`)로 운영에 배포했다. Vercel production `dpl_4vWnQF2fUoCuYJGGb9FNhYBY2naV` Ready, `matchharper.com`이 이 커밋을 서비스한다(11/24 18:04 KST 전후). 함께 나간 #440은 안 본 답장 메일 배포 기록이다. #440이 `OpsEmailActionMetrics` 파일들을 지우면서 import를 남겨 dev preview 빌드가 실패했고, #441에서 그 import를 지웠다.
+
+- 첫 연락 지침이 가입 양식을 마치지 않은 사람에게 그 사실을 준다. Career를 열면 양식으로 돌아가고, 메일 답장은 양식 없이도 닿는다. 판단 조건은 가입 양식 이동과 같다.
+- 모델이 읽는 예약 표시, main prompt, 능력 목록, proactive handbook, 배경 실행 지침에서 "opted-in"을 뺐다.
+- `/career`는 Harper 메일을 받았어도 가입을 마치지 않은 사람(`is_onboarding_done` 아님, 대화 단계 `profile`)을 `/career/onboarding`으로 보낸다.
+- 웹 배포 뒤 사용자 승인으로 [`20261124180000_career_presignup_reservation.sql`](../../supabase/migrations/20261124180000_career_presignup_reservation.sql)을 운영에 적용했다(운영 이력 `20261124090814 career_presignup_reservation`, 18:08 KST 전후, 한 transaction, `lock_timeout` 3초). 적용 전 `ensure_career_check_in` 본문이 11/06 정의와 같은지(md5 `4fdba25c`) 확인했고, 진행 중인 예약 실행은 0건이었다. 적용 뒤 함수에 가입 완료 전환이 들어갔고 anon은 실행할 수 없다. 가입 전 기본 문구 2,660행이 새 문구로 바뀌었다. 가입한 사람에게 남아 있던 가입 전 예약 543행은 일반 탐색 지시문과 `flexibleTiming=true`로 바뀌었고, 시각과 상태는 그대로다. 같은 문장으로 시작하지만 Harper가 고쳐 쓴 115행은 그대로 둔다. 가입을 마치는 순간의 전환은 PGlite 테스트로만 확인했고, 운영에서 실제로 가입을 마친 사람의 행으로는 아직 확인하지 않았다.
+
+## 2026-11-24 배포 후 실험중인 지표의 추적 상태 테이블 (운영 DB만, 웹 미배포)
+
+사용자 승인으로 [`20261124150000_ops_tracked_changes.sql`](../../supabase/migrations/20261124150000_ops_tracked_changes.sql)을 운영에 적용했다(이력 version `20261124062349 ops_tracked_changes`, 15:23 KST 전후). 적용 전에는 표가 없었다. 새 표 `ops_tracked_changes`는 `key`, `data`(JSON, 지금은 `endedAt`만), `updated_at` 세 칼럼이다. RLS를 켰고 `service_role`만 쓸 수 있다. 앱 서버 코드로 임시 key의 추적 종료·재개를 한 번씩 저장하고 읽은 뒤 그 행을 지웠다. 지금 표는 비어 있다. 지금 배포된 웹은 이 표를 쓰지 않는다. `/ops/update-metrics`의 '추적 종료' 버튼은 웹 배포 뒤에 동작한다. 이 migration을 다시 적용하지 않는다.
+
 ## 2026-11-23 대신 지원 개선 (#391·#431) — 운영 DB 선반영 후 웹 배포
 
 사용자 승인으로 아래 migration 3개를 운영에 먼저 적용했다(11/23 22:25 KST 전후, 각 한 transaction, `lock_timeout` 3초). 적용 뒤 함수 5개의 본문이 로컬 정본과 같은지(md5), `service_role`만 실행할 수 있는지 확인했다. 웹은 #391·#431을 dev에 머지한 뒤 main에 올려 배포했다.

@@ -87,7 +87,7 @@ async function main() {
       "scripts/evalCareerAdaptiveSchedules.ts",
       "src/lib/career/schedules/server.ts",
       "src/lib/career/schedules/tools.ts",
-      "src/lib/career/prompts/mainPrompt2.ts",
+      "src/lib/career/prompts/main.md",
       "src/lib/career/handbooks/proactiveCareer.ts",
       "src/lib/career/capabilities/registry.ts",
       "supabase/migrations/20261102064501_career_adaptive_check_in.sql",

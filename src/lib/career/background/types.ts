@@ -2,6 +2,8 @@ export type CareerBackgroundInvocation = {
   runId: string;
   trigger?: string;
   scheduledWork?: boolean;
+  /** Scheduled work that continues opportunity discovery (scheduledModel.ts). */
+  discovery?: boolean;
   matchingIds?: string[];
   researchMatchingId?: string;
   replyChannel?: "chat";

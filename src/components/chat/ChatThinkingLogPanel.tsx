@@ -19,6 +19,8 @@ export type ChatThinkingLogEntry = {
   id?: string;
   icon?: "read" | "write" | "send" | "run" | "search" | "link";
   label: string;
+  /** Shown before the label, e.g. the tool name in local development. */
+  badge?: ReactNode;
   content?: ReactNode;
   status?: "done" | "error" | "running";
 };
@@ -173,6 +175,7 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
               className="chat-live-step"
             >
               <span className="career-thinking-shimmer block truncate">
+                {current?.badge}
                 {current ? current.label.replace(/\s+/g, " ") : statusLabel}
               </span>
             </span>
@@ -234,7 +237,12 @@ export const ChatThinkingLogPanel = memo(function ChatThinkingLogPanel({
                       status={entry.status}
                     />
                   ) : null}
-                  {entry.content ?? <span>{entry.label}</span>}
+                  {entry.content ?? (
+                    <span>
+                      {entry.badge}
+                      {entry.label}
+                    </span>
+                  )}
                 </li>
               );
             })}

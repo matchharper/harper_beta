@@ -36,11 +36,17 @@
 #career-llm-map .empty{padding:calc(var(--u)*1) 0;color:var(--muted-foreground)}
 #career-llm-map .button-list{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.4)}
 #career-llm-map dialog{width:min(1120px,90vw);max-height:88vh;color:var(--card-foreground);background:var(--card);border-color:var(--border)}
+#career-llm-map dialog[open]{display:flex;flex-direction:column;overflow:hidden}
+#career-llm-map .dialogframe{display:flex;flex-direction:column;gap:calc(var(--u)*1.1);flex:1;min-height:0}
+#career-llm-map #map-dialog-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;align-content:start}
 #career-llm-map dialog::backdrop{background:color-mix(in srgb,var(--foreground) 30%,transparent)}
 #career-llm-map .detailhead{display:flex;justify-content:space-between;align-items:start;gap:calc(var(--u)*1.5)}
 #career-llm-map .detailbody{display:grid;gap:calc(var(--u)*1.1)}
 #career-llm-map pre{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;margin:0;color:var(--foreground);font-size:inherit}
 #career-llm-map .source{overflow-wrap:anywhere}
+#career-llm-map .example{display:grid;gap:calc(var(--u)*.6);padding-top:calc(var(--u)*1.1);border-top:1px solid var(--border)}
+#career-llm-map .example .example-form{display:flex;gap:calc(var(--u)*.5);align-items:center;flex-wrap:wrap}
+#career-llm-map .example input{min-width:260px;flex:1;padding:calc(var(--u)*.45) calc(var(--u)*.7);border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit}
 #career-llm-map .type-legend{display:flex;align-items:center;flex-wrap:wrap;gap:calc(var(--u)*1.35);padding:calc(var(--u)*.55) calc(var(--u)*1.3);border-bottom:1px solid var(--border)}
 #career-llm-map .type-key{display:flex;align-items:center;gap:calc(var(--u)*.4)}
 #career-llm-map .swatch{display:inline-block;width:1.25em;height:1.25em}
@@ -60,19 +66,49 @@
 #career-llm-map .cache-mark{background:color-mix(in srgb,var(--foreground) 8%,var(--background));border-radius:calc(var(--u)*.4);padding:calc(var(--u)*.4)}
 #career-llm-map .cache-swatch{background:color-mix(in srgb,var(--foreground) 12%,var(--background));border-radius:calc(var(--u)*.2)}
 #career-llm-map #cache-controls[hidden],#career-llm-map #cache-note[hidden]{display:none}
+#career-llm-map .topbar-left{display:flex;align-items:center;gap:calc(var(--u)*1.2)}
+#career-llm-map .catalog{display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);min-height:0}
+#career-llm-map .catalog>.column+.column{border-left:1px solid var(--border)}
+#career-llm-map .catalog-search{width:100%;padding:calc(var(--u)*.5) calc(var(--u)*.75);border:1px solid var(--border);border-radius:8px;background:var(--background);color:var(--foreground);font:inherit}
+#career-llm-map .catalog-section{display:grid;gap:calc(var(--u)*.15);margin-bottom:calc(var(--u)*1.2)}
+#career-llm-map .catalog-section>h4{margin:0 0 calc(var(--u)*.35);color:var(--muted-foreground);font-weight:500}
+#career-llm-map .catalog-item{display:flex;justify-content:space-between;align-items:baseline;gap:calc(var(--u)*.5);width:100%;text-align:left;padding:calc(var(--u)*.4) calc(var(--u)*.6);border:0;border-radius:8px;background:transparent;color:var(--foreground);font:inherit;cursor:pointer}
+#career-llm-map .catalog-item:hover{background:color-mix(in srgb,var(--foreground) 6%,var(--background))}
+#career-llm-map .catalog-item[aria-current="true"]{background:color-mix(in srgb,var(--viz-series-2) 20%,var(--background))}
+#career-llm-map .catalog-item.child{padding-left:calc(var(--u)*1.6);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.92em}
+#career-llm-map .catalog-item .count{color:var(--muted-foreground);font-size:.85em;white-space:nowrap;font-family:inherit}
+#career-llm-map .catalog-detail{display:grid;gap:calc(var(--u)*1.1);max-width:920px;align-content:start}
+#career-llm-map .catalog-detail h2{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#career-llm-map .catalog-detail .prose{white-space:pre-wrap;line-height:1.65;margin:0}
+#career-llm-map .catalog-detail .tool-card{display:grid;gap:calc(var(--u)*.6);padding:calc(var(--u)*1);border:1px solid var(--border);border-radius:10px}
+#career-llm-map .catalog-detail .tool-card h3{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+#career-llm-map .params{width:100%;border-collapse:collapse;font-size:.95em;table-layout:fixed}
+#career-llm-map .params col.name{width:26%}#career-llm-map .params col.type{width:18%}
+#career-llm-map .params td code{white-space:normal;overflow-wrap:anywhere}
+#career-llm-map .catalog-detail pre.prose{font-family:inherit;font-size:inherit}
+#career-llm-map .params th,#career-llm-map .params td{text-align:left;vertical-align:top;padding:calc(var(--u)*.45) calc(var(--u)*.6);border-top:1px solid var(--border)}
+#career-llm-map .params th{color:var(--muted-foreground);font-weight:500}
+#career-llm-map .params .req{color:var(--viz-series-6);font-size:.85em;margin-left:.3em}
+#career-llm-map .catalog-detail details summary{cursor:pointer;color:var(--muted-foreground)}
+#career-llm-map .chips{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.35)}
+#career-llm-map .chip{padding:calc(var(--u)*.15) calc(var(--u)*.55);border-radius:999px;background:color-mix(in srgb,var(--foreground) 7%,var(--background));font-size:.85em;border:0;color:var(--foreground);font:inherit;cursor:pointer}
 </style>
 <div id="career-llm-map">
-  <header class="topbar"><h2>Career LLM</h2><div class="toolbar"><div class="toolbar" aria-label="구현 비교"><button class="btn" type="button" data-mode="current" aria-pressed="false">현재 코드</button><button class="btn" type="button" data-mode="proposed" aria-pressed="true">개선안</button></div><button class="btn btn-ghost" id="source-info" type="button">출처</button><a class="btn" id="desktop-link" href="/ops/debugging/career-llm-map?fullscreen=1" target="_blank" rel="noopener">새 창</a><button class="btn" type="button" id="fullscreen">전체화면</button></div></header>
+  <header class="topbar"><div class="topbar-left"><h2>Career LLM</h2><div class="toolbar" aria-label="보기"><button class="btn" type="button" data-view="map" aria-pressed="true">호출 지도</button><button class="btn" type="button" data-view="catalog" aria-pressed="false">도구·지침</button></div></div><div class="toolbar"><div class="toolbar" id="compare-toolbar" aria-label="구현 비교"><button class="btn" type="button" data-mode="current" aria-pressed="false">현재 코드</button><button class="btn" type="button" data-mode="proposed" aria-pressed="true">개선안</button></div><button class="btn btn-ghost" id="source-info" type="button">출처</button><a class="btn" id="desktop-link" href="/ops/debugging/career-llm-map?fullscreen=1" target="_blank" rel="noopener">새 창</a><button class="btn" type="button" id="fullscreen">전체화면</button></div></header>
   <div class="type-legend text-small" id="type-legend" aria-label="입력 종류별 배경색"></div>
   <main class="columns">
     <nav class="column" aria-label="케이스"><div class="columnhead"><h3>케이스</h3><span class="text-small text-muted" id="case-count"></span></div><div class="scroll" id="cases"></div></nav>
     <section class="column" aria-labelledby="components-title"><div class="columnhead"><h3 id="components-title">모든 조합 요소</h3><div class="legend text-small"><span>포함</span><span id="change-legend">+ 추가 · − 빠짐</span></div></div><div class="scroll" id="palette"></div></section>
     <section class="column" aria-labelledby="input-title"><div class="columnhead"><h3 id="input-title">Career LLM에 들어가는 입력</h3></div><div class="scroll" id="input-scroll"><div class="selected-info"><div class="selected-head"><div class="spaced"><h3 id="scenario-title"></h3><span id="call-title" class="text-small text-muted"></span></div><button class="btn btn-ghost" id="scenario-detail" type="button">호출 조건</button></div><div class="case-difference text-small" id="case-difference"></div><div class="button-list" id="call-controls"></div></div><div id="input-stack" class="stack" aria-live="polite"></div><div id="tool-stack"></div><div class="llm-end" id="llm-target"><svg aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 0V34M5 27L12 34 19 27"/></svg><h3 id="target-title">Career LLM</h3></div><div class="footer"><button class="btn" type="button" id="changes">추가·제외 보기</button><button class="btn" type="button" id="whole-input">원문 전체</button></div></div></section>
   </main>
-  <dialog class="card" id="map-dialog" aria-labelledby="map-dialog-title"><div class="detailbody"><div class="detailhead"><div class="spaced"><span class="text-small text-muted" id="map-dialog-kind"></span><h3 id="map-dialog-title"></h3></div><button class="btn" id="map-close" type="button">닫기</button></div><div class="detailbody" id="map-dialog-content"></div></div></dialog>
+  <main class="catalog" id="catalog-view" hidden><nav class="column" aria-label="도구와 업무 지침 목록"><div class="columnhead"><input class="catalog-search" id="catalog-search" type="search" placeholder="도구·지침·문장 검색" aria-label="도구와 업무 지침 검색"></div><div class="scroll" id="catalog-list"></div></nav><section class="column" aria-label="선택한 도구나 지침"><div class="scroll" id="catalog-detail"></div></section></main>
+  <dialog class="card" id="map-dialog" aria-labelledby="map-dialog-title"><div class="dialogframe"><div class="detailhead"><div class="spaced"><span class="text-small text-muted" id="map-dialog-kind"></span><h3 id="map-dialog-title"></h3></div><button class="btn" id="map-close" type="button">닫기</button></div><div class="detailbody" id="map-dialog-content"></div></div></dialog>
 </div>
 <script>
 (()=>{
+ // The ops page rebuilds one real talent's chat input and posts it here.
+ let EXAMPLE={status:'idle',email:''},onExample=()=>{};
+ window.addEventListener('message',e=>{if(e.source!==parent||e.data?.type!=='career-map:example')return;EXAMPLE=e.data.example||{status:'idle',email:''};onExample();});
  function start(initialData){
  let DATA=initialData;
  const root=document.getElementById('career-llm-map'),el=id=>root.querySelector('#'+id);let C=DATA.components;
@@ -87,7 +123,7 @@
  function button(id,{included,block=true,tile=false}={}){const c=C[id];if(!c)return '';const type=typeInfo(id);return `<button class="btn${block?' btn-block':''} viz-tile input-fill" type="button" data-input-type="${esc(c.inputType)}" data-component="${esc(id)}" data-tooltip="${esc(type.label+' · '+c.summary)}"${included===undefined?'':` aria-pressed="${included}"`}><span class="input-content"><span>${esc(label(id))}</span><span class="input-kind text-small">${esc(type.label)}</span></span></button>`;}
  function contentKinds(c){return `${c.fixedPart?`<div class="kind-note input-fill" data-input-type="conditional"><h3>고정된 내용</h3><p>${esc(c.fixedPart)}</p></div>`:''}${c.dataPart?`<div class="kind-note input-fill" data-input-type="data"><h3>실행 때 넣는 값</h3><p>${esc(c.dataPart)}</p></div>`:''}`;}
  function source(s){return s?`<div class="source text-small text-muted"><code>${esc(s)}</code></div>`:'';}
- function show(title,kind,html){el('map-dialog-title').textContent=title;el('map-dialog-kind').textContent=kind;el('map-dialog-content').innerHTML=html;if(!el('map-dialog').open)el('map-dialog').showModal();el('map-dialog').scrollTop=0;}
+ function show(title,kind,html){el('map-dialog-title').textContent=title;el('map-dialog-kind').textContent=kind;el('map-dialog-kind').hidden=!kind;el('map-dialog-content').innerHTML=html;if(!el('map-dialog').open)el('map-dialog').showModal();el('map-dialog-content').scrollTop=0;}
  function save(){}
  function restore(v){const x=v?.privateContent;if(!x||x.layout!=='desktop-cache-models-v2'||(x.sequence||0)<sequence)return;sequence=x.sequence||0;if(DATA.scenarios.some(s=>s.id===x.scenario))state.scenario=x.scenario;if(['current','proposed'].includes(x.mode))state.mode=x.mode;state.node=current().nodes[x.node]?x.node:current().nodes.findIndex(n=>n.kind==='main');state.stage=['first','loaded','result'].includes(x.stage)?x.stage:'first';state.cacheModel=x.cacheModel==='claude'?'claude':'gpt';}
 __CAREER_COMPOSE__
@@ -135,7 +171,7 @@ __CAREER_COMPOSE__
   el('cache-controls').hidden=!hasCacheView;el('cache-note').hidden=!hasCacheView;
   root.querySelectorAll('[data-cache-model]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cacheModel===state.cacheModel)));
   el('type-legend').lastElementChild?.setAttribute('data-tooltip',cacheExplanation());
-  el('cache-note').textContent=state.cacheModel==='gpt'?'GPT는 자동 캐시 후보를 표시합니다. 현재 상황까지 하나의 system 메시지이며, 프로필·Memory만 따로 캐시하지 않습니다.'+(['background','scheduled'].includes(cp.mode)?' 이 실행의 기본 모델: '+DATA.scheduledModel:''):'Claude는 코드에 지정한 캐시 경계를 표시합니다. 회색은 실제 적중을 뜻하지 않습니다.';
+  el('cache-note').textContent=state.cacheModel==='gpt'?''+(['background','scheduled'].includes(cp.mode)?' 이 실행의 기본 모델: '+DATA.scheduledModel:''):'Claude는 코드에 지정한 캐시 경계를 표시합니다. 회색은 실제 적중을 뜻하지 않습니다.';
   if(!isLLM){el('input-stack').innerHTML='<div class="empty">새 Career LLM 호출 없음</div>';el('tool-stack').innerHTML='';}
   else{let num=0,previousSection='';const cache=cacheLayout(cp),rowHtml=new Map();
    const row=r=>{const st=status(r.id,m);return `<div class="stackrow${r.child?' nested':''}"><span class="num text-small tabular-nums" data-tooltip="${esc(r.label)}">${r.child?'↳':String(++num).padStart(2,'0')}</span>${button(r.id)}<span class="state-label text-small ${st}">${st==='added'?'+ 추가':''}</span></div>`;};
@@ -146,10 +182,24 @@ __CAREER_COMPOSE__
   el('llm-target').hidden=!isLLM;el('target-title').textContent=isMain?'Career LLM':n?.title||'LLM';el('whole-input').hidden=!isLLM;el('changes').hidden=!isLLM||state.mode!=='proposed';el('change-legend').hidden=state.mode!=='proposed';renderPalette(m);
  }
  function render({reset=false}={}){root.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===state.mode)));renderCases();renderInput(comparison());if(reset)el('input-scroll').scrollTop=0;}
- function detail(id){const c=C[id];if(!c)return;const m=comparison(),st=status(id,m),included=m.included.has(token(id))||m.cp.tools.some(t=>C[t]?.members?.includes(id));const kind=c.kind.includes('코드')?'프롬프트를 만드는 코드':c.kind.includes('자리표시자')?'프롬프트 원문':c.kind.includes('제안')?'개선안':c.kind;
-  const cache=cacheLayout(m.cp),isCached=[...cache.ids,...cache.tools].some(x=>token(x)===token(id));
-  show(label(id),kind,`${isCached?cacheBox(`<p>${esc(cacheExplanation())}</p>${source(cacheSource())}`,'현재 코드의 캐시 범위','코드에서 확인한 범위이며 실제 캐시 적중을 뜻하지 않습니다.'):''}<div class="kind-note input-fill" data-input-type="${esc(c.inputType)}"><h3>${esc(typeInfo(id).label)}</h3><p>${esc(typeInfo(id).description)}</p></div><p>${esc(c.summary)}</p><div class="text-small">${st==='added'?'현재 코드에는 없음 → 개선안에 추가':st==='removed'?'현재 코드에 있음 → 개선안에서 제외':included?'이 호출에 포함':'이 호출에서는 사용하지 않음'}</div>${c.when?`<div class="spaced"><h3>언제 들어가나</h3><p>${esc(c.when)}</p></div>`:''}${contentKinds(c)}${source(c.source)}${c.members?`<div class="spaced"><h3>도구별 상세</h3><div class="button-list">${c.members.map(id=>button(id,{block:false})).join('')}</div></div>`:''}<pre><code>${esc(c.text)}</code></pre>`);
+ function detail(id){const c=C[id];if(!c)return;const m=comparison(),st=status(id,m);const kind=c.kind.includes('코드')?'프롬프트를 만드는 코드':c.kind.includes('자리표시자')?'':c.kind.includes('제안')?'개선안':c.kind;
+  show(label(id),kind,`<div class="kind-note input-fill" data-input-type="${esc(c.inputType)}"><h3>${esc(typeInfo(id).label)}</h3><p>${esc(typeInfo(id).description)}</p></div><p>${esc(c.summary)}</p>${st==='added'?'<div class="text-small">현재 코드에는 없음 → 개선안에 추가</div>':st==='removed'?'<div class="text-small">현재 코드에 있음 → 개선안에서 제외</div>':''}${c.when?`<div class="spaced"><h3>언제 들어가나</h3><p>${esc(c.when)}</p></div>`:''}${contentKinds(c)}${source(c.source)}${c.members?`<div class="spaced"><h3>도구별 상세</h3><div class="button-list">${c.members.map(id=>button(id,{block:false})).join('')}</div></div>`:''}<pre><code>${esc(c.text)}</code></pre>${hasExample(id)?`<section class="example" id="map-example" aria-label="실제 예시">${exampleHtml(id)}</section>`:''}`);openId=id;
  }
+ // Data blocks of the text chat can be shown as one talent's actual current input.
+ let openId=null;
+ function chatIds(){return new Set(Object.values(DATA.calls).filter(c=>c.mode==='chat').flatMap(c=>c.rows.map(r=>r.id)));}
+ function hasExample(id){const c=C[id];return Boolean(c)&&['data','mixed'].includes(c.inputType)&&(id==='history'||Boolean(c.key)&&chatIds().has(id));}
+ function exampleForm(){return `<div class="example-form"><input name="email" type="email" required placeholder="talent 이메일" value="${esc(EXAMPLE.email)}" aria-label="예시로 볼 talent 이메일"><button class="btn" type="button" data-example-load>${EXAMPLE.status==='ready'?'다시 불러오기':'불러오기'}</button></div>`;}
+ function exampleHtml(id){const c=C[id],x=EXAMPLE;
+  if(x.status==='loading')return `<h3>실제 예시</h3><p class="text-small text-muted">${esc(x.email)}의 최근 대화로 입력을 만드는 중…</p>`;
+  if(x.status!=='ready')return `<h3>실제 예시</h3><p class="text-small">talent 이메일을 넣으면 그 사람의 최근 Career 대화로 일반 채팅 입력을 다시 만들어 이 블록에 실제로 들어가는 내용을 보여 줍니다.</p>${x.status==='error'?`<p class="text-small" role="alert">${esc(x.error)}</p>`:''}${exampleForm()}`;
+  const d=x.data,text=id==='history'?d.history:d.blocks.filter(b=>b.key===c.key).map(b=>b.text).join('\n\n');
+  return `<h3>실제 예시</h3><p class="text-small text-muted">${esc(d.email)} · 최근 대화 ${esc(d.conversationId)} · ${esc(new Date(d.builtAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}))} 기준 일반 채팅</p>${exampleForm()}${text.trim()?`<pre><code>${esc(text)}</code></pre>`:'<p class="text-small">이 사용자의 지금 채팅 입력에는 이 블록이 들어가지 않습니다.</p>'}`;}
+ onExample=()=>{const box=el('map-example');if(box&&el('map-dialog').open&&openId)box.innerHTML=exampleHtml(openId);};
+ // Sandboxed without allow-forms, so the button and Enter request the example directly.
+ function requestExample(box){const email=box?.querySelector('input[name="email"]')?.value.trim();if(email)parent.postMessage({type:'career-map:example-request',email},'*');}
+ root.addEventListener('click',e=>{const b=e.target.closest('[data-example-load]');if(b)requestExample(b.closest('.example-form'));});
+ root.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches?.('.example-form input'))requestExample(e.target.closest('.example-form'));});
  function caseDetail(){const s=current();show(s.title,'호출 조건 · 케이스 해설',`<p>${esc(s.gate)}</p>${source(s.source)}${s.commonBackground?`<div class="spaced"><h3>이번 코드의 공통 조립 결과</h3><p>오른쪽 입력과 사용 도구에서 현재 조립 결과를 확인합니다. 모델: ${esc(DATA.scheduledModel)}</p><h3>이 경우에 달라지는 데이터</h3><p>${esc(s.inputDetail)}</p></div>`:''}${s.proposal?`<h3>개선안</h3><p>${esc(s.proposal)}</p>`:''}<div class="spaced">${s.nodes.map((n,i)=>`<div class="spaced"><h3>${i+1}. ${esc(n.title)}</h3>${n.note?`<p>${esc(n.note)}</p>`:''}${n.conditional?'<span class="text-small text-muted">조건을 만족할 때 호출</span>':''}</div>`).join('')}</div>`);}
  function changes(){const m=comparison(),added=m.ids.filter(id=>!m.previous.has(token(id))),removed=m.old.rows.map(r=>r.id).concat(m.old.tools).filter(id=>!m.included.has(token(id)));show(current().title+' · 변경','현재 코드 → 개선안',`<h3>추가</h3><div class="button-list">${added.length?added.map(id=>button(id,{block:false})).join(''):'없음'}</div><h3>제외</h3><div class="button-list">${removed.length?removed.map(id=>button(id,{block:false})).join(''):'없음'}</div>`);}
  function whole(){const cp=compose();show(current().title+' · 입력 전체',state.mode==='current'?'현재 코드':'개선안',cp.rows.map((r,i)=>`<div class="spaced"><div class="kind-note input-fill" data-input-type="${C[r.id].inputType}"><h3>${r.child?'↳ 블록 안의 내용':i+1+'.'} ${esc(label(r.id))}</h3><span class="text-small">${esc(typeInfo(r.id).label)}</span></div>${contentKinds(C[r.id])}${source(C[r.id].source)}<pre><code>${esc(C[r.id].text)}</code></pre></div>`).join('')+`<h3>사용 도구</h3><div class="button-list">${cp.tools.map(id=>button(id,{block:false})).join('')}</div>`);}
@@ -161,6 +211,49 @@ __CAREER_COMPOSE__
   if(b.dataset.mode){state.mode=b.dataset.mode;render();save();return;}
   if(b.dataset.stage){state.stage=b.dataset.stage;renderInput(comparison());save();return;}
  });
+
+ // Tools and handbooks tab: what each tool or handbook adds to the model input, read side by side.
+ state.view='map';state.catalogItem='overview';state.catalogQuery='';
+ const schemaOf=id=>{try{const x=JSON.parse(C[id].text);return x.function||x;}catch{return null;}};
+ const capabilityIds=()=>Object.keys(C).filter(k=>k.startsWith('c:')).sort((a,b)=>C[a].title.localeCompare(C[b].title,'ko'));
+ const handbookIds=()=>Object.keys(C).filter(k=>k.startsWith('h:'));
+ const toolIds=()=>Object.keys(C).filter(k=>k.startsWith('t:'));
+ function toolGroups(){const groups=[{id:'tools_core',title:'기본 도구',note:'처음부터 들어가는 도구'}].concat(capabilityIds().map(id=>({id,title:C[id].title,note:id.slice(2)})));
+  const owned=new Set(groups.flatMap(g=>C[g.id]?.members||[]));const rest=toolIds().filter(id=>!owned.has(id));
+  if(rest.length)groups.push({id:'other-tools',title:'그 밖의 도구',note:'불러오기 도구와 온보딩·통화 등 다른 경로의 도구',members:rest});
+  return groups.map(g=>({...g,members:g.members||C[g.id]?.members||[]}));}
+ const chars=s=>String(s||'').length.toLocaleString('ko-KR')+'자';
+ function matches(id){const q=state.catalogQuery.trim().toLowerCase();if(!q)return true;const c=C[id];return [id,c?.title,c?.summary,c?.text].some(v=>String(v||'').toLowerCase().includes(q));}
+ function item(id,label,count,cls=''){return `<button type="button" class="catalog-item ${cls}" data-catalog-item="${esc(id)}" aria-current="${state.catalogItem===id}"><span>${esc(label)}</span><span class="count">${esc(count)}</span></button>`;}
+ function renderCatalogList(){const groups=toolGroups(),html=[];
+  html.push(`<section class="catalog-section"><h4 class="text-small">처음 보이는 목록</h4>${item('overview','능력·지침 목록','')}</section>`);
+  const tools=groups.map(g=>{const members=g.members.filter(matches);if(!members.length&&!matches(g.id))return '';return item(g.id,g.title,g.members.length+'개')+members.map(id=>item(id,C[id].title,chars(C[id].text),'child')).join('');}).join('');
+  html.push(`<section class="catalog-section"><h4 class="text-small">도구 · 묶음별</h4>${tools||'<p class="text-small text-muted">맞는 도구가 없습니다.</p>'}</section>`);
+  const books=handbookIds().filter(matches).map(id=>item(id,C[id].title,chars(C[id].text))).join('');
+  html.push(`<section class="catalog-section"><h4 class="text-small">업무 지침 (handbook)</h4>${books||'<p class="text-small text-muted">맞는 지침이 없습니다.</p>'}</section>`);
+  el('catalog-list').innerHTML=html.join('');}
+ function typeText(s){if(!s)return '';if(s.enum)return s.enum.map(v=>JSON.stringify(v)).join(' | ');if(s.const!==undefined)return JSON.stringify(s.const);if(s.anyOf||s.oneOf)return (s.anyOf||s.oneOf).map(typeText).join(' | ');const t=Array.isArray(s.type)?s.type.join(' | '):s.type||'';return t==='array'?`array<${typeText(s.items)||'any'}>`:t;}
+ function paramRows(schema,prefix='',depth=0){const props=schema?.properties||{},req=new Set(schema?.required||[]);return Object.entries(props).flatMap(([name,s])=>{const path=prefix+name;const row=`<tr><td><code>${esc(path)}</code>${req.has(name)?'<span class="req">필수</span>':''}</td><td><code>${esc(typeText(s))}</code></td><td class="prose">${esc(s.description||'')}</td></tr>`;
+  const nested=depth<3?(s.properties?paramRows(s,path+'.',depth+1):s.items?.properties?paramRows(s.items,path+'[].',depth+1):[]):[];return [row,...nested];});}
+ function toolCard(id,{heading='h3'}={}){const f=schemaOf(id);if(!f)return `<pre><code>${esc(C[id]?.text)}</code></pre>`;const rows=paramRows(f.parameters);
+  return `<div class="tool-card"><${heading}>${esc(f.name)}</${heading}><p class="prose">${esc(f.description||'')}</p>${rows.length?`<table class="params"><colgroup><col class="name"><col class="type"><col></colgroup><thead><tr><th>입력</th><th>형식</th><th>설명</th></tr></thead><tbody>${rows.join('')}</tbody></table>`:'<p class="text-small text-muted">입력 없음</p>'}<details><summary class="text-small">원본 schema · ${chars(C[id].text)}</summary><pre><code>${esc(C[id].text)}</code></pre></details></div>`;}
+ function owners(id){return toolGroups().filter(g=>g.members.includes(id));}
+ function renderCatalogDetail(){const id=state.catalogItem,box=el('catalog-detail');let html;
+  if(id==='overview'){const cap=byKey('chat','capability_catalog'),book=byKey('chat','handbook_catalog');
+   html=`<h2>능력·지침 목록</h2><p>도구 묶음과 업무 지침은 처음에 아래 목록으로만 보입니다. Career LLM이 load_capabilities나 load_handbook으로 불러오면 그때 도구 정의나 지침 본문이 입력에 추가됩니다. 왼쪽에서 항목을 고르면 추가되는 내용을 볼 수 있습니다.</p>${cap?`<h3>능력 목록 (capability_catalog)</h3><pre class="prose">${esc(C[cap].text)}</pre>`:''}${book?`<h3>업무 지침 목록 (handbook_catalog)</h3><pre class="prose">${esc(C[book].text)}</pre>`:''}`;}
+  else if(id.startsWith('h:')){const c=C[id];html=`<h2>${esc(c.title)}</h2><div class="chips"><span class="chip">${esc(id.slice(2))}</span><span class="chip">${chars(c.text)}</span></div>${c.summary?`<div class="kind-note input-fill" data-input-type="conditional"><h3>목록에 보이는 한 줄</h3><p>${esc(c.summary)}</p></div>`:''}<h3>불러오면 추가되는 본문</h3><pre class="prose">${esc(c.text)}</pre><p class="text-small text-muted">${esc(c.source||'')}</p>`;}
+  else if(id.startsWith('t:')){const own=owners(id);html=`${toolCard(id,{heading:'h2'})}${own.length?`<div class="spaced"><h3>들어 있는 묶음</h3><div class="chips">${own.map(g=>`<button type="button" class="chip" data-catalog-item="${esc(g.id)}">${esc(g.title)}</button>`).join('')}</div></div>`:''}<p class="text-small text-muted">${esc(C[id].source||'')}</p>`;}
+  else{const g=toolGroups().find(x=>x.id===id);if(!g){box.innerHTML='';return;}const c=C[id];const total=g.members.reduce((n,m)=>n+String(C[m]?.text||'').length,0);
+   html=`<h2>${esc(g.title)}</h2><div class="chips"><span class="chip">${esc(g.note)}</span><span class="chip">도구 ${g.members.length}개</span><span class="chip">schema ${total.toLocaleString('ko-KR')}자</span></div>${id.startsWith('c:')&&c?.summary?`<div class="kind-note input-fill" data-input-type="conditional"><h3>능력 목록에 보이는 한 줄</h3><p>${esc(c.summary)}</p></div>`:''}<h3>${id==='tools_core'?'처음부터 들어가는 도구':id.startsWith('c:')?'불러오면 추가되는 도구':'도구'}</h3>${g.members.map(m=>toolCard(m)).join('')}`;}
+  box.innerHTML=`<div class="catalog-detail">${html}</div>`;box.scrollTop=0;}
+ function renderView(){const catalog=state.view==='catalog';root.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===state.view)));
+  root.querySelector('main.columns').hidden=catalog;el('catalog-view').hidden=!catalog;el('compare-toolbar').hidden=catalog;el('type-legend').hidden=catalog;root.style.gridTemplateRows=catalog?'auto minmax(0,1fr)':'';
+  if(catalog){renderCatalogList();renderCatalogDetail();}}
+ root.addEventListener('click',e=>{const v=e.target.closest('[data-view]');if(v){state.view=v.dataset.view;renderView();return;}
+  const c=e.target.closest('[data-catalog-item]');if(c){state.catalogItem=c.dataset.catalogItem;renderCatalogList();renderCatalogDetail();}});
+ el('catalog-search').addEventListener('input',e=>{state.catalogQuery=e.target.value;renderCatalogList();});
+ // Every modal closes on a backdrop click.
+ el('map-dialog').addEventListener('click',e=>{if(e.target!==el('map-dialog'))return;const r=e.target.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)el('map-dialog').close();});
  el('map-close').addEventListener('click',()=>el('map-dialog').close());el('scenario-detail').addEventListener('click',caseDetail);el('whole-input').addEventListener('click',whole);el('changes').addEventListener('click',changes);
  el('source-info').addEventListener('click',()=>show('출처',DATA.captured,`<p>현재 서버 코드: ${esc(DATA.revision)}</p><p>프롬프트·도구·업무 지침은 제품의 조립 함수와 현재 소스에서 읽습니다. 실제 고객 자료와 모델 호출은 사용하지 않습니다.</p><p>케이스 이름·설명·개선안은 기존 지도의 해설입니다. 실행 조건과 실제 경로는 연결된 현재 코드에서 확인합니다. 로컬 개발에서는 저장한 코드, 운영에서는 배포된 코드를 표시합니다.</p>${DATA.unavailable.length?`<h3>현재 소스 확인 불가</h3><p>${DATA.unavailable.map(esc).join(', ')}</p>`:''}`));
  el('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{el('desktop-link').click();}});
@@ -177,7 +270,7 @@ __CAREER_COMPOSE__
   if(e.source!==parent||e.data?.type!=='career-map:update')return;
   DATA=e.data.manifest;C=DATA.components;mainId=byKey('chat','career_main');
   if(!current().nodes[state.node])state.node=current().nodes.findIndex(n=>n.kind!=='step');
-  render();
+  render();if(state.view==='catalog')renderView();
   if(el('map-dialog').open)el('map-dialog').close();
  });
  // Event delegation keeps tooltips working when the live manifest replaces rows.

@@ -6,9 +6,9 @@ export default function OpsUpdateMetricsPage() {
   return (
     <>
       <Head>
-        <title>업데이트 지표 · Harper Ops</title>
+        <title>배포 후 실험중인 지표 · Harper Ops</title>
       </Head>
-      <OpsShell compactHeader title="업데이트 지표">
+      <OpsShell compactHeader title="배포 후 실험중인 지표">
         <OpsUpdateMetricsWorkspace />
       </OpsShell>
     </>

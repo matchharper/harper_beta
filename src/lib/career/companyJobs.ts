@@ -8,6 +8,8 @@ export type CareerCompanyJob = {
   opportunity: CareerHistoryOpportunity;
   fitScore: number | null;
   isRecommended: boolean;
+  /** Title closeness to roles Harper already recommended this person (0–1). */
+  titleSimilarity: number | null;
 };
 
 export type CareerCompanyJobsPage = {

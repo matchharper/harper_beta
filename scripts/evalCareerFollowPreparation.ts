@@ -82,7 +82,7 @@ async function main() {
       "src/lib/llm/toolDescriptions.ts",
       "src/lib/talentOnboarding/tools.ts",
       "src/lib/career/handbooks/opportunitySearch.ts",
-      "src/lib/career/prompts/mainPrompt2.ts",
+      "src/lib/career/prompts/main.md",
       "src/lib/career/handbooks/proactiveCareer.ts",
       "src/lib/career/capabilities/registry.ts",
       "src/lib/career/background/prompt.ts",

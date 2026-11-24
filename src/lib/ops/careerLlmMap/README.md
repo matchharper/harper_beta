@@ -5,6 +5,20 @@ internal-only API assembles synthetic inputs with the product's current prompt,
 capability runtime, handbook registry, tool selector and Claude cache builders.
 It does not call models, execute tools or read customer records.
 
+The "도구·지침" tab lists what each tool, capability and handbook adds to the
+model input, from the same manifest components (`t:`, `c:`, `h:`): the catalog
+line seen before loading, then the tool descriptions and parameters or the
+handbook body added after loading. It needs no extra server data.
+
+The data-block modals (불러온 데이터, 지침 + 데이터) can also show one talent's
+actual current input. Enter a talent email there: `example.ts` finds that
+talent's most recently updated Career conversation and rebuilds its text-chat
+input read-only with `buildCareerTextChatDebugPrompt`
+(`/api/internal/debug/career-llm-map/example`, internal users allowed by
+`canInspectCareerAgentMessages`). Blocks are matched by key, so the example
+appears only on components used by chat calls. The email is kept in the
+viewer's localStorage, never in code or the manifest.
+
 - `annotations.json`: authored case names, explanations, sample selections and
   proposal. These are a navigational index, not a discovered execution graph.
 - `server.ts`: current rendered prompt blocks, tool schemas and handbook bodies.

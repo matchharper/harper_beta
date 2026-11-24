@@ -5,10 +5,14 @@ import { Button, MuteButton } from "@/components/ui/button";
 import {
   Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList,
 } from "@/components/ui/combobox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOpsCareerDetail, useOpsCareerTalents } from "@/hooks/ops/useOpsCareer";
 import { fetchResponseWithInternalAuth } from "@/lib/internalApiClient";
 import { readInspectionStream } from "@/lib/ops/applicationFormInspection";
-import type { CareerRunStreamEvent, CareerRunTool } from "@/lib/ops/careerRunDebug";
+import {
+  careerRunModels, defaultCareerRunEffort, defaultCareerRunModel, findCareerRunModel,
+  type CareerRunEffort, type CareerRunModelId, type CareerRunStreamEvent, type CareerRunTool,
+} from "@/lib/ops/careerRunDebug";
 import type { CareerTalentSummary } from "@/lib/ops/careerServer";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsCareerRunSelectionStore } from "@/store/useOpsCareerRunSelectionStore";
@@ -18,6 +22,7 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}초`;
 type CareerRunAccount = Pick<CareerTalentSummary, "userId" | "name" | "email">;
 const label = (account: CareerRunAccount) =>
   [account.name, account.email].filter(Boolean).join(" · ") || account.userId;
+const effortLabel = (effort: string) => effort === "default" ? "모델 기본" : effort;
 
 export default function CareerRunsPage() {
   const userId = useAuthStore(state => state.user?.id);
@@ -33,6 +38,13 @@ function CareerRuns({ operatorId }: { operatorId?: string }) {
   );
   const selectUser = useOpsCareerRunSelectionStore(state => state.selectUser);
   const [events, setEvents] = useState<CareerRunStreamEvent[]>([]);
+  const [model, setModel] = useState<CareerRunModelId>(defaultCareerRunModel);
+  const [effort, setEffort] = useState<CareerRunEffort>(defaultCareerRunEffort(defaultCareerRunModel));
+  const modelOption = findCareerRunModel(model);
+  const efforts: CareerRunEffort[] = [
+    ...(modelOption?.provider === "anthropic" ? ["default" as const] : []),
+    ...(modelOption?.efforts ?? []),
+  ];
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const active = useRef<AbortController | null>(null);
@@ -59,7 +71,7 @@ function CareerRuns({ operatorId }: { operatorId?: string }) {
       const response = await fetchResponseWithInternalAuth(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: selected.userId }),
+        body: JSON.stringify({ userId: selected.userId, model, effort }),
         signal: request.signal,
       });
       if (!response.ok || !response.body) {
@@ -115,6 +127,39 @@ function CareerRuns({ operatorId }: { operatorId?: string }) {
               </ComboboxContent>
             </Combobox>
           </div>
+          <Select
+            value={model}
+            onValueChange={(value) => {
+              if (!value) return;
+              const next = value as CareerRunModelId;
+              setModel(next);
+              setEffort(defaultCareerRunEffort(next));
+            }}
+            disabled={running}
+          >
+            <SelectTrigger aria-label="모델" className="w-48">
+              <SelectValue>{modelOption?.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {careerRunModels.map(option => (
+                <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={effort}
+            onValueChange={(value) => { if (value) setEffort(value as CareerRunEffort); }}
+            disabled={running}
+          >
+            <SelectTrigger aria-label="Reasoning effort" className="w-36">
+              <SelectValue>{effortLabel(effort)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {efforts.map(option => (
+                <SelectItem key={option} value={option}>{effortLabel(option)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button onClick={() => void start()} disabled={!canFetch || !selected || running}>
             {running ? "실행 중…" : "정기 실행 미리보기"}
           </Button>
@@ -171,6 +216,9 @@ function RunResult({ events, running }: { events: CareerRunStreamEvent[]; runnin
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <strong>{started?.account}</strong>
         <span>{running ? started ? "실행 중" : "실행 준비 중" : completed ? "완료" : "실패"}</span>
+        {started ? (
+          <span>{findCareerRunModel(started.model)?.label ?? started.model} · {effortLabel(started.effort)}</span>
+        ) : null}
         {completed ? <span>{seconds(completed.elapsedMs)}</span> : null}
         {usage?.calls ? (
           <span>

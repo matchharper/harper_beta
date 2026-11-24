@@ -14,7 +14,7 @@ import { CAREER_HANDBOOKS, CAREER_HANDBOOK_LOADER, isCareerHandbookAvailable } f
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import { buildAnthropicSystemBlocks, buildAnthropicTools } from "@/lib/career/llm";
 import { DEFAULT_CAREER_TEXT_CHAT_MODEL } from "@/lib/career/textChatModelConfig";
-import { getScheduledCareerModelOptions } from "@/lib/career/background/scheduledModel";
+import { careerBackgroundPreload, getScheduledCareerModelOptions } from "@/lib/career/background/scheduledModel";
 import { CAREER_BACKGROUND_INSTRUCTION, renderCareerBackgroundInvocation } from "@/lib/career/background/prompt";
 import { adaptEmailPromptBlocks } from "@/lib/email/runtime/prompt";
 import type { TalentChatTool } from "@/lib/talentOnboarding/llm";
@@ -115,8 +115,8 @@ export async function buildCareerLlmMap(): Promise<CareerLlmMap> {
       tools = selected.tools;
     } else {
       const runtime = new CareerCapabilityRuntime({mode: getCareerCapabilityMode(), eligibleTools: selected.tools, promptArgs: () => promptArgs, ...(mode === "email" ? {adaptPromptBlocks: emailAdapter} : {}),
-        preloads: background ? ["schedules", "career_delivery", "company_contact"] : []});
-      if (background) runtime.handbooks.load(["proactive_career"], "selector");
+        preloads: background ? careerBackgroundPreload({scheduledWork: mode === "scheduled"}).capabilityIds : []});
+      if (background) runtime.handbooks.load([...careerBackgroundPreload({scheduledWork: mode === "scheduled"}).handbookIds], "selector");
       // Cases describe example selections. Validate against the current registry;
       // newly registered tools/books are enumerated without editing this page.
       for (const capability of CAREER_CAPABILITIES) if ((node.tools ?? []).includes(capability.id)) runtime.loaded.add(capability.id);

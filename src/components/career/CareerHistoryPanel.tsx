@@ -64,11 +64,12 @@ import { HistoryOpportunityInlinePage } from "./history/HistoryOpportunityDetail
 import HistoryOpportunityInfoModal from "./history/HistoryOppotunityInfoModal";
 import NewOpportunityList from "./history/NewOpportunityList";
 import { NewOpportunityDecisionActions } from "./history/NewOpportunityCard";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 import ExternalOpportunityApplyModal from "./history/ExternalOpportunityApplyModal";
 import { useApplyWithHarper } from "./history/ApplyWithHarperButton";
 import { getCompanyJoinRequestText, isCompanyOpportunity } from "./history/hiringPost";
-import CareerCompanyDetailDrawer from "./watchlist/CareerCompanyDetailDrawer";
+import CareerCompanyPage from "./company/CareerCompanyPage";
+import OpportunityDetailPage from "./history/OpportunityDetailPage";
+import PostingDetailPage from "./history/PostingDetailPage";
 import InternalConnectionAcceptanceModal from "./InternalConnectionAcceptanceModal";
 import { useCareerLogEvent } from "@/hooks/career/useCareerLogEvent";
 import React from "react";
@@ -100,7 +101,11 @@ type HistoryDisplayTabId = "new" | "saved" | "applied" | "hidden" | "archived";
 
 const HISTORY_TAB_QUERY_KEY = "historyTab";
 const HISTORY_SAVED_STAGE_QUERY_KEY = "savedStage";
+/** The company page opened from an opportunity: `company=<company_db id>`. */
+const HISTORY_COMPANY_QUERY_KEY = "company";
 const HISTORY_ROLE_QUERY_KEY = "id";
+/** A posting opened from 비슷한 기회 before it is one of this person's opportunities: `posting=<role id>`. */
+const HISTORY_POSTING_QUERY_KEY = "posting";
 const CAREER_HISTORY_PATHNAME = "/career/history";
 const CAREER_PREVIEW_PATHNAME = "/career/preview";
 
@@ -583,7 +588,6 @@ const CareerHistoryPanel = () => {
     onUpdateHistoryOpportunitySavedStage,
     onUpdateHistoryOpportunityTalentMemo,
   } = useCareerHistoryContext();
-  const isMobile = useIsMobile();
   const setDesktopRoleActionOpportunity = useCareerWorkspaceUiStore(
     (state) => state.setDesktopRoleActionOpportunity
   );
@@ -612,14 +616,20 @@ const CareerHistoryPanel = () => {
     useState("");
   const [internalDecisionChangeRequest, setInternalDecisionChangeRequest] =
     useState<InternalOpportunityDecisionChangeRequest | null>(null);
-  const [companyDetailCompanyDbId, setCompanyDetailCompanyDbId] = useState<
-    number | null
-  >(null);
   const [companyDetailOpportunity, setCompanyDetailOpportunity] =
     useState<CareerHistoryOpportunity | null>(null);
+  const companyPagePushedRef = useRef(false);
   const currentHistoryTabQuery = router.query[HISTORY_TAB_QUERY_KEY];
   const currentSavedStageQuery = router.query[HISTORY_SAVED_STAGE_QUERY_KEY];
   const currentRoleQuery = router.query[HISTORY_ROLE_QUERY_KEY];
+  const requestedCompanyDbId = (() => {
+    const value = Number(getQueryValue(router.query[HISTORY_COMPANY_QUERY_KEY]));
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+  })();
+  const companyDetailCompanyDbId = requestedCompanyDbId;
+  const requestedPostingRoleId =
+    getNormalizedQueryValue(router.query[HISTORY_POSTING_QUERY_KEY]) || null;
+  const postingPagesPushedRef = useRef(0);
   const requestedHistoryTab = getQueryValue(currentHistoryTabQuery);
   const activeTab: HistoryTabId = isHistoryTabId(requestedHistoryTab)
     ? requestedHistoryTab
@@ -670,11 +680,23 @@ const CareerHistoryPanel = () => {
       nextTab: HistoryTabId,
       nextSavedStatus: SavedOpportunityManagementStatus,
       options?: {
+        /** Omitted keeps the open company page; null closes it. */
+        companyDbId?: number | null;
         mode?: "push" | "replace";
+        /** Omitted keeps the open posting page; null closes it. */
+        postingRoleId?: string | null;
         roleId?: string | null;
       }
     ) => {
       if (!router.isReady) return;
+      const nextCompanyDbId =
+        options?.companyDbId === undefined
+          ? requestedCompanyDbId
+          : options.companyDbId;
+      const nextPostingRoleId =
+        options?.postingRoleId === undefined
+          ? requestedPostingRoleId
+          : options.postingRoleId;
 
       const normalizedHistoryTab = getQueryValue(currentHistoryTabQuery);
       const normalizedSavedStage = getQueryValue(currentSavedStageQuery);
@@ -690,7 +712,9 @@ const CareerHistoryPanel = () => {
         isOnHistoryPath &&
         normalizedHistoryTab === nextTab &&
         normalizedSavedStage === nextSavedStageQuery &&
-        normalizedRoleId === nextRoleId
+        normalizedRoleId === nextRoleId &&
+        requestedCompanyDbId === nextCompanyDbId &&
+        requestedPostingRoleId === nextPostingRoleId
       ) {
         return;
       }
@@ -711,6 +735,16 @@ const CareerHistoryPanel = () => {
       } else {
         delete query[HISTORY_ROLE_QUERY_KEY];
       }
+      if (nextCompanyDbId) {
+        query[HISTORY_COMPANY_QUERY_KEY] = String(nextCompanyDbId);
+      } else {
+        delete query[HISTORY_COMPANY_QUERY_KEY];
+      }
+      if (nextPostingRoleId) {
+        query[HISTORY_POSTING_QUERY_KEY] = nextPostingRoleId;
+      } else {
+        delete query[HISTORY_POSTING_QUERY_KEY];
+      }
 
       const nextLocation = {
         pathname: nextPathname,
@@ -730,7 +764,14 @@ const CareerHistoryPanel = () => {
         scroll: false,
       });
     },
-    [currentHistoryTabQuery, currentRoleQuery, currentSavedStageQuery, router]
+    [
+      currentHistoryTabQuery,
+      currentRoleQuery,
+      currentSavedStageQuery,
+      requestedCompanyDbId,
+      requestedPostingRoleId,
+      router,
+    ]
   );
 
   const clearHistoryRoleId = useCallback(() => {
@@ -823,9 +864,9 @@ const CareerHistoryPanel = () => {
   // The URL is the single source of truth for saved/archived detail visibility.
   // Keeping a second local selection here leaves the detail open when browser
   // Back removes `id` from the URL.
-  // On mobile a new opportunity opens as a detail page instead of expanding in the list.
+  // A new opportunity opens as its own detail page instead of expanding in the list.
   const modalOpportunity =
-    isMobile && activeOpportunity
+    activeOpportunity
       ? activeOpportunity
       : activeTab === "saved" &&
     requestedOpportunity &&
@@ -837,9 +878,12 @@ const CareerHistoryPanel = () => {
         ? requestedOpportunity
         : null;
 
-  const desktopRoleActionOpportunity = companyDetailOpportunity
-    ? (opportunityById.get(companyDetailOpportunity.id) ??
-      companyDetailOpportunity)
+  // Browser Back can close the company page; the opportunity it was opened from goes with it.
+  const companyPageSourceOpportunity =
+    requestedCompanyDbId !== null ? companyDetailOpportunity : null;
+  const desktopRoleActionOpportunity = companyPageSourceOpportunity
+    ? (opportunityById.get(companyPageSourceOpportunity.id) ??
+      companyPageSourceOpportunity)
     : activeTab === "new"
       ? activeOpportunity
       : modalOpportunity;
@@ -1030,7 +1074,12 @@ const CareerHistoryPanel = () => {
 
       if (item.companyDbId) {
         setCompanyDetailOpportunity(item);
-        setCompanyDetailCompanyDbId(item.companyDbId);
+        companyPagePushedRef.current = true;
+        updateHistoryLocation(activeTab, activeSavedStatus, {
+          companyDbId: item.companyDbId,
+          mode: "push",
+          roleId: requestedRoleId,
+        });
         return;
       }
 
@@ -1039,9 +1088,46 @@ const CareerHistoryPanel = () => {
   );
 
   const closeCompanyDetail = useCallback(() => {
-    setCompanyDetailCompanyDbId(null);
     setCompanyDetailOpportunity(null);
-  }, []);
+    if (companyPagePushedRef.current) {
+      companyPagePushedRef.current = false;
+      router.back();
+      return;
+    }
+    updateHistoryLocation(activeTab, activeSavedStatus, {
+      companyDbId: null,
+      mode: "replace",
+      roleId: requestedRoleId,
+    });
+  }, [activeSavedStatus, activeTab, requestedRoleId, router, updateHistoryLocation]);
+
+  const openPostingPage = useEventCallback((item: CareerHistoryOpportunity) => {
+    postingPagesPushedRef.current += 1;
+    updateHistoryLocation(activeTab, activeSavedStatus, {
+      companyDbId: null,
+      mode: "push",
+      postingRoleId: item.roleId,
+      roleId: requestedRoleId,
+    });
+  });
+
+  // Leaving posting pages any other way (applying, opening another opportunity) ends the back stack.
+  useEffect(() => {
+    if (!requestedPostingRoleId) postingPagesPushedRef.current = 0;
+  }, [requestedPostingRoleId]);
+
+  const closePostingPage = useCallback(() => {
+    if (postingPagesPushedRef.current > 0) {
+      postingPagesPushedRef.current -= 1;
+      router.back();
+      return;
+    }
+    updateHistoryLocation(activeTab, activeSavedStatus, {
+      mode: "replace",
+      postingRoleId: null,
+      roleId: requestedRoleId,
+    });
+  }, [activeSavedStatus, activeTab, requestedRoleId, router, updateHistoryLocation]);
 
   const requestNegativeFeedback = useCallback(
     (item: CareerHistoryOpportunity) => {
@@ -1232,16 +1318,6 @@ const CareerHistoryPanel = () => {
     ]
   );
 
-  const handleToggleNewOpportunity = useEventCallback(
-    (item: CareerHistoryOpportunity) => {
-      logCareerEvent("click_history_toggle_new_opportunity");
-      feedbackRoleQueryIgnoreRef.current = null;
-      updateHistoryLocation("new", activeSavedStatus, {
-        roleId: activeOpportunity?.id === item.id ? null : item.roleId,
-      });
-    },
-  );
-
   const loadMoreNewOpportunities = useCallback(() => {
     if (!hasMoreNewOpportunities || historyLoadingMore) return;
     void onLoadMoreHistoryOpportunities({ historyTab: "new" });
@@ -1270,7 +1346,9 @@ const CareerHistoryPanel = () => {
     }
     if (activeTab === "archived" && isArchivedOpportunity(item)) {
       updateHistoryLocation("archived", activeSavedStatus, {
+        companyDbId: null,
         mode: "push",
+        postingRoleId: null,
         roleId,
       });
       return;
@@ -1278,7 +1356,9 @@ const CareerHistoryPanel = () => {
 
     if (isSavedOpportunity(item)) {
       updateHistoryLocation("saved", getSavedOpportunityManagementStatus(item), {
+        companyDbId: null,
         mode: "push",
+        postingRoleId: null,
         roleId,
       });
       return;
@@ -1286,7 +1366,9 @@ const CareerHistoryPanel = () => {
 
     if (isArchivedOpportunity(item)) {
       updateHistoryLocation("archived", activeSavedStatus, {
+        companyDbId: null,
         mode: "push",
+        postingRoleId: null,
         roleId,
       });
       return;
@@ -1294,7 +1376,9 @@ const CareerHistoryPanel = () => {
 
     if (isNewOpportunity(item)) {
       updateHistoryLocation("new", activeSavedStatus, {
+        companyDbId: null,
         mode: "push",
+        postingRoleId: null,
         roleId,
       });
     }
@@ -1331,7 +1415,9 @@ const CareerHistoryPanel = () => {
 
   const closeOpportunityModal = useCallback(() => {
     updateHistoryLocation(activeTab, activeSavedStatus, {
+      companyDbId: null,
       mode: "replace",
+      postingRoleId: null,
       roleId: null,
     });
   }, [activeSavedStatus, activeTab, updateHistoryLocation]);
@@ -1548,7 +1634,26 @@ const CareerHistoryPanel = () => {
     );
   }
 
-  const showInlineOpportunityPage = Boolean(modalOpportunity);
+  const showCompanyPage = companyDetailCompanyDbId !== null;
+  const showPostingPage = !showCompanyPage && Boolean(requestedPostingRoleId);
+  const showInlineOpportunityPage =
+    Boolean(modalOpportunity) || showCompanyPage || showPostingPage;
+  const companyPageOpportunity = companyPageSourceOpportunity ?? modalOpportunity;
+  const companyPageOtherOpportunities = showCompanyPage
+    ? sortedOpportunities.filter(
+        (item) =>
+          item.companyDbId === companyDetailCompanyDbId &&
+          item.id !== companyPageOpportunity?.id &&
+          !isArchivedOpportunity(item)
+      )
+    : [];
+  const opportunityBackLabel =
+    getMyOpportunityTabs(t).find(({ id }) => id === activeDisplayTab)?.label ??
+    (activeTab === "new"
+      ? t("career.common.career_history_panel.02i826z", "새 기회")
+      : activeTab === "archived"
+        ? t("career.history.saved_opportunity_status.archived", "숨긴 포지션")
+        : t("career.history.back_to_list", "전체 목록"));
 
   return (
     <div ref={listRoot} className="flex min-h-full flex-col">
@@ -1567,7 +1672,7 @@ const CareerHistoryPanel = () => {
 
           {activeTab === "new" && !showInlineOpportunityPage && (
             <NewOpportunityList
-              expandedOpportunityId={isMobile ? null : activeOpportunity?.id}
+              expandedOpportunityId={null}
               hasMore={hasMoreNewOpportunities}
               items={newItems}
               loadingMore={historyLoadingMore}
@@ -1578,45 +1683,83 @@ const CareerHistoryPanel = () => {
               onOpenCompanyInfo={openHistoryCompanyInfo}
               onOpenLink={openHistoryLink}
               onPositive={handlePositiveAction}
-              onToggleOpportunity={
-                isMobile ? openModalForItem : handleToggleNewOpportunity
-              }
+              onToggleOpportunity={openModalForItem}
               pendingOpportunityIds={pendingOpportunityIds}
               totalCount={historyOpportunityCounts.new}
             />
           )}
 
-          {modalOpportunity && (
+          {showCompanyPage && companyDetailCompanyDbId !== null ? (
+            <CareerCompanyPage
+              key={companyDetailCompanyDbId}
+              companyDbId={companyDetailCompanyDbId}
+              excludeRoleId={companyPageOpportunity?.roleId ?? null}
+              backLabel={modalOpportunity?.title ?? opportunityBackLabel}
+              fallback={
+                companyPageOpportunity
+                  ? {
+                      description: companyPageOpportunity.companyDescription,
+                      logoUrl: companyPageOpportunity.companyLogoUrl,
+                      name: companyPageOpportunity.companyName,
+                    }
+                  : null
+              }
+              onBack={closeCompanyDetail}
+              otherOpportunities={companyPageOtherOpportunities}
+              onOpenOpportunity={(item) => {
+                companyPagePushedRef.current = false;
+                setCompanyDetailOpportunity(null);
+                openModalForItem(item);
+              }}
+            />
+          ) : null}
+
+          {showPostingPage && requestedPostingRoleId ? (
+            <PostingDetailPage
+              key={requestedPostingRoleId}
+              roleId={requestedPostingRoleId}
+              backLabel={modalOpportunity?.title ?? opportunityBackLabel}
+              onApply={handleApplyOpportunity}
+              onBack={closePostingPage}
+              onOpenCompany={openHistoryCompanyInfo}
+              onOpenLink={openUrl}
+              onOpenSimilar={openPostingPage}
+            />
+          ) : null}
+
+          {!showCompanyPage && !showPostingPage && modalOpportunity && activeTab === "new" ? (
+            <OpportunityDetailPage
+              key={modalOpportunity.id}
+              item={modalOpportunity}
+              backLabel={opportunityBackLabel}
+              onBack={closeOpportunityModal}
+              onOpenCompany={openHistoryCompanyInfo}
+              onOpenLink={(url) => openHistoryLink(modalOpportunity, url)}
+              onOpenSimilar={openPostingPage}
+              actions={
+                <NewOpportunityDecisionActions
+                  item={modalOpportunity}
+                  pending={pendingOpportunityIds.has(modalOpportunity.id)}
+                  onApply={handleApplyOpportunity}
+                  onKeep={handleKeepOpportunity}
+                  onNegative={handleNegativeAction}
+                  onPositive={handlePositiveAction}
+                />
+              }
+            />
+          ) : null}
+
+          {!showCompanyPage && !showPostingPage && modalOpportunity && activeTab !== "new" && (
             <HistoryOpportunityInlinePage
               key={modalOpportunity.id}
               timelineError={detailError}
               item={modalOpportunity}
+              onOpenSimilar={openPostingPage}
               onOpenChat={() => openChatTab("click_history_apply_with_harper")}
               pending={pendingOpportunityIds.has(modalOpportunity.id)}
-              savedStatus={
-                activeTab === "new"
-                  ? undefined
-                  : getCareerOpportunityManagementStatus(modalOpportunity)
-              }
-              decisionActions={
-                activeTab === "new" ? (
-                  <NewOpportunityDecisionActions
-                    item={modalOpportunity}
-                    pending={pendingOpportunityIds.has(modalOpportunity.id)}
-                    onApply={handleApplyOpportunity}
-                    onKeep={handleKeepOpportunity}
-                    onNegative={handleNegativeAction}
-                    onPositive={handlePositiveAction}
-                  />
-                ) : undefined
-              }
+              savedStatus={getCareerOpportunityManagementStatus(modalOpportunity)}
               onBack={closeOpportunityModal}
-              backLabel={getMyOpportunityTabs(t).find(({ id }) => id === activeDisplayTab)?.label ??
-                (activeTab === "new"
-                  ? t("career.common.career_history_panel.02i826z", "새 기회")
-                  : activeTab === "archived"
-                  ? t("career.history.saved_opportunity_status.archived", "숨긴 포지션")
-                  : t("career.history.back_to_list", "전체 목록"))}
+              backLabel={opportunityBackLabel}
               onStartMockInterview={
                 onStartCallMode
                   ? async (request) => {
@@ -1728,6 +1871,7 @@ const CareerHistoryPanel = () => {
             );
           }}
           onApplied={() => updateHistoryLocation("saved", "applied", {
+            postingRoleId: null,
             roleId: getOpportunityUrlRoleId(externalApplyOpportunity),
           })}
           onOpenLink={(url) => openHistoryLink(externalApplyOpportunity, url)}
@@ -1776,17 +1920,6 @@ const CareerHistoryPanel = () => {
         }}
         onStartChat={startOnboardingChatFromGate}
         onStartCall={startOnboardingCallFromGate}
-      />
-
-      <CareerCompanyDetailDrawer
-        companyDbId={companyDetailCompanyDbId}
-        open={companyDetailCompanyDbId !== null}
-        onClose={closeCompanyDetail}
-        onOpenChat={() => {
-          closeCompanyDetail();
-          openChatTab("click_history_company_open_chat");
-        }}
-        opportunity={companyDetailOpportunity}
       />
 
       <HistoryNegativeFeedbackModal
