@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { gtmCompanyInviteRoleId, shareLinkRoleId } from "@/lib/gtmPlays/companyInviteRole";
 import { isGtmOnboardingDeferred } from "@/lib/org/signup";
-import { plainMailHtml, shareLinkMailHtml } from "./mailBlock";
+import { shareLinkMailPs } from "./mailBlock";
 import {
   careerLines,
   isPersonalMailDomain,
@@ -11,7 +11,6 @@ import {
   shareLinkDomain,
   shareLinkLanguage,
   shareLinkPostingKey,
-  type ShareLinkSnapshot,
 } from "./shared";
 
 test("a token is 22 url-safe characters (16 random bytes)", () => {
@@ -73,46 +72,18 @@ test("career lines: newest three, current job ends with now", () => {
   ]);
 });
 
-const snapshot: ShareLinkSnapshot = {
-  name: "Kim <b>Min</b>",
-  headline: null,
-  location: null,
-  summary: "s",
-  fit: ["Built payments at \"Acme\" & scaled it", "5 years of Go"],
-  career: [],
-  wants: [],
-};
-
-test("the mail box escapes the candidate's words once and keeps the exact link", () => {
+test("the mail ends with a plain P.S. in the candidate's voice: no box, no button, the exact link", () => {
   const url = "https://matchharper.com/c/AbCdEfGhIjKlMnOpQrSt_-";
-  const html = shareLinkMailHtml({ snapshot, url, language: "en" });
-  assert.match(html, /Why Harper sent you Kim &lt;b&gt;Min&lt;\/b&gt;/);
-  assert.match(html, /Built payments at &quot;Acme&quot; &amp; scaled it/);
-  assert.doesNotMatch(html, /&amp;lt;/);
-  assert.ok(html.includes(`href="${url}"`));
-  assert.match(shareLinkMailHtml({ snapshot, url, language: "ko" }), /Harper가 Kim &lt;b&gt;Min&lt;\/b&gt;님을 보내는 이유/);
-});
-
-test("the mail box opens with the one-sentence match, before the reasons", () => {
-  const html = shareLinkMailHtml({
-    snapshot: { ...snapshot, summary: "The team is rebuilding <payments>, and Min built it before, so they fit." },
-    url: "https://matchharper.com/c/AbCdEfGhIjKlMnOpQrSt_-", language: "en",
-  });
-  const match = html.indexOf("The team is rebuilding &lt;payments&gt;");
-  assert.ok(match > 0);
-  assert.ok(match < html.indexOf("Built payments at"));
-  assert.doesNotMatch(shareLinkMailHtml({ snapshot: { ...snapshot, summary: " " }, url: "https://x.test/c/a", language: "en" }), /margin:0 0 8px/);
-});
-
-test("a plain mail the box is added to keeps its words, paragraphs and line breaks as HTML", () => {
-  assert.equal(
-    plainMailHtml("안녕하세요, <채용> 담당자님.\r\n\n첫 줄\n둘째 줄\n\n\n김하준 드림\n"),
-    [
-      '<p style="margin:0 0 12px;">안녕하세요, &lt;채용&gt; 담당자님.</p>',
-      '<p style="margin:0 0 12px;">첫 줄<br>둘째 줄</p>',
-      '<p style="margin:0 0 12px;">김하준 드림</p>',
-    ].join("\n"),
-  );
+  const ko = shareLinkMailPs({ snapshot: { wants: ["초기 팀의 백엔드 리드"] }, url, language: "ko" });
+  assert.equal(ko.text, [
+    "P.S. 이력서에 다 담지 못한 내용(제가 찾는 일과 조건, 이 자리와 맞는 점)은 제 커리어 에이전트 Harper에 정리해 두었습니다. 로그인 없이 바로 보시고, 궁금한 점은 Harper에게 물어보실 수 있습니다.",
+    `후보 요약 및 Q&A 보기: ${url}`,
+  ].join("\n"));
+  assert.ok(ko.html.includes(`<a href="${url}">후보 요약 및 Q&amp;A 보기</a>`));
+  assert.doesNotMatch(ko.html, /style=|<table|button/);
+  // Only what the page shows is named: without shared wants it does not promise conditions.
+  assert.match(shareLinkMailPs({ snapshot: { wants: [] }, url, language: "ko" }).text, /\(경력 요약과 이 자리와 맞는 점\)/);
+  assert.match(shareLinkMailPs({ snapshot: { wants: [] }, url, language: "en" }).text, /^P\.S\. What my resume doesn't cover \(my background and why this role fits\)/);
 });
 
 test("one Role per link per workspace, separate from #2 mails", () => {

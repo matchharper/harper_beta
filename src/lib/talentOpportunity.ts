@@ -3096,6 +3096,8 @@ export async function assertCurrentTalentRecommendation(args: {
   }
 }
 
+export type TalentOpportunityStageActor = "user" | "harper" | "harper_submission";
+
 export async function updateTalentOpportunityHistoryItem(args: {
   acceptanceMaterial?: {
     materialId: string | null;
@@ -3113,6 +3115,8 @@ export async function updateTalentOpportunityHistoryItem(args: {
   opportunityId: string;
   recordTalentRoleActivity?: boolean;
   savedStage?: TalentOpportunitySavedStage | null;
+  /** Who moved the stage: the candidate on the page, Harper from the conversation, or a confirmed submission run. */
+  stageActor?: TalentOpportunityStageActor;
   talentMemo?: string | null;
   userId: string;
 }) {
@@ -3165,8 +3169,9 @@ export async function updateTalentOpportunityHistoryItem(args: {
   if (args.action === "saved_stage") {
     if (!args.savedStage) throw new Error("savedStage is required");
     const { error } = await (args.admin.rpc as any)(
-      "move_talent_role_saved_stage_v1",
+      "move_talent_role_saved_stage_v2",
       {
+        p_actor: args.stageActor ?? null,
         p_record_activity: args.recordTalentRoleActivity !== false,
         p_recommendation_id: opportunityId,
         p_saved_stage: args.savedStage,

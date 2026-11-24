@@ -327,7 +327,7 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
       {
         href: "/ops/gtm-plays",
         label: "GTM 플레이",
-        description: "후보자 링크·후보자 소싱 에이전트",
+        description: "후보자 링크·GTM Agent",
         matchPrefix: "/ops/gtm-plays",
       },
     ],

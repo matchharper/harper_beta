@@ -12,9 +12,12 @@
  *
  * Pure: the run, the tests and the prompt-version hash share it.
  */
-import { EXPLORE_SOURCE, cleanOpsText, signalSourceInfo } from "./signals";
+import { EXPLORE_SOURCE, cleanOpsText, goalSearchOf, signalSourceInfo } from "./signals";
 
-/** An option id: a search's source id ("linkedin", "hn", "explore"), or "<source>:layoff" for its layoff method. */
+/**
+ * An option id: a search's source id ("linkedin", "hn", "explore"), "<source>:layoff" for its layoff method, or a goal
+ * search's id ("linkedin_hiring": signals.ts GOAL_SEARCHES).
+ */
 export type BudgetOptionId = string;
 export const LAYOFF_OPTION_SUFFIX = ":layoff";
 
@@ -75,10 +78,11 @@ const ABOUT: Record<string, string> = {
 };
 
 /**
- * The options of a day: each turned-on place (in the settings' order), LinkedIn's layoff method when it is on, and
- * the open web.
+ * The options of a day: each turned-on place (in the settings' order), LinkedIn's layoff method when it is on, the
+ * open web, then the goal searches whose channel is on (signals.ts goalSearchesOn, Shaun 11/23: career-help and event
+ * posts, company sourcing), each its own search with its own part of the split, after the candidate searches.
  */
-export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch: boolean }): BudgetOption[] {
+export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch: boolean; goalSearches?: readonly string[] | null }): BudgetOption[] {
   const options: BudgetOption[] = [];
   for (const source of args.turnedOn) {
     if (source === EXPLORE_SOURCE) continue;
@@ -90,7 +94,53 @@ export function budgetOptions(args: { turnedOn: readonly string[]; layoffSearch:
     }
   }
   options.push({ id: EXPLORE_SOURCE, search: EXPLORE_SOURCE, part: "signal", label: signalSourceInfo(EXPLORE_SOURCE).label, about: ABOUT[EXPLORE_SOURCE] });
+  for (const id of new Set(args.goalSearches ?? [])) {
+    const goal = goalSearchOf(id);
+    if (goal) options.push({ id: goal.id, search: goal.id, part: "signal", label: goal.label, about: goal.about });
+  }
   return options;
+}
+
+/** What a found person row tells the split (budget.server.ts readBudgetHistory). */
+export type BudgetPersonFacts = {
+  source: string; method: string | null; searchQuery: string | null; intent: string | null;
+  giverKind?: string | null; excludeReason?: string | null; hasFit: boolean;
+};
+
+/** A logged query as the run's log keeps it (signals.ts signalLogEntry: at most 200 characters), case and spacing aside. */
+export const budgetQueryKey = (query: string) => query.slice(0, 200).toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * The option a found person counts for, or null. A goal search's people are its own (Shaun 11/23): the run's search
+ * whose logged queries found them (with several, the one whose goal the person fits). Everyone else as before: the
+ * layoff option for the layoff method, the place's own search for a place the run searched, else the open web.
+ * `queryOwners`: the run's searches by the queries they logged (budgetQueryKey).
+ */
+export function budgetOptionOf(
+  person: BudgetPersonFacts, searched: ReadonlySet<string>, queryOwners: ReadonlyMap<string, readonly string[]> = new Map(),
+): string | null {
+  const owners = person.searchQuery ? (queryOwners.get(budgetQueryKey(person.searchQuery)) ?? []).filter((id) => searched.has(id)) : [];
+  const goals = owners.map(goalSearchOf).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const fits = (aim: string) => (aim === "hiring" ? person.giverKind === "hiring_leader" : person.intent === aim);
+  const goal = goals.find((item) => fits(item.aim)) ?? (goals.length && goals.length === owners.length ? goals[0] : null);
+  if (goal) return goal.id;
+  if (person.method === "layoff_company" && searched.has(person.source)) return `${person.source}${LAYOFF_OPTION_SUFFIX}`;
+  if (searched.has(person.source) && person.source !== EXPLORE_SOURCE) return person.source;
+  return searched.has(EXPLORE_SOURCE) ? EXPLORE_SOURCE : null;
+}
+
+/**
+ * How a found person counts for its option (people kept; "with a fitting posting", what the dice draw on): a giver
+ * never counts for a candidate search; the company side counts the hiring posts it recorded (both numbers); a
+ * career-help or event search counts the people it kept (no posting decides them); the rest as before, the people
+ * kept and those with a fitting posting. null: not counted.
+ */
+export function budgetCredit(person: BudgetPersonFacts, option: string): { fit: boolean } | null {
+  const aim = goalSearchOf(option)?.aim;
+  const giver = person.excludeReason === "giver" || Boolean(person.giverKind);
+  if (aim === "hiring") return person.giverKind === "hiring_leader" ? { fit: true } : null;
+  if (giver) return null;
+  return { fit: aim === "coaching" || aim === "event" ? true : person.hasFit };
 }
 
 /** The searches of a day in the settings' order: the options' sources, each once. */

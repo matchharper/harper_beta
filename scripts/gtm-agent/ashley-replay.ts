@@ -31,6 +31,7 @@ import Module from "node:module";
 import path from "node:path";
 import type { AshleyIO, AshleyMail, AshleyPerson, CandidateDraft } from "../../src/lib/gtmPlays/agent/ashleyAgent";
 import type { ReplayAction, ReplayGrade, ReplayOutcome, ReplayTotals } from "../../src/lib/gtmPlays/agent/ashleyReplay";
+import type { CompanyAsk } from "../../src/lib/gtmPlays/agent/companyMail";
 import type { ConversationMessage, ConversationStore, HistoryEntry } from "../../src/lib/gtmPlays/agent/conversation";
 import type { AgentPosting } from "../../src/lib/gtmPlays/agent/types";
 
@@ -61,13 +62,15 @@ type ReplayItem = {
   note: string;
   expect: ReplayAction[] | null;
   message: ConversationMessage;
+  /** Their earlier mails not answered yet, oldest first: answered together with `message` in one reply. */
+  unanswered?: ConversationMessage[];
   person: AshleyPerson | null;
   root: AshleyMail | null;
   /** Settled before any model call, as the tick does. */
   settled?: "member" | "human_answered" | "no_person";
   /** Case mode: the history and the postings' state come from the case. */
   history?: HistoryEntry[];
-  postingText?: Map<string, { text: string | null; canAskCompany: boolean }>;
+  postingText?: Map<string, { text: string | null; canAskCompany: boolean | "asked" }>;
 };
 
 type ReplayResult = {
@@ -87,7 +90,8 @@ const inboundMessage = (fields: Partial<ConversationMessage> & Pick<Conversation
 // ---------------------------------------------------------------------------------------------------------------
 // Made-up cases
 
-type CasePosting = AgentPosting & { text?: string | null; canAskCompany?: boolean };
+/** canAskCompany: true (a company mail can go), false (none can), "asked" (a mail already carried this candidate). */
+type CasePosting = AgentPosting & { text?: string | null; canAskCompany?: boolean | "asked" };
 type ReplayCase = {
   id: string; note?: string;
   person: { name: string | null; headline: string | null; location: string | null; currentCompany: string | null; profileText: string | null; language: "ko" | "en" | null };
@@ -96,6 +100,10 @@ type ReplayCase = {
   mail: { subject: string; text: string; hoursAgo?: number; fromEmail?: string };
   /** Mails in the thread between our first mail and this one (theirs, Ashley's, or a person's from the mailbox). */
   earlier?: Array<{ author: "counterpart" | "ashley" | "human"; text: string; hoursAgo: number; handedOff?: boolean }>;
+  /** Their mails before `mail` that nobody answered yet (one reply answers them all, Shaun 11/22), oldest first. */
+  unanswered?: Array<{ text: string; hoursAgo: number }>;
+  /** What earlier replies asked (the timeline's "Ashley가 물어봄" line: summary_consent, title, years, location). */
+  askedBefore?: string[];
   expect: unknown;
 };
 
@@ -120,7 +128,9 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
       id: `person-${item.id}`, name: item.person.name, headline: item.person.headline, location: item.person.location,
       currentCompany: item.person.currentCompany, profileText: item.person.profileText, source: "replay",
       language: item.person.language, email: CASE_EMAIL, postings, mailId: rootId, followupMailId: null, sentAt, isTest: true,
-      events: [],
+      events: item.askedBefore?.length
+        ? [{ at: new Date(now.getTime() - 24 * 3_600_000).toISOString(), kind: "note" as const, by: "agent", note: `Ashley가 물어봄 · ${item.askedBefore.join(", ")}` }]
+        : [],
     };
     const firstMail = [
       item.person.language === "ko" ? `${item.person.name ?? ""}님, 안녕하세요. 하퍼의 Ashley예요.` : `Hi ${item.person.name ?? "there"}, this is Ashley from Harper.`,
@@ -133,13 +143,19 @@ async function caseItems(file: string, only: Set<string> | null, now: Date): Pro
       at: new Date(now.getTime() - entry.hoursAgo * 3_600_000).toISOString(), author: entry.author, kind: "reply", subject: item.mail.subject,
       text: entry.text, postings: [], threadKey: rootId, ...(entry.handedOff ? { handedOff: true } : {}),
     }))];
-    const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: Boolean(posting.canAskCompany) }]));
+    const postingText = new Map(item.postings.map((posting) => [postingKey(posting), { text: posting.text ?? null, canAskCompany: posting.canAskCompany === "asked" ? "asked" as const : Boolean(posting.canAskCompany) }]));
     const message = inboundMessage({
       id: `case-message-${item.id}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null, subject: item.mail.subject,
       bodyText: item.mail.text, newText: item.mail.text, rootMailId: rootId, rfcMessageId: `<reply-${item.id}@mail.example.com>`,
       inReplyTo: root.rfcMessageId, references: root.rfcMessageId, occurredAt: at,
     });
-    return { id: item.id, source: "case", note: item.note ?? "", expect, message, person, root, history, postingText };
+    const unanswered = (item.unanswered ?? []).map((entry, index) => inboundMessage({
+      id: `case-message-${item.id}-${index + 1}`, personId: person.id, counterpartEmail: CASE_EMAIL, fromEmail: item.mail.fromEmail ?? null,
+      subject: item.mail.subject, bodyText: entry.text, newText: entry.text, rootMailId: rootId,
+      rfcMessageId: `<reply-${item.id}-${index + 1}@mail.example.com>`, inReplyTo: root.rfcMessageId, references: root.rfcMessageId,
+      occurredAt: new Date(now.getTime() - entry.hoursAgo * 3_600_000).toISOString(),
+    }));
+    return { id: item.id, source: "case", note: item.note ?? "", expect, message, unanswered, person, root, history, postingText };
   });
 }
 
@@ -273,13 +289,15 @@ const noWrite = (what: string) => async (): Promise<never> => {
 async function replayIO(args: {
   mode: "cases" | "gmail" | "pending"; maxUsd: number; fakeLlm: boolean; collected: string[]; tools: string[]; spend: { usd: number };
   current: () => ReplayItem | null;
+  /** Postings whose company mail the replay treats as gone (after a reply waited for it). */
+  asked: Set<string>;
 }): Promise<AshleyIO> {
   const { GTM_HARPER_ORIGIN } = await import("../../src/lib/gtmPlays/shared");
   const live = args.mode !== "cases" ? {
     store: (await import("../../src/lib/gtmPlays/agent/conversation.server")).conversationStore,
     server: await import("../../src/lib/gtmPlays/agent/ashleyReply.server"),
     settings: await (await import("../../src/lib/gtmPlays/agent/store.server")).readAgentSettings(),
-    canAsk: (await import("../../src/lib/gtmPlays/agent/companyMail.server")).canAskCompany,
+    companyAsk: (await import("../../src/lib/gtmPlays/agent/companyMail.server")).companyAsk,
   } : null;
   const readPosting = live ? live.server.postingReader() : null;
   const baseLlm: AshleyIO["llm"] = args.fakeLlm
@@ -298,6 +316,7 @@ async function replayIO(args: {
     saveInbound: noWrite("saveInbound"),
     listUndecidedInbound: async () => [],
     recordDecision: noWrite("recordDecision"),
+    holdSignals: noWrite("holdSignals"),
     queueReply: noWrite("queueReply"),
     markSent: noWrite("markSent"),
     markFailed: noWrite("markFailed"),
@@ -356,10 +375,13 @@ async function replayIO(args: {
     },
     unsubscribeUrl: () => null,
     relays: { forPerson: async () => [], get: async () => null, claim: noWrite("relays.claim"), mark: noWrite("relays.mark") },
-    canAskCompany: async (input) => {
-      if (live) return live.canAsk(input, { store }).catch(() => false);
+    // Live: what production would answer (the writes switch is off here, and the replay never writes).
+    companyAsk: async (input): Promise<CompanyAsk> => {
+      if (args.asked.has(input.postingUrl)) return { state: "asked", at: new Date().toISOString() };
+      if (live) return live.companyAsk(input, { store, asIfWritesOn: true }).catch((): CompanyAsk => ({ state: "no" }));
       const posting = args.current()?.person?.postings.find((item) => item.url === input.postingUrl);
-      return posting ? Boolean(args.current()?.postingText?.get(postingKey(posting))?.canAskCompany) : false;
+      const ask = posting ? args.current()?.postingText?.get(postingKey(posting))?.canAskCompany : false;
+      return ask === "asked" ? { state: "asked", at: new Date().toISOString() } : ask ? { state: "can" } : { state: "no" };
     },
     latestInbound: async () => null,
   };
@@ -439,7 +461,8 @@ async function main() {
   const tools: string[] = [];
   const spend = { usd: 0 };
   let current: ReplayItem | null = null;
-  const io = await replayIO({ mode, maxUsd, fakeLlm, collected, tools, spend, current: () => current });
+  const asked = new Set<string>();
+  const io = await replayIO({ mode, maxUsd, fakeLlm, collected, tools, spend, current: () => current, asked });
   replay.assertReplayCannotSend(io);
 
   let items: ReplayItem[];
@@ -479,6 +502,7 @@ async function main() {
     }
     current = item;
     collected.length = 0;
+    asked.clear();
     tools.length = 0;
     const before = spend.usd;
     const result: ReplayResult = {
@@ -494,7 +518,14 @@ async function main() {
       } else if (item.person && item.root) {
         // The tick's own time: a few minutes after the mail came.
         const now = new Date(Math.min(Date.now(), Date.parse(item.message.occurredAt) + 5 * 60_000));
-        draft = await draftCandidateReply(io, { message: item.message, person: item.person, root: item.root, now });
+        draft = await draftCandidateReply(io, { message: item.message, earlier: item.unanswered, person: item.person, root: item.root, now });
+        if (draft.kind === "wait") {
+          // The tick holds the reply until the company mail its agreement starts went; the replay treats that mail as
+          // gone and writes the reply the tick would write then.
+          collected.push(`waited for the company mail: ${draft.signals.map((signal) => signal.companyName).join(", ")}`);
+          for (const signal of draft.signals) if (signal.summaryConsent) asked.add(signal.postingUrl);
+          draft = await draftCandidateReply(io, { message: { ...item.message, signals: draft.signals }, earlier: item.unanswered, person: item.person, root: item.root, now });
+        }
         result.outcome = replay.replayOutcome(draft);
         result.type = draft.type;
         if (draft.kind === "reply") {

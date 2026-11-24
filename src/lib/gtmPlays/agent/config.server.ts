@@ -6,6 +6,7 @@ import { rerankPrompt, summaryPrompt } from "@/lib/externalRecommendationsV2/pro
 import { gtmRead, gtmWrite } from "../db.server";
 import { GTM_STRUCTURED_MODEL, capturePrompts } from "../llm.server";
 import { BUDGET_PLAN_SYSTEM, budgetOptions, budgetPlanPrompt } from "./budget";
+import { AGENT_INTENTS } from "./channels";
 import { composeAgentMail } from "./compose.server";
 import {
   agentConfigId, buildAgentConfigSnapshot, promptVersion, type AgentConfig, type AgentConfigRules,
@@ -13,13 +14,13 @@ import {
 } from "./config";
 import { summarizeDemand, type DemandPosting } from "./demand";
 import { EMAIL_LOOKUP_SYSTEM_PROMPT, LOOKUP_MIN_SIGNAL_SCORE, emailLookupQuery } from "./emailLookup";
-import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, personFacts } from "./match";
+import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_RULE, personFacts } from "./match";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { writePostingFrames } from "./postingFrame.server";
 import { READ_SEARCHED_PAGES, profilePagesPrompt } from "./profileRead";
 import { REVIEW_SYSTEM_PROMPT, postingsToMail, reviewUserPrompt } from "./review";
 import {
-  EXPLORE_SOURCE, RECENT_MEMORY_DAYS, SIGNAL_SOURCES, judgePrompt, layoffPrompt, planPrompt, type SignalStage,
+  EXPLORE_SOURCE, GOAL_SEARCHES, RECENT_MEMORY_DAYS, SIGNAL_SOURCES, judgePrompt, layoffPrompt, planPrompt, type SignalStage,
 } from "./signals";
 import { FOLLOWUP_RESERVE_USD } from "./spend";
 import {
@@ -60,13 +61,13 @@ const SAMPLE_POSTINGS: AgentPosting[] = [
 const SAMPLE_DEMAND_POSTINGS: DemandPosting[] = [
   { kind: "external", title: "Backend Engineer", companies: ["a"], seniorityLevel: "senior", countryCode: "KR", workMode: "onsite", locationText: "Seoul" },
   { kind: "customer", title: "Frontend Engineer", companies: ["b"], seniorityLevel: "mid", countryCode: null, workMode: "remote", locationText: null },
-  { kind: "gtm", title: "Data Scientist", companies: ["c"], seniorityLevel: null, countryCode: "US", workMode: "hybrid", locationText: "New York" },
+  { kind: "customer", title: "Data Scientist", companies: ["c"], seniorityLevel: null, countryCode: "US", workMode: "hybrid", locationText: "New York" },
 ];
 
 const SAMPLE_PAGE = { id: "r0", url: "https://example.com/post/1", publishedDate: "2026-01-04T00:00:00.000Z", text: "Sample page text." };
 const SAMPLE_LAYOFFS = [{ company: "Example Co", summary: "Cut 10% of staff.", url: "https://example.com/news/1", publishedAt: "2026-01-03" }];
 /** A day's split for the budget prompt's version (fixed numbers: only a wording change gives a new hash). */
-const SAMPLE_BUDGET_OPTIONS = budgetOptions({ turnedOn: ["linkedin", "hn"], layoffSearch: true });
+const SAMPLE_BUDGET_OPTIONS = budgetOptions({ turnedOn: ["linkedin", "hn"], layoffSearch: true, goalSearches: GOAL_SEARCHES.map((item) => item.id) });
 const SAMPLE_BUDGET = {
   day: SAMPLE_DAY, totalUsd: 2, options: SAMPLE_BUDGET_OPTIONS,
   tallies: { linkedin: { runs: 1, givenUsd: 1, spentUsd: 1, people: 4, fits: 2, sent: 1, clicked: 0, signedUp: 0, connected: 0 } },
@@ -93,13 +94,13 @@ const rendered = (render: () => { system: string; user: string } | string): stri
 const capturedTexts = async (work: () => Promise<unknown>) =>
   (await capturePrompts(work)).flatMap((call) => [call.label, call.system, call.user]);
 
-/** The stages a source's search goes through (signals.server.ts): the open web explores; LinkedIn also reads layoffs. */
+/** The stages a source's search goes through (signals.server.ts): the open web explores; LinkedIn also reads layoffs; a goal search only plans and judges. */
 const stagesOf = (source: string): SignalStage[] =>
   source === EXPLORE_SOURCE ? ["explore"] : source === "linkedin" ? ["signal", "layoff_news", "layoff_people"] : ["signal"];
 
 async function computePromptVersions(): Promise<AgentPromptVersions> {
   const demand = summarizeDemand(SAMPLE_DEMAND_POSTINGS, SAMPLE_DAY);
-  const sources = [...SIGNAL_SOURCES, EXPLORE_SOURCE];
+  const sources = [...SIGNAL_SOURCES, EXPLORE_SOURCE, ...GOAL_SEARCHES.map((item) => item.id)];
   const planner: string[] = [];
   const judge: string[] = [];
   for (const source of sources) {
@@ -115,14 +116,17 @@ async function computePromptVersions(): Promise<AgentPromptVersions> {
           yields: [{ stage, group: "sample", query: "open to work backend", results: 10, kept: 1, withContact: 0 }],
           keptSamples: ["Backend engineer · open to work"], rejectedSamples: ["Recruiter · hiring"],
         })));
-        judge.push(...rendered(() => judgePrompt([SAMPLE_PAGE], { source, stage, tuning: null, layoffs: SAMPLE_LAYOFFS, now: SAMPLE_NOW, demand: withDemand ? demand : null })));
+        const judged = { source, stage, tuning: null, layoffs: SAMPLE_LAYOFFS, now: SAMPLE_NOW, demand: withDemand ? demand : null };
+        judge.push(...rendered(() => judgePrompt([SAMPLE_PAGE], judged)));
+        // Every intent searched and commenters judged (channels.ts searchedIntents, the comment channel on).
+        judge.push(...rendered(() => judgePrompt([SAMPLE_PAGE], { ...judged, intents: AGENT_INTENTS, comments: true })));
       }
     }
   }
   planner.push(...rendered(() => layoffPrompt([{ id: "a0", url: SAMPLE_PAGE.url, publishedDate: SAMPLE_PAGE.publishedDate, text: SAMPLE_PAGE.text }])));
   const facts = personFacts(SAMPLE_PERSON);
   const matcher = [
-    OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, CAREER_FIT_PROMPT_VERSION, summaryPrompt("ko"), summaryPrompt("en"),
+    OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_RULE, CAREER_FIT_PROMPT_VERSION, summaryPrompt("ko"), summaryPrompt("en"),
     ...(["web", "worker", "daily"] as const).flatMap((surface) => [rerankPrompt("ko", surface), rerankPrompt("en", surface)]),
   ];
   const postingFrame: string[] = [];

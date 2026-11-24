@@ -9,6 +9,7 @@ import { requestExternalMatchingSearch, recoverCareerMatchingSearches, publishCa
 import { recoverInternalEvaluations } from "@/lib/career/matching/internalScoring/backend";
 import { recoverResourceOperations } from "@/lib/career/resources/queue";
 import { admitUnseenCareerReplies } from "@/lib/career/background/unseenReply";
+import { startPendingGmailReviews } from "@/lib/career/background/gmailReview";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
           console.warn("[career-agent] unseen reply scan deferred", String(error?.message ?? error));
           return { admitted: 0, deferred: 0, error: "deferred" };
         }),
+        gmailReviews: () => startPendingGmailReviews(admin, { limit: maxNewRuns }),
       };
       const results = await Promise.allSettled(Object.entries(scans).map(async ([name, scan]) => {
         const startedAt = Date.now();
@@ -50,10 +52,10 @@ export async function POST(request: NextRequest) {
       }));
       const failed = results.find((result) => result.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
-      const [work, matching, internalMatching, recovery, deliveries, resources, unseenReplies] = results.map((result) =>
+      const [work, matching, internalMatching, recovery, deliveries, resources, unseenReplies, gmailReviews] = results.map((result) =>
         result.status === "fulfilled" ? result.value : undefined
       );
-      return NextResponse.json({ work, matching, internalMatching, recovery, deliveries, resources, unseenReplies });
+      return NextResponse.json({ work, matching, internalMatching, recovery, deliveries, resources, unseenReplies, gmailReviews });
     }
     if (["evaluation_complete", "external_follow_evaluation", "external_evaluation_ready"].includes(body.action)) {
       const { data: run, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", body.discoveryRunId).single();

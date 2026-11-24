@@ -1,7 +1,7 @@
 import "server-only";
 
 import { DEFAULT_ADMIN_EXCLUDED_EMAILS } from "@/lib/adminEmailExclusions";
-import { GTM_WORKSPACE_ID, HARPER_WORKSPACE_ID } from "./constants";
+import { HARPER_WORKSPACE_ID } from "./constants";
 import { gtmRead, type GtmReadSql } from "./db.server";
 
 /**
@@ -36,11 +36,13 @@ function staffCte(sql: GtmReadSql) {
 }
 
 /**
- * A browser run Harper ran with the candidate's approval to submit (execute mode binds a work_effect to it). Many
- * such runs stop before the last step (a required field, a verification code), so a run alone is an attempt.
+ * A browser run Harper ran with the candidate's approval to submit. Many such runs stop before the last step (a
+ * required field, a verification code), so a run alone is an attempt. Runs record their mode since 11/18; earlier
+ * execute runs are the ones a work_effect points to. A run that stopped before submitting releases its effect for the
+ * retry, so the recorded mode is what keeps it counted as an attempt.
  */
-const EXECUTE_MODE = (sql: GtmReadSql) => sql`exists (select 1 from public.talent_external_operations effect
-  where effect.kind = 'work_effect' and effect.result->>'operation_id' = o.id::text)`;
+const EXECUTE_MODE = (sql: GtmReadSql) => sql`(o.request->>'mode' = 'execute' or exists (select 1 from public.talent_external_operations effect
+  where effect.kind = 'work_effect' and effect.result->>'operation_id' = o.id::text))`;
 
 // Whether a run really submitted: the run's receipt field (result.submitted yes/no/unclear) when it has one. Runs from
 // before that field report only in prose, and their first sentence states the outcome ("Submitted once." / "Stopped
@@ -52,8 +54,9 @@ const NOT_SUBMITTED_SENTENCE = String.raw`(not (yet )?submitted|unsubmitted|with
 // #1 대신 지원: applications Harper sent for candidates, one row per application.
 // - 회사 사이트로: one candidate and one posting is one application, counted when it was really submitted: a run
 //   Harper ran to submit (execute mode) whose report says the site confirmed the submission, or the candidate's
-//   opportunity reached 지원함 (applied or later). Runs that stopped before the last step are attempts only; the
-//   row keeps how many there were.
+//   opportunity reached 연결·오퍼 (the company answered). 지원함 alone does not count: the candidate's own
+//   '직접 지원했어요' and Harper's record from a conversation also set it (the actor is on the stage activity).
+//   Runs that stopped before the last step are attempts only; the row keeps how many there were.
 // - 회사 메일로: an application mail, a Gmail send through Harper to a company address with at least one document
 //   attached or with the candidate's 후보자 링크 in its body (the link box goes only into application mails, attachment
 //   or not; inquiries and follow-ups have neither). It counts for the company whose homepage is on that mail domain (or a subdomain of it; hosts many
@@ -95,7 +98,7 @@ function applicationsCte(sql: GtmReadSql, days: number) {
       from site_runs r
       where exists (select 1 from site_runs s where s.talent_id = r.talent_id and s.role_id = r.role_id and s.reports_submitted)
         or exists (select 1 from public.talent_opportunity_recommendation t
-          where t.talent_id = r.talent_id and t.role_id = r.role_id and t.saved_stage in ('applied', 'connected', 'offer'))
+          where t.talent_id = r.talent_id and t.role_id = r.role_id and t.saved_stage in ('connected', 'offer'))
       -- The run that submitted stands for the application (its time and report), else the latest attempt.
       order by r.talent_id, r.role_id, r.reports_submitted desc, r.at desc
     ),
@@ -282,7 +285,7 @@ export async function listApplyFunnel(args: { days: number; limit?: number }): P
     select per.ck, per.cw::text as workspace_id, w.company_name, per.people, per.site_apps, per.mail_apps, per.last_at,
       (w.is_internal is true) as is_customer
     from per left join public.company_workspace w on w.company_workspace_id = per.cw
-    where per.cw is null or per.cw <> all(array[${HARPER_WORKSPACE_ID}, ${GTM_WORKSPACE_ID}]::uuid[])
+    where per.cw is null or per.cw <> ${HARPER_WORKSPACE_ID}::uuid
   `), readApplyFunnelLinks(days)]);
   const companies = rows.map((row): ApplyFunnelRow => {
     const mailDomain = row.workspace_id ? null : row.ck.slice("mail:".length);

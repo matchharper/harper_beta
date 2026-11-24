@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseAdmin, requireAuthenticatedUser } from "@/lib/server/candidateAccess";
 import { assertOrgRoleAccess, OrgHttpError } from "@/lib/org/server";
-import { externalSourcingEnabledFor } from "@/lib/org/agent/externalSourcing";
-import { passExternalCandidate } from "@/lib/org/agent/externalSourcing.server";
+import { externalSourcingEnabledFor, isAshleyCandidate } from "@/lib/org/agent/externalSourcing";
+import { loadShownExternalCandidate, passExternalCandidate } from "@/lib/org/agent/externalSourcing.server";
 
 const body = z.object({
   workspaceId: z.string().uuid(), roleId: z.string().uuid(), candidateId: z.string().uuid(),
@@ -17,9 +17,13 @@ export async function POST(req: NextRequest) {
     const parsed = body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new OrgHttpError(400, "Invalid parameters");
     const { workspaceId, roleId, candidateId, reason } = parsed.data;
-    if (!externalSourcingEnabledFor(workspaceId)) throw new OrgHttpError(404, "Not available");
     const admin = getSupabaseAdmin();
     await assertOrgRoleAccess({ workspaceId, roleId, admin, user, permission: "manage_candidates" });
+    // Ashley's candidates are on wherever they are shown; other people only where searches are on.
+    if (!externalSourcingEnabledFor(workspaceId)) {
+      const candidate = await loadShownExternalCandidate({ admin, workspaceId, roleId, candidateRef: candidateId });
+      if (!candidate || !isAshleyCandidate(candidate)) throw new OrgHttpError(404, "Not available");
+    }
     const result = await passExternalCandidate({ admin, workspaceId, roleId, userId: user.id, candidateRef: candidateId, reason });
     if (result.status === "not_found") throw new OrgHttpError(404, "Candidate not found");
     return NextResponse.json({ ok: true, status: result.status });

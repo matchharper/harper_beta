@@ -21,6 +21,7 @@ before(async () => {
     "@/lib/career/matching/internalScoring/backend": { recoverInternalEvaluations: scan("internalMatching") },
     "@/lib/career/resources/queue": { recoverResourceOperations: scan("resources") },
     "@/lib/career/background/unseenReply": { admitUnseenCareerReplies: scan("unseenReplies") },
+    "@/lib/career/background/gmailReview": { startPendingGmailReviews: scan("gmailReviews") },
   };
   module._load = function (name: string, ...args: unknown[]) {
     return stubs[name] ?? load.call(this, name, ...args);
@@ -40,7 +41,7 @@ test("collection capacity only paces new work; recovery continues at zero and va
       }));
       assert.equal(response.status, 200);
       assert.deepEqual(limits, [limit]);
-      assert.deepEqual(calls.sort(), ["background", "deliveries", "internalMatching", "matching", "resources", "unseenReplies"]);
+      assert.deepEqual(calls.sort(), ["background", "deliveries", "gmailReviews", "internalMatching", "matching", "resources", "unseenReplies"]);
     }
     for (const maxNewRuns of [-1, 1.5, "6"]) {
       calls.length = 0; limits.length = 0;

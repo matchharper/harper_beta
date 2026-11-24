@@ -32,28 +32,46 @@ export type PersonConversationFacts = {
   ashleyRepliedAt: string | null;
   /** The reason label of their latest reply Ashley decided not to answer (no_reply / stop); null when none. */
   noReplyReason: string | null;
+  /**
+   * 사람에게 넘김: the first time a mail of theirs went to a person on the team, either handed over (hand_to_human) or
+   * because Ashley's reply to it was held by the pre-send check or failed (the same "handed to a person" the reply
+   * agent reads, conversationRules.ts mergeHistory).
+   */
+  handedOffAt: string | null;
 };
 
 type FactRow = Pick<ConversationMessage, "personId" | "author" | "direction" | "decision" | "decisionReason" | "sendStatus" | "occurredAt">;
 
+/** The earlier of an ISO time and a time in ms (an unknown time never wins over a known one). */
+const earliest = (current: string | null, at: number | null) => (
+  at !== null && (current === null || at < (time(current) ?? Infinity)) ? new Date(at).toISOString() : current
+);
+
+/**
+ * The rows are the person's Ashley replies (sent, held or failed) and their mails Ashley decided on; the caller
+ * (conversationViews.server.ts withConversationFacts) leaves out Ashley mails that answer no mail of theirs.
+ */
 export function conversationFactsByPerson(rows: readonly FactRow[]): Map<string, PersonConversationFacts> {
   const facts = new Map<string, PersonConversationFacts & { noReplyAt: number }>();
   for (const row of rows) {
     if (!row.personId) continue;
     const at = time(row.occurredAt);
-    const fact = facts.get(row.personId) ?? { ashleyRepliedAt: null, noReplyReason: null, noReplyAt: -Infinity };
-    if (row.author === "ashley" && row.direction === "outbound" && row.sendStatus === "sent" && at !== null
-      && (fact.ashleyRepliedAt === null || at < (time(fact.ashleyRepliedAt) ?? Infinity))) {
-      fact.ashleyRepliedAt = new Date(at).toISOString();
+    const fact = facts.get(row.personId) ?? { ashleyRepliedAt: null, noReplyReason: null, handedOffAt: null, noReplyAt: -Infinity };
+    const ashley = row.author === "ashley" && row.direction === "outbound";
+    const theirs = row.author === "counterpart" && row.direction === "inbound";
+    if (ashley && row.sendStatus === "sent") fact.ashleyRepliedAt = earliest(fact.ashleyRepliedAt, at);
+    if ((ashley && (row.sendStatus === "held" || row.sendStatus === "failed")) || (theirs && row.decision === "hand_to_human")) {
+      fact.handedOffAt = earliest(fact.handedOffAt, at);
     }
-    if (row.author === "counterpart" && row.direction === "inbound" && row.decision && NO_REPLY_DECISIONS.includes(row.decision)
-      && (at ?? -Infinity) >= fact.noReplyAt) {
+    if (theirs && row.decision && NO_REPLY_DECISIONS.includes(row.decision) && (at ?? -Infinity) >= fact.noReplyAt) {
       fact.noReplyReason = decisionReasonLabel(row.decisionReason);
       fact.noReplyAt = at ?? -Infinity;
     }
     facts.set(row.personId, fact);
   }
-  return new Map([...facts].map(([id, { ashleyRepliedAt, noReplyReason }]) => [id, { ashleyRepliedAt, noReplyReason }]));
+  return new Map([...facts].map(([id, fact]) => [id, {
+    ashleyRepliedAt: fact.ashleyRepliedAt, noReplyReason: fact.noReplyReason, handedOffAt: fact.handedOffAt,
+  }]));
 }
 
 type ThreadRow = Pick<ConversationMessage, "id" | "author" | "direction" | "decision" | "gmailThreadId" | "rootMailId" | "counterpartEmail" | "occurredAt">;

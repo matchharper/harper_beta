@@ -12,7 +12,7 @@ export const emailProfileLinkSchema = z.object({
 
 export const EMAIL_PROFILE_LINK_PARAMETER = {
   type: "object",
-  description: "Only for an application mail to the posting's company when the user's reviewed form checked 'Harper 후보 요약 링크 넣기'. Code appends the candidate summary box with the link (company addresses only); never write Harper links yourself.",
+  description: "Only for an application mail to the posting's company when the user's reviewed form checked 'Harper 후보 요약 링크 넣기'. Code appends a P.S. with the candidate summary link under the signature (company addresses only); never write Harper links or a P.S. about Harper yourself.",
   properties: {
     company_name: { type: "string" },
     posting_title: { type: "string", description: "The title of the posting this mail applies to." },

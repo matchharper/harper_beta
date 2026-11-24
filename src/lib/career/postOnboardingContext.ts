@@ -6,6 +6,7 @@ import {
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import { parseIntentSource } from "@/lib/gtmPlays/agent/signupMove";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchLatestTalentActivityEvent, type TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
 
@@ -89,6 +90,8 @@ export async function fetchCareerEntrySource(args: CareerEntrySourceArgs & { inc
   });
   return {
     intentSummary: intentEvent?.summary ?? null,
+    /** The entry was a link in a Harper outreach mail (gtmPlays/agent/signupMove.ts intentSource). */
+    fromMail: parseIntentSource(intentEvent?.source) !== null,
     opportunityContext: intentEvent && args.includeOpportunity !== false
       ? await readEntryOpportunity(args, intentEvent)
       : null,

@@ -84,6 +84,7 @@ export const toUiMessage = (message: {
   recommendationStatusAfterCharCount?: number | null;
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
+  workApplicationCheck?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
@@ -98,6 +99,8 @@ export const toUiMessage = (message: {
   artifactReplyId: message.artifactReplyId,
   workEvents: message.workEvents,
   workPlan: message.workPlan,
+  // Omitted when false, so the projection's merge keeps an earlier snapshot's flag.
+  ...(message.workApplicationCheck ? { workApplicationCheck: true } : {}),
   workFinalEvent: message.workFinalEvent,
   workReplyId: message.workReplyId,
   workStartedAt: message.workStartedAt,

@@ -14,7 +14,7 @@ import { agentSenderProblem } from "./mailRules";
 import { RECENT_CONTACT_DAYS } from "./people";
 import { AgentSendError, classifySendError } from "./sendErrors";
 import { SEND_CALL_TIMEOUT_MS } from "./tickRules";
-import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
+import type { AgentOfferEvent, AgentPerson, AgentPosting, AgentSettings } from "./types";
 
 /**
  * #5: one agent mail (campaign 'agent') through Resend from the first-contact sender on /ops #5. The same safety as
@@ -22,7 +22,9 @@ import type { AgentPerson, AgentPosting, AgentSettings } from "./types";
  * - never to an address on Harper's shared opt-out / bounce / complaint list;
  * - never to an address any GTM candidate mail (#4 or #5) went to in the last 30 days, except this person's own
  *   follow-up;
- * - at most `dailyMailCap` agent mails a day (Korea time; mails to matchharper.com are tests and not counted).
+ * - at most `dailyMailCap` candidate mails (first mails and follow-ups together) a day (Korea time; mails to
+ *   matchharper.com are tests and not counted). Company mails have a cap of their own, the same number
+ *   (agent/companyMail.server.ts; Shaun 11/22).
  * Whether the address may be mailed at all (personal mailbox) and the sending hours are the run's checks.
  * The log row is written before the provider call (a second worker finds it); its id goes into the mail's links.
  * A provider call that fails throws AgentSendError (agent/sendErrors.ts): the row is failed when the provider
@@ -40,11 +42,14 @@ function isHarperAddress(email: string) {
   return email.endsWith(`@${GTM_SENDER_DOMAIN}`);
 }
 
-/** Agent mails counted against today's cap: sending or sent, not to matchharper.com, Korea-time today. */
-export async function countAgentMailsToday(now = new Date()): Promise<number> {
+/**
+ * Agent mails of one audience counted against today's cap: sending or sent, not to matchharper.com, Korea-time today.
+ * candidate: first mails and follow-ups (one cap); company: company mails (their own cap of the same number).
+ */
+export async function countAgentMailsToday(now = new Date(), audience: "candidate" | "company" = "candidate"): Promise<number> {
   const day = kstDayWindow(now);
   const { count, error } = await gtmMailsTable(getSupabaseAdmin()).select("id", { count: "exact", head: true })
-    .eq("campaign", "agent").in("status", ["sending", "sent"])
+    .eq("campaign", "agent").eq("audience", audience).in("status", ["sending", "sent"])
     .gte("created_at", day.start).lt("created_at", day.end)
     .not("to_email", "like", `%@${GTM_SENDER_DOMAIN}`);
   if (error) throw error;
@@ -57,7 +62,7 @@ function primaryPosting(postings: readonly AgentPosting[]) {
 }
 
 /** The gtm_mails facts of one agent mail. */
-function mailFacts(person: { id: string; language: "ko" | "en" | null }, postings: AgentPosting[]) {
+function mailFacts(person: { id: string; language: "ko" | "en" | null }, postings: AgentPosting[], events: readonly AgentOfferEvent[] = []) {
   const primary = primaryPosting(postings);
   const snapshot: GtmPostingSnapshot | null = primary
     ? { title: primary.title, companyName: primary.companyName, location: primary.location, description: primary.why, url: primary.url }
@@ -69,6 +74,8 @@ function mailFacts(person: { id: string; language: "ko" | "en" | null }, posting
     posting_url: primary?.url ?? null,
     talent_ids: [], language: person.language ?? "ko",
     posting: snapshot, postings, agent_person_id: person.id,
+    // A general mail's events (its link page shows them); only when there are any, so a posting mail's row is as before.
+    ...(events.length ? { events } : {}),
   };
 }
 
@@ -143,6 +150,8 @@ async function recordProviderCall(mailId: string, outcome: { providerId: string 
 export async function deliverAgentMail(args: {
   person: Pick<AgentPerson, "id" | "email" | "language">;
   postings: AgentPosting[];
+  /** A general mail's events (agent/events.server.ts). */
+  events?: readonly AgentOfferEvent[];
   settings: AgentSettings;
   /** The Ops user the mail is logged under (gtm_mails.sent_by): who turned the agent on. */
   sentBy: string;
@@ -163,7 +172,7 @@ export async function deliverAgentMail(args: {
     unsubscribeUrl: gtmUnsubscribeUrl(mailId, origin),
   });
   const from = { from_name: args.settings.senderName?.trim() ?? "", from_email: args.settings.senderEmail?.trim().toLowerCase() ?? "" };
-  const facts = mailFacts(args.person, args.postings);
+  const facts = mailFacts(args.person, args.postings, args.events ?? []);
   const block = async (reason: string): Promise<AgentSendResult> => {
     const mailId = randomUUID();
     const rendered = args.render(mailId, links(mailId));

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   careerFormDraftSchema,
+  emptyRequiredItems,
   getCareerFormInitialValues,
   parseCareerForm,
   parseCareerFormResponse,
@@ -419,4 +420,21 @@ test("suggestion explanations and free replies survive storage and reach the mod
     respondToCareerForm({ admin, userId: "user", conversationId, input }),
     /Review forms use a saved action/
   );
+});
+
+test("a required answer is marked for the model and an approval leaving it empty says so", () => {
+  const review: CareerForm = { formId: 90, revision: 2, kind: "form", title: "지원 90", items: [
+    { id: "salary", label: "희망 연봉", type: "text", content: "", required: true },
+    { id: "school", label: "학교", type: "text", content: { value: "서울대학교" }, required: true },
+    { id: "photos", label: "사진", type: "multiselect", content: { options: [{ id: "a", label: "A" }] }, required: true },
+    { id: "agree", label: "개인정보 동의", type: "consent", content: "약관", required: true },
+    { id: "note", label: "메모", type: "textarea", content: "" },
+  ], positive: { id: "submit", label: "지원", message: "지원해줘" } };
+  assert.deepEqual(emptyRequiredItems(review, { salary: "  ", school: "서울대학교", photos: [], agree: false, note: "" }).map(item => item.id),
+    ["salary", "photos", "agree"]);
+  assert.deepEqual(emptyRequiredItems(review, { salary: "6000", school: "서울대학교", photos: ["a"], agree: true }), []);
+  const text = formatCareerFormResponseForModel({ formId: 90, revision: 2, actionId: "submit", formSnapshot: review,
+    values: { salary: "", school: "서울대학교", photos: ["a"], agree: true, note: "" } } as any);
+  assert.match(text, /Required answers left empty: 희망 연봉 \[salary\]/);
+  assert.match(text, /- salary \| 희망 연봉 \| text \| required/);
 });

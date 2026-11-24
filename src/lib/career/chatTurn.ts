@@ -123,7 +123,7 @@ import {
   formatTalentConversationReferencesForLlm,
 } from "@/lib/career/opportunityFeedbackNote";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
-import { getCareerToolStartThinkingLog } from "@/lib/career/toolThinkingLog";
+import { getCareerToolStartThinkingLog, isCareerApplicationCheckTool } from "@/lib/career/toolThinkingLog";
 import { fetchTalentCompanyContactContext } from "@/lib/companyTalentRequests/server";
 import { withIsMobile } from "@/lib/requestDevice";
 import {
@@ -230,6 +230,8 @@ export type RunCareerChatTurnArgs = {
   onThinkingLog?: (status: string, logs: string[]) => void;
   /** Mirrors the reply checklist where a reloaded chat polls in-progress work. */
   onTurnPlan?: (items: CareerTurnPlanItem[]) => void;
+  /** Mirrors that this reply is reading an application form (see `workApplicationCheck`). */
+  onApplicationCheck?: () => void;
   onTextDelta?: (delta: string) => void | Promise<void>;
   pendingOpportunityFeedbackContext?: string | null;
   proactiveContext?: string | null;
@@ -949,7 +951,8 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
           + (rawUserMessage && !insertedUserMessage ? 1 : 0),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
-      officialJobSignupIntentPrompt: isOnboardingActiveForTurn
+      // A Harper outreach mail's entry record is read after onboarding too (its first chat turns, conversationPlan.ts).
+      officialJobSignupIntentPrompt: isOnboardingActiveForTurn || entrySource.fromMail
         ? entrySource.intentSummary
         : null,
       opportunityStatus,
@@ -1226,6 +1229,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
   // A resumed reply keeps its checklist; show it again to polling readers.
   const resumedPlan = messageWriter?.readPlan();
   if (resumedPlan?.length) args.onTurnPlan?.(resumedPlan);
+  if (messageWriter?.readApplicationCheck()) args.onApplicationCheck?.();
   if (initialActivity) onArtifactMessage(toTalentMessageResponse(initialActivity));
   markLatency("model_prepared");
   let firstTextReceived = false;
@@ -1292,6 +1296,12 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         const shown =
           status ||
           getCareerToolStartThinkingLog(name, responseLocale, toolInput);
+        if (isCareerApplicationCheckTool(name, toolInput)) {
+          args.onApplicationCheck?.();
+          void messageWriter?.applicationCheck().then(row => {
+            if (row) onArtifactMessage(toTalentMessageResponse(row));
+          });
+        }
         if (shown) {
           recordThinkingLog(shown);
         }

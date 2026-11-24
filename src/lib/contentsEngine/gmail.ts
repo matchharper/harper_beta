@@ -128,6 +128,17 @@ function createGmailAuth(access?: GmailAccess) {
   return auth;
 }
 
+/**
+ * The Authorization header for another Google API called as a Workspace user (the same domain-wide delegation; the
+ * scope must be allowed for the service account in the Workspace admin console). Used for Postmaster Tools.
+ */
+export async function workspaceUserAuthorization(mailbox: string, scopes: readonly string[]): Promise<string> {
+  const headers = await createGmailAuth({ mailbox, scopes }).getRequestHeaders();
+  const authorization = headers.get("authorization");
+  if (!authorization) throw new Error("Failed to authorize Google request");
+  return authorization;
+}
+
 async function gmailRequest<T>(
   path: string,
   init: RequestInit = {},

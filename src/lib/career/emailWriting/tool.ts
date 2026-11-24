@@ -162,12 +162,11 @@ export async function executeWriteEmail(
   if(replyThread&&replyThread.at(-1)?.messageId!==replying!.messageId)
     throw new Error("The provider thread has a later message. Read the current thread and choose the current reply source before sending.");
   const files = await prepareAttachments(context, input.documents ?? []);
-  // The candidate summary box the user approved for this email, added by code (후보자 링크).
+  // The candidate summary link the user approved for this email, added by code as a P.S. (후보자 링크).
   const profileLink = input.profile_link
     ? await (await import("@/lib/shareLinks/email.server")).appendEmailProfileLink({ talentId: context.userId, to: input.to, body: input.body, isHtml: input.is_html ?? false, profileLink: input.profile_link })
     : null;
   const body = profileLink?.body ?? input.body;
-  // The summary box is HTML, so a plain mail it was added to goes out as HTML (its words unchanged).
   const isHtml = profileLink?.isHtml ?? input.is_html ?? false;
   const snapshot = {
     to: input.to,

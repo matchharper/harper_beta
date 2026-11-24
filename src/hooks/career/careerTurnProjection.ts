@@ -57,11 +57,12 @@ export function createCareerTurnProjection() {
       const replyId = `invocation:${activity.id}`;
       if (deletedReplies.has(replyId)) continue;
       const prior = observed.get(replyId);
-      groups.set(replyId, prior ? { ...prior, workStartedAt: prior.workStartedAt ?? activity.startedAt, thinkingLogs: activity.logs, ...(activity.events ? { workEvents: activity.events } : {}), ...(activity.plan ? { workPlan: activity.plan } : {}) } : {
+      groups.set(replyId, prior ? { ...prior, workStartedAt: prior.workStartedAt ?? activity.startedAt, thinkingLogs: activity.logs, ...(activity.events ? { workEvents: activity.events } : {}), ...(activity.plan ? { workPlan: activity.plan } : {}), ...(activity.applicationCheck ? { workApplicationCheck: true } : {}) } : {
         id: `activity:${replyId}`, role: "assistant", content: "", messageType: CAREER_TURN_ACTIVITY,
         createdAt: activity.startedAt ?? activity.createdAt ?? "",
         workStartedAt: activity.startedAt, workReplyId: replyId, workPending: true,
         thinkingLogs: activity.logs, workEvents: activity.events, workPlan: activity.plan,
+        ...(activity.applicationCheck ? { workApplicationCheck: true } : {}),
       });
     }
     for (const message of [...messages, ...(snapshot?.turns ?? [])]) {
@@ -181,6 +182,7 @@ export function createCareerTurnProjection() {
           messageType: hasFinal ? "chat" : CAREER_TURN_ACTIVITY,
           workEvents: ownEvents, thinkingLogs: [], workArtifacts: artifacts,
           workPlan: undefined,
+          workApplicationCheck: undefined,
           workBackgroundLogs: last ? message.workBackgroundLogs : [],
           workStartedAt: index ? boundaries[index - 1].createdAt : start,
           workCompletedAt: last ? message.workCompletedAt : boundaries[index].createdAt,
@@ -190,7 +192,10 @@ export function createCareerTurnProjection() {
       // When work ends before a final chat message, its activity owns the footer.
       const lastSegment = segments.at(-1);
       // The checklist describes the reply as a whole; show it once, with its latest part.
-      if (lastSegment) lastSegment.workPlan = message.workPlan;
+      if (lastSegment) {
+        lastSegment.workPlan = message.workPlan;
+        lastSegment.workApplicationCheck = message.workApplicationCheck;
+      }
       if (lastSegment && message.messageType === CAREER_TURN_ACTIVITY && !message.workPending) {
         lastSegment.id = message.id;
       }

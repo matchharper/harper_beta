@@ -3,11 +3,11 @@ import test from "node:test";
 import { planDecisionSchema, type Fit } from "@/lib/externalRecommendationsV2/contract";
 import type { V2SearchPlan } from "@/lib/externalRecommendationsV2/countries";
 import { PLAN_PROMPT } from "@/lib/externalRecommendationsV2/prompts";
-import { cleanPublicDescription } from "../shared";
 import {
-  MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, byRankScore, companyKey, detectLanguage, fitClears,
-  fittingCompanyCount, gtmBrandNames, gtmRoleTitle, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
-  GRADE_CANDIDATES, postingExcluded, postingsFromSelection, publicBatchWorthReading, reviseEvidence, DRY_PUBLIC_READ, ENOUGH_FITS, PUBLIC_READ_MAX, shortfall, withFitScores, withOutreachRecency, withoutNames, type AgentPlanStep,
+  MAX_POSTING_AGE_DAYS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_LOCATION_LABEL, WORK_LOCATION_RULE, byRankScore, companyKey,
+  detectLanguage, fitClears, outreachPlanPrompts, workLocationCondition,
+  fittingCompanyCount, internalCandidate, isExcludedCompany, outreachContext, outreachPlanFields,
+  GRADE_CANDIDATES, postingExcluded, postingsFromSelection, publicBatchWorthReading, reviseEvidence, DRY_PUBLIC_READ, ENOUGH_FITS, PUBLIC_READ_MAX, shortfall, withFitScores, withOutreachRecency, type AgentPlanStep,
   type InternalRoleSource, type PostingMeta, type ScoredPosting,
 } from "./match";
 import type { AgentPersonInput } from "./types";
@@ -34,14 +34,14 @@ const scoredPosting = (roleId: string, companyName: string, value: Fit): ScoredP
 const meta = (roleId: string, companyName: string): PostingMeta =>
   ({ kind: "external", roleId, url: null, companyName, title: "Backend Engineer", location: "Seoul" });
 
-const gtmSource: InternalRoleSource = {
-  role_id: "00000000-0000-4000-8000-000000000001", kind: "gtm", name: "핀테크 스타트업 · Backend Engineer at Hidden Ledger",
-  company_workspace_id: "00000000-0000-4000-8000-0000000000aa", company_name: "Harper 고객사",
-  description: "Hidden Ledger builds payment ledgers. Join Hidden Ledger's core team.", location_text: "Seoul", work_mode: null,
-  type: null, posted_at: null, seniority_level: null, summary: { ko: { content: "Hidden Ledger 요약" } }, salary_min: null,
-  salary_max: null, salary_currency: null, salary_period: null, salary_range: null, company_description: "Hidden Ledger Inc.",
+const customerSource: InternalRoleSource = {
+  role_id: "00000000-0000-4000-8000-000000000001", name: "Backend Engineer",
+  company_workspace_id: "00000000-0000-4000-8000-0000000000aa", company_name: "Customer Co",
+  description: "Customer Co builds payment ledgers.", location_text: "Seoul", work_mode: null,
+  type: null, posted_at: null, seniority_level: null, summary: null, salary_min: null,
+  salary_max: null, salary_currency: null, salary_period: null, salary_range: null, company_description: null,
   company_db_short_description: null, company_db_employee_count_range: null, company_db_founded_year: null,
-  company_db_location: null, public_description: "핀테크 스타트업", gtm_company: "Hidden Ledger",
+  company_db_location: null,
 };
 
 test("language from the person's own words", () => {
@@ -68,8 +68,28 @@ test("the person reads as Career's user context: profile, their post as the brie
   assert.equal(context.search_brief[0].content, person.signalText);
   assert.deepEqual(context.matching_preferences.blocked_companies, ["(주)데모페이"]);
   assert.equal(JSON.stringify(context).includes("지수"), false);
-  const bare = outreachContext({ ...person, currentCompany: null, signalText: null }, []);
+  const bare = outreachContext({ ...person, currentCompany: null, signalText: null, location: null }, []);
   assert.deepEqual([bare.profile.experiences, bare.search_brief], [[], []]);
+});
+
+test("where they can work is a nonnegotiable brief line for the planner, scorer and selector; unknown adds nothing", () => {
+  // Their profile's location alone: the brief's second line, after their post.
+  const context = outreachContext(person, []);
+  assert.equal(context.search_brief.length, 2);
+  assert.equal(context.search_brief[1].label, WORK_LOCATION_LABEL);
+  assert.equal(context.search_brief[1].content, `Based in (their public profile): Seoul\n${WORK_LOCATION_RULE}`);
+  // A place they named in a reply goes with it.
+  const replied = outreachContext({ ...person, location: "Country A", replyWorkLocation: "remote from Country A only" }, []);
+  assert.match(replied.search_brief[1].content, /^Based in \(their public profile\): Country A\nWhere they said they can work, in a reply: remote from Country A only\n/);
+  assert.match(workLocationCondition({ location: null, replyWorkLocation: "City B" })!, /^Where they said they can work, in a reply: City B\n/);
+  // Nothing known: no extra blocking. The replay's "before" leaves the line out too.
+  assert.equal(workLocationCondition({ location: "  ", replyWorkLocation: null }), null);
+  assert.equal(outreachContext({ ...person, location: null }, []).search_brief.length, 1);
+  assert.equal(outreachContext(person, [], { workLocationRule: false }).search_brief.length, 1);
+  // The rule is general (no country names) and makes a silent posting a conflict, not missing information.
+  assert.match(WORK_LOCATION_RULE, /another country counts only when its posting says it hires people in their country or region/);
+  assert.match(WORK_LOCATION_RULE, /nonnegotiable-condition conflict \(constraintPass <= 50\), not as missing information/);
+  assert.doesNotMatch(WORK_LOCATION_RULE, /United States|\bUS\b|Korea|Mexico|India/);
 });
 
 test("the planner is Career's plan prompt plus #5's fields; only an explicit false means not looking", () => {
@@ -77,6 +97,16 @@ test("the planner is Career's plan prompt plus #5's fields; only an explicit fal
   assert.match(OUTREACH_PLAN_PROMPT, /"jobSeeking"/);
   assert.ok(OUTREACH_REVISE_PROMPT.startsWith(OUTREACH_PLAN_PROMPT));
   assert.match(OUTREACH_REVISE_PROMPT, /"reviseReason"/);
+  // Where they can work decides the countries; the replay's "before" prompts are the same without that paragraph.
+  assert.match(OUTREACH_PLAN_PROMPT, /\nWORK LOCATION\ncountries: where they are based/);
+  assert.ok(OUTREACH_PLAN_PROMPT.includes(`"${WORK_LOCATION_LABEL}"`));
+  assert.deepEqual(outreachPlanPrompts(), { plan: OUTREACH_PLAN_PROMPT, revise: OUTREACH_REVISE_PROMPT });
+  const before = outreachPlanPrompts(false);
+  assert.ok(OUTREACH_PLAN_PROMPT.startsWith(before.plan));
+  assert.doesNotMatch(before.plan, /WORK LOCATION/);
+  assert.ok(before.revise.startsWith(before.plan));
+  assert.match(before.revise, /"reviseReason"/);
+  assert.doesNotMatch(before.revise, /WORK LOCATION/);
   assert.deepEqual(outreachPlanFields({ jobSeeking: false, jobSeekingReason: " recruiter  account ", language: "en" }),
     { jobSeeking: false, jobSeekingReason: "recruiter account", language: "en", reviseReason: "" });
   assert.equal(outreachPlanFields({}).jobSeeking, true);
@@ -124,20 +154,10 @@ test("the revise round reads each search, what came back and why the scored post
   assert.ok("scored_postings" in two[1]);
 });
 
-test("a GTM Role reads as Harper 고객사(<설명>) with the real company out of everything the models read", () => {
-  const item = internalCandidate(gtmSource, cleanPublicDescription)!;
-  assert.equal(item.meta.companyName, "Harper 고객사(핀테크 스타트업)");
-  assert.equal(item.row.company_name, "Harper 고객사(핀테크 스타트업)");
-  assert.equal(item.row.role_name, "Backend Engineer at 핀테크 스타트업");
-  assert.equal(JSON.stringify(item.row).includes("Hidden Ledger"), false);
-  assert.equal(item.row.summary, null);
-  assert.equal(item.row.company_workspace_id, `gtm-company:${companyKey("핀테크 스타트업")}`);
-  assert.deepEqual(item.meta.hide, { names: ["Hidden Ledger"], replacement: "핀테크 스타트업" });
-  assert.deepEqual(item.meta.companyNames, ["Hidden Ledger"]);
-  assert.equal(internalCandidate({ ...gtmSource, public_description: null }, cleanPublicDescription), null);
-  const customer = internalCandidate({ ...gtmSource, kind: "customer", name: "Backend Engineer", company_name: "Customer Co", gtm_company: null }, cleanPublicDescription)!;
+test("a customer Role reads by the customer's own name", () => {
+  const customer = internalCandidate(customerSource)!;
   assert.deepEqual([customer.meta.kind, customer.meta.companyName, customer.row.company_workspace_id],
-    ["customer", "Customer Co", gtmSource.company_workspace_id]);
+    ["customer", "Customer Co", customerSource.company_workspace_id]);
 });
 
 test("the selector's picks: known roles, one per company, never the current company, at least 1 or none", () => {
@@ -171,15 +191,6 @@ test("a picked posting keeps the matcher's fit: Career's ranking score and the f
   assert.equal("scoreParts" in third, false);
 });
 
-test("a GTM Role's real company never reaches the why", () => {
-  const gtm = internalCandidate(gtmSource, cleanPublicDescription)!.meta;
-  const metas = new Map<string, PostingMeta>([[gtm.roleId!, gtm], ["e4", meta("e4", "Beta")]]);
-  const [first, second] = postingsFromSelection([{ roleId: gtm.roleId!, note: "Hidden Ledger의 결제 원장 일이 맞아요" }, { roleId: "e4", note: "fit" }], metas, []);
-  assert.equal(first.why, "핀테크 스타트업의 결제 원장 일이 맞아요");
-  assert.equal("hide" in first, false);
-  assert.equal(second.companyName, "Beta");
-});
-
 test("public postings are read while fewer than 10 fit, and stop when the first 30 had none", () => {
   assert.equal(publicBatchWorthReading({ clearing: 0, publicClearing: 0, publicScored: 0 }), true);
   assert.equal(publicBatchWorthReading({ clearing: 9, publicClearing: 4, publicScored: 90 }), true);
@@ -190,59 +201,14 @@ test("public postings are read while fewer than 10 fit, and stop when the first 
   assert.equal(PUBLIC_READ_MAX, 100);
 });
 
-test("a GTM Role's title without its description", () => {
-  assert.equal(gtmRoleTitle("핀테크 스타트업 · Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
-  assert.equal(gtmRoleTitle("Backend Engineer", "핀테크 스타트업"), "Backend Engineer");
-});
-
 test("a Role without a description of its own is never proposed (a customer's private brief is not job text)", () => {
-  const customer = { ...gtmSource, kind: "customer" as const, name: "Backend Engineer", company_name: "Customer Co", gtm_company: null };
-  assert.equal(internalCandidate({ ...customer, description: null }, cleanPublicDescription), null);
-  assert.equal(internalCandidate({ ...customer, description: "   " }, cleanPublicDescription), null);
-  assert.equal(internalCandidate({ ...gtmSource, description: null }, cleanPublicDescription), null);
-  assert.equal(internalCandidate({ ...customer, description: "Build the ledger API." }, cleanPublicDescription)?.row.description, "Build the ledger API.");
+  assert.equal(internalCandidate({ ...customerSource, description: null }), null);
+  assert.equal(internalCandidate({ ...customerSource, description: "   " }), null);
+  assert.equal(internalCandidate({ ...customerSource, description: "Build the ledger API." })?.row.description, "Build the ledger API.");
 });
 
-test("a GTM Role's real company and brand names stay out of its title, text and why, however they are written", () => {
-  const source: InternalRoleSource = {
-    ...gtmSource, gtm_company: "Hidden Ledger Inc.", gtm_ops_name: "Hidden Ledger · Backend Engineer",
-    gtm_source_names: ["(주)히든레저", "Hidden Ledger Korea"],
-    description: "HiddenLedger builds ledgers. hidden-ledger and 히든레저에서 일해요. Hidden Ledger Korea is hiring.",
-  };
-  assert.deepEqual(gtmBrandNames(source), ["Hidden Ledger Korea", "Hidden Ledger Inc.", "Hidden Ledger", "(주)히든레저", "히든레저"]);
-  const item = internalCandidate(source, cleanPublicDescription)!;
-  assert.equal(/hidden|히든/i.test(JSON.stringify(item.row)), false);
-  assert.equal(item.row.description, "핀테크 스타트업 builds ledgers. 핀테크 스타트업 and 핀테크 스타트업에서 일해요. 핀테크 스타트업 is hiring.");
-  const metas = new Map<string, PostingMeta>([[item.meta.roleId!, item.meta], ["e4", meta("e4", "Beta")]]);
-  const [first] = postingsFromSelection([
-    { roleId: item.meta.roleId!, note: "HIDDENLEDGER의 원장 일이 (주)히든레저 팀과 맞아요" }, { roleId: "e4", note: "fit" },
-  ], metas, []);
-  assert.equal(first.why, "핀테크 스타트업의 원장 일이 핀테크 스타트업 팀과 맞아요");
-  assert.equal("companyNames" in first, false);
-  // Whole words only for Latin names: a longer word that contains one is left alone.
-  assert.equal(withoutNames("Kite flies; Kitesurf club; KITE", ["Kite"], "X"), "X flies; Kitesurf club; X");
-});
-
-test("not their own company: a GTM Role by its real company, never by its Harper 고객사 label", () => {
-  const gtm = internalCandidate(gtmSource, cleanPublicDescription)!.meta;
-  assert.equal(postingExcluded(gtm, ["Hidden Ledger Korea"]), true);
-  assert.equal(postingExcluded(gtm, ["(주)Hidden Ledger"]), true);
-  assert.equal(postingExcluded(gtm, ["Harper"]), false);
-  assert.equal(postingExcluded(gtm, ["핀테크 스타트업"]), false);
-  // A customer by the name shown and its workspace name.
-  const customer = internalCandidate({
-    ...gtmSource, kind: "customer", name: "Backend Engineer", company_name: "Shown Name", workspace_name: "Legal Name Corp", gtm_company: null,
-  }, cleanPublicDescription)!.meta;
+test("not their own company: a customer by the name shown and its workspace name", () => {
+  const customer = internalCandidate({ ...customerSource, company_name: "Shown Name", workspace_name: "Legal Name Corp" })!.meta;
   assert.equal(postingExcluded(customer, ["Legal Name"]), true);
   assert.equal(postingExcluded(customer, ["Shown Name"]), true);
-  // The person at the real company of a GTM Role: it is never picked or counted.
-  const metas = new Map<string, PostingMeta>([[gtm.roleId!, gtm], ["e4", meta("e4", "Beta")], ["e5", meta("e5", "Gamma")]]);
-  const picked = postingsFromSelection([{ roleId: gtm.roleId!, note: "fit" }, { roleId: "e4", note: "fit" }, { roleId: "e5", note: "fit" }], metas, ["Hidden Ledger"]);
-  assert.deepEqual(picked.map((posting) => posting.companyName), ["Beta", "Gamma"]);
-  const scored: ScoredPosting[] = [
-    { ...scoredPosting(gtm.roleId!, gtm.companyName, fit(80)), kind: "gtm", companyNames: gtm.companyNames },
-    scoredPosting("e4", "Beta", fit(80)),
-  ];
-  assert.equal(fittingCompanyCount(scored, ["Hidden Ledger"]), 1);
-  assert.equal(fittingCompanyCount(scored, ["Harper"]), 2);
 });

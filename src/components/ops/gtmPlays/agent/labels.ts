@@ -1,11 +1,15 @@
 import { applicantListCompany } from "@/lib/gtmPlays/agent/applicantList";
+import { AGENT_CHANNELS, CHANNEL_LABELS, type AgentChannelKey, type ChannelSettings } from "@/lib/gtmPlays/agent/channels";
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
-import { excludeBucket, type AgentExcludeBucket } from "@/lib/gtmPlays/agent/funnel";
+import { excludeBucket, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import {
   contactOutcome, stageOf, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
 } from "@/lib/gtmPlays/agent/stage";
+import { isGiver } from "@/lib/gtmPlays/agent/funnel";
+import type { SourcingWay } from "@/lib/gtmPlays/agent/companyNumbers";
+import type { ChannelBrake } from "@/lib/gtmPlays/agent/store.server";
 import type {
-  AgentEventKind, AgentExcludeReason, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
+  AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentMethod, AgentPerson, AgentPostingKind, AgentStatus,
 } from "@/lib/gtmPlays/agent/types";
 
 /** Words on the agent screen (plain Korean, no code terms). */
@@ -16,6 +20,8 @@ export function sourceLabel(source: string): string {
   // Rows from before the per-domain sources (local tests): a Harper member, or a page on no known platform.
   if (source === "harper") return "하퍼 회원";
   if (source === "other") return "기타";
+  // People from a bought list (dbSource.server.ts).
+  if (source === "db") return "구매 DB";
   const list = applicantListCompany(source);
   if (list) return `${list} 지원자`;
   try {
@@ -31,6 +37,7 @@ export const METHOD_LABEL: Record<AgentMethod, string> = {
   open_to_work_profile: "구직 중 프로필",
   signal_post: "구직 글",
   layoff_company: "구조조정 회사 출신",
+  db: "구매 DB",
 };
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {
@@ -62,6 +69,8 @@ export const EXCLUDE_LABEL: Record<AgentExcludeReason, string> = {
   lookup_other_person: "다른 사람 메일",
   lookup_skipped: "찾지 않음 (구직 신호 약함)",
   no_email: "이메일 없음",
+  no_mx: "메일을 받지 않는 주소",
+  giver: "돕는 쪽 (회사 쪽에 씀)",
 };
 
 /** Why a person is in 제외 on the numbers: the rule, or no fitting companies, left out by Ops, a failed send. */
@@ -71,6 +80,24 @@ export const EXCLUDE_BUCKET_LABEL: Record<AgentExcludeBucket, string> = {
   skipped: "직접 뺌",
   failed: "보내다 오류",
 };
+
+/** Which kind of giver (gtm_agent_people.giver_kind): kept for the company side, never sent a candidate's mail. */
+export const GIVER_KIND_LABEL: Record<AgentGiverKind, string> = {
+  hiring_leader: "채용하는 대표·리더", recruiter: "리크루터", coach: "코치·멘토", event_host: "행사 주최",
+};
+
+/** 수치 · 회사's 회사 소싱 rows: how the company was found (agent/companyNumbers.ts sourcingWayOf). */
+export const SOURCING_WAY_LABEL: Record<SourcingWay, string> = {
+  company_search: "LinkedIn 채용 글", candidate_search: "후보 검색에서 찾은 대표",
+};
+
+/** The channels the brake turned off that are still off, with why (the red lines above the settings, and each row). */
+export function brakedChannels(channels: ChannelSettings, brakes: Partial<Record<AgentChannelKey, ChannelBrake>>) {
+  return AGENT_CHANNELS.flatMap((key) => {
+    const brake = brakes[key];
+    return !channels[key]?.enabled && brake?.reason ? [{ channel: key, label: CHANNEL_LABELS[key], reason: brake.reason, at: brake.at }] : [];
+  });
+}
 
 /** The stage words, the same as the numbers' columns (찾음 − 제외 − 연락 = 처리 중). */
 export const STAGE_LABEL: Record<AgentStage, string> = {
@@ -89,11 +116,23 @@ export const CONTACT_OUTCOME_LABEL: Record<ContactOutcome, string> = {
   sent: "반응 없음",
 };
 
+/**
+ * Each number column's header word (수치 · 후보, Shaun 11/17: the same words everywhere for the same thing); the log's
+ * 상태 filter lists them and applies stage.ts filtersForColumn, so a word picks the people its number counts. 가입's
+ * header adds "(가입률)" for the rate in its cells.
+ */
+export const COLUMN_LABEL: Record<FunnelColumn, string> = {
+  found: "찾음", excluded: "제외", contacted: "연락", clicked: "클릭", signedUp: "가입", interested: "관심·지원",
+  connected: "회사 연결", bounced: "반송", complained: "스팸 신고", unsubscribed: "수신 거부", replied: "답장",
+  ashleyReplied: "Ashley 답함", noReply: "답 안 함", handedOff: "사람에게 넘김", signedUpAfterReply: "답장 후 가입",
+  lookupTried: "이메일 찾기", withAddress: "연락 가능",
+};
+
 /** The 메일 반응 filter: the numbers' column names, plus 반응 없음 · 수신 거부 · 반송. */
 export const AFTER_FILTER_LABEL: Record<LogAfterFilter, string> = {
   none: "반응 없음", clicked: "클릭", signed_up: "가입", interested: "관심·지원", connected: "회사 연결",
-  replied: "답장", ashley_replied: "Ashley 답함", no_reply: "답 안 함", signed_up_after_reply: "답장 후 가입",
-  unsubscribed: "수신 거부", bounced: "반송",
+  replied: "답장", ashley_replied: "Ashley 답함", no_reply: "답 안 함", handed_off: "사람에게 넘김",
+  signed_up_after_reply: "답장 후 가입", unsubscribed: "수신 거부", bounced: "반송", complained: "스팸 신고",
 };
 
 /** A handle from a profile link when the page shows one (/in/<id>, /@<id>, <id>.tistory.com, blog.naver.com/<id>). */
@@ -128,12 +167,14 @@ export function personName(person: { name?: string | null; profileUrl?: string |
 
 /**
  * Where a person stands: the stage word (the numbers' sets) and the step inside it ("처리 중 · 이메일 찾는 중",
- * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴", "답장 · 연락 그만 요청").
+ * "제외 · 맞는 회사가 2곳이 안 됨", "연락 · 클릭함", "답장 · 답장 옴", "답장 · 연락 그만 요청"); a giver, who is in no
+ * candidate number, "돕는 쪽 · 리크루터".
  */
 export function personStage(person: Pick<AgentPerson, "status" | "excludeReason" | "emailLookup" | "email" | "events" | "sentAt" | "repliedAt"> & {
-  reached?: AgentReached | null;
+  giverKind?: AgentGiverKind | null; reached?: AgentReached | null;
 }): { stage: AgentStage; label: string; detail: string | null } {
   const stage = stageOf(person);
+  if (isGiver(person)) return { stage, label: "돕는 쪽", detail: person.giverKind ? GIVER_KIND_LABEL[person.giverKind] : null };
   const detail = ((): string | null => {
     // A reply that asked not to be contacted again (by Ops' button or found in the reply): the address is opted out.
     if (stage === "replied") return person.events.some((event) => event.kind === "unsubscribed") ? "연락 그만 요청" : "답장 옴";
@@ -155,7 +196,6 @@ export function personStage(person: Pick<AgentPerson, "status" | "excludeReason"
 export const POSTING_KIND_LABEL: Record<AgentPostingKind, string> = {
   external: "외부 공고",
   customer: "하퍼 고객사",
-  gtm: "직접 넣은 공고",
 };
 
 export const EVENT_LABEL: Record<AgentEventKind, string> = {

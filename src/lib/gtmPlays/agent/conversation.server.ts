@@ -1,6 +1,7 @@
 import "server-only";
 
 import { gtmRead, gtmWrite } from "../db.server";
+import { kstDayWindow } from "../sendLimit";
 import type {
   AshleyDecisionKind, ConversationMessage, ConversationStore, CounterpartKind, HistoryEntry, InterestSignal, MessageAuthor,
 } from "./conversation";
@@ -170,10 +171,28 @@ export async function saveInbound(input: SaveInboundInput): Promise<Conversation
   return (await storeInbound(input)).message;
 }
 
-export async function listUndecidedInbound(limit: number): Promise<ConversationMessage[]> {
+export async function listUndecidedInbound(
+  limit: number, opts: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date; onlyMembers?: boolean } = {},
+): Promise<ConversationMessage[]> {
+  const email = opts.counterpartEmail?.trim().toLowerCase();
+  const day = opts.notMailedOn ? kstDayWindow(opts.notMailedOn) : null;
   const rows = await gtmRead((sql) => sql<MessageRow[]>`
-    select * from public.gtm_agent_messages
-    where decision is null and direction = 'inbound' and author = 'counterpart'
+    select * from (
+      select ${opts.firstPerAddress ? sql`distinct on (lower(m.counterpart_email))` : sql``} m.*
+      from public.gtm_agent_messages m
+      where m.decision is null and m.direction = 'inbound' and m.author = 'counterpart'
+        ${email ? sql`and lower(m.counterpart_email) = ${email}` : sql``}
+        ${opts.onlyMembers ? sql`and m.counterpart_kind = 'candidate' and exists (
+          select 1 from public.talent_users t where lower(t.email) = lower(m.counterpart_email) and t.deleted_at is null
+        )` : sql``}
+        ${day ? sql`and not exists (
+          select 1 from public.gtm_agent_messages o
+          where o.author = 'ashley' and o.direction = 'outbound' and o.send_status = 'sent'
+            and lower(o.counterpart_email) = lower(m.counterpart_email)
+            and o.occurred_at >= ${new Date(day.start)} and o.occurred_at < ${new Date(day.end)}
+        )` : sql``}
+      order by ${opts.firstPerAddress ? sql`lower(m.counterpart_email),` : sql``} m.occurred_at, m.created_at
+    ) undecided
     order by occurred_at, created_at limit ${Math.max(1, Math.floor(limit))}::int
   `);
   return rows.map(mapMessage);
@@ -184,6 +203,14 @@ export async function recordDecision(messageId: string, decision: AshleyDecision
   await gtmWrite((sql) => sql`
     update public.gtm_agent_messages
     set decision = ${decision}, decision_reason = ${reason.slice(0, 2_000)}, decided_at = now(), signals = ${sql.json(signals as never)}::jsonb
+    where id = ${messageId}::uuid and direction = 'inbound' and decision is null
+  `);
+}
+
+/** An undecided mail's signals, while its reply waits for the company mail they start (the decision comes later). */
+export async function holdSignals(messageId: string, signals: InterestSignal[]): Promise<void> {
+  await gtmWrite((sql) => sql`
+    update public.gtm_agent_messages set signals = ${sql.json(signals as never)}::jsonb
     where id = ${messageId}::uuid and direction = 'inbound' and decision is null
   `);
 }
@@ -238,6 +265,33 @@ export async function markFailed(messageId: string, error: string, held = false)
   `);
 }
 
+/** An Ashley mail that answers no mail of theirs, recorded as sent (ConversationStore.recordSent). */
+export async function recordSent(mail: Parameters<NonNullable<ConversationStore["recordSent"]>>[0]): Promise<void> {
+  await gtmWrite((sql) => sql`
+    insert into public.gtm_agent_messages ${sql({
+      person_id: mail.personId, counterpart_kind: mail.counterpartKind, counterpart_email: mail.counterpartEmail.trim().toLowerCase(),
+      author: "ashley", direction: "outbound", in_reply_to: mail.inReplyTo, references_header: mail.references, subject: mail.subject,
+      body_text: mail.bodyText, new_text: mail.bodyText, root_mail_id: mail.rootMailId, send_status: "sent",
+      provider_message_id: mail.providerMessageId, rfc_message_id: headerMessageId(mail.rfcMessageId),
+    } as never)}
+  `);
+}
+
+/** An Ashley mail to this address went out on now's Korea-time day (sent rows only: occurred_at is when it went). */
+export async function ashleyMailedToday(counterpartEmail: string, now: Date): Promise<boolean> {
+  const email = counterpartEmail.trim().toLowerCase();
+  if (!email) return false;
+  const day = kstDayWindow(now);
+  const [row] = await gtmRead((sql) => sql<Array<{ mailed: boolean }>>`
+    select exists (
+      select 1 from public.gtm_agent_messages
+      where author = 'ashley' and send_status = 'sent' and lower(counterpart_email) = ${email}
+        and occurred_at >= ${new Date(day.start)} and occurred_at < ${new Date(day.end)}
+    ) as mailed
+  `);
+  return Boolean(row?.mailed);
+}
+
 /** Every mail with this address (conversationRules.ts mergeHistory): our mails that went out + the conversation rows. */
 export async function history(counterpartEmail: string, opts: { limit?: number; threadKey?: string } = {}): Promise<HistoryEntry[]> {
   const email = counterpartEmail.trim().toLowerCase();
@@ -283,18 +337,6 @@ export async function personAnswered(rootMailId: string, since?: string): Promis
   return Boolean(row?.answered);
 }
 
-export async function hasNewerInbound(message: Pick<ConversationMessage, "id" | "counterpartEmail" | "occurredAt">): Promise<boolean> {
-  const [row] = await gtmRead((sql) => sql<Array<{ newer: boolean }>>`
-    select exists (
-      select 1 from public.gtm_agent_messages n
-      where n.direction = 'inbound' and n.author = 'counterpart' and n.id <> ${message.id}::uuid
-        and lower(n.counterpart_email) = ${message.counterpartEmail.trim().toLowerCase()}
-        and n.occurred_at > ${new Date(message.occurredAt)}
-    ) as newer
-  `);
-  return Boolean(row?.newer);
-}
-
 export async function interestSignals(opts: { postingUrl?: string; since?: string } = {}): Promise<InterestSignal[]> {
   const rows = await gtmRead((sql) => sql<Array<{ id: string; occurred_at: string | Date; signals: unknown }>>`
     select id, occurred_at, signals from public.gtm_agent_messages
@@ -306,18 +348,89 @@ export async function interestSignals(opts: { postingUrl?: string; since?: strin
   return flattenSignals(rows.map((row) => ({ id: row.id, occurredAt: iso(row.occurred_at), signals: row.signals })), opts);
 }
 
+/**
+ * Members' mails routed to their Harper chat (decided `memberReason`) in the last `days` days, oldest first, that
+ * Ashley still owes a word on: a Harper turn has the mail (memberRoute.server.ts admits it as one); the thread's first
+ * mail went to the address that wrote; nobody wrote after it (an Ashley mail that went, or a person's answer);
+ * Ashley's mail about it is not in their chat yet; and the person has not seen it in Harper since (no message of
+ * theirs in that chat after it, no Harper mail to them after it). Each with its chat row (payload gtmAgentMessageId)
+ * and whether that turn answered it (it ended, and its words or a card it put up for the person are in the chat).
+ */
+export async function routedMemberMails(limit: number, memberReason: string, days: number): Promise<Array<{
+  inbound: ConversationMessage; userId: string; conversationId: string; chatMessageId: string; routedAt: string; harperAnswered: boolean;
+}>> {
+  const rows = await gtmRead((sql) => sql<Array<MessageRow & {
+    member_user_id: string; member_conversation_id: string; chat_message_id: string; routed_at: string | Date; harper_answered: boolean;
+  }>>`
+    select m.*, tm.user_id::text as member_user_id, tm.conversation_id::text as member_conversation_id, tm.id::text as chat_message_id,
+      tm.created_at as routed_at,
+      coalesce(turn.status = 'completed' and (
+        exists (
+          select 1 from public.talent_messages a
+          where a.conversation_id = tm.conversation_id and a.role = 'assistant' and a.message_type = 'chat' and a.id > tm.id
+            and a.payload -> 'agentTurn' ->> 'replyId' = 'invocation:' || turn.id::text
+        ) or exists (
+          select 1 from public.talent_messages f
+          where f.conversation_id = tm.conversation_id and f.role = 'assistant' and f.message_type = 'career_form' and f.id > tm.id
+        )
+      ), false) as harper_answered
+    from public.gtm_agent_messages m
+    join public.gtm_mails r on r.id = m.root_mail_id and lower(btrim(r.to_email)) = lower(m.counterpart_email)
+    join public.talent_users u on lower(u.email) = lower(m.counterpart_email) and u.deleted_at is null
+    join lateral (
+      select t.id, t.user_id, t.conversation_id, t.created_at, t.payload
+      from public.talent_conversations c
+      join public.talent_messages t on t.conversation_id = c.id and t.message_type = 'mail' and t.role = 'user'
+        and t.payload ->> 'gtmAgentMessageId' = m.id::text
+      where c.user_id = u.user_id
+      order by t.id limit 1
+    ) tm on true
+    join lateral (
+      select o.id, o.status from public.talent_external_operations o
+      where o.user_id = tm.user_id and o.conversation_id = tm.conversation_id and o.kind = 'career_invocation'
+        and o.request -> 'input_message_ids' @> to_jsonb(tm.id)
+      order by o.created_at desc limit 1
+    ) turn on true
+    where m.direction = 'inbound' and m.author = 'counterpart' and m.counterpart_kind = 'candidate'
+      and m.decision = 'no_reply' and m.decision_reason = ${memberReason}
+      and m.occurred_at > now() - make_interval(days => ${Math.max(1, Math.floor(days))}::int)
+      and not exists (
+        select 1 from public.gtm_agent_messages o
+        where lower(o.counterpart_email) = lower(m.counterpart_email) and o.occurred_at > m.occurred_at
+          and (o.author = 'human' or (o.author = 'ashley' and o.direction = 'outbound' and o.send_status = 'sent'))
+      )
+      and not exists (
+        select 1 from public.talent_messages n
+        where n.conversation_id = tm.conversation_id and n.role = 'assistant' and n.message_type = 'system' and n.id > tm.id
+          and n.payload -> 'gtmAgentMemberRedirect' -> 'inboundMessageIds' ? m.id::text
+      )
+      and not exists (
+        select 1 from public.talent_messages b
+        where b.conversation_id = tm.conversation_id and b.id > tm.id
+          and ((b.role = 'user' and coalesce(b.message_type, 'chat') <> 'mail') or (b.role = 'assistant' and b.message_type = 'mail'))
+      )
+    order by m.occurred_at, m.created_at limit ${Math.max(1, Math.floor(limit))}::int
+  `);
+  return rows.map((row) => ({
+    inbound: mapMessage(row), userId: row.member_user_id, conversationId: row.member_conversation_id, chatMessageId: row.chat_message_id,
+    routedAt: iso(row.routed_at), harperAnswered: Boolean(row.harper_answered),
+  }));
+}
+
 export const conversationStore: ConversationStore = {
-  saveInbound, listUndecidedInbound, recordDecision, queueReply, markSent, markFailed, history, personAnswered, hasNewerInbound,
-  interestSignals,
+  saveInbound, listUndecidedInbound, recordDecision, holdSignals, queueReply, markSent, markFailed, recordSent, ashleyMailedToday, history,
+  personAnswered, interestSignals,
 };
 
 /**
  * The inbound mails Ashley's reply agent decides on this dispatcher tick (after the reply sync), oldest first; none
  * before the table exists (the tick goes on).
  */
-export async function undecidedInboundForTick(limit: number): Promise<ConversationMessage[]> {
+export async function undecidedInboundForTick(
+  limit: number, opts: Parameters<typeof listUndecidedInbound>[1] = {},
+): Promise<ConversationMessage[]> {
   try {
-    return await listUndecidedInbound(limit);
+    return await listUndecidedInbound(limit, opts);
   } catch (error) {
     if ((error as { code?: string }).code === MISSING_TABLE) return [];
     throw error;

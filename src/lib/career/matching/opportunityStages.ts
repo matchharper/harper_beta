@@ -1,5 +1,5 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
-import { updateTalentOpportunityHistoryItem } from "@/lib/talentOpportunity";
+import { updateTalentOpportunityHistoryItem, type TalentOpportunityStageActor } from "@/lib/talentOpportunity";
 
 const stages = ["saved", "applied", "connected", "offer", "closed", "hidden"] as const;
 
@@ -8,6 +8,8 @@ export async function setOpportunityStages(args: {
   admin: TalentAdminClient;
   userId: string;
   items?: Array<Record<string, unknown>>;
+  /** harper: recorded from the conversation (set_stage); harper_submission: a browser run's confirmed receipt. */
+  actor?: Extract<TalentOpportunityStageActor, "harper" | "harper_submission">;
 }) {
   if (!args.items?.length) throw new Error("set_stage requires existing opportunity items");
   const stageUpdates = [];
@@ -27,7 +29,7 @@ export async function setOpportunityStages(args: {
       if (!data) throw new Error("Owned opportunity not found");
       const receipt = await updateTalentOpportunityHistoryItem({
         admin: args.admin, userId: args.userId, opportunityId: data.id,
-        action: "saved_stage", savedStage,
+        action: "saved_stage", savedStage, stageActor: args.actor ?? "harper",
       });
       stageUpdates.push({ recommendationId: data.id, roleId: data.role_id ?? data.company_workspace_id, savedStage, updatedAt: receipt.updatedAt });
     } catch (error) {

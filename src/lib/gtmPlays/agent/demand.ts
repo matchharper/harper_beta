@@ -4,7 +4,7 @@
  * fitting posting, so the planner aims at the careers Harper has open postings for, in
  * proportion to how many companies hire for them, and the judge scores how likely a seeker's career fits them.
  *
- * The demand is read once per run (demand.server.ts, from the matcher's own pools: open customer and GTM Roles, and
+ * The demand is read once per run (demand.server.ts, from the matcher's own pools: open customer Roles, and
  * the public postings the matcher's search can return) and summarized here by role family × level × place, with the
  * industries the titles and company lines name and a few example titles. No model call: titles are sorted by the
  * same rules for every run. Pure.
@@ -126,11 +126,11 @@ export function industriesOf(...texts: Array<string | null | undefined>): string
 
 /** One open posting (or a group of same-titled ones) as the demand reads it. */
 export type DemandPosting = {
-  kind: "external" | "customer" | "gtm";
+  kind: "external" | "customer";
   title: string;
   /** How many postings this row stands for (a group of same-titled public postings), at least 1. */
   count?: number;
-  /** The companies posting it (workspace ids; a GTM Role's company is its public description): fits count by company. */
+  /** The companies posting it (workspace ids): fits count by company. */
   companies: readonly string[];
   seniorityLevel: string | null;
   countryCode: string | null;
@@ -146,7 +146,7 @@ export type DemandFamily = {
   postings: number;
   /** Different companies hiring for it: a person needs fitting postings at 2 of them. */
   companies: number;
-  /** Of the postings, customers' and GTM Roles. */
+  /** Of the postings, customers' Roles. */
   internal: number;
   /** Most postings first. */
   segments: DemandSegment[];

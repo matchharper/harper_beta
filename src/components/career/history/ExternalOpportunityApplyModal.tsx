@@ -145,28 +145,18 @@ export default function ExternalOpportunityApplyModal({
           </div>
         ) : (
           <div className="flex w-full flex-col gap-2">
-            <MuteButton
-              className="w-full"
-              size="lg"
-              disabled={busy}
-              aria-busy={applying}
-              onClick={() =>
-                void apply(async () => {
-                  const url = item.externalJdUrl ?? item.href;
-                  if (url) onOpenLink(url);
-                  if ((await onSave("applied")) !== true) return false;
-                  onClose();
-                  onApplied();
-                  return true;
-                })
-              }
-            >
-              {t(
-                "career.history.external_application.direct",
-                "채용 페이지에서 지원"
-              )}
-              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-            </MuteButton>
+            {/* Opening the page is not applying: 지원함 is the candidate's '직접 지원했어요' or Harper's confirmed run. */}
+            {postUrl ? (
+              <MuteButton
+                className="w-full"
+                size="lg"
+                disabled={busy}
+                onClick={() => onOpenLink(postUrl)}
+              >
+                {t("career.history.external_application.open", "채용 페이지 열기")}
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+              </MuteButton>
+            ) : null}
             <ApplyWithHarperButton
               item={item}
               className="w-full"
@@ -183,6 +173,23 @@ export default function ExternalOpportunityApplyModal({
                 "Harper와 지원하기"
               )}
             </ApplyWithHarperButton>
+            <MuteButton
+              className="w-full"
+              size="lg"
+              variant="transparent"
+              disabled={busy}
+              aria-busy={applying}
+              onClick={() =>
+                void apply(async () => {
+                  if ((await onSave("applied")) !== true) return false;
+                  onClose();
+                  onApplied();
+                  return true;
+                })
+              }
+            >
+              {t("career.history.external_application.applied_myself", "직접 지원했어요")}
+            </MuteButton>
           </div>
         )
       }

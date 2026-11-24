@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import test from "node:test";
-import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
+import { browserRunAwaitsEmailCode, browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import type { ExternalOperation } from "../externalOperations/store";
 
 // The stage executor's modules are server-only and create a server client on import; no request reaches it here.
@@ -35,7 +35,7 @@ function adminWith(rows: { id: string; saved_stage: string | null }[]) {
     return query;
   };
   const rpc = async (name: string, args: Record<string, unknown>) => {
-    if (name === "move_talent_role_saved_stage_v1") moved.push(args);
+    if (name === "move_talent_role_saved_stage_v2") moved.push(args);
     return { data: null, error: null };
   };
   return { admin: { from, rpc } as any, moved };
@@ -48,6 +48,15 @@ test("the receipt is read case-insensitively and unknown values are not a receip
   assert.equal(browserRunSubmission({}), null);
 });
 
+test("only an unsubmitted run at an emailed code screen awaits an email code", () => {
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: " Email ", submitted: "no" }), true);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "email" }), true);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "email", submitted: "yes" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "phone", submitted: "no" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ verificationCode: "none" }), false);
+  assert.equal(browserRunAwaitsEmailCode({ summary: "The site emailed a verification code." }), false);
+});
+
 test("a confirmed submission moves only saved or unstaged opportunities to applied", async () => {
   const { admin, moved } = adminWith([
     { id: "rec-saved", saved_stage: "saved" },
@@ -56,7 +65,8 @@ test("a confirmed submission moves only saved or unstaged opportunities to appli
     { id: "rec-hidden", saved_stage: "hidden" },
   ]);
   const updates = await markSubmittedApplications({ admin, userId }, run({ submitted: "yes" }));
-  assert.deepEqual(moved.map(args => [args.p_recommendation_id, args.p_saved_stage]), [["rec-saved", "applied"], ["rec-new", "applied"]]);
+  assert.deepEqual(moved.map(args => [args.p_recommendation_id, args.p_saved_stage, args.p_actor]),
+    [["rec-saved", "applied", "harper_submission"], ["rec-new", "applied", "harper_submission"]]);
   assert.equal(updates.length, 2);
 });
 

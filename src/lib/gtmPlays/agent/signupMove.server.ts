@@ -1,7 +1,11 @@
 import "server-only";
 
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
+import { ASHLEY_NOTE } from "./ashleyAgent";
+import { storedOffer } from "./channels";
 import type { ConversationStore } from "./conversation";
+import { storedEvents } from "./events";
+import type { AgentEvent } from "./types";
 import { history } from "./conversation.server";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY,
@@ -27,14 +31,23 @@ export function signupMoveDeps(admin: TalentAdminClient, history: ConversationSt
   const db = untyped(admin);
   return {
     async readMail(mailId) {
-      const { data, error } = await db.from("gtm_mails").select("id,campaign,audience,status,provider_message_id,to_email,postings")
-        .eq("id", mailId).maybeSingle();
+      const columns = "id,campaign,audience,status,provider_message_id,to_email,postings,agent_person_id";
+      let { data, error } = await db.from("gtm_mails").select(`${columns},events`).eq("id", mailId).maybeSingle();
+      // Before the 11/23 migration gtm_mails has no events column: the mail is read without it.
+      if (error?.code === "42703") ({ data, error } = await db.from("gtm_mails").select(columns).eq("id", mailId).maybeSingle());
       if (error) throw error;
       const row = data as { id: string; campaign: string; audience: string; status: string; provider_message_id: string | null;
-        to_email: string | null; postings: MailPosting[] | null } | null;
+        to_email: string | null; postings: MailPosting[] | null; agent_person_id: string | null; events?: unknown } | null;
       const wentOut = row && (row.status === "sent" || (row.status === "sending" && Boolean(row.provider_message_id?.trim())));
       if (!row || row.campaign !== "agent" || row.audience !== "candidate" || !wentOut || !row.to_email) return null;
-      return { id: row.id, toEmail: row.to_email, postings: Array.isArray(row.postings) ? row.postings : [] };
+      // What the first mail offered (coaching mails go to the chat first, signupLanding): a follow-up carries its person too.
+      let offer = storedOffer(null);
+      if (row.agent_person_id) {
+        const { data: person, error: personError } = await db.from("gtm_agent_people").select("message_kind").eq("id", row.agent_person_id).maybeSingle();
+        if (personError) console.error("[gtm-agent] signup offer", row.id, personError);
+        offer = storedOffer((person as { message_kind?: string | null } | null)?.message_kind);
+      }
+      return { id: row.id, toEmail: row.to_email, postings: Array.isArray(row.postings) ? row.postings : [], offer, events: storedEvents(row.events) };
     },
     async readAccount(userId) {
       // From Auth itself, not the request's token: the verified flag must be the real one.
@@ -86,6 +99,37 @@ export function signupMoveDeps(admin: TalentAdminClient, history: ConversationSt
         summary: row.summary, changedDomains: ["official_job_intent", "onboarding"], impactLevel: "high",
       });
     },
+    async offeredPostings(mailId) {
+      const { data, error } = await db.from("gtm_agent_people").select("events").eq("mail_id", mailId).limit(1).maybeSingle();
+      if (error) throw error;
+      const events = Array.isArray((data as { events?: unknown } | null)?.events) ? (data as { events: AgentEvent[] }).events : [];
+      return [...new Set(events.flatMap((event) => (event?.kind === "note" && event.note?.startsWith(ASHLEY_NOTE.searched) && Array.isArray(event.postings)
+        ? event.postings.filter((url): url is string => typeof url === "string" && /^https?:\/\//i.test(url)) : [])))].slice(0, 8);
+    },
+    async addContent(row) {
+      const url = String(row.item.url ?? "");
+      const [{ careerContentJobPostingUrl }, { parseCareerJobUrl }, { manageCareerContentSuggestion }] = await Promise.all([
+        import("@/lib/career/contentSuggestionsTool"), import("@/lib/career/jobLinkImport"), import("@/lib/career/contentSuggestions.server"),
+      ]);
+      // As the chat's manage_content_suggestions saves it: a job posting never goes here, and the link is canonical.
+      if (careerContentJobPostingUrl(url)) return;
+      let canonical: string;
+      try {
+        canonical = parseCareerJobUrl(url).canonicalUrl;
+      } catch {
+        return;
+      }
+      try {
+        // harper_offer: the mail offered it and they joined from that mail.
+        await manageCareerContentSuggestion({ admin, userId: row.userId }, {
+          operation: "add", item: { ...row.item, url: canonical }, origin: "harper_offer", conversationId: row.conversationId,
+        });
+      } catch (error) {
+        // An event that ended meanwhile, or a date the list does not take, is expected: nothing to save.
+        const message = String((error as { message?: unknown } | null)?.message ?? error);
+        if (!/Event date required|Event already ended|Deadline passed|Invalid content suggestion/.test(message)) throw error;
+      }
+    },
     async addPosting(userId, url) {
       const { gtmImportablePostingUrl } = await import("../candidateMail.server");
       const importable = gtmImportablePostingUrl(url);
@@ -112,10 +156,11 @@ export async function runGtmSignupMove(args: {
   try {
     const deps = signupMoveDeps(args.admin, conversationHistory(), args.locale);
     const moved = await moveMailConversation(deps, args);
-    // The mail's own recipient joined: a company that was promised "once they join, I'll connect you" needs a person.
+    // The mail's own recipient joined: the join is recorded on the pairs whose company was promised "once they join,
+    // I'll connect you", and Ashley's tick tells the company (ashleyAgent.ts tellJoinedCompanies; no person needed).
     if (moved.status !== "not_found" && moved.status !== "other_address") {
-      const { handOffJoinedRelays } = await import("./ashleyHandoff.server");
-      await handOffJoinedRelays(args.mailId);
+      const { noteJoinedRelays } = await import("./ashleyHandoff.server");
+      await noteJoinedRelays(args.mailId);
     }
     return moved;
   } catch (error) {

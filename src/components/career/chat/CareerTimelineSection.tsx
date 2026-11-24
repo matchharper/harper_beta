@@ -83,6 +83,7 @@ import { RecommendationSearchStatusPanel } from "./elements/RecommendationSearch
 import { ThinkingLogPanel } from "./elements/ThinkingLogPanel";
 import { CareerTurnPlan } from "./CareerTurnPlan";
 import { CareerWorkActivity, CareerWorkActivityStatus } from "./CareerWorkActivity";
+import { CareerGmailWaitOffer } from "./CareerGmailWaitOffer";
 import { TimelinePendingPanel } from "./elements/TimelinePendingPanel";
 import {
   CareerCoachingActivityCard,
@@ -367,6 +368,9 @@ const TimelineMessageRow = memo(function TimelineMessageRow({
       )}
       {!isUser && message.workPlan?.length ? (
         <CareerTurnPlan items={message.workPlan} active={Boolean(message.workPending || isAssistantStreamActive)} />
+      ) : null}
+      {!isUser && message.workApplicationCheck && message.workReplyId ? (
+        <CareerGmailWaitOffer replyId={message.workReplyId} active={Boolean(message.workPending || isAssistantStreamActive)} />
       ) : null}
       {message.workArtifacts?.map(artifact => (
         artifact.browserSession ? (

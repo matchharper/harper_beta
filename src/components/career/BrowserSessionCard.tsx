@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { MuteButton } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { useCareerT } from "@/i18n/useCareerT";
 import { ChevronDown, ChevronUp, X } from "lucide-react";
@@ -12,12 +13,15 @@ import {
 } from "./BrowserPreviewFrame";
 
 export type BrowserSessionViewData = {
-  session: { id: string; status: string; revision: number; title?: string };
+  // savedLoginOffer: the user controls a browser that started without saved login, and saved login is off.
+  session: { id: string; status: string; revision: number; title?: string; savedLoginOffer?: boolean };
   executions: { id: string; status: string; result: { summary?: string } }[];
   liveUrl: string | null;
   observationFailed?: boolean;
   browserAvailability?: "active" | "stopped" | "unknown";
 };
+
+export type BrowserSessionAction = "handoff" | "resume" | "close" | "save_login";
 
 export function BrowserSessionView({
   view,
@@ -34,7 +38,7 @@ export function BrowserSessionView({
   view?: BrowserSessionViewData;
   busy?: boolean;
   error?: string | null;
-  onAction: (action: "handoff" | "resume" | "close") => void | Promise<void>;
+  onAction: (action: BrowserSessionAction) => void | Promise<void>;
   expanded?: boolean;
   onExpand?: () => void;
   number?: number;
@@ -46,6 +50,7 @@ export function BrowserSessionView({
   const [pendingAction, setPendingAction] = useState<
     "handoff" | "close" | null
   >(null);
+  const [pendingSavedLogin, setPendingSavedLogin] = useState(false);
   const human = view?.session.status === "human";
   const closed = view?.session.status === "closed";
   const stopped =
@@ -154,6 +159,24 @@ export function BrowserSessionView({
             </BrowserPreviewAction>
           </div>
         ) : null}
+        {human && !stopped && view?.session.savedLoginOffer ? (
+          <div className="col-span-2">
+            <Checkbox
+              checked={busy && pendingSavedLogin}
+              disabled={busy || preview}
+              onChange={(event) => {
+                if (!event.currentTarget.checked) return;
+                setPendingSavedLogin(true);
+                void Promise.resolve(onAction("save_login")).finally(() => setPendingSavedLogin(false));
+              }}
+              label={t("career.browser.savedLogin.label", "다음 지원부터 로그인 유지하기")}
+              helperText={t(
+                "career.browser.savedLogin.help",
+                "로그인 전에 체크해 주세요. 로그인이 저장되는 브라우저로 이 화면을 다시 열어요. 하퍼에게 말하면 언제든 지울 수 있어요."
+              )}
+            />
+          </div>
+        ) : null}
         {human && !stopped ? (
           <MuteButton
             type="button"
@@ -259,7 +282,7 @@ export function BrowserSessionCard({ sessionId }: { sessionId: string }) {
     retry: false,
     gcTime: 0,
   });
-  const act = async (action: "handoff" | "resume" | "close") => {
+  const act = async (action: BrowserSessionAction) => {
     setBusy(true);
     setActionError(false);
     try {

@@ -12,10 +12,12 @@ export const INTERNAL_PROGRESS_STAGES = {
   "내부:거절": "rejected",
 } as const;
 
+// A card whose progress ended (closed: 탈락·포기·종료) is not new: it moves to 저장 탭's 진행 종료, whatever its
+// feedback, instead of staying in 새 기회 until the person reacts to it.
 export const historyPredicates = {
-  new: "list_position = 'current' AND (feedback IS NULL OR feedback = 'dislike') AND saved_stage IS DISTINCT FROM 'hidden'",
+  new: "list_position = 'current' AND (feedback IS NULL OR feedback = 'dislike') AND saved_stage IS DISTINCT FROM 'hidden' AND saved_stage IS DISTINCT FROM 'closed'",
   saved:
-    "(feedback IN ('like','keep') OR (feedback IS NULL AND saved_stage = 'hidden'))",
+    "(feedback IN ('like','keep') OR (feedback IS NULL AND saved_stage = 'hidden') OR saved_stage = 'closed')",
   archived: "list_position = 'previous'",
 };
 

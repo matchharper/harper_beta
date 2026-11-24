@@ -291,7 +291,9 @@ function ChannelSection({
           <TableBody>
             {channels.map((channel) => (
               <TableRow className="hover:bg-transparent" key={channel.key}>
-                <TableCell>{channel.label}</TableCell>
+                <TableCell>
+                  {channel.label}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {formatCount(channel.signups)}
                 </TableCell>

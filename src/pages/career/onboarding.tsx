@@ -87,7 +87,13 @@ import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { EMAIL_CHOICE_DRAFT_PARAM, EMAIL_CHOICE_SIGNATURE_PARAM } from "@/lib/career/emailChoiceDraft";
 import OnboardingLoadingState from "../../components/career/OnboardingLoadingState";
 import GtmInvitePostingNote from "@/components/career/GtmInvitePostingNote";
-import { useGtmInviteFirstScreen, useGtmInviteLinkedinPrefill, useGtmShortOnboarding } from "@/components/career/GtmInviteFirstScreen";
+import {
+  gtmInviteNextLabel,
+  useGtmInviteFirstScreen,
+  useGtmInviteLanding,
+  useGtmInviteLinkedinPrefill,
+  useGtmShortOnboarding,
+} from "@/components/career/GtmInviteFirstScreen";
 import { readPendingGtmInviteSignup } from "@/hooks/career/useGtmInviteClaim";
 import { useCareerT } from "@/i18n/useCareerT";
 import {
@@ -1173,6 +1179,8 @@ const CareerNetworkOnboardingContent = () => {
   // when known, or a resume), then straight to 내 기회 with the mail's postings; the 5-minute conversation waits there
   // as an option. Everyone else: the regular steps.
   const gtmShort = Boolean(useGtmShortOnboarding());
+  // A coaching mail ends in Harper's chat instead (상담 먼저, Shaun 11/23); undefined while the mail is read.
+  const gtmLanding = useGtmInviteLanding();
   const stepOrder = useMemo<readonly CareerOnboardingStepKind[]>(
     () => (gtmShort ? ["profile"] : getCareerOnboardingStepOrder()),
     [gtmShort]
@@ -2296,13 +2304,20 @@ const CareerNetworkOnboardingContent = () => {
   // Came from a Harper GTM mail: that posting is the first screen (once per mail), then onboarding.
   const gtmInviteFirstScreen = useGtmInviteFirstScreen(!isPreviewSubmitState && effectiveSubmitState === "form");
 
-  // The short onboarding ends in 내 기회, where the mail's postings are put in and the 5-minute conversation is offered.
+  // The short onboarding ends in 내 기회, where the mail's postings are put in and the 5-minute conversation is offered;
+  // after a coaching mail, in Harper's chat (its entry record tells Harper they came for career help).
   const gtmShortDone = gtmShort && !isPreviewSubmitState && submitState === "done";
   useEffect(() => {
-    if (!gtmShortDone) return;
-    logCareerEvent("gtm_short_onboarding_to_opportunities");
+    if (!gtmShortDone || gtmLanding === undefined) return;
+    if (gtmLanding === "chat") {
+      logCareerEvent("gtm_short_onboarding_to_chat");
+      void router.replace({ pathname: "/career", query: { start: "chat" } });
+      return;
+    }
+    // 내 기회 opens the mail's posting there (useGtmInviteClaim); a mail of events only stays on home, with its events.
+    logCareerEvent(gtmLanding === "events" ? "gtm_short_onboarding_to_events" : "gtm_short_onboarding_to_opportunities");
     void router.replace({ pathname: "/career" });
-  }, [gtmShortDone, logCareerEvent, router]);
+  }, [gtmLanding, gtmShortDone, logCareerEvent, router]);
 
   if (!isPreviewSubmitState && (authLoading || bootstrapLoading)) {
     return (
@@ -2428,7 +2443,7 @@ const CareerNetworkOnboardingContent = () => {
             footer={
               <OnboardingFooterControls
                 step={step}
-                nextLabel={gtmShort ? t("career.onboarding.gtm_short.next", "내 기회에서 공고 보기") : undefined}
+                nextLabel={gtmShort ? gtmInviteNextLabel(gtmLanding, locale) ?? t("career.onboarding.gtm_short.next", "내 기회에서 공고 보기") : undefined}
                 onNext={handleLoggedNext}
                 onPrev={currentStepKind === "guide" ? undefined : handleLoggedPrev}
               />

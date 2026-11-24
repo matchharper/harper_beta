@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, excludeBucket, tallyAgentPeople, type AgentFunnelRow } from "./funnel";
+import {
+  AGENT_EXCLUDE_BUCKETS, agentFunnelBySource, agentRate, columnCount, excludeBucket, FUNNEL_COLUMNS, inFunnelColumn, isGiver, tallyAgentPeople,
+  type AgentFunnelRow,
+} from "./funnel";
 
 const base: AgentFunnelRow = {
   source: "linkedin", status: "found", excludeReason: null, channel: null, sentAt: null, clickedAt: null,
@@ -68,8 +71,9 @@ test("제외 without an address is split by why, and the same people are 제외 
 });
 
 test("the table accepts exactly the exclusion reasons the code writes", () => {
-  const sql = readFileSync(new URL("../../../../supabase/migrations/20261117140000_gtm_agent.sql", import.meta.url), "utf8");
-  const list = /exclude_reason text check \(exclude_reason in \(([^)]*)\)\)/.exec(sql)?.[1] ?? "";
+  // The latest migration that sets the list (11/23: the channels migration widened the first one's).
+  const sql = readFileSync(new URL("../../../../supabase/migrations/20261123100000_gtm_agent_channels.sql", import.meta.url), "utf8");
+  const list = /check \(exclude_reason in \(([^)]*)\)\)/.exec(sql)?.[1] ?? "";
   const allowed = [...list.matchAll(/'([a-z_]+)'/g)].map((match) => match[1]).sort();
   const reasons = AGENT_EXCLUDE_BUCKETS.filter((bucket) => !["no_fit", "skipped", "failed"].includes(bucket)).sort();
   assert.deepEqual(allowed, reasons);
@@ -138,4 +142,43 @@ test("반송/스팸신고/수신거부: of the mailed, a delivery failure, a spa
   ]);
   assert.equal(numbers.contacted, 6);
   assert.deepEqual([numbers.bounced, numbers.complained, numbers.unsubscribed], [2, 1, 2]);
+});
+
+test("사람에게 넘김 · 답 안 함 (연락 그만 included, and its opt-out in 수신 거부): inside 연락", () => {
+  const replied = { status: "replied" as const, channel: "email" as const, sentAt: "2026-11-22T00:00:00Z", repliedAt: "2026-11-22T03:00:00Z" };
+  const rows = [
+    row({ ...replied, handedOffAt: "2026-11-22T04:00:00Z" }),
+    row({ ...replied, handedOffAt: "2026-11-22T04:00:00Z", noReplyReason: "연락 그만", unsubscribed: true }),
+    row({ ...replied, noReplyReason: "연락 그만", unsubscribed: true }),
+    row({ status: "found", handedOffAt: "2026-11-22T04:00:00Z", unsubscribed: true }), // never mailed
+  ];
+  const numbers = tallyAgentPeople(rows);
+  assert.deepEqual([numbers.handedOff, numbers.noReply, numbers.unsubscribed], [2, 2, 2]);
+  // Every column's number is the count of its own predicate.
+  for (const column of FUNNEL_COLUMNS) {
+    assert.equal(columnCount(numbers, column), rows.filter((item) => inFunnelColumn(column, item)).length, column);
+  }
+  assert.equal(tallyAgentPeople([]).handedOff + tallyAgentPeople([]).noReply, 0);
+});
+
+test("givers (hiring leaders, recruiters, coaches, event hosts) are in no candidate number, only counted apart", () => {
+  const candidates = [
+    row({ status: "excluded", excludeReason: "member" }),
+    row({ status: "sent", channel: "email", sentAt: "2026-11-23T00:00:00Z" }),
+  ];
+  const givers = [
+    row({ status: "excluded", excludeReason: "giver", giverKind: "recruiter" }),
+    row({ status: "excluded", excludeReason: "giver", giverKind: "hiring_leader", lookupTried: true, hasEmail: true }),
+    // A hiring post row the company step mailed is still a giver: never a candidate's 연락.
+    row({ status: "sent", excludeReason: null, giverKind: "hiring_leader", sentAt: "2026-11-23T01:00:00Z", costUsd: 0.3 }),
+  ];
+  assert.ok(givers.every(isGiver));
+  assert.ok(!candidates.some(isGiver));
+  const numbers = tallyAgentPeople([...candidates, ...givers]);
+  const alone = tallyAgentPeople(candidates);
+  assert.equal(numbers.givers, 3);
+  for (const column of FUNNEL_COLUMNS) assert.equal(columnCount(numbers, column), columnCount(alone, column), column);
+  assert.deepEqual(numbers.excludedBy, { member: 1 });
+  assert.equal(numbers.costUsd, alone.costUsd);
+  assert.equal(numbers.excluded + numbers.waiting + numbers.contacted, numbers.found);
 });

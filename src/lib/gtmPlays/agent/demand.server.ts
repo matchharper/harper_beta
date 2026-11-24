@@ -10,8 +10,7 @@ import { readRunDemand, writeRunDemand } from "./store.server";
 
 /**
  * #5 사람 찾기: what Harper can propose today (demand.ts), from the posting matcher's own pools (match.server.ts):
- *   - the open customer and GTM Roles it scores (internalRoles: the same query, a Role without a description left out,
- *     a GTM Role under its public description, never its real company);
+ *   - the open customer Roles it scores (internalRoles: the same query, a Role without a description left out);
  *   - the public postings its search can return: Career's eligibility (roleSql.ts eligibilitySql: external, open, not
  *     expired, not a member's own copy, from workspaces with public postings on), posted within the matcher's 180
  *     days, with the title vector the search reads. Same-titled postings are counted together (title, level, country,
@@ -67,11 +66,10 @@ export async function readDemand(day: string): Promise<DemandSummary> {
   const companyTexts = new Map(external.companyTexts);
   const postings: DemandPosting[] = internal.map((item) => {
     const company = item.row.company_workspace_id ?? item.meta.roleId ?? item.title;
-    // A customer's line and the start of its Role (names the business more often than the title); a GTM Role's public
-    // description (its company is never named).
+    // A customer's line and the start of its Role (names the business more often than the title).
     companyTexts.set(company, `${item.row.company_description ?? ""} ${String(item.row.description ?? "").slice(0, 200)}`);
     return {
-      kind: item.meta.kind === "gtm" ? "gtm" : "customer", title: item.title, companies: [company],
+      kind: "customer", title: item.title, companies: [company],
       seniorityLevel: item.row.seniority_level ?? null, countryCode: null, workMode: item.row.work_mode ?? null,
       locationText: item.row.location_text ?? null,
     };

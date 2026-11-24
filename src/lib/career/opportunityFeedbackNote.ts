@@ -12,6 +12,7 @@ import {
 } from "@/lib/career/prompts/promptUtils";
 import { stripCareerReengagementActions } from "@/lib/career/reengagementActions";
 import { formatCareerActionItemResponse } from "./actionItems";
+import { ashleyInboxMailForModel, isAshleyInboxMail } from "./mailStartedTurn";
 import {
   parseCareerForm,
   parseCareerFormResponse,
@@ -209,6 +210,8 @@ export function formatTalentMessageContentForLlmPrompt(
     formattedContent = normalizedContent
       ? `${RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX}\nAction note: ${normalizedContent}`
       : RESUME_UPLOAD_SYSTEM_ACTION_LOG_PREFIX;
+  } else if (isAshleyInboxMail({ message_type: messageType, payload })) {
+    formattedContent = ashleyInboxMailForModel(content, payload);
   } else if (isOpportunityFeedbackNoteMessageType(messageType)) {
     const normalizedContent = content.replace(/\s+/g, " ").trim();
     formattedContent = normalizedContent

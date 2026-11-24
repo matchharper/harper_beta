@@ -12,17 +12,19 @@
  */
 export type AgentSource = string;
 
+import { defaultChannelSettings, type AgentFoundAs, type AgentIntent, type AgentOffer, type ChannelSettings } from "./channels";
 import { DEFAULT_SEND_WEEKDAYS } from "./sendTiming";
-import { DEFAULT_COMPANY_MAIL_MIN_CANDIDATES, DEFAULT_REPLY_AGENT_ENABLED } from "./settingsFields";
+import { DEFAULT_REPLY_AGENT_ENABLED } from "./settingsFields";
 import type { SignalMethod } from "./signals";
 import { normalizeSignalSettings, type SignalSettings } from "./tuning";
 
 /**
- * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; otherwise the
- * search method (signals.ts): open_to_work_profile, signal_post, layoff_company.
+ * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; db = Harper's
+ * purchased candidate DB (agent/dbSource.server.ts, 11/23); otherwise the search method (signals.ts):
+ * open_to_work_profile, signal_post, layoff_company.
  */
-export type AgentMethod = "applicant" | SignalMethod;
-export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "open_to_work_profile", "signal_post", "layoff_company"];
+export type AgentMethod = "applicant" | "db" | SignalMethod;
+export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "db", "open_to_work_profile", "signal_post", "layoff_company"];
 
 export type AgentChannel = "email";
 
@@ -45,9 +47,15 @@ export type AgentExcludeReason =
   | "lookup_not_found" // the paid email lookup ended without an address the agent may use
   | "lookup_other_person" // the paid email lookup's address belongs to someone else (not the person's own page)
   | "lookup_skipped" // found by a search, its job-seeking signal not clear enough to pay for a lookup (Shaun 11/18)
-  | "no_email"; // the rest: an applicant file row without an address, a lookup that never started
+  | "no_email" // the rest: an applicant file row without an address, a lookup that never started
+  | "no_mx" // the address's domain takes no mail (no MX record): checked before a DB address is used (11/23)
+  | "giver"; // helps or hires (a hiring founder or lead, a recruiter, a coach or mentor, an event host): kept for the company side, never mailed a candidate's offer (Shaun 11/23)
 
-export type AgentPostingKind = "external" | "customer" | "gtm";
+/** Which kind of giver (gtm_agent_people.giver_kind). */
+export type AgentGiverKind = "hiring_leader" | "recruiter" | "coach" | "event_host";
+export const AGENT_GIVER_KINDS: readonly AgentGiverKind[] = ["hiring_leader", "recruiter", "coach", "event_host"];
+
+export type AgentPostingKind = "external" | "customer";
 
 /** One of the 2-3 postings a mail proposes. */
 export type AgentPosting = {
@@ -62,10 +70,13 @@ export type AgentPosting = {
   why: string;
   /**
    * The company and title as an English mail shows them, when they are written in Korean (11/18 evaluation: English
-   * mails listed Korean titles as they were). Written by the mail writer; missing on Korean mails.
+   * mails listed Korean titles as they were). Written by the frame writer (postingFrame.server.ts) and the mail writer
+   * (compose.server.ts); missing on Korean mails.
    */
   mailCompany?: string | null;
   mailTitle?: string | null;
+  /** The place as an English mail shows it, when it is written in Korean ("서울" → "Seoul"); the same writers give it. */
+  mailPlace?: string | null;
   /**
    * The reason in the 후보자 링크 frame (Shaun 11/17): one sentence "what the company needs → the person's experience →
    * so they fit", and up to 3 "필요 → 경험" lines (postingFrame.ts). Missing on postings picked before it existed.
@@ -82,6 +93,25 @@ export type AgentPosting = {
   review?: AgentPostingReview | null;
   /** Ops's own call on /ops (맞음 / 안 맞음), the latest click. */
   verdict?: AgentPostingVerdict | null;
+};
+
+/**
+ * One event a general mail proposes (agent/events.server.ts, 11/23): a meetup, conference, workshop or webinar in the
+ * person's field, online or in their city, within EVENT_MAX_DAYS. Dropped before sending once it has started.
+ */
+export type AgentOfferEvent = {
+  title: string;
+  /** The event's own page. */
+  url: string;
+  /** When it starts and ends (ISO; a date alone when the page gives no time). */
+  startsAt: string;
+  endsAt: string | null;
+  /** Where (city, venue), null when online only. */
+  place: string | null;
+  online: boolean;
+  organizer: string | null;
+  /** One line, in the mail's language: why it fits this person. */
+  why: string;
 };
 
 /** Career's four fit metrics (0-100, rounded) for one posting. */
@@ -107,6 +137,13 @@ export type AgentPersonInput = {
   signalText: string | null;
   signalUrl: string | null;
   signalAt: string | null;
+  /**
+   * Where they said they can work, in their words, in a reply to Ashley (her find_similar_roles); only for that search.
+   * Matching reads it with `location` as a nonnegotiable condition (match.ts workLocationCondition).
+   */
+  replyWorkLocation?: string | null;
+  /** The mail's language when the source knew it (the purchased DB's Korean people); else matching reads their text. */
+  language?: "ko" | "en" | null;
 };
 
 export type AgentEventKind =
@@ -115,7 +152,8 @@ export type AgentEventKind =
   | "email_lookup" | "profile";
 
 /** One line of a person's timeline (gtm_agent_people.events). by: "agent", or the Ops user id. */
-export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null };
+/** postings: the posting URLs a line is about (Ashley's similar roles; sign-up puts them in 내 기회, signupMove.ts). */
+export type AgentEvent = { at: string; kind: AgentEventKind; by: string; note?: string | null; postings?: string[] };
 
 /**
  * Why a lookup gave no address the agent may use (agent/emailLookup.ts), null when it did: not_found (no source ties
@@ -183,8 +221,8 @@ export type AgentSettings = {
   replyAgentEnabled: boolean;
   /** The Slack user a reply is handed to (@mention in the reply alert's thread); null when none is set. */
   handoffSlackUserId: string | null;
-  /** A company mail needs at least this many fitting candidates. */
-  companyMailMinCandidates: number;
+  /** The new channels' on/off and daily max (agent/channels.ts, 11/23). */
+  channels: ChannelSettings;
   /** Goes up by one on every save; each person is tagged with the version that found them (compare by version). */
   version: number;
   updatedAt: string | null;
@@ -204,7 +242,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   signals: normalizeSignalSettings({}).settings,
   replyAgentEnabled: DEFAULT_REPLY_AGENT_ENABLED,
   handoffSlackUserId: null,
-  companyMailMinCandidates: DEFAULT_COMPANY_MAIL_MIN_CANDIDATES,
+  channels: defaultChannelSettings(),
   version: 1,
   updatedAt: null,
 };
@@ -239,7 +277,21 @@ export type AgentPerson = AgentPersonInput & {
   status: AgentStatus;
   excludeReason: AgentExcludeReason | null;
   postings: AgentPosting[];
-  messageKind: "posting" | "posting_post" | null;
+  /**
+   * The first mail's offer (agent/channels.ts): posting, coaching or general; null before it was kept (a posting
+   * mail). "posting_post" is an old value, read as posting.
+   */
+  messageKind: AgentOffer | "posting_post" | null;
+  /** The events the first mail proposes (general mails only; [] otherwise). */
+  offerEvents: AgentOfferEvent[];
+  /** Why they wrote, as the judge read it (null: uploaded or found before it was kept, read as job seeking). */
+  intent: AgentIntent | null;
+  /** Author or commenter of the page that found them (null: not kept, read as the author). */
+  foundAs: AgentFoundAs | null;
+  /** The row they came from in Harper's own data ("candid:<id>" for the purchased DB); null otherwise. */
+  sourceRef: string | null;
+  /** Which kind of giver (excludeReason "giver"); null otherwise. */
+  giverKind: AgentGiverKind | null;
   reason: string | null;
   channel: AgentChannel | null;
   email: string | null;

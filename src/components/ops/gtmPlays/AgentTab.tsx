@@ -9,16 +9,16 @@ import { filtersForColumn } from "@/lib/gtmPlays/agent/stage";
 import type { AgentRun } from "@/lib/gtmPlays/agent/store.server";
 import type { AgentSettings } from "@/lib/gtmPlays/agent/types";
 import type { AgentConversationHealth } from "@/lib/gtmPlays/agent/conversationViews.server";
-import type { AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
+import type { AgentChannelsToday, AgentFunnel, AgentHealth } from "@/lib/gtmPlays/agent/views.server";
+import type { NumbersPick, NumbersRows } from "@/lib/gtmPlays/agent/numbers";
 import AgentApplicantUpload from "./agent/AgentApplicantUpload";
+import AgentCandidateNumbers, { NumbersRowsControl } from "./agent/AgentCandidateNumbers";
+import AgentCompanyNumbers from "./agent/AgentCompanyNumbers";
 import { AgentConfigsContext } from "./agent/AgentConfig";
-import AgentDailyTable from "./agent/AgentDailyTable";
-import AgentFunnelTable from "./agent/AgentFunnelTable";
-import AgentMailLog, { NO_MAIL_FILTER, type MailFilter } from "./agent/AgentMailLog";
 import AgentPeople, { NO_PEOPLE_FILTER, type PeopleFilter } from "./agent/AgentPeople";
 import AgentSearchLog from "./agent/AgentSearchLog";
 import AgentSettingsForm from "./agent/AgentSettingsForm";
-import { usd } from "./agent/labels";
+import { brakedChannels, usd } from "./agent/labels";
 import { PeriodPicker, dayPeriod, defaultPeriod, periodInput, periodRangeLabel, type PeriodState } from "./agent/PeriodPicker";
 import { formatKst, useGtmAction } from "./api";
 import { Button, ErrorNotice, Panel, Switch } from "./ui";
@@ -33,14 +33,19 @@ const kstDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { timeZone: 
 
 /**
  * What is wrong right now, in plain words (Shaun 11/17: a red line only when something is wrong, nothing otherwise):
- * no sender, today's money cap reached, the last run's error, a team mailbox whose replies are not being read (with
- * the mailbox and why; follow-ups wait meanwhile), no applicant file for 3+ days.
+ * no sender, a channel the brake turned off (설정 shows it on its row; turning it on there restarts it), today's money
+ * cap reached, the last run's error, a team mailbox whose replies are not being read (with the mailbox and why;
+ * follow-ups wait meanwhile), no applicant file for 3+ days.
  */
-function problemsOf(data: Overview, now = Date.now()): string[] {
+function problemsOf(data: Overview, channels: AgentChannelsToday | null, now = Date.now()): string[] {
   const { settings, funnel, health } = data;
   const problems: string[] = [];
   if (!settings.senderEmail?.trim()) problems.push("보내는 주소가 없어요");
   else if (!settings.senderName?.trim()) problems.push("보내는 사람 이름이 없어요");
+  for (const braked of channels ? brakedChannels(settings.channels, channels.brakes) : []) {
+    // The reason names the channel and says to turn it on again (agent/tickRules.ts brakeReason).
+    problems.push(`${braked.reason}${braked.at ? ` · ${formatKst(braked.at)}` : ""}`);
+  }
   if (funnel.today.costUsd >= funnel.today.costCapUsd) problems.push(`오늘 비용 한도(${usd(funnel.today.costCapUsd)})에 닿아 오늘은 멈췄어요`);
   if (health.lastRunError) problems.push(`마지막 실행에서 오류: ${health.lastRunError}`);
   for (const trouble of health.replyReading ?? []) {
@@ -55,8 +60,10 @@ function problemsOf(data: Overview, now = Date.now()): string[] {
   return problems;
 }
 
-type LogTab = "people" | "searches" | "mails";
-const LOG_TABS: Array<{ id: LogTab; label: string }> = [{ id: "people", label: "사람" }, { id: "searches", label: "검색" }, { id: "mails", label: "메일" }];
+// 로그: 사람 (one line per person; the right pane is everything that happened with them, in one time order) and 검색.
+// The 메일 tab is gone (Shaun 11/22): every mail is in its person's history, and 사람이 볼 답장 is a 상태 of 사람.
+type LogTab = "people" | "searches";
+const LOG_TABS: Array<{ id: LogTab; label: string }> = [{ id: "people", label: "사람" }, { id: "searches", label: "검색" }];
 
 /** Domains the open-web search kept people on in the latest runs (counts new_domain:<domain>), most first. */
 function newDomainsOf(runs: readonly AgentRun[]) {
@@ -70,33 +77,34 @@ function newDomainsOf(runs: readonly AgentRun[]) {
 }
 
 /**
- * 후보자 소싱 에이전트: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
- * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen is what Ops needs to run
- * it (Shaun 11/17): the applicant file, the settings and the on/off switch with what is wrong, the numbers (합계 first,
- * then a row per source), the log and 하루별 성능. 수치, 로그 and 하루별 성능 each have their own period (Shaun 11/18), all
- * 최근 30일 at first; a number opens exactly its people in the log, which takes that number's period (or its day).
- * Every search, person and day can be traced to the 설정 묶음 it ran with (agent/config.ts).
+ * gtm agent: finds people who show they are looking (LinkedIn applicants Ops uploads, job-seeking posts and
+ * profiles by site, the open web), proposes 2-3 fitting postings and emails them. The screen tracks everything it does
+ * (Shaun 11/17, revamped 11/22): the applicant file; the settings and the on/off switch with what is wrong; 수치 · 후보
+ * (지금까지 on top, then 합계 + a row per site, day or search query, step by step: 찾기 · 공고 · 메일 · 답장; it replaces
+ * 수치 and 하루별 성능); 수치 · 회사 (outside companies and Harper customers the candidates led to); the log (사람 · 검색).
+ * Each panel has its own period, 최근 30일 at first; a number opens exactly its people in the log, which takes that
+ * number's period (or its day). Every search, person and day can be traced to the 설정 묶음 it ran with (agent/config.ts).
  */
 export default function AgentTab({ writes }: { writes: boolean }) {
   // Each panel's own period (최근 7·30·90일 or any 시작일 ~ 종료일, KST days, both ends in).
   const [numbersPeriod, setNumbersPeriod] = useState<PeriodState>(defaultPeriod);
+  const [companyPeriod, setCompanyPeriod] = useState<PeriodState>(defaultPeriod);
   const [logPeriod, setLogPeriod] = useState<PeriodState>(defaultPeriod);
-  const [dailyPeriod, setDailyPeriod] = useState<PeriodState>(defaultPeriod);
   const numbersInput = useMemo(() => periodInput(numbersPeriod), [numbersPeriod]);
+  const companyInput = useMemo(() => periodInput(companyPeriod), [companyPeriod]);
   const logInput = useMemo(() => periodInput(logPeriod), [logPeriod]);
-  const dailyInput = useMemo(() => periodInput(dailyPeriod), [dailyPeriod]);
+  // 수치 · 후보's rows: 사이트별 at first (the old 수치), 날짜별 from the Slack daily table's link.
+  const [numbersRows, setNumbersRows] = useState<NumbersRows>("source");
   // Test rows never count on the screen (Shaun 11/17: no "테스트 포함" box).
   const includeTest = false;
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // 로그 and 하루별 성능 fold away like 설정, closed at first (Shaun 11/18); a number clicked above opens the log.
+  // 로그 folds away like 설정, closed at first (Shaun 11/18); a number clicked above opens it.
   const [logOpen, setLogOpen] = useState(false);
-  const [dailyOpen, setDailyOpen] = useState(false);
   const [logTab, setLogTab] = useState<LogTab>("people");
   const [peopleFilter, setPeopleFilter] = useState<PeopleFilter>(NO_PEOPLE_FILTER);
-  const [mailFilter, setMailFilter] = useState<MailFilter>(NO_MAIL_FILTER);
   // The person a Slack reply alert's link opens (agent/replies.ts agentPersonLink), on the right of 로그 · 사람.
   const [linkedPerson, setLinkedPerson] = useState<string | null>(null);
-  // Slack links: the daily table's ?open=daily&from=&to= opens 하루별 성능 on those days (agent/dailyReport.ts); a reply
+  // Slack links: the daily table's ?open=daily&from=&to= opens 수치 · 후보 by day on those days (agent/dailyReport.ts); a reply
   // alert's ?open=person&person=<id>&q=<address> opens that person in 로그 · 사람 over the longest quick period.
   const router = useRouter();
   const openedFromLink = useRef(false);
@@ -122,9 +130,9 @@ export default function AgentTab({ writes }: { writes: boolean }) {
     const day = (value: unknown) => (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
     const from = day(router.query.from);
     const to = day(router.query.to);
-    if (from && to) setDailyPeriod({ choice: "custom", from: from <= to ? from : to, to: from <= to ? to : from });
-    setDailyOpen(true);
-    window.setTimeout(() => document.getElementById("agent-daily")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+    if (from && to) setNumbersPeriod({ choice: "custom", from: from <= to ? from : to, to: from <= to ? to : from });
+    setNumbersRows("day");
+    window.setTimeout(() => document.getElementById("agent-numbers")?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
   }, [router.isReady, router.query.open, router.query.from, router.query.to, router.query.person, router.query.q]);
   const [searchSource, setSearchSource] = useState<string | null>(null);
   const [searchDay, setSearchDay] = useState<string | null>(null);
@@ -135,47 +143,59 @@ export default function AgentTab({ writes }: { writes: boolean }) {
   const { run } = overview;
   const load = useCallback(() => { void run("agent.overview", { ...numbersInput, includeTest }); }, [run, numbersInput, includeTest]);
   useEffect(() => { load(); }, [load, refreshKey]);
-  // Every 설정 묶음, for the log's and 하루별 성능's "설정 묶음 #… (…부터)" and the filter.
+  // Every 설정 묶음, for the log's and 수치 · 후보's "설정 묶음 #… (…부터)" and the filter.
   const configList = useGtmAction<{ configs: AgentConfig[] }>();
   const loadConfigs = configList.run;
   useEffect(() => { void loadConfigs("agent.configs"); }, [loadConfigs, refreshKey]);
   const configs = configList.result?.configs ?? [];
+  // Today's mails per channel and the brake's reasons (수치 · 후보's 채널 rows, the settings' 채널 rows, the red lines).
+  const channelList = useGtmAction<AgentChannelsToday>();
+  const loadChannels = channelList.run;
+  useEffect(() => { void loadChannels("agent.channels"); }, [loadChannels, refreshKey]);
+  const channelsToday = channelList.result;
   const refresh = () => setRefreshKey((key) => key + 1);
   const data = overview.result;
   const settings = data?.settings ?? null;
   const sources = data ? Object.keys(data.funnel.bySource) : [];
-  const problems = data ? problemsOf(data) : [];
-  // 사람이 볼 답장: replies handed to a person that no one answered yet (a red line only then); a click lists them.
+  const problems = data ? problemsOf(data, channelsToday) : [];
+  // 사람이 볼 답장: the people with a reply handed to a person that no one answered yet (a red line only then); a click
+  // lists exactly them (conversationViews.server.ts counts the list's people, not their mails).
   const awaitingHuman = data?.conversation?.awaitingHuman ?? 0;
   const showLog = (tab: LogTab) => {
     setLogTab(tab);
     setLogOpen(true);
     requestAnimationFrame(() => logRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
-  // A 수치 number: its people over 수치's period.
-  const pickNumber = (source: string | null, column: FunnelColumn) => {
+  // A 수치 · 후보 number: its people (its row's site, day, search query and 설정 묶음, and its column's 상태) over the
+  // panel's period, a day row's over that day (the log's day chip), 지금까지's 가입 over every day since the start.
+  const pickNumber = (pick: NumbersPick, column: FunnelColumn, period?: { from: string; to: string }) => {
+    setLogPeriod(period ? { choice: "custom", from: period.from, to: period.to } : numbersPeriod);
+    setPeopleFilter({
+      ...NO_PEOPLE_FILTER, source: pick.source, day: pick.day, query: pick.query, config: pick.config, channel: pick.channel, ...filtersForColumn(column),
+    });
+    showLog("people");
+  };
+  // 돕는 쪽으로 기록한 사람: the givers among the panel's people (its period, 찾은 곳 and 설정 묶음).
+  const pickGivers = (pick: NumbersPick) => {
     setLogPeriod(numbersPeriod);
-    setPeopleFilter({ ...NO_PEOPLE_FILTER, source, ...filtersForColumn(column) });
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, source: pick.source, config: pick.config, givers: true });
     showLog("people");
   };
-  // 하루별 성능: its own 찾은 곳 and 설정 묶음 (전체 by default); a number opens its people (that day, or the panel's
-  // period on the 합계 row), a 비용 that day's searches.
-  const [dailySource, setDailySource] = useState<string | null>(null);
-  const [dailyConfig, setDailyConfig] = useState<string | null>(null);
-  const pickDaily = (day: string | null, column: FunnelColumn) => {
-    if (!day) setLogPeriod(dailyPeriod);
-    setPeopleFilter({ ...NO_PEOPLE_FILTER, source: dailySource, day, config: dailyConfig, ...filtersForColumn(column) });
-    showLog("people");
-  };
-  const costDaily = (day: string | null) => {
-    if (!day) setLogPeriod(dailyPeriod);
-    setSearchSource(dailySource);
-    setSearchDay(day);
-    setSearchConfig(dailyConfig);
+  // What a row's searches did or cost: its searches in 로그 · 검색.
+  const pickSearches = (pick: { source: string | null; day: string | null; config: string | null }) => {
+    setLogPeriod(numbersPeriod);
+    setSearchSource(pick.source);
+    setSearchDay(pick.day);
+    setSearchConfig(pick.config);
     showLog("searches");
   };
+  // A 수치 · 회사 number: exactly the candidates behind it, whenever they were found (a chip with the number's words).
+  const pickCompany = (ids: string[], label: string) => {
+    setPeopleFilter({ ...NO_PEOPLE_FILTER, ids: { ids, label } });
+    showLog("people");
+  };
   // The log's range as used now: a day chip (a 하루별 성능 day) narrows it to that day.
-  const logDay = logTab === "people" ? peopleFilter.day : logTab === "searches" ? searchDay : null;
+  const logDay = logTab === "people" ? peopleFilter.day : searchDay;
   const shownLogPeriod = logDay ? dayPeriod(logDay) : logPeriod;
   const changeLogPeriod = (next: PeriodState) => {
     setLogPeriod(next);
@@ -221,8 +241,8 @@ export default function AgentTab({ writes }: { writes: boolean }) {
               {problems.map((problem) => <li key={problem}>{problem}</li>)}
               {awaitingHuman ? (
                 <li>
-                  <button type="button" className="hover:underline" onClick={() => { setMailFilter({ awaitingHuman: true }); showLog("mails"); }}>
-                    사람이 볼 답장 {awaitingHuman}건
+                  <button type="button" className="hover:underline" onClick={() => { setPeopleFilter({ ...NO_PEOPLE_FILTER, awaitingHuman: true }); showLog("people"); }}>
+                    사람이 볼 답장 {awaitingHuman}명
                   </button>
                 </li>
               ) : null}
@@ -238,6 +258,7 @@ export default function AgentTab({ writes }: { writes: boolean }) {
                   settings={settings}
                   writes={writes}
                   newDomains={newDomainsOf(data?.runs ?? [])}
+                  brakes={channelsToday?.brakes ?? {}}
                   onSaved={(next) => { overview.setResult(data ? { ...data, settings: next } : data); refresh(); }}
                 />
               ) : <p className="text-[12px] text-neutral-muted">불러오는 중…</p>}
@@ -246,28 +267,39 @@ export default function AgentTab({ writes }: { writes: boolean }) {
         </section>
 
         <Panel
-          title={`수치 · ${periodRangeLabel(numbersPeriod)}`}
+          id="agent-numbers"
+          title={`수치 · 후보 · ${periodRangeLabel(numbersPeriod)}`}
           actions={(
             <span className="flex flex-wrap items-center gap-2">
-              <PeriodPicker label="수치 기간" value={numbersPeriod} onChange={setNumbersPeriod} />
+              <NumbersRowsControl value={numbersRows} onChange={setNumbersRows} />
+              <PeriodPicker label="수치 · 후보 기간" value={numbersPeriod} onChange={setNumbersPeriod} />
               <Button className="whitespace-nowrap" loading={overview.loading} onClick={refresh}>새로고침</Button>
             </span>
           )}
         >
           <ErrorNotice message={overview.error} />
-          {data ? (
-            <AgentFunnelTable
-              funnel={data.funnel}
-              onPick={pickNumber}
-              onCost={(source) => {
-                setLogPeriod(numbersPeriod);
-                setSearchSource(source);
-                setSearchDay(null);
-                setSearchConfig(null);
-                showLog("searches");
-              }}
-            />
-          ) : overview.loading ? <p className="text-[12px] text-neutral-muted">불러오는 중…</p> : null}
+          <AgentCandidateNumbers
+            period={numbersInput}
+            refreshKey={refreshKey}
+            sources={sources}
+            funnel={data?.funnel ?? null}
+            sendWeekdays={settings?.sendWeekdays ?? null}
+            channels={settings?.channels ?? null}
+            channelsToday={channelsToday}
+            rows={numbersRows}
+            onRows={setNumbersRows}
+            onPick={pickNumber}
+            onSearches={pickSearches}
+            onGivers={pickGivers}
+            onIds={(ids, label) => pickCompany(ids, label)}
+          />
+        </Panel>
+
+        <Panel
+          title={`수치 · 회사 · ${periodRangeLabel(companyPeriod)}`}
+          actions={<PeriodPicker label="수치 · 회사 기간" value={companyPeriod} onChange={setCompanyPeriod} />}
+        >
+          <AgentCompanyNumbers period={companyInput} refreshKey={refreshKey} onPick={pickCompany} />
         </Panel>
 
         <div ref={logRef} className="scroll-mt-4">
@@ -295,8 +327,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           >
             {logTab === "people" ? (
               <AgentPeople period={logInput} includeTest={includeTest} refreshKey={refreshKey} sources={sources} filter={peopleFilter} onFilter={setPeopleFilter} openPerson={linkedPerson} />
-            ) : logTab === "mails" ? (
-              <AgentMailLog period={logInput} includeTest={includeTest} refreshKey={refreshKey} filter={mailFilter} onFilter={setMailFilter} />
             ) : (
               <AgentSearchLog
                 period={logInput}
@@ -315,26 +345,6 @@ export default function AgentTab({ writes }: { writes: boolean }) {
           </Panel>
         </div>
 
-        <Panel
-          id="agent-daily"
-          title={`하루별 성능 · ${periodRangeLabel(dailyPeriod)}`}
-          open={dailyOpen}
-          onToggle={setDailyOpen}
-          actions={<PeriodPicker label="하루별 성능 기간" value={dailyPeriod} onChange={setDailyPeriod} />}
-        >
-          <AgentDailyTable
-            period={dailyInput}
-            includeTest={includeTest}
-            refreshKey={refreshKey}
-            sources={sources}
-            source={dailySource}
-            onSource={setDailySource}
-            config={dailyConfig}
-            onConfig={setDailyConfig}
-            onPick={pickDaily}
-            onCost={costDaily}
-          />
-        </Panel>
       </div>
     </AgentConfigsContext.Provider>
   );

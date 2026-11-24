@@ -29,6 +29,8 @@ export type ReplayGrade = {
 /** The outcome of one draft (draftCandidateReply), as the tick would act on it. */
 export function replayOutcome(draft: CandidateDraft): ReplayOutcome {
   if (draft.kind === "decided") return { action: draft.action, wouldSend: false, reason: draft.reason, checkReasons: [] };
+  // Waiting for the company mail its agreement starts: a reply comes after it (the replay then writes that one).
+  if (draft.kind === "wait") return { action: "reply", wouldSend: false, reason: `회사 메일 기다림 · ${draft.reason}`, checkReasons: [] };
   if (draft.check.status === "ok") return { action: "reply", wouldSend: true, reason: draft.reason, checkReasons: [] };
   return { action: "held", wouldSend: false, reason: draft.reason, checkReasons: draft.check.reasons };
 }
