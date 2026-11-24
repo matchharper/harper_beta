@@ -1,6 +1,6 @@
 # Career Conditional Prompt Map
 
-> 2026-10-31 일반 텍스트 채팅 프롬프트 정리 이후의 정본은 [mainPrompts.ts](./mainPrompts.ts)와 [현재 추가 입력 목록](./mainPrompts.md)이다. 아래에는 온보딩·통화와 이전 조립 구조를 포함한 기존 개요가 보존되어 있으므로, 일반 채팅의 현재 구성은 새 문서를 우선한다.
+> 2026-10-31 일반 텍스트 채팅 프롬프트 정리 이후의 정본은 [main.md](../main.md)와 [현재 추가 입력 목록](../README.md)이다. 아래에는 온보딩·통화와 이전 조립 구조를 포함한 기존 개요가 보존되어 있으므로, 일반 채팅의 현재 구성은 새 문서를 우선한다.
 
 이 문서는 `/career`에서 조건에 따라 추가되는 prompt block과, "일반 채팅처럼 화면에 보이지만 별도 endpoint/action에서 LLM을 호출해 assistant message를 생성하는" 경로를 정리한다.
 

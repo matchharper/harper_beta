@@ -42,7 +42,7 @@ try {
   const first = runtime.resolveStep(false), calls: any[] = [], intermediate: string[] = [], exchanges: any[] = [];
   const reads = new Set(['read_talent_context', 'read_profile', 'list_profiles', 'list_documents', 'read_document']);
   writeJson(path.join(dir, 'input.json'), { message, contextText, profile, omittedFacts: rows.filter(row => !background.some(item => item.id === row.id)), model,
-    sourceHashes: Object.fromEntries(['src/lib/career/prompts/mainPrompt2.ts', 'src/lib/llm/toolDescriptions.ts', 'src/lib/talentOnboarding/talentContexts.ts'].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')])) });
+    sourceHashes: Object.fromEntries(['src/lib/career/prompts/main.md', 'src/lib/llm/toolDescriptions.ts', 'src/lib/talentOnboarding/talentContexts.ts'].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex')])) });
   let reply = '', error: string | undefined;
   try {
     reply = await withLlmProviderTrace(exchange => { exchanges.push(exchange); writeJson(path.join(dir, 'provider.json'), exchanges); }, () => runCareerChatAssistant({

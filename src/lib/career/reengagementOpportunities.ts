@@ -57,14 +57,15 @@ export type ReengagementOpportunitySnapshot = {
 };
 
 export function formatCareerReengagementOpportunities(
-  snapshot: ReengagementOpportunitySnapshot
+  snapshot: ReengagementOpportunitySnapshot,
+  options: { heading?: string; requestedMatching?: boolean } = {}
 ) {
   const run = (label: string, value: SearchRun | null) =>
     value
       ? `${label}: ${value.id}; ${value.status}; started ${formatLlmDateTime(value.created_at)}; finished ${formatLlmDateTime(value.finished_at)}.`
       : `${label}: none recorded.`;
   const lines = [
-    "## Available opportunities on this return (times: Asia/Seoul)",
+    options.heading ?? "## Available opportunities on this return (times: Asia/Seoul)",
     run("Latest search attempt", snapshot.latestRun),
     run("Last completed search", snapshot.lastCompletedRun),
     ...snapshot.activeRuns.map((value) =>
@@ -73,13 +74,17 @@ export function formatCareerReengagementOpportunities(
   ];
   if (snapshot.matching) {
     lines.push(
-      "Most recently searched active matching. Candidates below have not previously been recommended.",
+      options.requestedMatching
+        ? "The matching this run continues. Candidates below have not previously been recommended."
+        : "Most recently searched active matching. Candidates below have not previously been recommended.",
       formatCareerMatchingResult({
         matching: snapshot.matching,
         listRevision: snapshot.listRevision,
         ...snapshot.results,
       })
     );
+  } else if (options.requestedMatching) {
+    lines.push("The matching this run continues has no saved search results yet.");
   } else {
     lines.push(
       "No active matching with search history. Historical fit cache below is prior evidence, not a new search or a current evaluation reference."
@@ -118,6 +123,9 @@ export async function readCareerReengagementOpportunities(args: {
   admin: TalentAdminClient;
   userId: string;
   blockedCompanies: string[];
+  /** Read this matching's search instead of the most recently searched one. */
+  matchingId?: string;
+  heading?: string;
 }) {
   const owner = `${sqlLiteral(args.userId)}::uuid`;
   const [snapshot] = await executeSql<ReengagementOpportunitySnapshot>(
@@ -129,6 +137,7 @@ export async function readCareerReengagementOpportunities(args: {
       FROM public.external_recommendation_runs r
       LEFT JOIN public.talent_matchings m ON m.id=r.matching_id AND m.talent_id=${owner} AND m.archived_at IS NULL
       WHERE r.talent_id=${owner} AND (r.variant <> 'career_agent' OR m.id IS NOT NULL)
+        ${args.matchingId ? `AND r.matching_id=${sqlLiteral(args.matchingId)}::uuid` : ""}
     )
     SELECT
       (SELECT matching FROM owned WHERE matching IS NOT NULL ORDER BY created_at DESC,id DESC LIMIT 1) AS matching,
@@ -169,7 +178,7 @@ export async function readCareerReengagementOpportunities(args: {
       if (error) throw new Error(error.message);
       snapshot.roleFacts = data as RoleFact[];
     }
-  } else {
+  } else if (!args.matchingId) {
     snapshot.legacy = await executeSql<
       NonNullable<ReengagementOpportunitySnapshot["legacy"]>[number]
     >(
@@ -196,5 +205,8 @@ export async function readCareerReengagementOpportunities(args: {
       INITIAL_CANDIDATES
     );
   }
-  return formatCareerReengagementOpportunities(snapshot);
+  return formatCareerReengagementOpportunities(snapshot, {
+    heading: args.heading,
+    requestedMatching: Boolean(args.matchingId),
+  });
 }

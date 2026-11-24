@@ -3,7 +3,7 @@ import test from "node:test";
 import { buildCareerConversationPromptPlan } from "./conversationPlan";
 import { renderCareerBackgroundInvocation } from "../background/prompt";
 import type { CareerBackgroundRun } from "../background/types";
-import { buildCareerUiVocabulary } from "./mainPrompt2";
+import { buildCareerUiVocabulary } from "./textChatDisplay";
 import { buildCareerMainPrompt } from "./mainPrompts";
 import { AGENT_COLLABORATION_GUIDE } from "@/lib/agentContacts/guidance";
 import { CAREER_OPTIONAL_FOLLOWUP_PROMPTS } from "./conversationSections";

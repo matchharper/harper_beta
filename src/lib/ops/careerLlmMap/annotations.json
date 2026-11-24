@@ -2715,7 +2715,7 @@
       "id": "b:chat:career_main",
       "title": "Career 기본 지침 · career_main",
       "summary": "사용자의 커리어 목적을 이해하고, 자료와 도구를 써서 일을 끝까지 수행하는 기본 지침.",
-      "source": "src/lib/career/prompts/mainPrompt2.ts",
+      "source": "src/lib/career/prompts/main.md",
       "kind": "현재 조립 결과 · 개인 정보는 자리표시자",
       "group": "공통 입력",
       "key": "career_main",

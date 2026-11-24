@@ -95,7 +95,7 @@ async function main() {
       "src/lib/career/meetings/tools.ts",
       "src/lib/career/background/inbox.ts",
       "src/lib/career/handbooks/proactiveCareer.ts",
-      "src/lib/career/prompts/mainPrompt2.ts",
+      "src/lib/career/prompts/main.md",
       "src/lib/career/capabilities/registry.ts",
     ];
     const manifest: any = {

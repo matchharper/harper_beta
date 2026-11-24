@@ -2,21 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildOpsUpdateMetrics,
-  buildUpdateMetricsBuckets,
+  changeMovesChart,
   kstMidnightMs,
-  updateMetricDisplayValue,
+  OPS_HEADLINE_CHART,
+  OPS_TRACKED_CHANGES,
+  trackedChangeComparison,
+  UPDATE_METRICS,
+  updateMetricChartValue,
+  updateMetricPeriodValue,
+  updateMetricsWindow,
   type UpdateMetricsSignupRow,
 } from "@/lib/ops/updateMetrics";
+import { updateMetricPoints } from "@/components/ops/metrics/updateMetricPoints";
 
 const DAY = 24 * 60 * 60 * 1000;
-const deployedAtMs = kstMidnightMs("2026-11-20");
-const nowMs = deployedAtMs + 10 * DAY;
+const day0 = kstMidnightMs("2026-11-20");
+// Noon KST on 11/23: that day is half over.
+const nowMs = day0 + 3.5 * DAY;
 
-function signup(
-  userId: string,
-  offsetDays: number,
-  overrides: Partial<UpdateMetricsSignupRow> = {}
-): UpdateMetricsSignupRow {
+function signup(userId: string, offsetDays: number, overrides: Partial<UpdateMetricsSignupRow> = {}): UpdateMetricsSignupRow {
   return {
     applyWithHarperAt: null,
     costUsd3d: 0,
@@ -29,104 +33,144 @@ function signup(
     llmMs3d: 0,
     onboardingSubmittedAt: null,
     recommendations3d: 0,
-    signedUpAt: new Date(deployedAtMs + offsetDays * DAY).toISOString(),
+    signedUpAt: new Date(day0 + offsetDays * DAY).toISOString(),
     userId,
     ...overrides,
   };
 }
 
-const rowOf = (result: ReturnType<typeof buildOpsUpdateMetrics>, key: string) => {
-  const row = result.groups.flatMap((group) => group.rows).find((item) => item.key === key);
-  assert.ok(row, key);
-  return row;
+const at = (offsetDays: number) => new Date(day0 + offsetDays * DAY).toISOString();
+
+const empty = {
+  emails: [],
+  jobsWithoutRoleUserIds: new Set<string>(),
+  landing: [],
+  recommendations: [],
+  signups: [],
+  unseenReplies: [],
 };
 
-test("weeks are anchored at the release: 4 before, then the weeks after up to now", () => {
-  const buckets = buildUpdateMetricsBuckets(deployedAtMs, nowMs);
+test("every metric a chart or folded row uses is defined", () => {
+  const used = [OPS_HEADLINE_CHART, ...OPS_TRACKED_CHANGES].flatMap((chart) => [
+    ...(chart.bars ?? []),
+    ...(chart.lines ?? []),
+    chart.primary,
+  ]);
+  for (const key of used) assert.ok(UPDATE_METRICS[key], key);
+  // Bars share the left axis and lines the right one, so each side keeps one unit.
+  for (const change of OPS_TRACKED_CHANGES) {
+    const units = (keys: readonly string[] = []) => new Set(keys.map((key) => UPDATE_METRICS[key as keyof typeof UPDATE_METRICS].unit));
+    assert.ok(units(change.bars).size <= 1, change.key);
+    assert.ok(units(change.lines).size <= 1, change.key);
+  }
+  assert.equal(new Set(OPS_TRACKED_CHANGES.map((change) => change.key)).size, OPS_TRACKED_CHANGES.length);
+});
+
+test("cohort values sit on the signup day and count only the first 24 hours or 3 days", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    from: "2026-11-20",
+    nowMs,
+    signups: [
+      signup("a", 0.1, { firstChatAt: at(0.2), recommendations3d: 2, liked3d: 1 }),
+      // Chatted on day 2: inside 3 days, outside 24 hours.
+      signup("b", 0.2, { firstChatAt: at(2), recommendations3d: 1 }),
+      // Chatted on day 5: too late for both.
+      signup("c", 0.3, { firstChatAt: at(5) }),
+      signup("d", 3.2, { firstChatAt: at(3.3) }),
+    ],
+    to: "2026-11-30",
+  });
+  assert.deepEqual(result.days, ["2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23"]);
+  assert.deepEqual(result.metrics.chatRate24h?.[0], { denominator: 3, kind: "rate", numerator: 1 });
+  assert.deepEqual(result.metrics.chatRate3d?.[0], { denominator: 3, kind: "rate", numerator: 2 });
+  assert.deepEqual(result.metrics.recipientLikeRate?.[0], { denominator: 2, kind: "rate", numerator: 1 });
+  assert.deepEqual(result.metrics.chatRate3d?.[3], { denominator: 1, kind: "rate", numerator: 1 });
+  // The running day counts as the half that has passed.
+  assert.deepEqual(result.metrics.signups?.[3], { days: 0.5, kind: "count", value: 1 });
+});
+
+test("mail and unseen-reply rows become counts and rates per day", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    emails: [{ choiceActed: 2, choiceEmails: 4, day: "2026-11-21", plainActed: 1, plainEmails: 6 }],
+    from: "2026-11-20",
+    nowMs,
+    to: "2026-11-23",
+    unseenReplies: [{ acted: 1, day: "2026-11-22", emailed: 2, reviewed: 5 }],
+  });
+  assert.deepEqual(result.metrics.emailActionRate?.[1], { denominator: 10, kind: "rate", numerator: 3 });
+  assert.equal(updateMetricChartValue(result.metrics.choiceEmailActionRate?.[1]), 0.5);
+  assert.equal(updateMetricChartValue(result.metrics.unseenReviewed?.[2]), 5);
+  assert.equal(updateMetricChartValue(result.metrics.unseenEmailActionRate?.[2]), 0.5);
+  assert.equal(updateMetricChartValue(result.metrics.unseenEmailActionRate?.[0]), null);
+});
+
+test("weeks start on Monday and pool their days", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    from: "2026-11-15",
+    nowMs: kstMidnightMs("2026-11-25"),
+    signups: [signup("a", -4, { firstChatAt: at(-3.9) }), signup("b", 0.5), signup("c", 3.5, { firstChatAt: at(3.6) })],
+    to: "2026-11-24",
+  });
+  const weeks = updateMetricPoints(result, { from: "2026-11-16", to: "2026-11-24" }, "week");
   assert.deepEqual(
-    buckets.map((bucket) => [bucket.side, bucket.partial]),
+    weeks.map((point) => [point.startDay, point.endDay, point.label]),
     [
-      ["before", false],
-      ["before", false],
-      ["before", false],
-      ["before", false],
-      ["after", false],
-      ["after", true],
+      ["2026-11-16", "2026-11-22", "11.16"],
+      ["2026-11-23", "2026-11-24", "11.23"],
     ]
   );
-  assert.equal(buckets[4]?.start, new Date(deployedAtMs).toISOString());
-  assert.equal(buckets.at(-1)?.end, new Date(nowMs).toISOString());
+  assert.equal(weeks[0]?.signups, 2);
+  assert.equal(weeks[0]?.chatRate3d, 0.5);
 });
 
-test("cohort rates count only what happened in the first 3 days, including talents still in them", () => {
-  const signedUp = (days: number) => new Date(deployedAtMs + days * DAY).toISOString();
+test("a folded row compares the days since the deploy with the 28 days before it", () => {
   const result = buildOpsUpdateMetrics({
-    deployedAtMs,
-    jobsWithoutRoleUserIds: new Set(["jobs"]),
-    landing: [],
+    ...empty,
+    from: "2026-10-23",
     nowMs,
-    recommendations: [],
     signups: [
-      signup("a", -10, {
-        firstChatAt: signedUp(-9.5),
-        gmailProposedAt: signedUp(-9),
-        recommendations3d: 2,
-        liked3d: 1,
-        disliked3d: 1,
-      }),
-      // Chatted and was offered Gmail only on day 5: not within the first 3 days.
-      signup("b", -10, {
-        firstChatAt: signedUp(-5),
-        gmailProposedAt: signedUp(-5),
-        recommendations3d: 1,
-        disliked3d: 1,
-      }),
-      signup("jobs", 1, {
-        firstChatAt: signedUp(1.1),
-        gmailProposedAt: signedUp(1.2),
-        recommendations3d: 3,
-        hasMaterials: true,
-      }),
-      // Signed up a day ago: counted with what they did so far.
-      signup("late", 9, { firstChatAt: signedUp(9.1) }),
-      signup("quiet", 9.5),
+      signup("before-1", -10, { firstChatAt: at(-9.9) }),
+      signup("before-2", -3),
+      signup("after", 1, { firstChatAt: at(1.1) }),
     ],
+    to: "2026-11-23",
   });
-  const chat = rowOf(result, "chatRate");
-  assert.equal(updateMetricDisplayValue(chat.values.before), 0.5);
-  assert.deepEqual(chat.values.after, { denominator: 3, kind: "rate", numerator: 2 });
-  assert.deepEqual(rowOf(result, "feedbackLikeRate").values.before, {
-    denominator: 3,
-    kind: "rate",
-    numerator: 1,
-  });
-  assert.equal(updateMetricDisplayValue(rowOf(result, "recipientLikeRate").values.before), 0.5);
-  assert.equal(updateMetricDisplayValue(rowOf(result, "jobsWithoutRoleRecommended").values.after), 1);
-  assert.equal(updateMetricDisplayValue(rowOf(result, "startedWithoutMaterials").values.before), 0.5);
-  const gmailProposed = rowOf(result, "gmailProposedRate");
-  assert.equal(updateMetricDisplayValue(gmailProposed.values.before), 0.5);
-  assert.deepEqual(gmailProposed.values.after, { denominator: 3, kind: "rate", numerator: 1 });
-  // Signups count everyone, as a 7-day average.
-  const signups = rowOf(result, "signups");
-  assert.equal(updateMetricDisplayValue(signups.values.after), (3 / 10) * 7);
+  const comparison = trackedChangeComparison(result, { deployedOn: "2026-11-20", primary: "chatRate3d" });
+  assert.equal(updateMetricPeriodValue(comparison.before), 0.5);
+  assert.equal(updateMetricPeriodValue(comparison.after), 1);
+  // Counts compare per day: 2 signups over 28 days before, 1 over the 3.5 days since.
+  const signups = trackedChangeComparison(result, { deployedOn: "2026-11-20", primary: "signups" });
+  assert.equal(updateMetricPeriodValue(signups.before), 2 / 28);
+  assert.equal(updateMetricPeriodValue(signups.after), 1 / 3.5);
 });
 
-test("landing visits convert when the browser signs up within a day, counting visits from the last day too", () => {
-  const result = buildOpsUpdateMetrics({
-    deployedAtMs,
-    jobsWithoutRoleUserIds: new Set(),
-    landing: [
-      { at: new Date(deployedAtMs - 2 * DAY).toISOString(), signedUpAt: new Date(deployedAtMs - 2 * DAY + 3600_000).toISOString() },
-      { at: new Date(deployedAtMs - 2 * DAY).toISOString(), signedUpAt: new Date(deployedAtMs).toISOString() },
-      { at: new Date(deployedAtMs + DAY).toISOString(), signedUpAt: null },
-      // Seen an hour ago and already signed up.
-      { at: new Date(nowMs - 3600_000).toISOString(), signedUpAt: new Date(nowMs - 1800_000).toISOString() },
-    ],
-    nowMs,
-    recommendations: [],
-    signups: [],
-  });
-  const landing = rowOf(result, "landingConversion");
-  assert.equal(updateMetricDisplayValue(landing.values.before), 0.5);
-  assert.equal(updateMetricDisplayValue(landing.values.after), 0.5);
+test("the server reads 28 days before the earliest tracked deploy", () => {
+  const earliest = OPS_TRACKED_CHANGES.map((change) => change.deployedOn).sort()[0];
+  const window = updateMetricsWindow({ from: "2026-11-20", to: "2026-11-24" });
+  assert.equal(window.to, "2026-11-24");
+  assert.ok(window.from <= earliest);
+  assert.equal(
+    Date.parse(`${earliest}T00:00:00Z`) - Date.parse(`${window.from}T00:00:00Z`),
+    28 * DAY
+  );
+});
+
+test("a chart marks only the changes that move it", () => {
+  const byKey = new Map(OPS_TRACKED_CHANGES.map((change) => [change.key, change]));
+  const gmail = byKey.get("2026-11-20-gmail");
+  const landing = byKey.get("2026-11-20-landing");
+  assert.ok(gmail && landing);
+  assert.equal(changeMovesChart(gmail, "gmail"), true);
+  assert.equal(changeMovesChart(landing, "gmail"), false);
+  assert.equal(changeMovesChart(landing, "signups"), true);
+  // The headline marks every tracked change; a change's own chart marks only itself.
+  assert.equal(changeMovesChart(landing, "headline"), true);
+  assert.equal(changeMovesChart(landing, { change: gmail.key }), false);
+  for (const change of OPS_TRACKED_CHANGES) {
+    assert.ok(change.links.every((link) => link.url.startsWith("https://")), change.key);
+    assert.equal(new Set(change.talentCharts).size, change.talentCharts.length, change.key);
+  }
 });

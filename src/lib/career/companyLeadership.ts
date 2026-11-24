@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { parse as parseDotenv } from "dotenv";
 import postgres from "postgres";
+import { getDisplayableProfileImageUrl } from "@/lib/imageUrl";
 import { transactionDatabaseUrl } from "@/lib/server/transactionDatabaseUrl";
 
 const DATABASE_ENV_NAMES = [
@@ -20,6 +21,7 @@ type CompanyLeadershipSqlRow = {
   education: unknown;
   headline: string | null;
   is_current_at_company: boolean;
+  profile_picture: string | null;
   linkedin_url: string | null;
   name: string | null;
   previous_companies: string[] | null;
@@ -40,6 +42,7 @@ export type CompanyLeadershipPerson = {
   linkedinUrl: string | null;
   name: string;
   previousCompanies: string[];
+  profilePictureUrl: string | null;
   role: string | null;
 };
 
@@ -85,7 +88,7 @@ function readDatabaseUrl() {
   return null;
 }
 
-function getCompanyLeadershipClient() {
+export function getCompanyLeadershipClient() {
   if (companyLeadershipClient) return companyLeadershipClient;
 
   const databaseUrl = readDatabaseUrl();
@@ -156,6 +159,7 @@ function mapLeadershipRows(
     candidId: String(row.candid_id),
     education: normalizeEducation(row.education),
     headline: cleanText(row.headline, 280) || null,
+    profilePictureUrl: getDisplayableProfileImageUrl(row.profile_picture),
     isCurrentAtCompany: Boolean(row.is_current_at_company),
     linkedinUrl: cleanText(row.linkedin_url, 500) || null,
     name: cleanText(row.name, 160) || "Unknown",
@@ -240,7 +244,8 @@ async function fetchLeadershipRows(args: {
           COALESCE(prev.previous_companies, ARRAY[]::text[]) AS previous_companies,
           COALESCE(edu.education, '[]'::jsonb) AS education,
           c.linkedin_url,
-          c.headline
+          c.headline,
+          c.profile_picture
         FROM leaders l
         JOIN public.candid c
           ON c.id = l.candid_id
@@ -353,7 +358,8 @@ async function fetchLeadershipRows(args: {
         COALESCE(prev.previous_companies, ARRAY[]::text[]) AS previous_companies,
         COALESCE(edu.education, '[]'::jsonb) AS education,
         c.linkedin_url,
-        c.headline
+        c.headline,
+        c.profile_picture
       FROM leaders l
       JOIN public.candid c
         ON c.id = l.candid_id

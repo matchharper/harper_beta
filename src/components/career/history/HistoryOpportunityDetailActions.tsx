@@ -83,12 +83,6 @@ export default function HistoryOpportunityDetailActions({
     if (item.feedback === "keep" && onKeepDecision) {
       return (
         <div className="space-y-2">
-          <p className="text-sm text-neutral-muted">
-            {t(
-              "career.history.keep.notice",
-              "저장됨 · 아직 수락하거나 거절하지 않았어요. 회사에는 전달되지 않습니다."
-            )}
-          </p>
           <OpportunityActionGrid>
             <MuteButton
               disabled={pending}

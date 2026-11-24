@@ -1,8 +1,23 @@
 import { ChatThinkingLogPanel } from "@/components/chat/ChatThinkingLogPanel";
-import type { CareerTurnEvent } from "@/lib/career/turnDisplay";
+import type { CareerTurnEvent, CareerTurnToolCall } from "@/lib/career/turnDisplay";
 import CareerMessageBubble from "../CareerMessageBubble";
 import { useCareerT } from "@/i18n/useCareerT";
 import { memo } from "react";
+
+const SHOW_TOOL_CALLS = process.env.NODE_ENV === "development";
+
+/** Local development: tool name, colored and numbered by the model response
+ * that called it, so calls made together read as one group. */
+function ToolCallBadge({ tool }: { tool: CareerTurnToolCall }) {
+  return (
+    <span
+      className="mr-1.5 font-mono text-xs font-medium"
+      style={{ color: `hsl(${(tool.call * 137) % 360} 70% 40%)` }}
+    >
+      #{tool.call} {tool.name}
+    </span>
+  );
+}
 
 type ThinkingLogPanelProps = {
   active?: boolean;
@@ -24,6 +39,7 @@ export const ThinkingLogPanel = memo(function ThinkingLogPanel({
     ? events.map((event) => ({
         id: event.id,
         label: event.text,
+        badge: SHOW_TOOL_CALLS && event.tool ? <ToolCallBadge tool={event.tool} /> : undefined,
         content: event.kind === "message" ? (
           <CareerMessageBubble
             isUser={false}

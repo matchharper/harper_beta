@@ -10,4 +10,3 @@ export * from "@/lib/career/prompts/cases/lifecyclePrompts";
 export * from "@/lib/career/prompts/cases/kickoffPrompts";
 export * from "@/lib/career/prompts/cases/onboardingDeferPrompts";
 export * from "@/lib/career/prompts/cases/profileIngestionPrompts";
-export * from "@/lib/career/prompts/cases/refreshExtractionPrompt";

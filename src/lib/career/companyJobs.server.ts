@@ -56,6 +56,7 @@ function getCompanyJobsClient() {
 type CompanyJobIndexRow = {
   role_id: string | null;
   fit_score: number | null;
+  title_similarity: number | null;
   is_recommended: boolean;
   total_count: number;
   matching_count: number;
@@ -87,8 +88,20 @@ export async function fetchCompanyJobIndex(
         where r.role_id = ${args.roleId ?? null}::uuid
           and ${args.companyDbId ?? null}::integer is null
           and coalesce(r.information->>'testOnly', 'false') <> 'true'
+      ), taste as (
+        -- The titles Harper already recommended and the person didn't reject:
+        -- ranks unscored jobs without another model call.
+        select avg(tr.title_embedding) as v
+        from public.talent_opportunity_recommendation tp
+        join public.company_roles tr on tr.role_id = tp.role_id
+        where tp.talent_id = ${args.userId}::uuid
+          and tr.title_embedding is not null
+          and coalesce(tp.feedback, '') <> 'negative'
       ), jobs as (
         select r.role_id, r.posted_at,
+          case when r.title_embedding is not null and (select v from taste) is not null
+            then 1 - (r.title_embedding operator(public.<=>) (select v from taste))
+          end as title_similarity,
           strpos(lower(coalesce(r.name, '')), lower(${titleQuery}::text)) > 0 as matches_title,
           (rec.id is not null and coalesce(rec.kind, '') <> 'user_link_import') as is_recommended,
           coalesce(fit.meta->>'score', fit.meta->>'score100', fit.meta->>'fitScore', fit.meta->>'fit_score', rec.score::text) as raw_score
@@ -121,17 +134,17 @@ export async function fetchCompanyJobIndex(
           then trim(raw_score)::numeric else null end as score from jobs
         where matches_title
       ), ranked as (
-        select role_id, posted_at, is_recommended,
+        select role_id, posted_at, is_recommended, title_similarity,
           case when score is null then null
             else round(greatest(0, least(100, case when score between 0 and 1 then score * 100 else score end)))::integer
           end as fit_score
         from scored
       ), page as (
-        select role_id, fit_score, is_recommended, posted_at from ranked
-        order by fit_score desc nulls last, posted_at desc nulls last, role_id
+        select role_id, fit_score, is_recommended, posted_at, title_similarity from ranked
+        order by fit_score desc nulls last, title_similarity desc nulls last, posted_at desc nulls last, role_id
         limit ${COMPANY_JOBS_PAGE_SIZE} offset ${args.offset}
       )
-      select page.role_id, page.fit_score,
+      select page.role_id, page.fit_score, page.title_similarity,
         coalesce(page.is_recommended, false) as is_recommended,
         totals.total_count, totals.matching_count
       from (
@@ -140,7 +153,7 @@ export async function fetchCompanyJobIndex(
         from jobs
       ) totals
       left join page on true
-      order by page.fit_score desc nulls last, page.posted_at desc nulls last, page.role_id
+      order by page.fit_score desc nulls last, page.title_similarity desc nulls last, page.posted_at desc nulls last, page.role_id
     `;
   });
 }
@@ -156,7 +169,8 @@ export async function fetchCompanyJobsPage(args: {
 }): Promise<CareerCompanyJobsPage> {
   const rows = await fetchCompanyJobIndex(args);
   const selected = rows.filter(
-    (row): row is CompanyJobIndexRow & { role_id: string } => row.role_id !== null
+    (row): row is CompanyJobIndexRow & { role_id: string } =>
+      row.role_id !== null
   );
   const totalCount = rows[0]?.total_count ?? 0;
   const matchingCount = rows[0]?.matching_count ?? 0;
@@ -184,6 +198,10 @@ export async function fetchCompanyJobsPage(args: {
               opportunity,
               fitScore: row.fit_score,
               isRecommended: row.is_recommended,
+              titleSimilarity:
+                row.title_similarity === null
+                  ? null
+                  : Number(row.title_similarity),
             },
           ]
         : [];

@@ -1,6 +1,5 @@
-/** Shared product contract for text, voice, onboarding and background Career. */
-export const CAREER_INTERNAL_OPPORTUNITIES = `Harper takes ownership of finding and recommending opportunities for the candidate. Present a Harper-connected recommendation as an opportunity you want to introduce and help them pursue if they are interested. Harper builds long-term trust by proposing connections that truly fit both sides and keeping unrecommended private company information confidential. Explain limits on company information through Harper's selective introductions, confidentiality and long-term trust. The internal selection mechanism is an execution detail, not the user-facing reason for withholding company information or a limitation on your willingness to help.
+/** Shared product contract for text, voice, onboarding and background Career. 본문은 internal-opportunities.md. */
+import "@/lib/llm/registerMarkdownText";
+import INTERNAL_OPPORTUNITIES_MARKDOWN from "./internal-opportunities.md";
 
-Available internal proposals are the candidate's existing recommendations and already selected, unpublished opportunities. read_recommended_opportunities checks these, get_role_context provides details, and upsert_opportunities publishes useful proposals. Checking again reuses the saved selections. General discovery searches external opportunities. Save real changes to the candidate's experience or preferences in their owning records for future matching.
-
-Use available company and Role evidence to judge whether the opportunity serves this candidate's purpose. Let their question and what they already know determine the explanation; use get_role_context with the needed jd detail level when the available context is insufficient. The candidate chooses whether to proceed. An explicitly chosen public Harper posting remains available through get_internal_roles and apply_to_internal_role; a general request for connections is not a choice of every public Role.`;
+export const CAREER_INTERNAL_OPPORTUNITIES = INTERNAL_OPPORTUNITIES_MARKDOWN.trimEnd();

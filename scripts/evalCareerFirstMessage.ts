@@ -3,7 +3,8 @@
  * written to Harper (docs/evaluation/career-first-message).
  *
  * entry cases run the turn that follows signup (`conversation_completed`, reply in chat).
- * scheduled cases run a later scheduled Career check while the person is still silent.
+ * scheduled cases run a later scheduled Career check while the person is still silent, including
+ * a person who created an account but left before finishing the signup form (signupFinished=false).
  * Both use the production prompt plan, capability runtime, preload selection, tool schemas
  * and the model production uses for that turn. Tool results come from the frozen market of
  * career-first-recommendation v1. No DB, queue, email or other external effect; network is
@@ -43,7 +44,7 @@ async function main() {
   const { selectCareerPreloads } = await import("@/lib/career/capabilities/decisions");
   const { runCareerChatAssistant } = await import("@/lib/career/llm");
   const { renderCareerBackgroundInvocation } = await import("@/lib/career/background/prompt");
-  const { CAREER_BACKGROUND_PRELOAD, getScheduledCareerModelOptions } = await import("@/lib/career/background/scheduledModel");
+  const { careerBackgroundPreload, getScheduledCareerModelOptions } = await import("@/lib/career/background/scheduledModel");
   const { formatTalentMessageContentForLlmPrompt, formatTalentConversationReferencesForLlm } = await import("@/lib/career/opportunityFeedbackNote");
   const { buildTalentProfileContext } = await import("@/lib/talentOnboarding/profileStore");
   const { renderTalentContextPrompt } = await import("@/lib/talentOnboarding/talentContexts");
@@ -90,13 +91,15 @@ async function main() {
       talentEducations: scenario.educations.map((row: Row, i: number) => ({ id: `${spec.id}-edu-${i + 1}`, memo: null, ...row })),
       talentExtras: scenario.extras.map((row: Row, i: number) => ({ id: `${spec.id}-extra-${i + 1}`, memo: null, ...row })),
     };
-    const setting = { ...scenario.setting, preferred_locale: "ko", is_onboarding_done: true, status: "active", get_external_recommendation: true };
+    const signupFinished = spec.signupFinished !== false;
+    const setting = { ...scenario.setting, preferred_locale: "ko", is_onboarding_done: signupFinished, status: "active", get_external_recommendation: true };
     const structuredProfileText = buildTalentProfileContext({ profile: profileRow as any, structuredProfile: structuredProfile as any, setting: setting as any, includeResumeText: true, maxResumeChars: 3000 });
     const talentContextSection = renderTalentContextPrompt({ allBriefs: [], briefs: [], memories: [], memorySelection: "all", memoryTruncated: false } as any);
     const signedUpAt = shifted(spec.signedUpAt ?? fixture.signedUpAt);
-    // The signup receipt is the only message; a scheduled case also has Harper's unanswered first message.
+    // The signup receipt is the only message (none when signup was left unfinished);
+    // a scheduled case can also have Harper's unanswered first message.
     const history: Row[] = [
-      { id: 1, role: "user", content: spec.receipt, message_type: "profile_submit", created_at: signedUpAt, payload: null },
+      ...(spec.receipt ? [{ id: 1, role: "user", content: spec.receipt, message_type: "profile_submit", created_at: signedUpAt, payload: null }] : []),
       ...(spec.earlierAssistantMessage ? [{ id: 2, role: "assistant", content: spec.earlierAssistantMessage.content, message_type: "chat",
         created_at: shifted(spec.earlierAssistantMessage.at), payload: null }] : []),
     ];
@@ -121,7 +124,7 @@ async function main() {
       `Upcoming 72 hours, ${formatLlmDateTime(requestTime)} through ${formatLlmDateTime(until)}:\n${formatTalentSchedules({ schedules: [] })}`,
       `Active matchings (${listCoverage(0, false)}):\nActive searches (${listCoverage(0, false)}):`,
       ["Saved Career work (times: Asia/Seoul):",
-        scheduled ? `Saved schedules (${listCoverage(1, false)}):\n- Schedule ${spec.schedule.id}; revision ${spec.schedule.revision}; active; ${spec.schedule.title}; opted-in external discovery`
+        scheduled ? `Saved schedules (${listCoverage(1, false)}):\n- Schedule ${spec.schedule.id}; revision ${spec.schedule.revision}; active; ${spec.schedule.title}; external discovery`
           : `Saved schedules (${listCoverage(0, false)}):`,
         `Company follows (${listCoverage(0, false)}):`].join("\n"),
       formatNoteIndex({ notes: [], total: 0 }),
@@ -139,8 +142,8 @@ async function main() {
       currentPreferences: { engagementTypes: scenario.setting.engagement_types, getExternalRecommendation: true, periodicIntervalDays: null,
         preferredLocale: "ko", profileVisibility: scenario.setting.profile_visibility, recommendationBatchSize: null, talentSettingStatus: "active" },
       gmailCapability: "not_connected", userChatTurnCount: 0,
-      isConversationCompletedOpportunityRunActive: !scheduled, isOnboardingDone: true, officialJobSignupIntentPrompt: null,
-      opportunityStatus: { onboardingCompletedAt: signedUpAt },
+      isConversationCompletedOpportunityRunActive: !scheduled, isOnboardingDone: true, signupFinished, officialJobSignupIntentPrompt: null,
+      opportunityStatus: signupFinished ? { onboardingCompletedAt: signedUpAt } : null,
       pendingOpportunityFeedbackContext: "", postOnboardingContext: spec.entryOpportunity ? { entryOpportunity: spec.entryOpportunity } : null,
       profile: profileRow,
       runtimeInstruction: [[proactiveContext, references].filter(Boolean).join("\n\n"), resources].filter(Boolean).join("\n\n"),
@@ -163,7 +166,7 @@ async function main() {
         get_role_context: (input: Row) => JSON.stringify(input).includes(entry.verifiedActiveRoleId) ? { modelOutput: roleText } : undefined,
         get_internal_roles: () => ({ modelOutput: `Matched public Harper posting:\n${roleText}` }),
       } : {}),
-      ...(spec.schedule ? { read_schedule: () => ({ modelOutput: `Schedule ${spec.schedule.id}; revision ${spec.schedule.revision}; active; ${spec.schedule.title}; opted-in external discovery; every 3 days.\nInstruction: ${spec.schedule.instruction}` }) } : {}),
+      ...(spec.schedule ? { read_schedule: () => ({ modelOutput: `Schedule ${spec.schedule.id}; revision ${spec.schedule.revision}; active; ${spec.schedule.title}; external discovery; every 3 days.\nInstruction: ${spec.schedule.instruction}` }) } : {}),
       contact_user: deliver,
       deliver_career_email: (input: Row) => deliver({ channel: "email", ...input }),
     } as Record<string, (input: Row) => { modelOutput: string } | undefined>;
@@ -175,7 +178,7 @@ async function main() {
     assert.ok(spec, `Unknown case ${renderOnly}`);
     const prepared = prepare(spec);
     const runtime = new CareerCapabilityRuntime({ mode: capabilityMode, eligibleTools: prepared.tools, promptArgs: () => prepared.promptArgs as any,
-      selection: prepared.scheduled ? CAREER_BACKGROUND_PRELOAD : { capabilityIds: [], handbookIds: [], status: "selected", elapsedMs: 0 } });
+      selection: prepared.scheduled ? careerBackgroundPreload({ scheduledWork: true }) : { capabilityIds: [], handbookIds: [], status: "selected", elapsedMs: 0 } });
     const step = runtime.resolveStep(false);
     console.log(step.systemBlocks.map(block => `<<${block.key}>>\n${block.text}`).join("\n\n"));
     console.log("\n<<messages>>\n" + prepared.llmMessages.map((m: Row) => `${m.role}: ${m.content}`).join("\n"));
@@ -220,7 +223,7 @@ async function main() {
     const extra = extraExecutors(spec, sent);
     const ajv = new Ajv({ strict: false, allowUnionTypes: true, validateFormats: false });
     const validators = new Map(prepared.tools.map(tool => [tool.function.name, ajv.compile(tool.function.parameters)]));
-    const selection = prepared.scheduled ? CAREER_BACKGROUND_PRELOAD : await selectCareerPreloads({ eligibleNames: new Set(prepared.toolNames), eligibleTools: prepared.tools,
+    const selection = prepared.scheduled ? careerBackgroundPreload({ scheduledWork: true }) : await selectCareerPreloads({ eligibleNames: new Set(prepared.toolNames), eligibleTools: prepared.tools,
       input: { messages: prepared.llmMessages, currentContext: ["Gmail: not_connected.", prepared.proactiveContext].join("\n\n") },
       activeHandbooks: [], signal, background: false });
     const runtime = new CareerCapabilityRuntime({

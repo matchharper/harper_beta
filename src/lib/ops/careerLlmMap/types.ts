@@ -43,3 +43,11 @@ export type CareerLlmMap = {
   unavailable: string[];
 };
 export type CareerLlmMapResponse = {revision: string; manifest: CareerLlmMap; document: string};
+/** One talent's current text-chat input, keyed like the map's prompt blocks. */
+export type CareerLlmMapExample = {
+  email: string;
+  conversationId: string;
+  builtAt: string;
+  blocks: {key: string; text: string}[];
+  history: string;
+};

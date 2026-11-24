@@ -37,7 +37,7 @@ type Row = Record<string, any>;
 // Files whose text reaches the model in this turn. Their hashes identify the prompt version of a run.
 const SOURCE_FILES = [
   "scripts/evalCareerFirstRecommendation.ts",
-  "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts",
+  "src/lib/career/prompts/main.md", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts",
   "src/lib/career/prompts/conversationSections.ts", "src/lib/career/prompts/postOnboardingGuide.ts", "src/lib/career/prompts/internalOpportunities.ts",
   "src/lib/career/prompts/promptCaching.ts", "src/lib/career/actionItems.ts", "src/lib/career/background/prompt.ts",
   "src/lib/llm/toolDescriptions.ts", "src/lib/career/llmTools.ts", "src/lib/career/llm.ts", "src/lib/talentOnboarding/llm.ts",

@@ -45,17 +45,18 @@ import UpcomingAppointments from "../UpcomingAppointments";
 import TalentRoleActivityTimeline from "./TalentRoleActivityTimeline";
 import NewOpportunityCompanyRoleSwitcher from "./NewOpportunityCompanyRoleSwitcher";
 import HistoryOpportunityRoleActions from "./HistoryOpportunityRoleActions";
-import OpportunityCard, {
-  OpportunityFacts,
-  OpportunityRoleInformation,
-} from "./OpportunityCard";
+import OpportunityCard, { OpportunityRoleInformation } from "./OpportunityCard";
 import OpportunityPostingSummary from "./OpportunityPostingSummary";
 import OpportunityCompanySummary from "./OpportunityCompanySummary";
 import OpportunityPendingTasks from "./OpportunityPendingTasks";
 import { OpportunityReviews } from "./OpportunityReviews";
+import SimilarOpportunities, {
+  useSimilarOpportunities,
+} from "./SimilarOpportunities";
 import OpportunityDetailTabs from "./OpportunityDetailTabs";
 import OpportunityAgentMessages from "./OpportunityAgentMessages";
 import HistoryOpportunityDetailActions from "./HistoryOpportunityDetailActions";
+import OpportunityCompanyTab from "./OpportunityCompanyTab";
 
 const EMPTY_COMPANY_OPPORTUNITIES: readonly CareerHistoryOpportunity[] = [];
 
@@ -539,6 +540,7 @@ export const HistoryOpportunityInlinePage = ({
   onOpenCompanyInfo,
   onOpenChat,
   onOpenLink,
+  onOpenSimilar,
   onApply,
   onInternalDecisionAction,
   onSavedStatusChange,
@@ -550,6 +552,8 @@ export const HistoryOpportunityInlinePage = ({
   roleActionsOnDesktop = true,
   savedStatus,
 }: {
+  /** Opens one of the similar opportunities shown with the posting. */
+  onOpenSimilar?: (item: CareerHistoryOpportunity) => void;
   /** Replaces the status actions for an opportunity the talent has not answered yet. */
   decisionActions?: ReactNode;
   className?: string;
@@ -594,7 +598,8 @@ export const HistoryOpportunityInlinePage = ({
   const [archiveExpanded, setArchiveExpanded] = useState(true);
   const archived = savedStatus === "archived";
   const external = !(item.isInternal || item.sourceType === "internal");
-  const companyUrl = item.companyHomepageUrl ?? item.companyLinkedinUrl;
+  // The list sits in the 기회 정보 tab; loading starts when the detail opens.
+  useSimilarOpportunities(item, external && Boolean(onOpenSimilar));
   // Every detail shows its buttons in one place, right under the card.
   const actions = decisionActions ?? (
     <HistoryOpportunityDetailActions
@@ -719,28 +724,17 @@ export const HistoryOpportunityInlinePage = ({
                 fullDescription
                 onOpenLink={onOpenLink}
               />
+              {external && onOpenSimilar ? (
+                <SimilarOpportunities item={item} onOpen={onOpenSimilar} />
+              ) : null}
             </div>
           }
           company={
-            <section className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[15px] font-medium">{item.companyName}</h2>
-                {(item.companyDbId || companyUrl) && (
-                  <MuteButton
-                    variant="transparent"
-                    onClick={() => {
-                      if (onOpenCompanyInfo) onOpenCompanyInfo(item);
-                      else if (companyUrl) onOpenLink(companyUrl);
-                    }}
-                  >
-                    {t("career.common.career.0ol21b2", "회사 정보")}{" "}
-                    <ArrowUpRight aria-hidden className="size-4" />
-                  </MuteButton>
-                )}
-              </div>
-              <OpportunityFacts item={item} section="company" />
-              <OpportunityCompanySummary item={item} />
-            </section>
+            <OpportunityCompanyTab
+              item={item}
+              onOpenCompanyInfo={onOpenCompanyInfo}
+              onOpenLink={onOpenLink}
+            />
           }
         />
       )}

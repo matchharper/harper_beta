@@ -4,11 +4,16 @@ import { InternalApiError, toInternalApiErrorResponse } from "@/lib/internalApi"
 import { isInternalEmail } from "@/lib/internalAccess";
 import { getFreshRequestUser } from "@/lib/supabaseServer";
 import { runCareerRunDebug } from "@/lib/ops/careerRunDebug.server";
-import type { CareerRunStreamEvent } from "@/lib/ops/careerRunDebug";
+import { careerRunModels, findCareerRunModel, type CareerRunModelSelection, type CareerRunStreamEvent } from "@/lib/ops/careerRunDebug";
 
 export const runtime = "nodejs";
 export const maxDuration = 480;
-const input = z.object({ userId: z.string().uuid() });
+const modelIds = careerRunModels.map(model => model.id) as [CareerRunModelSelection["model"], ...CareerRunModelSelection["model"][]];
+const input = z.object({
+  userId: z.string().uuid(),
+  model: z.enum(modelIds).optional(),
+  effort: z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +22,11 @@ export async function POST(req: NextRequest) {
     if (!isInternalEmail(user.email)) throw new InternalApiError(403, "Forbidden");
     const parsed = input.safeParse(await req.json().catch(() => null));
     if (!parsed.success) throw new InternalApiError(400, "Career 계정을 선택해 주세요.");
+    const { userId, model, effort = "default" } = parsed.data;
+    const efforts: readonly string[] = model ? findCareerRunModel(model)?.efforts ?? [] : [];
+    if (model && effort !== "default" && !efforts.includes(effort))
+      throw new InternalApiError(400, `${model}는 reasoning effort ${effort}를 지원하지 않습니다.`);
+    const selection = model ? { model, effort } as CareerRunModelSelection : undefined;
 
     const disconnected = new AbortController();
     const connection = AbortSignal.any([req.signal, disconnected.signal]);
@@ -28,7 +38,7 @@ export async function POST(req: NextRequest) {
           if (!connection.aborted) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
         };
         try {
-          await runCareerRunDebug(parsed.data.userId, signal, send);
+          await runCareerRunDebug(userId, signal, send, selection);
         } catch (error) {
           send({ type: "error", message: error instanceof InternalApiError
             ? error.message : "Career run을 시작하지 못했습니다." });

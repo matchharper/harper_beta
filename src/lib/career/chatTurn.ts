@@ -4,13 +4,14 @@ import { projectCareerConversationHistory } from "@/lib/talentOnboarding/convers
 import { formatTalentMessageContentForModel } from "./messageForModel";
 import { fitCareerHistoryToModel } from "./modelInputFit";
 import { selectCareerPreloads, type CareerPreviousTurn } from "./capabilities/decisions";
-import { CAREER_BACKGROUND_PRELOAD } from "./background/scheduledModel";
+import { careerBackgroundPreload } from "./background/scheduledModel";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { readCareerPromptExperiment } from "./prompts/promptExperiment";
 import { withCareerPromptReadCache, readCareerPromptValue, invalidateCareerPromptReadCache } from "./promptReadCache.server";
 import { deliverContinuationResponse } from "./onboardingContinuation.server";
 import { hasDeliveredCareerContact } from "./background/contactHistory";
 import { createCareerAssistantMessageWriter } from "./assistantMessageWriter";
+import type { CareerTurnToolCall } from "./turnDisplay";
 import { UPSERT_PLAN_TOOL_NAME, type CareerTurnPlanItem, type CareerTurnPlanStore } from "./turnPlan";
 import { readCareerConversationVersion } from "./conversationVersion";
 import { readCareerReengagementOpportunities, REENGAGEMENT_OPPORTUNITY_PRELOAD } from "./reengagementOpportunities";
@@ -298,13 +299,13 @@ function extractRecommendationPostingRoleIds(result: unknown) {
   return normalizePostingRoleIds([...roleIdsFromResult, ...roleIdsFromDraft]);
 }
 
-function appendThinkingLog(logs: string[], status: string) {
+function appendThinkingLog(logs: string[], status: string, allowRepeat = false) {
   const normalized = stripPostgresUnsafeChars(status)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 160);
   if (!normalized) return logs;
-  if (logs[logs.length - 1] === normalized) return logs;
+  if (!allowRepeat && logs[logs.length - 1] === normalized) return logs;
   // The activity writer consumes appended entries by index. Truncating this
   // sequence silently freezes visible progress after the first twelve tools.
   return [...logs, normalized];
@@ -457,7 +458,8 @@ type CareerBackgroundPreview = {
 
 export function previewCareerBackgroundTurn(
   args: Pick<RunCareerChatTurnArgs, "admin" | "userId" | "conversationId" | "assistantModel" |
-    "assistantAnthropicEffort" | "assistantOpenAIResponsesReasoningEffort" | "proactiveContext" | "abortSignal"> & {
+    "assistantAnthropicEffort" | "assistantOpenAIResponsesReasoningEffort" | "assistantChatCompletionReasoningEffort" |
+    "proactiveContext" | "abortSignal"> & {
     backgroundInvocation: NonNullable<RunCareerChatTurnArgs["backgroundInvocation"]>;
   },
   preview: CareerBackgroundPreview
@@ -729,7 +731,24 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
         return "Saved search results could not be read for this return. Their absence is unknown; the ordinary matching tools can read current facts.";
       })
     : "";
-  const turnRuntimeInstruction = [proactiveContext, args.applicationEvent, reengagementOpportunities]
+  // Scheduled discovery starts from its saved search, as a return does: the candidates
+  // not yet recommended arrive with the run instead of being rebuilt from the web.
+  const scheduledOpportunities = args.backgroundInvocation?.scheduledWork && args.backgroundInvocation.discovery &&
+    !isConversationContinuation && !isOnboardingActiveForTurn
+    ? await readCareerReengagementOpportunities({
+        admin,
+        userId,
+        blockedCompanies: talentSetting?.blocked_companies ?? [],
+        matchingId: args.backgroundInvocation.researchMatchingId,
+        heading: "## Saved search for this run (times: Asia/Seoul)",
+      }).catch((error) => {
+        console.warn("[career] scheduled opportunities unavailable", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        return "Saved search results could not be read for this run. Their absence is unknown; the matching tools can read current facts.";
+      })
+    : "";
+  const turnRuntimeInstruction = [proactiveContext, args.applicationEvent, reengagementOpportunities, scheduledOpportunities]
     .filter(Boolean)
     .join("\n\n");
   const shouldAutoExtractInsights = isOnboardingActiveForTurn && !suppressOnboarding;
@@ -951,6 +970,9 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
           + (rawUserMessage && !insertedUserMessage ? 1 : 0),
       isConversationCompletedOpportunityRunActive,
       isOnboardingDone: !isOnboardingActiveForTurn,
+      // Same condition as the onboarding redirect: Career opens on the signup form until then.
+      signupFinished: Boolean(talentSetting?.is_onboarding_done) ||
+        Boolean(conversation?.stage && conversation.stage !== "profile"),
       // A Harper outreach mail's entry record is read after onboarding too (its first chat turns, conversationPlan.ts).
       officialJobSignupIntentPrompt: isOnboardingActiveForTurn || entrySource.fromMail
         ? entrySource.intentSummary
@@ -999,7 +1021,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     updateConversationOnComplete: completeConversationInTransaction && !skipConversationWrites,
     usageRequestId,
     ...(preloadRead ? { selectionSnapshot: preloadRead } : {}),
-    ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: CAREER_BACKGROUND_PRELOAD } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
+    ...(args.backgroundInvocation && !isConversationContinuation ? { selectionSnapshot: careerBackgroundPreload(args.backgroundInvocation) } : isSessionReengagement ? { selectionSnapshot: REENGAGEMENT_OPPORTUNITY_PRELOAD } : {}),
     continuation: {
       channel: args.backgroundInvocation ? "background" : args.adapter ? "adapter" : "career",
       ...(args.assistantModel ? { assistantModel: args.assistantModel } : {}),
@@ -1031,7 +1053,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     mode: capabilityMode,
     eligibleTools: toolSelection.tools,
     promptArgs: () => capabilityPromptArgs,
-    selection: CAREER_BACKGROUND_PRELOAD,
+    selection: careerBackgroundPreload(args.backgroundInvocation),
     abortSignal: args.abortSignal,
     onModelTurn: preview.onModelTurn,
   }) : capabilityTurn?.runtime;
@@ -1063,11 +1085,18 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
   const recommendationReceiptRef: {
     current: RecommendJobPostingsReceipt | null;
   } = { current: null };
-  const recordThinkingLog = (status: string) => {
-    const previousLast = thinkingLogs[thinkingLogs.length - 1];
-    thinkingLogs = appendThinkingLog(thinkingLogs, status);
+  // Local development shows which tool each log came from, numbered by the
+  // model response that called it. Every call gets its own line there.
+  const showToolCalls = process.env.NODE_ENV === "development";
+  const thinkingLogTools = new Map<number, CareerTurnToolCall>();
+  let toolCallResponse = 0;
+  let lastToolLoop: number | undefined;
+  const recordThinkingLog = (status: string, tool?: CareerTurnToolCall) => {
+    const previousLength = thinkingLogs.length;
+    thinkingLogs = appendThinkingLog(thinkingLogs, status, Boolean(tool));
     const currentLast = thinkingLogs[thinkingLogs.length - 1];
-    if (currentLast && currentLast !== previousLast) {
+    if (currentLast && thinkingLogs.length > previousLength) {
+      if (tool) thinkingLogTools.set(thinkingLogs.length - 1, tool);
       onThinkingLog?.(currentLast, thinkingLogs);
       void messageWriter?.logs(thinkingLogs).then(row => {
         if (row) onArtifactMessage(toTalentMessageResponse(row));
@@ -1220,6 +1249,7 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     admin, userId, conversationId, isMobile, onLiveMessage: args.onLiveMessage,
     replyId: capabilityTurn?.replyId ?? args.agentReplyId ?? `message:${insertedUserMessage?.id ?? requestStartedAt}`,
     startedAt: new Date(requestStartedAt).toISOString(),
+    toolOfLog: showToolCalls ? index => thinkingLogTools.get(index) : undefined,
     check: async () => {
       await (capabilityTurn?.runtime.options.checkCancellation ?? standaloneCancellation?.check)?.();
       return shouldInsertAssistantMessage ? shouldInsertAssistantMessage() : true;
@@ -1277,9 +1307,10 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
             })();
         onArtifactMessage(toTalentMessageResponse(row));
         thinkingLogs = [];
+        thinkingLogTools.clear();
       },
       abortSignal: args.abortSignal,
-      executeTool: async ({ name, input, callId }) => {
+      executeTool: async ({ name, input, callId, loop }) => {
         invalidateCareerPromptReadCache();
         // A stray space around a key (" _uiStatusMessage") must not fail strict tool schemas.
         const { _uiStatusMessage: rawStatus, ...toolInput } = Object.fromEntries(
@@ -1302,7 +1333,11 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
             if (row) onArtifactMessage(toTalentMessageResponse(row));
           });
         }
-        if (shown) {
+        if (showToolCalls) {
+          if (loop === undefined || loop !== lastToolLoop) toolCallResponse += 1;
+          lastToolLoop = loop;
+          recordThinkingLog(shown || name, { name, call: toolCallResponse });
+        } else if (shown) {
           recordThinkingLog(shown);
         }
 

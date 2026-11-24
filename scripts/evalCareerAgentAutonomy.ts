@@ -214,7 +214,7 @@ async function main() {
   const { CareerCapabilityRuntime } = await import("@/lib/career/capabilities/runtime");
   const { selectCareerPreloads } = await import("@/lib/career/capabilities/decisions");
   const { runCareerChatAssistant } = await import("@/lib/career/llm");
-  const { getScheduledCareerModelOptions, isScheduledCareerRun, CAREER_BACKGROUND_PRELOAD } = await import("@/lib/career/background/scheduledModel");
+  const { getScheduledCareerModelOptions, isScheduledCareerRun, careerBackgroundPreload } = await import("@/lib/career/background/scheduledModel");
   const { renderCareerBackgroundInvocation, formatCareerApplicationEvent, GMAIL_CONNECTED_APPLICATION_EVENT } = await import("@/lib/career/background/prompt");
   const requestedModel = option("--model", "");
   if (requestedModel) assert.ok(isCareerTextChatModelId(requestedModel), "Explicit model must be a supported product selection");
@@ -388,7 +388,7 @@ async function main() {
     } catch (error) { record.error = error instanceof Error ? error.message : String(error); throw error; }
     finally { save("requests", requests); }
   };
-  const sourcePaths = ["scripts/evalCareerAgentAutonomy.ts", "scripts/evaluation/careerAutonomyFixture.ts", "src/lib/career/prompts/mainPrompt2.ts", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/llmTools.ts", "src/lib/career/llm.ts", "src/lib/talentOnboarding/llm.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/talentOnboarding/tools.ts", "src/lib/documents/authoring.ts", "src/lib/resumes/service.ts", "src/lib/career/textChatModelConfig.ts", ...["capabilities", "handbooks"].flatMap(folder => readdirSync(`src/lib/career/${folder}`).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts")).map(name => `src/lib/career/${folder}/${name}`))];
+  const sourcePaths = ["scripts/evalCareerAgentAutonomy.ts", "scripts/evaluation/careerAutonomyFixture.ts", "src/lib/career/prompts/main.md", "src/lib/career/prompts/mainPrompts.ts", "src/lib/career/prompts/conversationPlan.ts", "src/lib/career/prompts/conversationSections.ts", "src/lib/career/llmTools.ts", "src/lib/career/llm.ts", "src/lib/talentOnboarding/llm.ts", "src/lib/llm/toolDescriptions.ts", "src/lib/talentOnboarding/tools.ts", "src/lib/documents/authoring.ts", "src/lib/resumes/service.ts", "src/lib/career/textChatModelConfig.ts", ...["capabilities", "handbooks"].flatMap(folder => readdirSync(`src/lib/career/${folder}`).filter(name => name.endsWith(".ts") && !name.endsWith(".test.ts")).map(name => `src/lib/career/${folder}/${name}`))];
   if (fixture.useSearchReceipts) sourcePaths.push("scripts/evaluation/careerSearchReceiptFixture.ts","scripts/evaluation/careerResourceFixture.ts","src/lib/career/resources/searchHistory.ts","src/lib/career/resources/read.ts","src/lib/career/agentTurnRuntime.server.ts","supabase/migrations/20261116081510_career_search_receipts.sql");
   if (cases.some((scenario: any) => scenario.gmailMessages)) sourcePaths.push("scripts/evaluation/careerFixtureMailbox.ts", "src/lib/career/chatTurn.ts", "src/lib/career/background/server.ts", "src/lib/integrations/gmail.ts", "src/lib/resumes/schema.ts", "src/lib/documents/sources.ts");
   sourcePaths.push("scripts/evaluation/careerAutonomyGuidance.ts", "src/lib/career/prompts/internalOpportunities.ts", "src/lib/career/internalSelections.ts");
@@ -445,7 +445,7 @@ async function main() {
       const selectorContext = scenario.useSearchReceipts
         ? (event ? [`Gmail: ${scenario.gmail ? "available" : "not_connected"}.`, eventContext].filter(Boolean).join("\n") : undefined)
         : [`Gmail: ${scenario.gmail ? "available" : "not_connected"}.`, eventContext, sandbox.referencesText()].filter(Boolean).join("\n");
-      const preloads = background ? CAREER_BACKGROUND_PRELOAD : await selectCareerPreloads({ eligibleNames: new Set(selected.toolNames), eligibleTools: selected.tools,
+      const preloads = background ? careerBackgroundPreload({ scheduledWork }) : await selectCareerPreloads({ eligibleNames: new Set(selected.toolNames), eligibleTools: selected.tools,
         input: { messages, currentContext: selectorContext, previous: prior?.previous }, activeHandbooks, signal });
       const runtime = new CareerCapabilityRuntime({ mode: "progressive", eligibleTools: selected.tools, handbooks: activeHandbooks, selection: preloads, abortSignal: signal, adaptPromptBlocks: guidance?.adaptPromptBlocks,
         promptArgs: () => ({ channel: "chat", isOnboardingDone: true, profile: scenario.accountProfile ?? null, structuredProfileText: sandbox.promptProfileText(onboardingComplete),

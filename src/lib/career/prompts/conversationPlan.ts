@@ -2,7 +2,7 @@ import { buildCareerMainPrompt } from "./mainPrompts";
 import { CAREER_SCHEDULED_WORK } from "./scheduledWork";
 import { CAREER_ACTION_ITEMS_GUIDE, buildCareerActionItemsContext, type CareerActionItem } from "../actionItems";
 import type { CareerConversationVersion } from "../conversationVersion";
-import { careerTextChatDisplayRules } from "./mainPrompt2";
+import { careerTextChatDisplayRules } from "./textChatDisplay";
 import { orderCareerPromptBlocksForCaching } from "./promptCaching";
 import {
   careerPromptText,
@@ -70,6 +70,7 @@ import {
   buildCareerEntryFindSimilarRequest,
   buildCareerPostOnboardingContextSection,
   buildCareerPostOnboardingConversationGuide,
+  buildCareerSignupUnfinishedContext,
 } from "@/lib/career/prompts/postOnboardingGuide";
 
 const ONBOARDING_TOOL_POLICY_ALLOWED_TOOLS = [
@@ -121,7 +122,7 @@ export function buildGmailCapabilityPrompt(capability: GmailCapability) {
  * /career 텍스트 채팅과 실시간 voice call 프롬프트를 조립하는 핵심 함수.
  *
  * 블록 포함 규칙:
- * - 일반 채팅: mainPrompts.ts의 career_main + profile_context, dynamic_state.
+ * - 일반 채팅: main.md(mainPrompts.ts)의 career_main + profile_context, dynamic_state.
  * - 정기 확인·예약: 같은 career_main + scheduled_work 이메일 지침 + 현재 사실.
  * - 그 외 채널: chat_core + 해당 mode guidance + profile_context, dynamic_state.
  * - 온보딩 중에만 포함: onboarding_rules, dynamic_state 안의 주제별 정보 목적.
@@ -151,6 +152,9 @@ export function buildCareerConversationPromptPlan(args: {
   isConversationCompletedOpportunityRunActive?: boolean;
   internalCallRequest?: InternalOpportunityCallRequest | null;
   isOnboardingDone?: boolean;
+  // False while Career still opens on the signup form (the onboarding redirect).
+  // Background work and email replies can run before that.
+  signupFinished?: boolean;
   officialJobSignupIntentPrompt?: string | null;
   onboardingChecklistCoverage?: OnboardingChecklistCoverage | null;
   opportunityStatus?: CareerPromptOpportunityStatus | null;
@@ -338,9 +342,14 @@ export function buildCareerConversationPromptPlan(args: {
       text: buildCareerPostOnboardingConversationGuide({
         channel: args.channel,
         delivery: args.backgroundInvocation || args.scheduledWork ? "email" : "chat",
+        signupFinished: args.signupFinished,
       }),
       cacheable: true,
     });
+  }
+
+  if (!isFirstContact && !isOnboardingActive && args.signupFinished === false) {
+    promptBlocks.push({ key: "signup_unfinished", text: buildCareerSignupUnfinishedContext(), cacheable: true });
   }
 
   if (isOnboardingActive) {

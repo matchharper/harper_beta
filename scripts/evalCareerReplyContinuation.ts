@@ -6,7 +6,9 @@ import { CareerCapabilityRuntime } from "@/lib/career/capabilities/runtime";
 import { resolveCareerChatTools } from "@/lib/career/llmTools";
 import { runCareerChatAssistant } from "@/lib/career/llm";
 import { resolveCareerTextChatModel } from "@/lib/career/textChatModelConfig";
-import { careerMainPromptForVersion } from "@/lib/career/prompts/mainPrompt2";
+import "@/lib/llm/registerMarkdownText";
+import { careerMainPromptForVersion } from "@/lib/career/prompts/mainPrompts";
+import LIGHT_ENDING from "@/lib/career/prompts/experiments/ending-a-reply-light.md";
 
 // Compares the Career main prompt with and without the reply-continuation
 // paragraph on frozen synthetic cases. "before" removes only that paragraph
@@ -35,8 +37,7 @@ const ADDED = (() => {
 
 // "light" swaps the section for a short alternative that only asks for an easy
 // way to respond when a reply would end on a plain statement.
-const LIGHT =
-  "\n## Ending a reply\n\nWhen a reply would otherwise end on a plain statement, close with something easy to respond to: a short question, what you suggest doing next, or reply options. Do not ask permission for work you can simply do, and let a conversation that is wrapping up close.\n";
+const LIGHT = `\n${LIGHT_ENDING}`;
 
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const runId = new Date().toISOString().replaceAll(":", "-");
@@ -45,7 +46,7 @@ mkdirSync(output, { recursive: true, mode: 0o700 });
 const save = (name: string, value: unknown) =>
   writeFileSync(`${output}/${name}.json`, JSON.stringify(value, null, 2), { mode: 0o600 });
 const files = [
-  "src/lib/career/prompts/mainPrompt2.ts",
+  "src/lib/career/prompts/main.md",
   "src/lib/career/prompts/conversationPlan.ts",
   "src/lib/career/prompts/rawPrompts.ts",
   "src/lib/career/capabilities/runtime.ts",

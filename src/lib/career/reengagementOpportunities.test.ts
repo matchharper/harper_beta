@@ -9,16 +9,18 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
   const db = new PGlite();
   try {
     await db.exec(`
-      CREATE TABLE company_db(id uuid,name text);
-      CREATE TABLE company_workspace(company_workspace_id uuid,company_name text,company_db_id uuid,external_roles_enabled boolean DEFAULT true);
+      CREATE TABLE company_db(id uuid,name text,website_url text);
+      CREATE TABLE talent_opportunity_membership_index(id uuid,talent_id uuid,matching_id uuid,role_id uuid,
+        recommendation_id uuid,role jsonb,recommendation jsonb,explanation text);
+      CREATE TABLE company_workspace(company_workspace_id uuid,company_name text,company_db_id uuid,external_roles_enabled boolean DEFAULT true,homepage_url text,published_name text);
       CREATE TABLE company_roles(role_id uuid,name text,company_workspace_id uuid,source_type text DEFAULT 'external',source_provider text,
         is_expired boolean DEFAULT false,expires_at timestamptz,status text DEFAULT 'active',information jsonb DEFAULT '{}',summary jsonb,
         location_text text,work_mode text,salary_range jsonb,external_jd_url text);
       CREATE TABLE talent_matchings(id uuid,talent_id uuid,title text,criteria jsonb,revision int,archived_at timestamptz);
       CREATE TABLE external_recommendation_runs(id uuid,talent_id uuid,matching_id uuid,variant text DEFAULT 'career_agent',status text,created_at timestamptz,finished_at timestamptz,evaluation_ids uuid[] DEFAULT '{}');
-      CREATE TABLE talent_external_evaluations(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb);
+      CREATE TABLE talent_external_evaluations(id uuid,talent_id uuid,role_id uuid,assessment jsonb,evaluated_at timestamptz,input_fingerprint text,input_snapshot jsonb,company_workspace_id uuid);
       CREATE VIEW talent_external_evaluation_index AS SELECT e.*,(assessment#>>'{fit,mutualFit}')::float AS mutual_fit_score FROM talent_external_evaluations e;
-      CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid,opportunity_type text DEFAULT 'external_jd');
+      CREATE TABLE talent_opportunity_recommendation(talent_id uuid,role_id uuid,opportunity_type text DEFAULT 'external_jd',company_workspace_id uuid);
       CREATE TABLE talent_external_fit(talent_id uuid,role_id uuid,evaluations jsonb,meta jsonb,created_at timestamptz);
       INSERT INTO company_workspace VALUES('${id(50)}','Allowed',null,true),('${id(51)}','Blocked',null,true);
       INSERT INTO talent_matchings VALUES('${id(7)}','${id(1)}','Backend roles','{"brief":[{"label":"Direction","content":"Backend ownership"}]}',1,null);
@@ -78,6 +80,19 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
     assert.match(context, /Opportunity list \(matchingId: [^)]+\): expectedRevision: revision-1/);
     assert.match(context, /Backend ownership/);
     assert.doesNotMatch(context, /T\d\d:\d\d:\d\d/);
+    // A scheduled run reads the matching it continues; one without saved runs shows none,
+    // not unrelated historical candidates.
+    const scheduled = await readCareerReengagementOpportunities({
+      admin, userId: id(1), blockedCompanies: ["Blocked"], matchingId: id(7), heading: "## Saved search for this run",
+    });
+    assert.match(scheduled, /^## Saved search for this run/);
+    assert.match(scheduled, /The matching this run continues\./);
+    assert.match(scheduled, /Allowed \/ Role 6/);
+    const unsearched = await readCareerReengagementOpportunities({
+      admin, userId: id(1), blockedCompanies: [], matchingId: id(8),
+    });
+    assert.match(unsearched, /has no saved search results yet/);
+    assert.doesNotMatch(unsearched, /Historical candidates/);
     // No modern matching: reuse the historical source, not an empty modern-only page.
     await db.exec(`DELETE FROM external_recommendation_runs WHERE talent_id='${id(1)}';
       INSERT INTO external_recommendation_runs(id,talent_id,variant,status,created_at,finished_at)

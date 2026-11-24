@@ -13,6 +13,7 @@ const supabaseStorageHostname = "zzojrniuppueizhnmqfd.supabase.co";
 const packageAsset = (packageName, asset) =>
   `./${path.relative(process.cwd(), realpathSync(`node_modules/${packageName}`)).split(path.sep).join("/")}/${asset}`;
 const configRequire = createRequire(import.meta.url);
+const markdownTextLoader = configRequire.resolve("./scripts/markdownTextLoader.cjs");
 const pdfRequire = createRequire(configRequire.resolve("pdf-parse"));
 const pdfJsDirectory = path.dirname(pdfRequire.resolve("pdfjs-dist/package.json"));
 const pdfJsAsset = (asset) =>
@@ -37,6 +38,8 @@ const nextConfig = {
   webpack(config, { dev }) {
     // The restored compiler cache exceeds the Vercel build container's memory.
     if (!dev) config.cache = false;
+    // Prompt Markdown files are imported as text (turbopack.rules has the same rule).
+    config.module.rules.push({ test: /\.md$/, use: [markdownTextLoader], type: "javascript/auto" });
     return config;
   },
   // Inline the same real package paths used by tracing. Serverless bundles do
@@ -176,6 +179,7 @@ const nextConfig = {
         loaders: ["@svgr/webpack"],
         as: "*.js",
       },
+      "*.md": { loaders: [markdownTextLoader], as: "*.js" },
     },
   },
 };

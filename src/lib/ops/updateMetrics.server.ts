@@ -5,28 +5,38 @@ import { listTestTalentAccountEmails } from "@/lib/testAccounts";
 import { readOnly } from "@/lib/ops/talentMetricsOverview.server";
 import { OVERVIEW_ACCOUNT_SIGN_INS_SQL } from "@/lib/ops/talentMetricsOverview.sql";
 import {
+  addDays,
   buildOpsUpdateMetrics,
-  buildUpdateMetricsBuckets,
   kstMidnightMs,
+  updateMetricsWindow,
   type OpsUpdateMetricsResponse,
+  type UpdateMetricsEmailRow,
   type UpdateMetricsLandingRow,
   type UpdateMetricsRecommendationRow,
   type UpdateMetricsSignupRow,
+  type UpdateMetricsUnseenReplyRow,
   type UpdateMetricsUsageRow,
 } from "@/lib/ops/updateMetrics";
 import {
+  UPDATE_METRICS_EMAILS_SQL,
   UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL,
   UPDATE_METRICS_LANDING_SQL,
   UPDATE_METRICS_LLM_USAGE_SQL,
   UPDATE_METRICS_RECOMMENDATIONS_SQL,
   UPDATE_METRICS_SIGNUPS_SQL,
+  UPDATE_METRICS_UNSEEN_REPLIES_SQL,
 } from "@/lib/ops/updateMetrics.sql";
 
+/**
+ * Daily values for KST days [from, to], read from 28 days before the earliest tracked deploy when that is earlier
+ * (updateMetricsWindow) so every tracked change has its before period.
+ */
 export async function fetchOpsUpdateMetrics(args: {
-  deployedOn: string;
   excludedEmails?: string[];
+  from: string;
+  to: string;
 }): Promise<OpsUpdateMetricsResponse> {
-  const deployedAtMs = kstMidnightMs(args.deployedOn);
+  const range = updateMetricsWindow(args);
   const excludedEmails = Array.from(
     new Set(
       // Test accounts never count as talents.
@@ -36,19 +46,16 @@ export async function fetchOpsUpdateMetrics(args: {
     )
   ).sort();
   const nowMs = Date.now();
-  const buckets = buildUpdateMetricsBuckets(deployedAtMs, nowMs);
-  const first = buckets[0];
-  const last = buckets.at(-1);
-  if (!first || !last) throw new Error("비교할 기간이 없습니다.");
-  const boundaries = [first.start, ...buckets.map((bucket) => bucket.end)];
-  const window = [first.start, last.end];
+  const startMs = kstMidnightMs(range.from);
+  const endMs = Math.min(kstMidnightMs(addDays(range.to, 1)), nowMs);
+  if (endMs <= startMs) throw new Error("볼 기간이 없습니다.");
+  const window = [new Date(startMs).toISOString(), new Date(endMs).toISOString()];
+  const withPeople = [...window, excludedEmails];
 
-  const signupsWithJobs = readOnly<
-    Omit<UpdateMetricsSignupRow, "costUsd3d" | "llmMs3d">
-  >(UPDATE_METRICS_SIGNUPS_SQL, [
-    ...window,
-    excludedEmails,
-  ]).then(async (signups) => {
+  const signupsWithJobs = readOnly<Omit<UpdateMetricsSignupRow, "costUsd3d" | "llmMs3d">>(
+    UPDATE_METRICS_SIGNUPS_SQL,
+    withPeople
+  ).then(async (signups) => {
     const [attribution, jobsWithoutRole] = await Promise.all([
       attributeTalentSignups({
         excludedEmails,
@@ -67,32 +74,27 @@ export async function fetchOpsUpdateMetrics(args: {
     const slugsWithoutRole = new Set(jobsWithoutRole.map((job) => job.slug));
     const jobsWithoutRoleUserIds = new Set<string>();
     for (const [userId, item] of attribution) {
-      if (item.jobSlug && slugsWithoutRole.has(item.jobSlug)) {
-        jobsWithoutRoleUserIds.add(userId);
-      }
+      if (item.jobSlug && slugsWithoutRole.has(item.jobSlug)) jobsWithoutRoleUserIds.add(userId);
     }
     return { jobsWithoutRoleUserIds, signups };
   });
 
-  const [{ jobsWithoutRoleUserIds, signups }, usage, recommendations, landing] =
+  const [{ jobsWithoutRoleUserIds, signups }, usage, recommendations, landing, emails, unseenReplies] =
     await Promise.all([
       signupsWithJobs,
-      readOnly<UpdateMetricsUsageRow>(
-        UPDATE_METRICS_LLM_USAGE_SQL,
-        [...window, excludedEmails],
-        { enable_indexscan: "off" }
-      ),
-      readOnly<UpdateMetricsRecommendationRow>(UPDATE_METRICS_RECOMMENDATIONS_SQL, [
-        ...window,
-        excludedEmails,
-        boundaries,
-      ]),
+      readOnly<UpdateMetricsUsageRow>(UPDATE_METRICS_LLM_USAGE_SQL, withPeople, {
+        enable_indexscan: "off",
+      }),
+      readOnly<UpdateMetricsRecommendationRow>(UPDATE_METRICS_RECOMMENDATIONS_SQL, withPeople),
       readOnly<UpdateMetricsLandingRow>(UPDATE_METRICS_LANDING_SQL, window),
+      readOnly<UpdateMetricsEmailRow>(UPDATE_METRICS_EMAILS_SQL, withPeople),
+      readOnly<UpdateMetricsUnseenReplyRow>(UPDATE_METRICS_UNSEEN_REPLIES_SQL, withPeople),
     ]);
 
   const usageByUser = new Map(usage.map((row) => [row.userId, row]));
   return buildOpsUpdateMetrics({
-    deployedAtMs,
+    emails,
+    from: range.from,
     jobsWithoutRoleUserIds,
     landing,
     nowMs,
@@ -102,5 +104,7 @@ export async function fetchOpsUpdateMetrics(args: {
       costUsd3d: usageByUser.get(row.userId)?.costUsd3d ?? 0,
       llmMs3d: usageByUser.get(row.userId)?.llmMs3d ?? 0,
     })),
+    to: range.to,
+    unseenReplies,
   });
 }

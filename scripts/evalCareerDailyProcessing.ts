@@ -76,7 +76,7 @@ async function main() {
     "src/lib/career/handbooks/opportunitySearch.ts",
     "src/lib/llm/toolDescriptions.ts",
     "src/lib/career/capabilities/registry.ts",
-    "src/lib/career/prompts/mainPrompt2.ts",
+    "src/lib/career/prompts/main.md",
     "src/lib/talentOnboarding/roleContextFormat.ts",
     "src/lib/career/matching/formatters.ts",
     "src/lib/career/opportunityLinks.ts",

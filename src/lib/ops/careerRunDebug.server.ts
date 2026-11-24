@@ -7,11 +7,11 @@ import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
 import { InternalApiError } from "@/lib/internalApi";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { summarizeLlmDebugCalls, type LlmDebugCall } from "@/lib/llm/debugUsage";
-import { getScheduledCareerModelOptions, isScheduledCareerRun } from "@/lib/career/background/scheduledModel";
+import { getScheduledCareerModelOptions, isCareerDiscoveryRun, isScheduledCareerRun } from "@/lib/career/background/scheduledModel";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { withToolTrace } from "@/lib/llm/toolTrace";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
-import type { CareerRunContact, CareerRunStreamEvent } from "./careerRunDebug";
+import { findCareerRunModel, type CareerRunContact, type CareerRunModelSelection, type CareerRunStreamEvent } from "./careerRunDebug";
 import { fetchTalentSetting } from "@/lib/talentOnboarding/server";
 import type { CareerSchedule } from "@/lib/career/schedules/server";
 import { isTestTalentAccount } from "@/lib/testAccounts";
@@ -28,10 +28,33 @@ function isReadTool(name: string, input: Record<string, unknown>) {
     (name === "search_opportunities" && input.action === "read" && typeof input.runId === "string");
 }
 
+// Without a selection the preview uses the scheduled-run model, like a real occurrence.
+function modelOptions(selection?: CareerRunModelSelection) {
+  const scheduled = getScheduledCareerModelOptions();
+  const assistantModel = selection?.model ?? scheduled.assistantModel;
+  const provider = findCareerRunModel(assistantModel)?.provider;
+  if (!selection) {
+    const effort = provider === "anthropic" ? scheduled.assistantAnthropicEffort
+      : provider === "openai" ? scheduled.assistantOpenAIResponsesReasoningEffort : undefined;
+    return { options: scheduled, effort: effort ?? "default" };
+  }
+  const effort = selection.effort === "default" ? undefined : selection.effort;
+  return {
+    effort: selection.effort,
+    options: {
+      assistantModel,
+      ...(provider === "anthropic" ? { assistantAnthropicEffort: effort ?? null } : {}),
+      ...(provider === "openai" && effort ? { assistantOpenAIResponsesReasoningEffort: effort } : {}),
+      ...(provider === "openrouter" && effort ? { assistantChatCompletionReasoningEffort: effort } : {}),
+    },
+  };
+}
+
 export async function runCareerRunDebug(
   userId: string,
   signal: AbortSignal,
-  send: (event: CareerRunStreamEvent) => void
+  send: (event: CareerRunStreamEvent) => void,
+  selection?: CareerRunModelSelection
 ) {
   const started = Date.now();
   const admin = getTalentSupabaseAdmin({ readOnly: true });
@@ -93,7 +116,11 @@ export async function runCareerRunDebug(
     conversationId = conversation.data?.id ?? null;
   }
   if (!conversationId) throw new InternalApiError(404, "이 계정의 Career 대화가 없습니다.");
-  send({ type: "started", account: account.data.name ?? userId, trigger: run.trigger });
+  const models = modelOptions(selection);
+  send({
+    type: "started", account: account.data.name ?? userId, trigger: run.trigger,
+    model: models.options.assistantModel, effort: models.effort,
+  });
   const [history, inbox] = await Promise.all([
     admin.from("career_email_messages").select("id,subject,body_text,occurred_at")
       .eq("talent_id", userId).eq("direction", "outbound").eq("status", "sent")
@@ -136,9 +163,9 @@ export async function runCareerRunDebug(
         } });
       }, () => previewCareerBackgroundTurn({
         admin, userId, conversationId,
-        ...getScheduledCareerModelOptions(),
+        ...models.options,
         abortSignal: signal,
-        backgroundInvocation: { runId: run.id, trigger: run.trigger, scheduledWork: isScheduledCareerRun(run), sourceMessageCursor: 0 },
+        backgroundInvocation: { runId: run.id, trigger: run.trigger, scheduledWork: isScheduledCareerRun(run), discovery: isScheduledCareerRun(run) && isCareerDiscoveryRun(run), sourceMessageCursor: 0 },
         proactiveContext: [
           renderCareerBackgroundInvocation(run),
           inbox.text,
