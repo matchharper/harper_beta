@@ -325,6 +325,17 @@ export function normalizeDomainList(values: unknown, max = 200): string[] {
  */
 export const ALWAYS_BLOCKED_DOMAINS: readonly string[] = ["exa.ai", "hackerneue.com", "hackdot.org", "inflearn.com"];
 
+/**
+ * Whether a host, or an address's domain ("jane@jobboard.example"), is on one of Ops' blocked domains (subdomains count).
+ * The same list as the search pages (Shaun 11/24: recruiting platforms, search firms and HR companies are never mailed,
+ * as candidates or as companies). ALWAYS_BLOCKED_DOMAINS are search-page rules only and do not count here.
+ */
+export function onBlockedDomain(hostOrEmail: string | null | undefined, blockedDomains: readonly string[]): boolean {
+  const value = String(hostOrEmail ?? "").trim().toLowerCase();
+  const host = (value.includes("@") ? value.slice(value.lastIndexOf("@") + 1) : value).replace(/^www\./, "").replace(/\.$/, "");
+  return Boolean(host) && blockedDomains.some((domain) => onDomain(host, domain));
+}
+
 /** Whether a page is on a blocked domain (subdomains count); a URL that is not a web page counts as blocked. */
 export function isBlockedUrl(url: string, blockedDomains: readonly string[]): boolean {
   const parsed = parseUrl(url);

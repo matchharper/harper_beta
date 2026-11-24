@@ -761,6 +761,11 @@ export type CompanyMailIo = {
   /** The posting's address (a paid lookup started for it is logged under `personId`, the interested candidate). */
   address: (posting: CompanyPostingFacts, personId: string) => Promise<CompanyAddress>;
   suppressed: (email: string) => Promise<boolean>;
+  /**
+   * The company is one Ops blocked (settings.signals.blockedDomains: the address's domain, or a name that is surely a
+   * blocked company; exclusion.server.ts isBlockedCompany). Absent: none is blocked.
+   */
+  blockedCompany?: (input: { names?: readonly string[]; email?: string | null }) => Promise<boolean>;
   writeLines: LineWriter;
   newMailId: () => string;
   links: (mailId: string) => { landingUrl: string; unsubscribeUrl: string };
@@ -898,6 +903,11 @@ export async function runCompanyMailsWith(io: CompanyMailIo): Promise<CompanyMai
     if (await io.suppressed(address.email)) {
       for (const { signal } of fresh) await io.note(signal.personId, "회사 주소가 연락 받지 않기 목록에 있어 회사 메일을 보내지 않아요");
       wait("suppressed");
+      continue;
+    }
+    if (await io.blockedCompany?.({ names: [posting.companyName], email: address.email })) {
+      for (const { signal } of fresh) await io.note(signal.personId, "막은 회사(채용 플랫폼·서치펌 등)라 회사 메일을 보내지 않아요");
+      wait("blocked_company");
       continue;
     }
 
@@ -1076,6 +1086,7 @@ async function runSourcedMails(
     const profileCompany = lead.currentCompany?.trim() || null;
     // What is known before the post is read (no model call for these).
     if (profileCompany && await sourcing.customer([profileCompany], null)) { await skip(lead, SOURCING_SKIP.customer); continue; }
+    if (profileCompany && await io.blockedCompany?.({ names: [profileCompany] })) { await skip(lead, SOURCING_SKIP.blocked); continue; }
     if (profileCompany && mailedWithin(recent, { names: [profileCompany] })) { await skip(lead, SOURCING_SKIP.recent); continue; }
 
     // The opening: as read on an earlier tick, else the search's title when the post says it word for word, else one
@@ -1107,6 +1118,7 @@ async function runSourcedMails(
       await skip(lead, SOURCING_SKIP.customer);
       continue;
     }
+    if (await io.blockedCompany?.({ names })) { await skip(lead, SOURCING_SKIP.blocked); continue; }
     if (mailedWithin(recent, { names, domain })) { await skip(lead, SOURCING_SKIP.recent); continue; }
     const language = detectLanguage([title, lead.postText], "ko");
     const posting: CompanyPostingFacts = {
@@ -1133,6 +1145,7 @@ async function runSourcedMails(
     if ("waiting" in address) { wait("sourcing_address_waiting"); continue; }
     if ("none" in address) { await skip(lead, SOURCING_SKIP.noAddress, address.none); continue; }
     const email = address.email.trim().toLowerCase();
+    if (await io.blockedCompany?.({ email })) { await skip(lead, SOURCING_SKIP.blocked); continue; }
     if (mailedWithin(recent, { names, email, domain })) { await skip(lead, SOURCING_SKIP.recent); continue; }
     if (await io.ashleyMailedToday?.(email)) { wait("sourcing_ashley_mailed_today"); continue; }
     if (await io.suppressed(email)) { await skip(lead, SOURCING_SKIP.noAddress, "주소가 연락 받지 않기 목록에 있어요"); continue; }

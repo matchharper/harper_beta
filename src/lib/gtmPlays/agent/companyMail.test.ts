@@ -58,6 +58,8 @@ function fake(options: {
   humanOwned?: string[];
   companyReplied?: boolean;
   suppressed?: string[];
+  /** Blocked companies, by name or by an address's domain. */
+  blocked?: string[];
   lines?: (request: LineRequest) => Record<string, string | WrittenLine>;
   writeWithHistory?: CompanyMailIo["writeWithHistory"];
   quota?: number;
@@ -94,6 +96,10 @@ function fake(options: {
       return options.address?.[item.postingUrl] ?? { email: "jobs@company-a.example", source: "posting" };
     },
     suppressed: async (email) => (options.suppressed ?? []).includes(email),
+    blockedCompany: async ({ names, email }) => {
+      const blocked = options.blocked ?? [];
+      return [...(names ?? []), email?.split("@")[1] ?? ""].some((value) => value && blocked.includes(value));
+    },
     writeLines: async (request) => {
       calls.lines.push(request);
       const written = options.lines ? options.lines(request) : Object.fromEntries(request.candidates.map((candidate) => [candidate.label, `Shipped payments work (${candidate.label})`]));
@@ -311,6 +317,12 @@ test("nobody agreed, no address, a closed posting, a customer: no mail (and no p
   const suppressed = fake({ signals: [signal({})], suppressed: ["jobs@company-a.example"] });
   await runCompanyMailsWith(suppressed.io);
   assert.equal(suppressed.sent.length, 0);
+
+  // A blocked company (recruiting platform, search firm; Shaun 11/24): by its address's domain.
+  const blocked = fake({ signals: [signal({})], blocked: ["company-a.example"] });
+  assert.equal((await runCompanyMailsWith(blocked.io)).waiting.blocked_company, 1);
+  assert.equal(blocked.sent.length, 0);
+  assert.ok(blocked.notes.some((note) => note.text.includes("막은 회사")));
 });
 
 test("outside the send window, stopped after a complaint, or at the daily cap: nothing goes", async () => {
@@ -729,6 +741,19 @@ test("sourcing: a customer, a company mailed within 30 days, no fitting member, 
   const n = withSourcing(none, { leads: [lead({ email: null })], address: { none: "채용 담당자 주소를 찾지 못했어요" } });
   await runCompanyMailsWith(none.io);
   assert.deepEqual(n.skips, [{ personId: "lead-1", reason: SOURCING_SKIP.noAddress, detail: "채용 담당자 주소를 찾지 못했어요" }]);
+
+  // A blocked company, by the poster's profile company (before the post is read), or by the address found.
+  const blockedByName = fake({ signals: [], blocked: ["Company B"] });
+  const bn = withSourcing(blockedByName, { leads: [lead()] });
+  await runCompanyMailsWith(blockedByName.io);
+  assert.deepEqual(bn.skips.map((item) => item.reason), [SOURCING_SKIP.blocked]);
+  assert.equal(bn.calls.readOpening, 0);
+  assert.equal(blockedByName.sent.length, 0);
+  const blockedByAddress = fake({ signals: [], blocked: ["search-firm.example"] });
+  const ba = withSourcing(blockedByAddress, { leads: [lead({ email: null })], address: { email: "riley@search-firm.example", source: "lookup" } });
+  await runCompanyMailsWith(blockedByAddress.io);
+  assert.deepEqual(ba.skips.map((item) => item.reason), [SOURCING_SKIP.blocked]);
+  assert.equal(blockedByAddress.sent.length, 0);
 
   const suppressed = fake({ signals: [], suppressed: ["riley@company-b.example"] });
   const s = withSourcing(suppressed, { leads: [lead()] });
