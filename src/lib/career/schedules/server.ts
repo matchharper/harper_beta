@@ -277,7 +277,7 @@ export async function readCareerCheckInContext(args: {
 }) {
   const schedule = await readCareerCheckIn(args);
   return schedule
-    ? `Opted-in external opportunity discovery (not an idle Career check-in):\n${formatCareerSchedules([schedule])}`
+    ? `External opportunity discovery reservation (not an idle Career check-in):\n${formatCareerSchedules([schedule])}`
     : "";
 }
 
@@ -289,7 +289,7 @@ export function formatCareerSchedules(
     `Schedule times: ${PROMPT_TIME_ZONE}.`,
     ...schedules.map((item) =>
       [
-        `Schedule ${item.id}; revision ${item.revision}; ${item.status}; ${item.title}${item.schedule_key === "career_check_in" ? "; opted-in external discovery" : ""}`,
+        `Schedule ${item.id}; revision ${item.revision}; ${item.status}; ${item.title}${item.schedule_key === "career_check_in" ? "; external discovery" : ""}`,
         `Instruction: ${item.instruction}`,
         `${item.status === "paused" || item.status === "cancelled" ? "Saved execution time (inactive)" : "Next execution"}: ${item.next_run_at ? formatLlmDateTime(item.next_run_at) : "none"}; recurrence: ${item.interval_days != null ? `every ${item.interval_days} days` : (item.recurrence ?? "one time")}; recurrence timezone: ${item.timezone}`,
         item.last_run_id

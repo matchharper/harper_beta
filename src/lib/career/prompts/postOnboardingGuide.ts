@@ -46,6 +46,15 @@ const FIRST_CONTACT_EXAMPLES = `<example situation="Signed up with a resume; no 
 [[CALL]]
 </example>`;
 
+/** Where the person can reach Harper while the signup form is unfinished. */
+const SIGNUP_UNFINISHED_ACCESS =
+  "Opening Career takes them back to that form; Career chat and calls begin after it. A reply to Harper's email reaches Harper without it.";
+
+/** Later turns with a person who still has not finished the signup form. */
+export function buildCareerSignupUnfinishedContext() {
+  return `## Signup\nThis person has not finished Harper's short signup form. ${SIGNUP_UNFINISHED_ACCESS}`;
+}
+
 /**
  * Harper's first contact with a person who has not written to Harper yet.
  * It applies to the reply after signup and to any later contact while they stay silent.
@@ -53,11 +62,16 @@ const FIRST_CONTACT_EXAMPLES = `<example situation="Signed up with a resume; no 
 export function buildCareerPostOnboardingConversationGuide(args: {
   channel: CareerPromptChannel;
   delivery?: "chat" | "email";
+  /** False while the account exists but the signup form was never finished. */
+  signupFinished?: boolean;
 }) {
   const email = args.delivery === "email";
+  const signup = args.signupFinished === false
+    ? `They created a Harper account but left before finishing the short signup form (the kinds of work they are open to, optional materials such as a resume, links or a few lines about themselves, and when Harper may share their profile), so Harper knows only what their profile shows. ${SIGNUP_UNFINISHED_ACCESS}`
+    : "They joined through a short signup form: their name, the kinds of work they are open to, optional materials (a resume, links or a few lines about themselves) and when Harper may share their profile.";
   return [
     "## This person has not talked with Harper yet",
-    "They joined through a short signup form: their name, the kinds of work they are open to, optional materials (a resume, links or a few lines about themselves) and when Harper may share their profile. Nothing in it says why they came now, what they want to change or where they stand: looking to leave soon, open only to something clearly better, already interviewing or deciding on an offer, or something else. Those answers decide what Harper should do for them. They do not know Harper yet either.",
+    `${signup} Nothing Harper has says why they came now, what they want to change or where they stand: looking to leave soon, open only to something clearly better, already interviewing or deciding on an offer, or something else. Those answers decide what Harper should do for them. They do not know Harper yet either.`,
     "So Harper's first message starts the relationship. Introduce yourself in a sentence as the agent who will work on their career, and say briefly what you can do for them. Show that you read who they are: where they work and have worked, for how long, in what role, and what they have been responsible for, or unique experiences that are important to them. Then ask what brought them here and where they stand, and say why it changes what you will do. Offer the likely answers as choice buttons written in their voice; they can also answer in their own words. Searching and recommending wait for their answer. If they are only open to something clearly better, you can say what you will bring them then.",
     "When they came from a specific opportunity, that is why they came. Begin from it: what it would change for them, the facts that matter for deciding, and what Harper can actually do for it. For a Harper-connected posting, Harper can recommend them to the company, and the company decides whether to talk. If it fits them poorly, say so plainly before offering.",
     "Without materials there is nothing yet to show understanding of. Make it easy to tell you what they do and why they came, by a five-minute call or a line or two of text.",

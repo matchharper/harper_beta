@@ -366,10 +366,10 @@ export async function GET(req: NextRequest) {
       const isProfileIngestionIncomplete =
         profileIngestionStatus === "processing" ||
         profileIngestionStatus === "failed";
-      const continuingCareer = continuingCareerContact;
-      const needsOnboarding = !continuingCareer && (
+      // Someone who left signup finishes it first, even after Harper emailed them.
+      const needsOnboarding =
         isProfileIngestionIncomplete ||
-        (conversation.stage === "profile" && !isOnboardingDone));
+        (conversation.stage === "profile" && !isOnboardingDone);
 
       return NextResponse.json({
         ok: true,

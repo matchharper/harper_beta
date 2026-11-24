@@ -98,8 +98,37 @@
    "schedule": {
     "id": "d3000000-0000-4000-8000-000000000001",
     "revision": 1,
-    "title": "Career check-in",
-    "instruction": "Help this candidate explore suitable external opportunities using the available profile, documents, Brief, conversation and actual contact history. The career interview may be incomplete. Decide what useful work or conversation can proceed with the known facts, including asking for context needed for that purpose. Decide whether contact is useful now and adjust the future reservation using current user preferences and prior outcomes."
+    "title": "External opportunity discovery",
+    "instruction": "Review suitable external opportunities using the current Brief, saved evaluations and contact history. Respect external recommendation settings; no generic Career check-in is requested."
+   }
+  },
+  {
+   "id": "signup-unfinished",
+   "kind": "scheduled",
+   "summary": "계정만 만들고 가입 양식(원하는 근무 형태·자료·공유 방식)을 마치지 않은 채 떠남. 가입 1~3시간 뒤 첫 정기 실행이 돈다",
+   "signupFinished": false,
+   "talent": {
+    "name": "이준호",
+    "headline": null,
+    "location": null,
+    "bio": null,
+    "resume_file_name": null,
+    "resume_text": null
+   },
+   "experiences": [],
+   "educations": [],
+   "extras": [],
+   "options": [],
+   "setting": {
+    "profile_visibility": "exceptional_only",
+    "engagement_types": []
+   },
+   "signedUpAt": "2026-11-19T00:10:00Z",
+   "schedule": {
+    "id": "d3000000-0000-4000-8000-000000000002",
+    "revision": 1,
+    "title": "External opportunity discovery",
+    "instruction": "Harper set this up by default when the account was created, before the person finished signing up; they have not asked Harper for anything. Decide whether contacting them now would help them start with Harper, and adjust later occurrences from their response and prior contacts."
    }
   }
  ]

@@ -1,4 +1,3 @@
-import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
 import { Fragment, useState } from "react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
@@ -21,12 +20,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useOpsInternalDataExclusionStore } from "@/store/useOpsInternalDataExclusionStore";
 
 const release = OPS_UPDATE_RELEASES[0];
-
-// Charts load with their own data, apart from the comparison table.
-const OpsEmailActionMetrics = dynamic(
-  () => import("@/components/ops/metrics/OpsEmailActionMetrics"),
-  { ssr: false }
-);
 
 function formatValue(unit: UpdateMetricUnit, value: number | null) {
   if (value === null || !Number.isFinite(value)) return "-";
@@ -265,7 +258,6 @@ export default function OpsUpdateMetricsWorkspace() {
           집계 중
         </div>
       )}
-      <OpsEmailActionMetrics enabled={canFetch} excludedEmails={exclusionTerms} />
     </div>
   );
 }
