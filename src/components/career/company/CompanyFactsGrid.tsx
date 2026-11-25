@@ -75,6 +75,15 @@ export default function CompanyFactsGrid({
           : undefined,
       aside: <HeadcountSparkline months={months} />,
     });
+  } else if (profile?.linkedin?.employeeCount) {
+    facts.push({
+      key: "headcount",
+      label: t("career.company.page.headcount", "인원"),
+      value: t("career.company.page.people_count", "{count}명", {
+        values: { count: profile.linkedin.employeeCount.toLocaleString() },
+      }),
+      sub: t("career.company.page.headcount_linkedin", "LinkedIn 기준"),
+    });
   } else {
     const range = formatEmployeeCountRange(
       basics.employeeCountRange,
