@@ -37,8 +37,7 @@ type Browser = JobsOneScreenBrowserRow & { arm: "A" | "B"; at: number };
 
 /** Shown where arm A has no such step ("없음", never 0; decided 11/25). */
 const NOT_IN_ARM = "없음";
-const SIMILAR_DESCRIPTION =
-  "B에만 있어요(A는 없음). 가입 없이 비슷한 공고 메일을 신청한 브라우저예요. 테스트 신청은 세지 않고, 테스트로 신청한 브라우저는 빼요.";
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 const iso = (value: string | Date) => (value instanceof Date ? value.toISOString() : value);
 
@@ -53,6 +52,7 @@ export function buildJobsOneScreenExperiment({
   companyName,
   excludeEmail,
   pendingAccounts,
+  now = Date.now(),
 }: {
   rows: JobsOneScreenBrowserRow[];
   /** By user id; missing when auth.users could not be read, and then those few sign-ups are not counted. */
@@ -60,6 +60,7 @@ export function buildJobsOneScreenExperiment({
   /** The company's name, read from the database (the public code never names a customer). */
   companyName: string | null;
   excludeEmail: (email: string) => boolean;
+  now?: number;
 }): OpsAbTestSummary {
   const company = companyName?.trim() || "회사";
   const browsers: Browser[] = rows.flatMap((row) => {
@@ -85,6 +86,30 @@ export function buildJobsOneScreenExperiment({
       },
     ];
   });
+
+  // How each row is counted, written like the Gmail card test's: 분모 / 분자 first, then the lines every row shares.
+  // The same text for both arms (the table shows the first arm's).
+  const watched = (["A", "B"] as const).flatMap((arm) => {
+    const group = browsers.filter((browser) => browser.arm === arm);
+    if (!group.length) return [];
+    const days = group.reduce((sum, browser) => sum + (now - browser.at), 0) / group.length / DAY_MS;
+    return [`${arm} 평균 ${days.toFixed(1)}일`];
+  });
+  const shared = [
+    `시작: 그 브라우저가 ${company} 공고 상세를 처음 연 순간. 그때부터 지금까지 일어난 일을 셈`,
+    "대상: 선택한 기간에 공고를 처음 연 브라우저. 한 브라우저는 한 번만 셈",
+    "뺀 것: 봇, 내부·테스트 계정, A와 B를 둘 다 본 브라우저",
+    "합친 것: LinkedIn 앱에서 Safari로 넘어간 브라우저는 처음 브라우저와 같은 하나로 셈",
+    ...(watched.length ? [`지켜본 기간: ${watched.join(", ")} (차이가 크면 숫자도 흔들려요)`] : []),
+  ];
+  const explain = (...lines: string[]) => [...lines, ...shared].join("\n");
+  const base = "분모: 공고를 본 브라우저 (1번 줄)";
+  const late = (what: string) => `주의: A는 가입한 뒤 나중에 ${what} 초반에는 A가 낮게 보여요. 2주 넘게 돌린 뒤 비교하세요.`;
+  const similarDescription = explain(
+    "B에만 있어요. A 화면에는 이 버튼이 없어요.",
+    base,
+    "분자: 그중 \"비슷한 공고 추천받기\"로 메일을 신청한 브라우저 (테스트 신청은 뺌)"
+  );
 
   const makeVariant = (arm: "A" | "B", label: string, description: string): OpsAbTestVariant => {
     const group = browsers.filter((browser) => browser.arm === arm);
@@ -120,14 +145,17 @@ export function buildJobsOneScreenExperiment({
         format: "rate",
         label: "1. 공고를 봄",
         ...share(total),
-        description: `${company} 공고(LinkedIn에 올린 공고) 상세를 처음 연 브라우저예요. 어디서 들어왔는지는 가리지 않아요. 이 줄이 100%이고, 아래 줄은 모두 이 수로 나눠요. 봇, 내부·테스트 계정에 이어진 브라우저, LinkedIn 앱에서 Safari로 넘어간 두 번째 브라우저는 따로 세지 않아요.`,
+        description: explain("모든 줄의 분모예요 (100%). LinkedIn, 검색, 공유 링크 등 어디서 들어왔든 셈"),
       },
       {
         format: "rate",
         label: "2. 가입 버튼을 누름",
-        ...share(pressed, ofPrevious(pressed, total)),
-        description:
-          "A: 공고나 목록의 Talk to Harper를 누른 브라우저. B: 공고나 목록의 Talk to Harper를 눌렀거나, 카드에서 Google·이메일 코드 버튼을 누른 브라우저. B의 PC 카드는 처음부터 열려 있어서 Google·이메일 코드 버튼이 첫 버튼이에요.",
+        ...share(pressed),
+        description: explain(
+          base,
+          "분자: 그중 가입 버튼을 누른 브라우저",
+          "가입 버튼: A는 Talk to Harper. B는 Talk to Harper, 또는 카드의 Google·이메일 코드 버튼 (PC 카드는 처음부터 열려 있어서 이 버튼이 첫 버튼)"
+        ),
       },
       {
         format: "rate",
@@ -136,42 +164,58 @@ export function buildJobsOneScreenExperiment({
           signedUp,
           pressed > 0 ? `누른 곳 중 ${Math.round((pressedThenSignedUp / pressed) * 100)}%` : undefined
         ),
-        description:
-          "공고를 처음 본 뒤에 만든 계정이 이어진 브라우저예요. B에서 코드나 Google로 계정만 만들고 나간 사람도 세요. LinkedIn 앱에서 Safari로 넘어가 가입한 사람도 같은 사람으로 세요(/ops 공고 전환과 같은 규칙).",
+        description: explain(
+          base,
+          "분자: 그중 공고를 본 뒤 Harper 계정을 새로 만든 브라우저 (B에서 코드나 Google로 계정만 만들고 나간 경우도 셈)",
+          "작은 글씨 \"누른 곳 중\": 2번 브라우저 중 가입한 비율"
+        ),
       },
       {
         format: "rate",
         label: "4. 이력서나 LinkedIn을 냄",
         ...share(submitted, ofPrevious(submitted, signedUp)),
-        description:
-          "새로 가입한 사람 중 이력서나 LinkedIn을 낸 사람이에요. A는 Harper 가입 폼, B는 카드의 '가입하고 소개 보내기'(또는 Harper 가입 폼)예요.",
+        description: explain(
+          base,
+          "분자: 그중 새로 가입하고 이력서나 LinkedIn까지 낸 브라우저 (A는 Harper 가입 폼, B는 카드의 \"가입하고 소개 보내기\" 또는 가입 폼)",
+          "작은 글씨 \"앞 단계의\": 3번 브라우저 중 낸 비율",
+          late("내서")
+        ),
       },
       {
         format: "rate",
         label: `5. ${company}에 소개가 나감`,
         ...share(introduced, ofPrevious(introduced, submitted)),
-        description: `새로 가입한 사람 중 ${company} 자리로 소개가 실제로 나간 사람이에요(채팅 소개와 같은 기록). 누르기만 하고 실패하거나 취소된 건 빼요.`,
+        description: explain(
+          base,
+          `분자: 그중 새로 가입하고 ${company} 자리로 소개가 실제로 나간 브라우저 (채팅 소개와 같은 기록. 실패·취소는 뺌)`,
+          "작은 글씨 \"앞 단계의\": 4번 브라우저 중 소개가 나간 비율",
+          late("소개가 나가서")
+        ),
       },
       arm === "A"
-        ? absent("따로: 비슷한 공고 추천받기 신청", SIMILAR_DESCRIPTION)
+        ? absent("따로: 비슷한 공고 추천받기 신청", similarDescription)
         : {
             format: "rate",
             label: "따로: 비슷한 공고 추천받기 신청",
             ...share(count((b) => b.similar_requested)),
-            description: SIMILAR_DESCRIPTION,
+            description: similarDescription,
           },
       {
         format: "rate",
         label: "따로: 이미 회원",
         ...share(members.length, `그중 소개 ${membersIntroduced.toLocaleString()}`),
-        description: `공고를 보기 전부터 계정이 있던 사람이에요. 위 흐름에는 넣지 않고, 그중 ${company}에 소개가 나간 사람 수를 같이 보여요.`,
+        description: explain(
+          base,
+          "분자: 그중 공고를 보기 전부터 Harper 계정이 있던 브라우저. 3~5번에는 넣지 않음",
+          `작은 글씨 "그중 소개": 이 브라우저 중 ${company}에 소개가 나간 수`
+        ),
       },
     ];
 
     const card = (name: string, hit: (b: Browser) => boolean, text: string): OpsAbTestMetric =>
       arm === "A"
-        ? absent(name, "A안에는 카드가 없어요.")
-        : { format: "rate", label: name, ...share(count(hit)), description: text };
+        ? absent(name, "A 화면에는 카드가 없어요.")
+        : { format: "rate", label: name, ...share(count(hit)), description: explain(base, `분자: 그중 ${text}`) };
 
     return {
       id: arm,
@@ -181,12 +225,12 @@ export function buildJobsOneScreenExperiment({
       primary: makeOpsAbTestRate(signedUp, total),
       summaryMetrics: steps,
       metrics: [
-        card("카드: Google·이메일 코드 누름", (b) => b.card_account, "카드의 계정 칸에서 버튼을 누른 브라우저"),
-        card("카드: 이름 넣음", (b) => b.card_name, "이름 칸을 채운 브라우저"),
-        card("카드: 이력서나 LinkedIn 넣음", (b) => b.card_material, "자료 칸을 채운 브라우저"),
-        card("카드: 동의 체크", (b) => b.card_consent, "동의를 체크한 브라우저"),
-        card("카드: 가입하고 소개 보내기 누름", (b) => b.card_submit_click, "보내기 버튼을 누른 브라우저"),
-        card("카드: 추천받기 박스 열기", (b) => b.similar_open, "추천받기 박스나 버튼을 연 브라우저"),
+        card("카드: Google·이메일 코드 누름", (b) => b.card_account, "카드의 계정 칸에서 Google·이메일 코드 버튼을 누른 브라우저"),
+        card("카드: 이름 넣음", (b) => b.card_name, "카드의 이름 칸을 채운 브라우저"),
+        card("카드: 이력서나 LinkedIn 넣음", (b) => b.card_material, "카드에 이력서나 LinkedIn을 넣은 브라우저"),
+        card("카드: 동의 체크", (b) => b.card_consent, "카드의 동의를 체크한 브라우저"),
+        card("카드: 가입하고 소개 보내기 누름", (b) => b.card_submit_click, "카드의 \"가입하고 소개 보내기\"를 누른 브라우저"),
+        card("카드: 추천받기 박스 열기", (b) => b.similar_open, "\"비슷한 공고 추천받기\" 박스나 버튼을 연 브라우저"),
       ],
     };
   };
