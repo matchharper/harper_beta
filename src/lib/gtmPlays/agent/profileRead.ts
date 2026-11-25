@@ -16,7 +16,8 @@
 import { addressIsPersons, agentMailableAddress, isPlatformRoot, profileHandles, urlHost } from "./mailRules";
 import { cleanEmail } from "./people";
 import {
-  PROFILE_LABEL, cleanSummary, nameHandle, pageExcerpt, profileParts, profileTextFrom, realName, type ProfilePart,
+  PROFILE_LABEL, REQUEST_PROFILE_TEXT_CHARS, cleanSummary, nameHandle, pageExcerpt, profileParts, profileTextFrom, realName,
+  type ProfilePart,
 } from "./profile";
 import { emailWrittenOn } from "./signals";
 import type { AgentPerson } from "./types";
@@ -37,6 +38,14 @@ export type ProfileReadPerson = Pick<
 export const urlKey = (url: string | null | undefined) => String(url ?? "").trim().toLowerCase()
   .replace(/^[a-z][a-z0-9+.-]*:\/\//, "").replace(/^(www|m|[a-z]{2})\.(?=linkedin\.com)/, "").replace(/^www\./, "")
   .replace(/[?#].*$/, "").replace(/\/+$/, "");
+
+/**
+ * Whether the person gave Harper their LinkedIn profile themselves: an applicant (with their application) or a
+ * job-page request (method 'request', on the form). Their profile is read as theirs, without the ownership check.
+ */
+export function gaveOwnProfile(person: Pick<AgentPerson, "method">): boolean {
+  return person.method === "applicant" || person.method === "request";
+}
 
 /** A public LinkedIn profile (linkedin.com/in/<slug>) as https://www.linkedin.com/in/<slug>, else null. */
 export function publicLinkedInProfile(url: string | null | undefined): string | null {
@@ -77,7 +86,7 @@ function ownPage(url: string | null | undefined): string | null {
  * LinkedIn profile is read again: the judge saw only its start).
  */
 export function ownPageUrls(person: Pick<AgentPerson, "method" | "profileUrl" | "contactUrl" | "signalUrl">): string[] {
-  if (person.method === "applicant") {
+  if (gaveOwnProfile(person)) {
     const linkedin = publicLinkedInProfile(person.profileUrl);
     return linkedin ? [linkedin] : [];
   }
@@ -108,7 +117,7 @@ export const READ_SEARCHED_PAGES = false;
 export function needsProfileRead(person: ProfileReadPerson, mailable: boolean, readSearched = READ_SEARCHED_PAGES): boolean {
   if (profileReadDone(person)) return false;
   if (!ownPageUrls(person).length) return false;
-  if (person.method === "applicant") return true;
+  if (gaveOwnProfile(person)) return true;
   return readSearched && (profileThin(person) || !mailable);
 }
 
@@ -167,11 +176,11 @@ export function knownFacts(person: ProfileReadPerson, extra?: string | null): st
 const FACTS_RULE = "2-5 short plain sentences of facts about this person: roles and employers with years, what they built or owned and its scale, their domain, main skills, education, location, and the next role they say they want; no opinions, no contact details or links";
 
 export function profilePagesPrompt(person: ProfileReadPerson, pages: readonly ProfilePage[]) {
-  const applicant = person.method === "applicant";
+  const applicant = gaveOwnProfile(person);
   const system = [
     "You read web pages that may be one person's own pages (their profile, blog, site, portfolio or GitHub) for a recruiter who wants to write to them about jobs, and keep only what these pages say about this same person.",
     applicant
-      ? "The page is the public LinkedIn profile they gave with their job application: it is theirs unless it plainly shows someone else."
+      ? `The page is the public LinkedIn profile they gave ${person.method === "request" ? "on Harper's job page when they asked for similar roles" : "with their job application"}: it is theirs unless it plainly shows someone else.`
       : "A page is theirs only when its owner is this person (the known name or handle, or a page they linked to as their own); not a page about someone else, a company, team or school page, or a list of people.",
     `pages: for each page id, whether it is theirs. background: what their pages add to the known facts (never repeat what is known already), ${FACTS_RULE}. Write it in the language of the known facts. Empty when their pages add nothing about their work. Never facts about anyone else on a page.`,
     "careerKnown: true when, from the known facts and these pages, at least one job they held (an employer or a role) or a substantial project they built is known.",
@@ -196,8 +205,9 @@ export function ownPagesResult(
   answer: Partial<ProfilePagesAnswer> | null | undefined,
 ): { theirs: ProfilePage[]; background: string | null; careerKnown: boolean; email: string | null; emailUrl: string | null } {
   const ids = new Set((answer?.pages ?? []).filter((item) => item?.theirs === true).map((item) => String(item.id).trim()));
-  // An applicant's own LinkedIn URL is theirs (they gave it); a searched person's page only when the model says so.
-  const theirs = pages.filter((page) => person.method === "applicant" || ids.has(page.id));
+  // An applicant's (or a request's) own LinkedIn URL is theirs (they gave it); a searched person's page only when the
+  // model says so.
+  const theirs = pages.filter((page) => gaveOwnProfile(person) || ids.has(page.id));
   const background = theirs.length ? cleanSummary(answer?.background) : null;
   const emailPage = theirs.find((page) => page.id === String(answer?.emailPageId ?? "").trim()) ?? null;
   const email = emailPage ? ownPageAddress(person, answer?.email, emailPage) : null;
@@ -246,6 +256,16 @@ export type ProfileReadOutcome = {
 export function profileTextAfterRead(person: ProfileReadPerson, read: {
   ownHosts: string[]; ownBackground: string | null; ownExcerpt: string | null;
 }): string | null {
+  if (person.method === "request") {
+    // Their LinkedIn summary, the CV they gave (if any), then the profile's excerpt: the readers get the most of it.
+    if (!read.ownBackground && !read.ownExcerpt) return null;
+    const cv = profileParts(person.profileText).filter((part) => part.label === PROFILE_LABEL.cv);
+    return profileTextFrom([
+      { label: PROFILE_LABEL.linkedinSummary, text: read.ownBackground },
+      ...cv.slice(0, 1),
+      { label: PROFILE_LABEL.linkedinExcerpt, text: read.ownExcerpt },
+    ], REQUEST_PROFILE_TEXT_CHARS);
+  }
   if (person.method === "applicant") {
     if (!read.ownBackground && !read.ownExcerpt) return null;
     const file = profileParts(person.profileText).filter((part) => part.label === PROFILE_LABEL.file || part.label === PROFILE_LABEL.excerpt)
@@ -267,7 +287,7 @@ export function profileTextAfterRead(person: ProfileReadPerson, read: {
 /** The read's line on the person's timeline, in plain Korean. */
 export function profileReadNote(person: Pick<AgentPerson, "method">, outcome: ProfileReadOutcome, hosts: readonly string[], costUsd: number): string {
   const parts: string[] = [];
-  const applicant = person.method === "applicant";
+  const applicant = gaveOwnProfile(person);
   if (outcome.pagesRead === 0) parts.push(applicant ? "링크드인 프로필을 읽지 못했어요" : "본인 페이지를 읽지 못했어요");
   else {
     parts.push(applicant ? "링크드인 프로필을 읽었어요"
@@ -365,8 +385,9 @@ export async function readProfileWith(person: ProfileReadPerson, deps: ProfileRe
   const hosts = [...new Set((own?.theirs ?? []).map((page) => urlHost(page.url)).filter(Boolean))];
   const profileText = profileTextAfterRead(person, {
     ownHosts: hosts, ownBackground: own?.background ?? null,
-    // An applicant's profile is theirs (they gave it): its excerpt is kept even when the summary call failed.
-    ownExcerpt: person.method === "applicant" ? ownPageExcerpt(pages[0]?.text) : null,
+    // An applicant's (or a request's) profile is theirs (they gave it): its excerpt is kept even when the summary call
+    // failed.
+    ownExcerpt: gaveOwnProfile(person) ? ownPageExcerpt(pages[0]?.text) : null,
   });
   return {
     profileText, email: own?.email ?? null, emailUrl: own?.emailUrl ?? null, costUsd, outcome,

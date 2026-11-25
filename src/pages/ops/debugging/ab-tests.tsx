@@ -444,7 +444,7 @@ function SummaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
               </div>
               {experiment.metricLayout !== "summary" ? (
                 <div className="font-normal text-neutral-muted">
-                  {variant.sampleCount}명
+                  {variant.sampleCount.toLocaleString()} {experiment.unitLabel}
                 </div>
               ) : null}
             </TableHead>
@@ -625,7 +625,8 @@ function LazyExperimentCard({
             onClick={() => setExpanded((value) => !value)}
           >
             <ChevronRight className={cx("size-4", expanded && "rotate-90")} />
-            {item.title}
+            {/* The one-screen card's company name comes from the database once it loads. */}
+            {item.key === "jobs-onescreen" && experiment ? experiment.title : item.title}
           </MuteButton>
         </h2>
         {expanded ? (

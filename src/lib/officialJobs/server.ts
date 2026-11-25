@@ -5,9 +5,14 @@ import {
   mapOfficialJobRow,
   type OfficialJob,
   type OfficialJobListItem,
+  type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { filterPublicOfficialJobRows } from "@/lib/officialJobs/visibility";
+import {
+  classifyOfficialJobLinkedRole,
+  filterPublicOfficialJobRows,
+} from "@/lib/officialJobs/visibility";
+import type { OfficialJobsLinkedRoleState } from "@/lib/officialJobs/oneScreen";
 import {
   readVisibleOfficialJobsPage,
   type OfficialJobsPage,
@@ -197,4 +202,94 @@ export async function getPublicOfficialJobByAshbyId(
 
   const [visible] = await applyLinkedRoleVisibility([data]);
   return visible ? mapOfficialJobRow(visible) : null;
+}
+
+export type OfficialJobPage = {
+  job: OfficialJob;
+  /** Null for a posting without a role (a multi-company posting). */
+  linkedRole: OfficialJobsLinkedRoleState | null;
+};
+
+/**
+ * The detail page's posting by slug or id, with its role's state for the one
+ * screen. A closed role's posting is returned only with includeClosedRole;
+ * otherwise it finds exactly what getPublicOfficialJobById, then
+ * getPublicOfficialJobBySlug, would: the id trimmed, the slug as given, and a
+ * posting found by id but not shown falls through to the slug lookup.
+ */
+export async function getOfficialJobPage(
+  slugOrId: string,
+  options: { includeClosedRole: boolean }
+): Promise<OfficialJobPage | null> {
+  const key = slugOrId.trim();
+  if (!key || key === OFFICIAL_JOBS_INTERNAL_COPY_SLUG) return null;
+  const isUuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(key);
+  const base = () =>
+    supabaseServer
+      .from("official_jobs")
+      .select("*")
+      .eq("is_published", true)
+      .neq("role_title", OFFICIAL_JOBS_INTERNAL_COPY_ROLE_TITLE)
+      .neq("slug", OFFICIAL_JOBS_INTERNAL_COPY_SLUG);
+  if (isUuid) {
+    const byId = await base().eq("id", key).maybeSingle();
+    if (byId.error) {
+      console.warn("official_jobs id lookup failed:", byId.error.message);
+    }
+    const page = byId.data
+      ? await withOfficialJobLinkedRole(byId.data, options)
+      : null;
+    if (page) return page;
+  }
+  const bySlug = await base().eq("slug", slugOrId).maybeSingle();
+  if (bySlug.error) {
+    console.warn("official_jobs page query failed:", bySlug.error.message);
+    return null;
+  }
+  return bySlug.data
+    ? withOfficialJobLinkedRole(bySlug.data, options)
+    : null;
+}
+
+async function withOfficialJobLinkedRole(
+  row: OfficialJobRow,
+  options: { includeClosedRole: boolean }
+): Promise<OfficialJobPage | null> {
+  if (!row.role_id) return { job: mapOfficialJobRow(row), linkedRole: null };
+
+  const [roleResult, settingResult] = await Promise.all([
+    supabaseServer
+      .from("company_roles")
+      .select(
+        "role_id,source_type,status,is_expired,expires_at,information,company_workspace_id"
+      )
+      .eq("role_id", row.role_id)
+      .maybeSingle(),
+    supabaseServer
+      .from("company_internal_roles")
+      .select("role_id,is_promote")
+      .eq("role_id", row.role_id)
+      .maybeSingle(),
+  ]);
+  if (roleResult.error || settingResult.error) {
+    console.warn(
+      "official_jobs page role query failed:",
+      roleResult.error?.message ?? settingResult.error?.message
+    );
+    return null;
+  }
+  const role = roleResult.data;
+  const state = classifyOfficialJobLinkedRole(
+    role ?? undefined,
+    settingResult.data ?? undefined
+  );
+  if (state === "hidden") return null;
+  if (state === "closed" && !options.includeClosedRole) return null;
+  return {
+    job: mapOfficialJobRow(row),
+    linkedRole: {
+      workspaceId: role?.company_workspace_id ?? null,
+      open: state === "public",
+    },
+  };
 }

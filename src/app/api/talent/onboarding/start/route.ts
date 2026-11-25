@@ -11,6 +11,14 @@ import { claimGtmCandidateMail } from "@/lib/gtmPlays/candidateMail.server";
 import { gtmMailIdFromOnboarding } from "@/lib/gtmPlays/onboardingClaim";
 import { parseSignupNext } from "@/lib/gtmPlays/agent/signupMove";
 import { runGtmSignupMove } from "@/lib/gtmPlays/agent/signupMove.server";
+import {
+  buildOfficialJobsOneScreenReceipt,
+  completeOfficialJobsOneScreenEntry,
+  prepareOfficialJobsOneScreenEntry,
+  type OfficialJobsOneScreenEntry,
+  type OfficialJobsOneScreenEntryInput,
+  type OfficialJobsOneScreenIntroduction,
+} from "@/lib/officialJobs/oneScreenEntry.server";
 import { isInternalDomainEmail } from "@/lib/internalAccess";
 import {
   TalentConversationRow,
@@ -60,6 +68,8 @@ type Body = {
   links?: string[];
   officialJobSlug?: string;
   officialJobTitle?: string;
+  /** The job page's one screen: sign-up and, for a role, the consented introduction in one request. */
+  oneScreen?: OfficialJobsOneScreenEntryInput;
   /** The GTM mail this person came from (/career?gtm=…), kept by the browser through sign-up. */
   gtmMailId?: string;
   /** An Ashley link's next step (/career?gtm=…&next=…&posting=…&question=…), kept with the mail id. */
@@ -383,6 +393,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    let oneScreenEntry: OfficialJobsOneScreenEntry | null = null;
+    if (body.oneScreen) {
+      // Already in Career (a member, or a retry after this entry was admitted): no second entry or introduction.
+      if (conversation.stage === "completed") {
+        return NextResponse.json(
+          { code: "already_entered", error: "Already entered Career" },
+          { status: 409 }
+        );
+      }
+      const prepared = await prepareOfficialJobsOneScreenEntry({
+        req,
+        input: body.oneScreen,
+      });
+      if (!prepared.ok) {
+        return NextResponse.json(
+          { code: prepared.code, error: prepared.error },
+          { status: prepared.status }
+        );
+      }
+      oneScreenEntry = prepared.entry;
+    }
+
     // A transport retry after durable admission must not re-ingest or overwrite
     // materials. The admission's outbox owns recovery of its original-agent run.
     if (conversation.stage === "completed") {
@@ -597,18 +629,28 @@ export async function POST(req: NextRequest) {
         locale: body.locale === "en" ? "en" : "ko", conversationId,
       });
     }
-    const profileSubmitContent = buildProfileSubmitMessage({
+    const materialsReceipt = buildProfileSubmitMessage({
       hasResume,
       links,
       preferredLocale,
     });
+    const profileSubmitContent = oneScreenEntry
+      ? buildOfficialJobsOneScreenReceipt({
+          entry: oneScreenEntry,
+          materialsReceipt,
+          hasResume,
+          locale: body.locale === "en" ? "en" : "ko",
+        })
+      : materialsReceipt;
     const { data: atomicData, error: atomicError } = await (
       admin as SupabaseClient
     ).rpc("finalize_career_entry", {
       p_user_id: user.id,
       p_conversation_id: conversationId,
       p_receipt: profileSubmitContent,
-      p_official_job_slug: officialJobSlug || null,
+      // The one screen's entry is recorded here too, in the same transaction;
+      // completeOfficialJobsOneScreenEntry then adds what was agreed and sent.
+      p_official_job_slug: oneScreenEntry ? oneScreenEntry.slug : officialJobSlug || null,
       p_is_mobile: isMobile,
     });
 
@@ -636,6 +678,18 @@ export async function POST(req: NextRequest) {
     }
 
     pendingAdmission = null;
+    // Before Harper's first turn starts, so that turn already knows the introduction went out.
+    let oneScreenIntroduction: OfficialJobsOneScreenIntroduction | null = null;
+    if (oneScreenEntry && atomicResult.inserted !== false) {
+      oneScreenIntroduction = await completeOfficialJobsOneScreenEntry({
+        admin,
+        userId: user.id,
+        conversationId: updatedConversation.id,
+        userMessageId: Number(insertedUserMessage.id),
+        entry: oneScreenEntry,
+        hasResume,
+      });
+    }
     scheduleCareerConversationContinuation(atomicResult.run);
     await cancelCareerOnboardingContactQueue({ admin, userId: user.id });
 
@@ -797,6 +851,9 @@ export async function POST(req: NextRequest) {
       profileSubmitMessage: insertedUserMessage.content,
       kickoff: null,
       assistantMessages: [],
+      ...(oneScreenIntroduction
+        ? { oneScreen: { introduction: oneScreenIntroduction.status } }
+        : {}),
       profileIngestion: {
         ok: true,
         status: "completed",

@@ -20,11 +20,61 @@ import { normalizeSignalSettings, type SignalSettings } from "./tuning";
 
 /**
  * How the agent got to the person: applicant = uploaded LinkedIn Recruiter "Apply starters" file; db = Harper's
- * purchased candidate DB (agent/dbSource.server.ts, 11/23); otherwise the search method (signals.ts):
+ * purchased candidate DB (agent/dbSource.server.ts, 11/23); request = they asked on Harper's job page for similar
+ * postings ("비슷한 공고 추천받기", agent/request.ts, 11/24); otherwise the search method (signals.ts):
  * open_to_work_profile, signal_post, layoff_company.
  */
-export type AgentMethod = "applicant" | "db" | SignalMethod;
-export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "db", "open_to_work_profile", "signal_post", "layoff_company"];
+export type AgentMethod = "applicant" | "db" | "request" | SignalMethod;
+export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "db", "request", "open_to_work_profile", "signal_post", "layoff_company"];
+
+/**
+ * Where the address came from: import (the applicant file or the DB), post (their own page), lookup (the paid email
+ * lookup), self (they typed it themselves on Harper's job page: a request).
+ */
+export type AgentEmailSource = "import" | "post" | "lookup" | "self";
+
+/**
+ * A request from Harper's job page (gtm_agent_people.request, method 'request'): the posting they looked at (the
+ * seed), what they left (a CV read in memory and never stored as a file, a LinkedIn URL, or both), and the record of
+ * their consent. Written by the request route (src/app/api/official-jobs/similar-request), read by agent/request.server.ts.
+ */
+export type AgentJobPageRequest = {
+  officialJobId: string;
+  slug: string;
+  /** company_roles.role_id of the posting (null for a posting of several companies). */
+  roleId: string | null;
+  kind: "role" | "bundle" | "closed";
+  companyName: string;
+  roleTitle: string;
+  seniority: string | null;
+  location: string | null;
+  /** cv: a CV only; linkedin: a LinkedIn URL only; both. */
+  material: "cv" | "linkedin" | "both";
+  locale: "ko" | "en";
+  /** sha256 of the visitor's IP (per-IP rate limit), never the IP itself. */
+  ipHash: string | null;
+  /** The /jobs visitor id (rememberOfficialJobsLanding), for attribution. */
+  lid: string | null;
+  consentVersion: string;
+  consentAt: string;
+  /** Over a rate limit when it came in: kept as the marker the next requests are counted against, never mailed. */
+  rateLimited?: boolean;
+  /** The LinkedIn read gave nothing about them: the mail says it picked from the posting alone. */
+  readFailed?: boolean;
+  /** The facts step ran (name, headline, company and location read from what they gave). */
+  factsRead?: boolean;
+  /** The seed as an English mail names it (written by the facts step on an English request). */
+  mailCompany?: string | null;
+  mailTitle?: string | null;
+  /**
+   * Checks that found no posting to send (agent/request.ts REQUEST_RECHECK_DAYS): the row waits, found, and is looked at
+   * again; counted apart from a failed step's attempts (gtm_agent_people.attempts).
+   */
+  checks?: number;
+  lastCheckedAt?: string | null;
+  /** When the CV's or profile's text was cleared on an opt-out (agent/request.ts requestContentCleared). */
+  clearedAt?: string | null;
+};
 
 export type AgentChannel = "email";
 
@@ -145,6 +195,11 @@ export type AgentPersonInput = {
   replyWorkLocation?: string | null;
   /** The mail's language when the source knew it (the purchased DB's Korean people); else matching reads their text. */
   language?: "ko" | "en" | null;
+  /**
+   * How the agent got to them, when the reader has it: a request (method 'request') changes what the picker, the
+   * grader and the frame writer read (match.ts personFacts: their CV and the posting they asked from).
+   */
+  method?: AgentMethod;
 };
 
 export type AgentEventKind =
@@ -296,7 +351,9 @@ export type AgentPerson = AgentPersonInput & {
   reason: string | null;
   channel: AgentChannel | null;
   email: string | null;
-  emailSource: "import" | "post" | "lookup" | null;
+  emailSource: AgentEmailSource | null;
+  /** A job-page request's facts (method 'request'); null for everyone else. */
+  request: AgentJobPageRequest | null;
   /** The email lookup for this person, when one was started (null: none). */
   emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;

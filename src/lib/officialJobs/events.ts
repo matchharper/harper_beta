@@ -4,6 +4,7 @@ import {
   OFFICIAL_JOBS_LAYOUT_EXPERIMENT,
 } from "@/lib/officialJobs/experiment";
 import { supabase } from "@/lib/supabase";
+import { readOfficialJobsOneScreenArm } from "@/lib/officialJobs/oneScreen";
 import {
   OFFICIAL_JOBS_LANDING_LAST_VISIT_AT_KEY,
   OFFICIAL_JOBS_LANDING_SESSION_GAP_MS,
@@ -22,7 +23,8 @@ export type OfficialJobEventType =
   | "job_detail_view"
   | "job_list_click"
   | "job_apply_click"
-  | "job_company_click";
+  | "job_company_click"
+  | "job_onescreen_step";
 
 /** One step on the login page reached from /jobs; `metadata.step` holds it. */
 export type OfficialJobsLoginStep =
@@ -194,6 +196,7 @@ export async function postOfficialJobEvent({
         metadata: {
           experiment: OFFICIAL_JOBS_LAYOUT_EXPERIMENT,
           layoutVariant: readOfficialJobsLayoutVariant(document.cookie),
+          oneScreenArm: readOfficialJobsOneScreenArm(document.cookie),
           ...(metadata ?? {}),
         },
         path: getCurrentPath(),

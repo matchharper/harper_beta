@@ -122,6 +122,75 @@ const OFFER_COPY = {
   },
 } as const;
 
+/**
+ * A job-page request's mail (agent/request.ts; decided 11/24): someone asked on Harper's job page for postings like the
+ * one they were looking at, and left their CV or LinkedIn profile. The posting mail's layout, greeting, intro, list,
+ * link and sign-off; what changes: the request sentence instead of "이력을 보고 … 연락드려요", the join line instead of
+ * "그냥 넘기셔도 괜찮아요", and an opt-out line that also covers "요청하지 않으셨거나". Korean:
+ *   제목: 유나님, 요청하신 비슷한 공고 3곳이에요
+ *   안녕하세요, 유나님. / Harper에서 회사 채용을 돕고 있는 Ashley Kim입니다.
+ *   Harper에서 보신 예시데이터웍스 · 백엔드 엔지니어 공고에서 비슷한 공고를 요청해 주셔서 메일 드려요. 남겨 주신 이력서를 보고
+ *   잘 맞을 만한 세 팀을 골랐어요.
+ *   (the postings) / 세 곳 내용은 여기에 모아뒀어요. [3곳 자세히 보기] / the join line / the ask / 감사합니다. / sign-off
+ * A mail that goes out a day or more after the request (it waited for postings to open: request.ts REQUEST_RECHECK_DAYS)
+ * opens with the late line instead.
+ */
+const REQUEST_COPY = {
+  ko: {
+    subject: (name: string | null, count: number) => `${name ? `${name}님, ` : ""}요청하신 비슷한 공고 ${count}곳이에요`,
+    asked: (seed: string) => `Harper에서 보신 ${seed} 공고에서 비슷한 공고를 요청해 주셔서 메일 드려요.`,
+    late: (day: string, seed: string) => `${day}에 요청하신 ${seed} 공고와 비슷한 공고가 새로 열려서 메일 드려요.`,
+    picked: (material: AgentRequestMaterial, count: number) => {
+      const teams = `${count > 1 ? `${KO_COUNT[count] ?? count} ` : "한 "}팀`;
+      if (material === "posting") return `보신 공고와 비슷한 ${teams}을 골랐어요.`;
+      const given = material === "cv" ? "이력서" : "LinkedIn 프로필";
+      return `남겨 주신 ${given}${objectParticle(given)} 보고 잘 맞을 만한 ${teams}을 골랐어요.`;
+    },
+    join: "Harper에 가입하시면 맞는 공고를 계속 받아 보실 수 있고, 원하시면 지원도 대신 해 드려요.",
+    ask: "보시고 궁금한 점 있으면 이 메일에 편하게 물어봐 주세요.",
+    optOut: (url: string | null | undefined) => (url
+      ? `*요청하지 않으셨거나 이런 메일을 더 받지 않으시려면 [여기](${url})를 눌러 주세요.*`
+      : "*요청하지 않으셨거나 이런 메일을 더 받지 않으시려면 답장으로 알려 주세요.*"),
+  },
+  en: {
+    subject: (name: string | null, count: number) =>
+      `${name ? `${name}, ` : ""}the ${count > 1 ? `${count} similar roles` : "similar role"} you asked for`,
+    asked: (seed: AgentRequestSeed) => `You asked on Harper for roles similar to ${seed.title} at ${seed.company}`,
+    late: (day: string, seed: AgentRequestSeed) =>
+      `On ${day} you asked for roles like ${seed.title} at ${seed.company}; similar ones have opened, so here they are.`,
+    picked: (material: AgentRequestMaterial, count: number) => {
+      const teams = count > 1 ? `${EN_COUNT[count] ?? count} teams` : "one team";
+      if (material === "posting") return `so I picked ${teams} with similar roles.`;
+      return `so I picked ${teams} that fit the ${material === "cv" ? "CV" : "LinkedIn profile"} you shared.`;
+    },
+    /** The late line's own follow-on, as one sentence of its own. */
+    pickedAfterLate: (material: AgentRequestMaterial, count: number) => {
+      const teams = count > 1 ? `these ${EN_COUNT[count] ?? count} teams` : "this team";
+      if (material === "posting") return `I picked ${teams} with roles like that one.`;
+      return `I picked ${teams} to fit the ${material === "cv" ? "CV" : "LinkedIn profile"} you shared.`;
+    },
+    join: "If you join Harper, you'll keep getting roles that fit you, and we can apply on your behalf whenever you want.",
+    ask: "Once you've had a look, feel free to reply with any questions.",
+    optOut: (url: string | null | undefined) => (url
+      ? `*If you didn't ask for this or would rather not hear from Harper again, [unsubscribe here](${url}).*`
+      : "*If you didn't ask for this or would rather not hear from Harper again, just reply and let me know.*"),
+  },
+} as const;
+
+/** What a request's person left: their CV, their LinkedIn profile, or nothing readable (picked from the posting alone). */
+export type AgentRequestMaterial = "cv" | "linkedin" | "posting";
+
+/** The posting a request was made from, as the mail names it. */
+export type AgentRequestSeed = { company: string; title: string };
+
+/** A job-page request's facts the mail needs (agent/request.ts requestMailFacts). */
+export type AgentRequestMail = {
+  seed: AgentRequestSeed;
+  material: AgentRequestMaterial;
+  /** When they asked, as the late line names it ("11월 24일", "November 24"); null when the mail goes the same day. */
+  lateDay: string | null;
+};
+
 /** "을" after a final consonant (or a Latin word read with one: l, m, n, ng), "를" otherwise. */
 function objectParticle(word: string): string {
   const last = word.trim().slice(-1);
@@ -139,9 +208,13 @@ function greetingName(language: AgentMailLanguage, name: string | null | undefin
   return language === "en" ? firstName(clean) : clean;
 }
 
-/** The first mail's subject: one form for everyone, the name when known. */
-export function agentSubject(args: { language: AgentMailLanguage; name: string | null; count: number; offer?: AgentOffer }): string {
+/** The first mail's subject: one form for everyone, the name when known (a job-page request's own form). */
+export function agentSubject(args: { language: AgentMailLanguage; name: string | null; count: number; offer?: AgentOffer; request?: boolean }): string {
   const name = greetingName(args.language, args.name);
+  if (args.request) {
+    const subject = REQUEST_COPY[args.language].subject(name, Math.max(1, args.count));
+    return args.language === "en" ? capitalize(subject) : subject;
+  }
   if (args.offer === "coaching" || args.offer === "general") {
     const subject = OFFER_COPY[args.language][args.offer].subject(name);
     return args.language === "en" ? capitalize(subject) : subject;
@@ -286,6 +359,8 @@ export function renderAgentMail(input: {
   postings: readonly AgentPosting[]; senderName: string; senderEmail: string; unsubscribeUrl?: string | null;
   /** The offer (agent/channels.ts; none: a posting mail) and a general mail's events (events first: they asked for them). */
   offer?: AgentOffer; events?: readonly AgentOfferEvent[]; eventsFirst?: boolean;
+  /** A job-page request's mail (method 'request'): the request copy around the same postings. */
+  request?: AgentRequestMail | null;
 }): { subject: string; html: string; text: string } {
   const copy = COPY[input.language];
   const sender = input.senderName.trim();
@@ -325,6 +400,31 @@ export function renderAgentMail(input: {
       paragraph(escapeMarkdown(general.gathered), `[${escapeMarkdown(general.open)}](${input.harperUrl})`),
       paragraph(...copy.ask.map(escapeMarkdown)),
       ...close,
+    ].filter(Boolean).join("\n\n");
+    return { subject, ...agentMailHtml(markdown) };
+  }
+  if (input.request) {
+    const request = REQUEST_COPY[input.language];
+    const seed = input.request.seed;
+    const material = input.request.material;
+    const ko = input.language === "ko";
+    const seedKo = [seed.company, seed.title].map((part) => mailPlainText(part, 120)).filter(Boolean).join(" · ");
+    const seedEn = { company: mailPlainText(seed.company, 120), title: mailPlainText(seed.title, 160) };
+    const opening = ko
+      ? [input.request.lateDay ? REQUEST_COPY.ko.late(input.request.lateDay, seedKo) : REQUEST_COPY.ko.asked(seedKo),
+        REQUEST_COPY.ko.picked(material, count)].join(" ")
+      : input.request.lateDay
+        ? `${REQUEST_COPY.en.late(input.request.lateDay, seedEn)} ${REQUEST_COPY.en.pickedAfterLate(material, count)}`
+        : `${REQUEST_COPY.en.asked(seedEn)}, ${REQUEST_COPY.en.picked(material, count)}`;
+    const markdown = [
+      paragraph(escapeMarkdown(copy.greeting(name)), sender ? escapeMarkdown(copy.intro(sender)) : ""),
+      escapeMarkdown(opening),
+      postings.map(postingBulletMarkdown).join("\n\n"),
+      paragraph(escapeMarkdown(copy.gathered(count)), `[${escapeMarkdown(copy.open(count))}](${input.harperUrl})`),
+      paragraph(escapeMarkdown(request.join), escapeMarkdown(request.ask)),
+      escapeMarkdown(copy.thanks),
+      paragraph(...copy.signOff(sender).map(escapeMarkdown)),
+      request.optOut(input.unsubscribeUrl),
     ].filter(Boolean).join("\n\n");
     return { subject, ...agentMailHtml(markdown) };
   }

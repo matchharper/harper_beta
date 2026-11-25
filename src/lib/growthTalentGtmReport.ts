@@ -202,6 +202,8 @@ type AgentPersonRow = {
   id: string;
   is_test: boolean | null;
   mail_id: string | null;
+  /** 'request': a /jobs visitor who asked for similar postings, not someone the agent sourced (agent/request.ts). */
+  method?: string | null;
 };
 
 /** A career_signup_completed log with its first page (meta_data.landingPath), e.g. /career?gtm=<mail id>. */
@@ -690,7 +692,8 @@ export function agentSourcingAccounts(args: {
   );
   const counted = new Map<string, AgentMailRow>();
   for (const person of args.people) {
-    if (person.is_test) continue;
+    // A job-page request's mail answered someone who came to /jobs: not agent sourcing.
+    if (person.is_test || person.method === "request") continue;
     for (const mailId of [person.mail_id, person.followup_mail_id]) {
       const mail = mailId ? mailById.get(mailId.toLowerCase()) : undefined;
       if (mail) counted.set(mail.id.toLowerCase(), mail);
@@ -1372,7 +1375,7 @@ async function loadAgentSourcingAccounts(args: {
       (ids, from, to) =>
         untyped
           .from("gtm_agent_people")
-          .select("followup_mail_id,id,is_test,mail_id")
+          .select("followup_mail_id,id,is_test,mail_id,method")
           .in("id", ids)
           .order("id", { ascending: true })
           .range(from, to)

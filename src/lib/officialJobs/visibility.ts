@@ -14,6 +14,34 @@ type PromotionSetting = {
   is_promote: boolean;
 };
 
+/**
+ * public: Harper can introduce candidates to this posting's role.
+ * closed: an internal, non-test role that ended or expired.
+ * hidden: anything else (not internal, not promoted, test-only, missing).
+ */
+export function classifyOfficialJobLinkedRole(
+  role: LinkedRole | undefined,
+  setting: PromotionSetting | undefined,
+  nowMs = Date.now()
+): "public" | "closed" | "hidden" {
+  if (!role || role.source_type !== "internal") return "hidden";
+  if (
+    role.information &&
+    typeof role.information === "object" &&
+    !Array.isArray(role.information) &&
+    role.information.testOnly === true
+  ) {
+    return "hidden";
+  }
+  const open =
+    (role.status === "active" || role.status === "paused") &&
+    !role.is_expired &&
+    !(role.expires_at && Date.parse(role.expires_at) <= nowMs);
+  // Only a posting that was public can be closed; a role never promoted stays hidden.
+  if (!setting?.is_promote) return "hidden";
+  return open ? "public" : "closed";
+}
+
 export function filterPublicOfficialJobRows<T extends { role_id: string | null }>(
   jobs: T[],
   roles: LinkedRole[],
@@ -27,24 +55,13 @@ export function filterPublicOfficialJobRows<T extends { role_id: string | null }
 
   return jobs.flatMap((job) => {
     if (!job.role_id) return [job];
-
-    const role = rolesById.get(job.role_id);
-    const setting = settingsById.get(job.role_id);
-    if (!role || !setting) return [];
-    if (role.source_type !== "internal" || !setting.is_promote) return [];
-    if (role.status !== "active" && role.status !== "paused") return [];
-    if (role.is_expired) return [];
-    if (role.expires_at && Date.parse(role.expires_at) <= nowMs) return [];
-    if (
-      role.information &&
-      typeof role.information === "object" &&
-      !Array.isArray(role.information) &&
-      role.information.testOnly === true
-    ) {
-      return [];
-    }
-
     // A public role_id means Harper can introduce candidates to this posting.
-    return [job];
+    return classifyOfficialJobLinkedRole(
+      rolesById.get(job.role_id),
+      settingsById.get(job.role_id),
+      nowMs
+    ) === "public"
+      ? [job]
+      : [];
   });
 }

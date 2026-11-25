@@ -73,6 +73,14 @@ export async function composeAgentMail(args: {
   postings: AgentPosting[];
 }> {
   if (args.offer === "coaching") return composeCoachingMail(args);
+  if (args.person.method === "request") {
+    // A job-page request (agent/request.ts): the request copy names what they asked for and what they gave, so there is
+    // no focus line to write; the English names come from the frame writer (match.server.ts frame). No model call.
+    return {
+      subject: agentMailSubject(agentSubject({ language: args.language, name: args.person.name, count: args.postings.length, request: true }), args.language),
+      body: agentPostingList(args.postings), reason: "공고 페이지에서 요청한 분이라 요청 문구로 써요", costUsd: 0, postings: [...args.postings],
+    };
+  }
   if (args.offer === "general" && !args.postings.length) {
     // Events only: nothing for a writer to fill (the events carry their own why).
     return {

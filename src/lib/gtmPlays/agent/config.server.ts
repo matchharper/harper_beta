@@ -18,6 +18,8 @@ import { MAX_FITS, MIN_FITS, OUTREACH_PLAN_PROMPT, OUTREACH_REVISE_PROMPT, WORK_
 import { RECENT_CONTACT_DAYS } from "./people";
 import { writePostingFrames } from "./postingFrame.server";
 import { READ_SEARCHED_PAGES, profilePagesPrompt } from "./profileRead";
+import { renderAgentMail } from "./render";
+import { requestFactsPrompt } from "./request";
 import { REVIEW_SYSTEM_PROMPT, postingsToMail, reviewUserPrompt } from "./review";
 import {
   EXPLORE_SOURCE, GOAL_SEARCHES, RECENT_MEMORY_DAYS, SIGNAL_SOURCES, judgePrompt, layoffPrompt, planPrompt, type SignalStage,
@@ -154,6 +156,14 @@ async function computePromptVersions(): Promise<AgentPromptVersions> {
       ...rendered(() => profilePagesPrompt({ ...SAMPLE_PERSON, method: "applicant" }, [{ id: "p0", url: SAMPLE_PAGE.url, text: SAMPLE_PAGE.text }])),
     ]),
     budget: promptVersion([BUDGET_PLAN_SYSTEM, budgetPlanPrompt(SAMPLE_BUDGET)]),
+    // A job-page request (agent/request.ts): the facts step and the request mail's fixed copy, both languages.
+    request: promptVersion((["ko", "en"] as const).flatMap((language) => [
+      ...rendered(() => requestFactsPrompt({ profileText: "Sample profile text.", seed: { companyName: "Sample Co", roleTitle: "Backend Engineer" }, english: language === "en" })),
+      ...rendered(() => renderAgentMail({
+        language, subject: "", body: "", name: SAMPLE_PERSON.name, harperUrl: "https://example.com/i", postings: SAMPLE_POSTINGS, senderName: "Sender",
+        senderEmail: "sender@example.com", request: { seed: { company: "Sample Co", title: "Backend Engineer" }, material: "cv", lateDay: "Nov 24" },
+      }).text),
+    ])),
   };
 }
 

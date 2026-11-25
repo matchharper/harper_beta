@@ -105,9 +105,10 @@ function lookupMx(resolver: Resolver, domain: string): Promise<MxVerdict> {
 
 /**
  * The MX verdicts of one call: each domain looked up once (cached for the call), the call's lookups settled together
- * (settleMxVerdicts: no "none" while no domain resolved at all).
+ * (settleMxVerdicts: no "none" while no domain resolved at all). Also the job-page request's address check
+ * (request.server.ts requestMailDomainOk).
  */
-function mxChecker() {
+export function mxChecker() {
   const resolver = new Resolver({ timeout: MX_TIMEOUT_MS, tries: 1 });
   const cache = new Map<string, Promise<MxVerdict>>();
   return async (domains: readonly string[]): Promise<Map<string, MxVerdict>> => {

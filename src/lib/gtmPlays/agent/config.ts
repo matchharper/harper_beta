@@ -53,7 +53,7 @@ export type AgentConfigRules = {
 };
 
 /** The instruction texts whose hash a 설정 묶음 keeps (config.server.ts agentPromptVersions). */
-export const AGENT_PROMPT_NAMES = ["planner", "judge", "matcher", "postingFrame", "grader", "mailWriter", "lookup", "profile", "budget"] as const;
+export const AGENT_PROMPT_NAMES = ["planner", "judge", "matcher", "postingFrame", "grader", "mailWriter", "lookup", "profile", "budget", "request"] as const;
 export type AgentPromptName = (typeof AGENT_PROMPT_NAMES)[number];
 export type AgentPromptVersions = Partial<Record<AgentPromptName, string>>;
 
@@ -227,6 +227,7 @@ const PROMPT_LABEL: Record<AgentPromptName, string> = {
   lookup: "이메일 찾기 지침",
   profile: "프로필 읽기 지침",
   budget: "검색 예산 나누기 지침",
+  request: "공고 페이지 요청 지침·문구",
 };
 
 const RULE_LABEL: Record<keyof AgentConfigRules, string> = {

@@ -34,6 +34,11 @@ export type CareerPostOnboardingContext = {
     postingPath?: string;
     postingDetails?: string;
     postingUpdatedAt?: string | null;
+    /**
+     * Entered from the job page's sign-up card (the one screen): its entry record,
+     * which says what the candidate agreed to there and what Harper already sent.
+     */
+    oneScreenRecord?: string;
   } | null;
 };
 

@@ -44,11 +44,14 @@ export async function searchFollowupPostings(person: AgentPerson, ctx: { runId: 
   const spend = (usd: number) => recordAgentSpend({
     step: "followup", usd, runId: ctx.runId, personId: person.id, configId: ctx.configId, isTest: person.isTest,
   });
+  // A job-page request (agent/request.ts): never the posting they asked from, and they asked, so "not looking" never
+  // stops the search.
+  const seed = person.method === "request" && person.request?.roleId ? [{ roleId: person.request.roleId }] : [];
   return findFollowupPostings(person, {
-    sent: await sentPostingsTo(person),
+    sent: [...await sentPostingsTo(person), ...seed],
     // As the first mail: never their current company, nor the company whose own applicant list they came from.
     excludeCompanyNames: [person.currentCompany, applicantListCompany(person.source)],
-    anyIntent: storedOffer(person.messageKind) === "general",
+    anyIntent: storedOffer(person.messageKind) === "general" || person.method === "request",
   }, { match: matchAgentPostings, review: reviewAgentPostings, spend });
 }
 

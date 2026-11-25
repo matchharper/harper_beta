@@ -2,8 +2,8 @@ import "server-only";
 
 import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.server";
 import type {
-  AgentChannel, AgentEmailLookup, AgentEvent, AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentMethod, AgentOfferEvent,
-  AgentPerson, AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
+  AgentChannel, AgentEmailLookup, AgentEmailSource, AgentEvent, AgentEventKind, AgentExcludeReason, AgentGiverKind, AgentJobPageRequest,
+  AgentMethod, AgentOfferEvent, AgentPerson, AgentPersonInput, AgentPosting, AgentSettings, AgentSource, AgentStatus,
 } from "./types";
 import { AGENT_CHANNELS, FILL_CHANNELS, normalizeChannelSettings, type AgentChannelKey, type AgentFoundAs, type AgentIntent } from "./channels";
 import { kstDayWindow } from "../sendLimit";
@@ -146,7 +146,7 @@ export async function brakeAgent(reason: string): Promise<boolean> {
 
 /**
  * The agent's mails of the last `days` days counted from when it was last turned on: sent (or sending), hard
- * bounces, spam complaints. Test rows never count.
+ * bounces, spam complaints. Test rows never count, nor job-page requests' mails (their channel's own brake).
  */
 export async function agentDeliveryStats(days: number): Promise<{ sent: number; bounced: number; complained: number }> {
   const [row] = await gtmRead((sql) => sql<Array<{ sent: number; bounced: number; complained: number }>>`
@@ -160,6 +160,9 @@ export async function agentDeliveryStats(days: number): Promise<{ sent: number; 
     from public.gtm_mails m
     left join public.gtm_agent_people p on p.id = m.agent_person_id
     where m.campaign = 'agent' and m.created_at >= (select at from since) and not coalesce(p.is_test, false)
+      -- Job-page requests have their own brake only (channel request): a handful of typed-in addresses that bounce
+      -- must not stop every cold mail (agent/channels.ts REQUEST_CHANNELS).
+      and p.method is distinct from 'request'
   `);
   return { sent: Number(row?.sent ?? 0), bounced: Number(row?.bounced ?? 0), complained: Number(row?.complained ?? 0) };
 }
@@ -211,6 +214,7 @@ export async function brakeAgentChannel(channel: AgentChannelKey, reason: string
 export function channelSql(sql: GtmReadSql | GtmWriteSql, p: string) {
   const c = (column: string) => sql.unsafe(`${p}.${column}`);
   return sql`(case
+    when ${c("method")} = 'request' then 'request'
     when ${c("method")} = 'db' then 'db'
     when ${c("method")} = 'applicant' then 'applicant'
     when ${c("method")} = 'layoff_company' then 'layoff'
@@ -320,7 +324,7 @@ type PersonRow = {
   profile_text: string | null; signal_url: string | null; signal_text: string | null; signal_at: string | Date | null;
   status: AgentStatus; exclude_reason: AgentExcludeReason | null; postings: AgentPosting[] | null;
   message_kind: AgentPerson["messageKind"]; reason: string | null; channel: AgentChannel | null;
-  email: string | null; email_source: "import" | "post" | "lookup" | null; email_lookup?: AgentEmailLookup | null;
+  email: string | null; email_source: AgentEmailSource | null; email_lookup?: AgentEmailLookup | null;
   language: "ko" | "en" | null;
   draft_subject: string | null; draft_body: string | null; mail_id: string | null; followup_mail_id: string | null;
   sent_by: string | null; sent_at: string | Date | null; skip_reason: string | null;
@@ -330,6 +334,8 @@ type PersonRow = {
   attempts?: number | null; retry_at?: string | Date | null;
   intent?: AgentIntent | null; found_as?: AgentFoundAs | null; source_ref?: string | null; giver_kind?: AgentGiverKind | null;
   offer_events?: AgentOfferEvent[] | null;
+  /** Missing before 20261124200000_gtm_agent_job_page_request.sql. */
+  request?: AgentJobPageRequest | null;
   created_at: string | Date; updated_at: string | Date;
 };
 
@@ -371,6 +377,7 @@ export function mapAgentPerson(row: PersonRow): AgentPerson {
     channel: row.channel,
     email: row.email,
     emailSource: row.email_source,
+    request: row.request && typeof row.request === "object" && !Array.isArray(row.request) ? row.request : null,
     emailLookup: row.email_lookup ?? null,
     language: row.language,
     draftSubject: row.draft_subject,
@@ -410,7 +417,7 @@ export type NewAgentPerson = AgentPersonInput & {
   searchQuery?: string | null;
   personKey: string;
   email: string | null;
-  emailSource: "import" | "post" | "lookup" | null;
+  emailSource: AgentEmailSource | null;
   isTest: boolean;
   /** Why they wrote (the judge), author or commenter, and the row of Harper's own data they came from (the DB). */
   intent?: AgentIntent | null;
@@ -457,10 +464,14 @@ export type AgentPersonPatch = Partial<{
   /** The events a general mail proposes (agent/events.server.ts). */
   offerEvents: AgentOfferEvent[];
   messageKind: AgentPerson["messageKind"]; reason: string | null; channel: AgentChannel | null;
-  email: string | null; emailSource: "import" | "post" | "lookup" | null; emailLookup: AgentEmailLookup | null;
+  email: string | null; emailSource: AgentEmailSource | null; emailLookup: AgentEmailLookup | null;
   language: "ko" | "en" | null;
   /** What the agent read about them (profile.ts): a 프로필 읽기 adds to it once. */
   profileText: string | null;
+  /** Who they are, as a job-page request's facts step read it from their CV or LinkedIn profile (agent/request.server.ts). */
+  name: string | null; headline: string | null; location: string | null; currentCompany: string | null;
+  /** A job-page request's facts (method 'request'; agent/request.server.ts). */
+  request: AgentJobPageRequest;
   draftSubject: string | null; draftBody: string | null; mailId: string | null; followupMailId: string | null;
   /** The 설정 묶음 the first mail was written with. */
   mailConfigId: string | null;
@@ -475,6 +486,7 @@ const COLUMNS: Record<Exclude<keyof AgentPersonPatch, "addCostUsd">, string> = {
   status: "status", excludeReason: "exclude_reason", postings: "postings", offerEvents: "offer_events", messageKind: "message_kind",
   reason: "reason", channel: "channel", email: "email", emailSource: "email_source", emailLookup: "email_lookup",
   language: "language", profileText: "profile_text",
+  name: "name", headline: "headline", location: "location", currentCompany: "current_company", request: "request",
   draftSubject: "draft_subject", draftBody: "draft_body", mailId: "mail_id", followupMailId: "followup_mail_id",
   mailConfigId: "mail_config_id", sentBy: "sent_by", sentAt: "sent_at", skipReason: "skip_reason",
   repliedAt: "replied_at", followupDueAt: "followup_due_at", endedAt: "ended_at",
@@ -503,7 +515,7 @@ export async function updateAgentPerson(
   }] : [];
   const [row] = await gtmWrite(async (sql) => {
     const sets = Object.entries(values).map(([column, value]) =>
-      (column === "postings" || column === "email_lookup" || column === "offer_events") && value !== null
+      (column === "postings" || column === "email_lookup" || column === "offer_events" || column === "request") && value !== null
         ? sql`${sql(column)} = ${sql.json(value as never)}`
         : sql`${sql(column)} = ${value as never}`);
     const assignments = [
@@ -548,7 +560,8 @@ export async function listAgentPeopleByStatus(status: AgentStatus, limit: number
 export async function listAgentSendQueue(limit: number): Promise<Array<{ id: string; channel: AgentChannelKey; signalAt: string | null; updatedAt: string }>> {
   const rows = await gtmRead((sql) => sql<Array<{ id: string; channel: AgentChannelKey; signal_at: string | Date | null; updated_at: string | Date }>>`
     select p.id, ${channelSql(sql, "p")} as channel, p.signal_at, p.updated_at from public.gtm_agent_people p
-    where p.status = 'approved'
+    -- A job-page request's mail goes right away (agent/request.server.ts), never through the paced queue.
+    where p.status = 'approved' and p.method <> 'request'
     order by p.signal_at desc nulls last, p.updated_at limit ${limit}::int
   `);
   return rows.map((row) => ({ id: row.id, channel: row.channel, signalAt: iso(row.signal_at), updatedAt: iso(row.updated_at) ?? "" }));
@@ -580,6 +593,8 @@ export async function listAgentPeopleToHandle(runId: string, limit: number, room
         ${channelSql(sql, "p")} as queue_channel
       from public.gtm_agent_people p
       where p.run_id = ${runId}::uuid and p.status in ('found', 'matched')
+        -- Job-page requests have their own step (agent/request.server.ts), with their own rules.
+        and p.method <> 'request'
         and (p.retry_at is null or p.retry_at <= now())
         and coalesce(p.email_lookup->>'state', '') <> 'running'
     ) p
@@ -597,11 +612,33 @@ export async function countAgentSendQueue(days: number): Promise<{ all: number; 
     select count(*)::int as all, count(*) filter (where signal_at is not null or status = 'sent')::int as dated
     from public.gtm_agent_people
     where not is_test and (
-      status = 'approved'
+      -- A job-page request's first mail never waits in the queue (agent/request.server.ts).
+      (status = 'approved' and method <> 'request')
       -- The follow-ups due within the same days take the same cap (Shaun 11/23: written mails must still fit).
       or (status = 'sent' and followup_mail_id is null and followup_due_at <= now() + make_interval(days => ${days}::int)))
   `);
   return { all: Number(row?.all ?? 0), dated: Number(row?.dated ?? 0) };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The Roles among `postings` that are no longer open (gone, expired, or not active any more), lower-cased. */
+export async function closedRoleIds(postings: readonly AgentPosting[]): Promise<Set<string>> {
+  const ids = [...new Set(postings.map((posting) => posting.roleId).filter((id): id is string => Boolean(id && UUID.test(id))))];
+  if (!ids.length) return new Set();
+  const rows = await gtmRead((sql) => sql<Array<{ role_id: string }>>`
+    select wanted.id::text as role_id
+    from unnest(${ids}::uuid[]) as wanted(id)
+    left join public.company_roles r on r.role_id = wanted.id
+    where r.role_id is null or coalesce(r.is_expired, false) or (r.expires_at is not null and r.expires_at <= now())
+      or coalesce(lower(btrim(r.status)), 'active') not in ('active', 'top_priority')
+  `);
+  return new Set(rows.map((row) => row.role_id.toLowerCase()));
+}
+
+/** The person's postings with the closed ones marked by lower-cased Role id (tickRules.ts stillOpenPostings compares as stored). */
+export function closedOf(postings: readonly AgentPosting[], closed: ReadonlySet<string>): Set<string> {
+  return new Set(postings.flatMap((posting) => (posting.roleId && closed.has(posting.roleId.toLowerCase()) ? [posting.roleId] : [])));
 }
 
 /** The Ops user background mails are logged under (gtm_mails.sent_by): whoever last saved the settings. */

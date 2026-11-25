@@ -89,6 +89,11 @@ export function linkedinHandles(urls: ReadonlyArray<string | null | undefined>):
  *   (external_intro_requests.recipient_email; the run applies the same 30 days, RECENT_CONTACT_DAYS);
  * - last_ended / active_elsewhere / opted_out: by every key the person may be known by (email and profile) and by the
  *   address on any other #5 row.
+ * A job-page request (method 'request', agent/request.ts) is keyed by the address they typed (email:<address>), and
+ * also gave a LinkedIn profile when they left one: a row is the same person as a request when it has that address, or
+ * that profile (the request's own link), so cold mail waits RECENT_CONTACT_DAYS after a request's mail and
+ * quiet_after_end after the request ends (11/24). Only request rows are matched by their profile link: cold rows
+ * match each other as before.
  */
 export async function exclusionFacts(person: AgentPerson, blockedDomains: readonly string[] = []) {
   const email = cleanEmail(person.email);
@@ -101,9 +106,13 @@ export async function exclusionFacts(person: AgentPerson, blockedDomains: readon
   const likePatterns = handles.map((handle) => `%linkedin.com/in/${handle.replace(/[\\%_]/g, (char) => `\\${char}`)}%`);
   const [facts] = await gtmRead((sql) => {
     // Another #5 row for the same person: by any of their keys, or by the address it found later.
-    const samePerson = email
+    const byKey = email
       ? sql`(p.person_key = any(${keys}::text[]) or lower(p.email) = ${email})`
       : sql`p.person_key = any(${keys}::text[])`;
+    // Or a job-page request that gave the same LinkedIn profile (its key is the address they typed).
+    const samePerson = handles.length
+      ? sql`(${byKey} or (p.method = 'request' and substring(lower(p.profile_url) from 'linkedin\\.com/in/([^/?#[:space:]]+)') = any(${handles}::text[])))`
+      : byKey;
     return sql<Array<{
       member: boolean; suppressed: boolean; last_mailed: string | Date | null; last_ended: string | Date | null; active_elsewhere: boolean;
       opted_out: boolean; blocked_company: boolean;
@@ -116,14 +125,20 @@ export async function exclusionFacts(person: AgentPerson, blockedDomains: readon
               where substring(lower(link) from 'linkedin\\.com/in/([^/?#[:space:]]+)') = any(${handles}::text[])))` : sql`false`}
       ) as member,
       ${email ? sql`exists (select 1 from public.external_contact_suppressions s where s.email_hash = ${externalEmailHash(email)})` : sql`false`} as suppressed,
-      ${email ? sql`greatest(
+      greatest(${email ? sql`greatest(
         (select max(m.created_at) from public.gtm_mails m where m.audience = 'candidate' and m.to_email = ${email}
           and m.status in ('sending', 'sent') and (m.agent_person_id is null or m.agent_person_id <> ${person.id}::uuid)),
         (select max(e.invited_at) from public.external_intro_requests e where lower(btrim(e.recipient_email)) = ${email})
-      )` : sql`null::timestamptz`} as last_mailed,
+      )` : sql`null::timestamptz`},
+        -- A job-page request's mail to the same person (found by the request's profile, whatever address it went to).
+        (select max(m.created_at) from public.gtm_mails m join public.gtm_agent_people p on p.id = m.agent_person_id
+          where p.method = 'request' and p.id <> ${person.id}::uuid and ${samePerson}
+            and m.audience = 'candidate' and m.status in ('sending', 'sent'))) as last_mailed,
       (select max(p.ended_at) from public.gtm_agent_people p where ${samePerson} and p.id <> ${person.id}::uuid) as last_ended,
+      -- A job-page request still waiting for postings (found, rechecked every 14 days) counts too: its mail goes once
+      -- something fits, so a cold mail before it would be a second one.
       exists (select 1 from public.gtm_agent_people p where ${samePerson} and p.id <> ${person.id}::uuid
-        and p.status in ('matched', 'drafted', 'approved', 'sent', 'replied')) as active_elsewhere,
+        and (p.status in ('matched', 'drafted', 'approved', 'sent', 'replied') or (p.method = 'request' and p.status = 'found'))) as active_elsewhere,
       -- "연락 그만" on any earlier cycle (a person known only by profile has no address on the shared list).
       exists (select 1 from public.gtm_agent_people p where ${samePerson} and p.id <> ${person.id}::uuid
         and p.events @> '[{"kind": "unsubscribed"}]'::jsonb) as opted_out,
