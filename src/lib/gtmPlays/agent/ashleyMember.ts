@@ -1,14 +1,9 @@
 /**
- * #5 The pure parts of a company's word reaching one of Ashley's candidates who is a Harper member (ashleyMember.server.ts
- * does the reads and writes): which way Harper's member connection request goes from the member's card, and what the
- * Career run that tells the member about a company's answer is given (never the company's words: those are in the chat
- * message it names, written as they are).
+ * #5 The pure parts of a company's request reaching one of Ashley's candidates who is a Harper member
+ * (ashleyMember.server.ts does the reads and writes): which way Harper's member connection request goes from the
+ * member's card, and what an unconfirmed one does next.
  */
 
-/** talent_messages.payload key of a company's answer written into a member's chat (once per key). */
-export const MEMBER_ANSWER_PAYLOAD_KEY = "gtmCompanyAnswer";
-/** opportunity_discovery_run.trigger_payload key naming that message (the run that tells the member; once per message). */
-export const MEMBER_ANSWER_RUN_KEY = "gtmCompanyAnswerMessageId";
 /** external_intro_requests.result keys of a request that went on as Harper's member request. */
 export const MEMBER_INTRO_DONE = "memberIntroDone";
 export const MEMBER_INTRO_TRIES_KEY = "memberIntroTries";
@@ -46,23 +41,4 @@ export function memberIntroFinish(input: {
   if (input.candidate.stopped) return { step: "stop", quiet: false, reason: "후보가 연락 받지 않기 목록에 있어요" };
   if (!input.cardStatus) return { step: "stop", quiet: false, reason: "회원 카드를 찾지 못했어요" };
   return { step: "request" };
-}
-
-/** The Career run's instruction: the message to tell them about, by id; no company text in it. */
-export function memberAnswerRunInstruction(messageId: string | number): string {
-  return [
-    `A company's answer to a question this candidate asked Harper by email was added to this conversation as message ${messageId}.`,
-    "Tell the candidate about it through their usual contact channel, pointing to that message, and help with what they want to do next using the normal Career tools.",
-    "Do not restate, reword or add to the company's answer, and do not share anything with the company: this is not candidate consent for sharing.",
-  ].join(" ");
-}
-
-/** The payload of the chat message (the relay row it is for, so it can be found from gtm_agent_relays). */
-export function memberAnswerPayload(input: { key: string; relay: { companyEmail: string; personId: string; inboundMessageId: string } }) {
-  return {
-    [MEMBER_ANSWER_PAYLOAD_KEY]: {
-      key: input.key, relayCompanyEmail: input.relay.companyEmail.trim().toLowerCase(), relayPersonId: input.relay.personId,
-      inboundMessageId: input.relay.inboundMessageId, via: "ashley",
-    },
-  };
 }

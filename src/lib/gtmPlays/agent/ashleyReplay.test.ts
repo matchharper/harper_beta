@@ -33,7 +33,7 @@ test("grade: a missed stop and a wrong send fail the bar; a held draft counts as
   const held = replayOutcome(reply({ status: "fail", reasons: ["x"] }));
   assert.equal(gradeReplay(["hand_to_human"], held).status, "pass");
   assert.equal(gradeReplay(["reply"], held).status, "fail");
-  assert.equal(gradeReplay(["no_reply"], { action: "member", wouldSend: false, reason: "", checkReasons: [] }).status, "pass");
+  assert.equal(gradeReplay(["no_reply"], { action: "human_answered", wouldSend: false, reason: "", checkReasons: [] }).status, "pass");
   assert.equal(gradeReplay(null, send).status, "unlabelled");
   const totals = replayTotals([missed, gradeReplay(["reply"], send), gradeReplay(null, send)]);
   assert.deepEqual(totals, { cases: 3, pass: 1, fail: 1, unlabelled: 1, missedStops: 1, wrongSends: 1 });
