@@ -372,7 +372,10 @@ export type SignupMoveDeps = {
   history: ConversationStore["history"] | null;
   /** The person's Harper conversation (the given one when it is theirs). */
   conversationId(userId: string, preferred: string | null): Promise<string>;
-  /** The payloads (MAIL_CONVERSATION_PAYLOAD_KEY values) of the blocks already in the account's chats for this address. */
+  /**
+   * The payloads (MAIL_CONVERSATION_PAYLOAD_KEY values) of the blocks already in the account's chats for this address,
+   * and { movedAt } for other chat rows that already hold its mails (the hand-over to Harper of 11/23-11/25).
+   */
   movedBlocks(userId: string, address: string): Promise<unknown[]>;
   insertBlock(row: { userId: string; conversationId: string; content: string; payload: Record<string, unknown> }): Promise<void>;
   /** The entry records already written for this source (their summaries). */

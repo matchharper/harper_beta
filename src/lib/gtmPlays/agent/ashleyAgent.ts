@@ -734,12 +734,14 @@ type Sendable = {
 /**
  * A mail to a Harper account holder ends with one fixed line: the conversation is in their Harper chat too, and they
  * can go on there (Shaun 11/25). Without a link of its own the mail gets Harper's (the reply's own link opens Harper
- * for them, where they left off).
+ * for them, where they left off). Added as the mail goes (deliver), never stored: the stored reply is what Ashley and
+ * the Harper chat read back. Once only, whatever the body says.
  */
 export function withHarperLine(item: Pick<Sendable, "body" | "link" | "language">, origin: string): Pick<Sendable, "body" | "link"> {
   const copy = ASHLEY_COPY[item.language];
+  const body = item.body.trim();
   return {
-    body: `${item.body.trim()}\n\n${copy.harperCopied}`,
+    body: body.includes(copy.harperCopied) ? body : `${body}\n\n${copy.harperCopied}`,
     link: item.link ?? { label: copy.harperCopiedLabel, url: harperChatLink(origin) },
   };
 }
@@ -836,24 +838,27 @@ async function recordSent(
 async function deliver(io: AshleyIO, args: {
   queuedId: string; parts: MailParts; message: Pick<ConversationMessage, "personId" | "counterpartEmail" | "rfcMessageId" | "occurredAt">;
   rootMailId: string | null; who: string; slackPersonId: string | null;
+  /** To a Harper account holder: the mail goes with the Harper line (withHarperLine), the stored reply without it. */
+  harperAccount?: boolean;
 }): Promise<SendOutcome> {
   const { store } = io;
+  const parts: MailParts = args.harperAccount ? { ...args.parts, ...withHarperLine(args.parts, io.settings.origin) } : args.parts;
   if (args.rootMailId && await store.personAnswered(args.rootMailId, args.message.occurredAt)) {
     await store.markFailed(args.queuedId, "사람이 그사이 답했어요", true);
     await io.slack(noteSlackText(args.who, "사람이 그사이 답해서 Ashley 답장은 보내지 않았어요"), args.slackPersonId);
     return "held";
   }
   try {
-    const sent = await sendOnce(io, outgoing(io, args.parts, `gtm-agent-reply:${args.queuedId}`));
+    const sent = await sendOnce(io, outgoing(io, parts, `gtm-agent-reply:${args.queuedId}`));
     await store.markSent(args.queuedId, sent);
   } catch (error) {
     await store.markFailed(args.queuedId, errorText(error));
     await handOff(io, args.message, `${CODE_REASON.sendFailed} · ${errorText(error)}`, {
-      draft: args.parts.body, link: args.parts.link, root: args.parts.root, who: args.who, personId: args.slackPersonId,
+      draft: parts.body, link: parts.link, root: parts.root, who: args.who, personId: args.slackPersonId,
     });
     return "failed";
   }
-  await io.slack(sentReplySlackText({ who: args.who, text: args.parts.body, link: args.parts.link }), args.slackPersonId).catch(() => undefined);
+  await io.slack(sentReplySlackText({ who: args.who, text: parts.body, link: parts.link }), args.slackPersonId).catch(() => undefined);
   return "sent";
 }
 
@@ -863,9 +868,8 @@ async function deliver(io: AshleyIO, args: {
  * Ashley already wrote to that address today) is not kept: nothing is recorded, and the mail is written afresh on the
  * next send day with whatever came in by then (Shaun 11/22).
  */
-async function sendReply(io: AshleyIO, input: Sendable, now: Date): Promise<SendOutcome> {
+async function sendReply(io: AshleyIO, item: Sendable, now: Date): Promise<SendOutcome> {
   const { store } = io;
-  const item: Sendable = input.harperAccount && input.to.kind === "candidate" ? { ...input, ...withHarperLine(input, io.settings.origin) } : input;
   const held = item.check.status === "fail" ? `${CODE_REASON.preSend} · ${item.check.reasons.join(" · ")}`
     : !io.settings.replyAgentEnabled || !io.send ? CODE_REASON.replyOff : null;
   if (!held && (item.check.status === "wait" || !io.settings.windowOpen(now) || await mailedToday(io, item.to.email, now))) return "deferred";
@@ -882,7 +886,10 @@ async function sendReply(io: AshleyIO, input: Sendable, now: Date): Promise<Send
     await handOff(io, item.message, held, { draft: item.body, link: item.link, root: item.root, who: item.who, personId: item.slackPersonId });
     return "held";
   }
-  return deliver(io, { queuedId: queued.id, parts, message: item.message, rootMailId: item.to.rootMailId, who: item.who, slackPersonId: item.slackPersonId });
+  return deliver(io, {
+    queuedId: queued.id, parts, message: item.message, rootMailId: item.to.rootMailId, who: item.who, slackPersonId: item.slackPersonId,
+    harperAccount: Boolean(item.harperAccount) && item.to.kind === "candidate",
+  });
 }
 
 /**
@@ -933,8 +940,9 @@ export async function flushQueuedReplies(io: AshleyIO, limit: number, now = new 
     } else {
       const { body, link } = parseStoredReply(row.bodyText, io.settings.origin);
       const quoted = row.inbound.counterpartEmail === row.counterpartEmail;
+      const harperAccount = row.counterpartKind === "candidate" && Boolean(await io.harperAccount?.(row.counterpartEmail));
       outcome = await deliver(io, {
-        queuedId: row.id, rootMailId: row.rootMailId, who, slackPersonId: row.personId, message: row.inbound,
+        queuedId: row.id, rootMailId: row.rootMailId, who, slackPersonId: row.personId, message: row.inbound, harperAccount,
         parts: {
           root, language: languageOf(body), body, link, subject: row.subject,
           rfcMessageId: row.inReplyTo, references: row.references,

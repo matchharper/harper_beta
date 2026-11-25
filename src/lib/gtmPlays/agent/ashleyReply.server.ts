@@ -566,7 +566,12 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     readPerson: (id) => readAgentPerson(id) as Promise<AshleyPerson | null>,
     readMail,
     isMember,
-    harperAccount: async (email) => Boolean(await accountOf(email)),
+    // A failed read counts as no account (logged): Ashley still answers, without the account fact or the Harper line,
+    // rather than leaving the mail open on every tick.
+    harperAccount: async (email) => Boolean(await accountOf(email).catch((error) => {
+      console.error("[gtm-agent] Harper account not read", email, error instanceof Error ? error.message : String(error));
+      return null;
+    })),
     copyToHarper: async (email) => {
       const address = email.trim().toLowerCase();
       const member = await accountOf(address);

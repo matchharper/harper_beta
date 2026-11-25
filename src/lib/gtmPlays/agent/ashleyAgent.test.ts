@@ -624,13 +624,12 @@ test("a Harper account holder's mail is Ashley's to answer by mail (Shaun 11/25)
   // Every model call is told they have an account (decide, write, the next-step check).
   assert.deepEqual(h.llmCalls.map((call) => call.label), ["gtm-agent:ashley-decide", "gtm-agent:ashley-write", "gtm-agent:ashley-link"]);
   for (const call of h.llmCalls) assert.match(contextOf(call), /## Harper account\nThey already have a Harper account with this address/, call.label);
-  // No link from the draft: Harper's own, under the Harper line, which is the body's last paragraph (once).
+  // No link from the draft: the mail gets Harper's own, under the Harper line, its last paragraph (once). Both are
+  // added as it goes: the stored reply (what Ashley and the Harper chat read back) is her words only.
   const en = ASHLEY_COPY.en;
-  const stored = parseStoredReply(h.queued[0].bodyText, h.io.settings.origin);
-  assert.ok(stored.body.endsWith(`It is hybrid in Seoul.\n\n${en.harperCopied}`), stored.body);
-  assert.equal(stored.body.split(en.harperCopied).length, 2);
-  assert.deepEqual(stored.link, { label: en.harperCopiedLabel, url: harperChatLink(h.io.settings.origin) });
-  assert.ok(h.sent[0].text.includes(`It is hybrid in Seoul.\n\n${en.harperCopied}\n\n${en.harperCopiedLabel} (https://matchharper.com/career)`), h.sent[0].text);
+  assert.deepEqual(parseStoredReply(h.queued[0].bodyText, h.io.settings.origin), { body: "Hi Sam,\n\nIt is hybrid in Seoul.", link: null });
+  assert.ok(h.sent[0].text.includes(`It is hybrid in Seoul.\n\n${en.harperCopied}\n\n${en.harperCopiedLabel} (${harperChatLink(h.io.settings.origin)})`), h.sent[0].text);
+  assert.equal(h.sent[0].text.split(en.harperCopied).length, 2);
   // Copied after the tick decided it.
   assert.deepEqual(h.copies, ["candidate@example.com"]);
 
@@ -642,7 +641,7 @@ test("a Harper account holder's mail is Ashley's to answer by mail (Shaun 11/25)
   });
   assert.deepEqual((await processAshleyReplies(k.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
   const koStored = parseStoredReply(k.queued[0].bodyText, k.io.settings.origin);
-  assert.ok(koStored.body.endsWith(`\n\n${ASHLEY_COPY.ko.harperCopied}`), koStored.body);
+  assert.ok(!koStored.body.includes(ASHLEY_COPY.ko.harperCopied), koStored.body);
   assert.match(koStored.link?.url ?? "", /\/jobs\/invite\/.*next=connect_request/);
   assert.ok(k.sent[0].text.includes(`${ASHLEY_COPY.ko.harperCopied}\n\nCompany B에 소개 요청하기 (https://matchharper.com/jobs/invite/`), k.sent[0].text);
   assert.deepEqual(k.copies, ["candidate@example.com"]);
@@ -741,6 +740,8 @@ test("withHarperLine: the Harper line once, at the end; the mail's own link kept
   assert.equal(added.body.split(ASHLEY_COPY.ko.harperCopied).length, 2);
   assert.deepEqual(added.link, { label: ASHLEY_COPY.ko.harperCopiedLabel, url: harperChatLink(origin) });
   assert.equal(added.link?.url, "https://matchharper.com/career");
+  // A body that already has the line (the model wrote it after all) keeps it once.
+  assert.equal(withHarperLine({ body: added.body, link: null, language: "ko" }, origin).body, added.body);
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -833,6 +834,8 @@ test("a reply whose sending was cut off (left queued) is sent again with the sam
   assert.match(h.sent[0].text, /It is hybrid in Seoul\./);
   assert.equal(h.sent[0].text.split(ASHLEY_COPY.en.harperCopied).length, 2);
   assert.ok(h.sent[0].text.includes(`${ASHLEY_COPY.en.harperCopiedLabel} (https://matchharper.com/career)`));
+  // Stored as she wrote it: the line and Harper's link are added as it goes, by the flush too.
+  assert.ok(!h.queued[0].bodyText.includes(ASHLEY_COPY.en.harperCopied));
   // The first try was cut off (no copy); the flush that sent it asks for the copy.
   assert.deepEqual(h.copies, ["candidate@example.com"]);
 });
@@ -1771,8 +1774,9 @@ test("after a relay, an account holder's one fixed answer says to ask on Harper 
   assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
   const en = ASHLEY_COPY.en;
   const stored = parseStoredReply(h.queued[0].bodyText, h.io.settings.origin);
-  assert.equal(stored.body, ["Hi Sam Lee,", ...en.relayAfterMember, en.harperCopied].join("\n\n"));
+  assert.equal(stored.body, ["Hi Sam Lee,", ...en.relayAfterMember].join("\n\n"));
   assert.match(stored.link?.url ?? "", /next=connect_request/);
+  assert.ok(h.sent[0].text.includes([...en.relayAfterMember, en.harperCopied].join("\n\n")), h.sent[0].text);
   assert.ok(!h.sent[0].text.includes("SHOULD NOT BE USED"));
   assert.ok(h.relayRows.get(PAIR_KEY)!.candidateNotedAt);
   assert.deepEqual(h.copies, ["candidate@example.com"]);

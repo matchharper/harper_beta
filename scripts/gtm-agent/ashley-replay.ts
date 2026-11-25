@@ -172,7 +172,8 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
   const replies = await import("../../src/lib/gtmPlays/agent/replies");
   const { gtmRead } = await import("../../src/lib/gtmPlays/db.server");
   const { readAgentPerson, readAgentSettings } = await import("../../src/lib/gtmPlays/agent/store.server");
-  const { readMail, isMember } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
+  const { readMail } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
+  const { verifiedMemberOf } = await import("../../src/lib/gtmPlays/agent/signupMove.server");
   const { personAnswered } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   if (!gmail.gmailServiceAccountConfigured()) throw new Error("Gmail service account not configured (.env.local)");
 
@@ -243,7 +244,8 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
       const root = await readMail(match.mail.mailId);
       const settled = root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
         : !person || !root ? "no_person" as const : undefined;
-      const harperAccount = await isMember(from);
+      // The tick's own rule (AshleyIO.harperAccount): the one account whose verified email is the address our mail went to.
+      const harperAccount = Boolean(await verifiedMemberOf(match.mail.toEmail).catch(() => null));
       items.push({ id, source: "gmail", note: `${mailbox} · matched by ${match.by}`, expect: args.labels.get(id) ?? null, message, person, root, settled, harperAccount });
       count("replayed");
     }
@@ -257,7 +259,8 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
 async function pendingItems(args: { limit: number; labels: Map<string, ReplayAction[]> }): Promise<{ items: ReplayItem[]; counts: Record<string, number> }> {
   const { listUndecidedInbound } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   const { readAgentPerson } = await import("../../src/lib/gtmPlays/agent/store.server");
-  const { readMail, isMember } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
+  const { readMail } = await import("../../src/lib/gtmPlays/agent/ashleyReply.server");
+  const { verifiedMemberOf } = await import("../../src/lib/gtmPlays/agent/signupMove.server");
   const { personAnswered } = await import("../../src/lib/gtmPlays/agent/conversation.server");
   const undecided = await listUndecidedInbound(1_000);
   const counts: Record<string, number> = {};
@@ -274,7 +277,7 @@ async function pendingItems(args: { limit: number; labels: Map<string, ReplayAct
     const root = message.rootMailId ? await readMail(message.rootMailId) : null;
     const settled = root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
       : !person || !root ? "no_person" as const : undefined;
-    const harperAccount = await isMember(message.counterpartEmail);
+    const harperAccount = Boolean(await verifiedMemberOf(message.counterpartEmail).catch(() => null));
     items.push({ id: message.id, source: "pending", note: "stored, not decided", expect: args.labels.get(message.id) ?? null, message, person, root, settled, harperAccount });
     count("replayed");
   }

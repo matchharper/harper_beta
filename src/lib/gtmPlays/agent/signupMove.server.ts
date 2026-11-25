@@ -84,10 +84,21 @@ export function signupMoveDeps(admin: TalentAdminClient, history: ConversationSt
       if (conversationError) throw conversationError;
       const ids = (conversations ?? []).map((row) => String(row.id));
       if (!ids.length) return [];
-      const { data, error } = await db.from("talent_messages").select("payload").in("conversation_id", ids)
-        .eq("message_type", "system").eq("role", "assistant").eq(`payload->${MAIL_CONVERSATION_PAYLOAD_KEY}->>address`, address).limit(200);
-      if (error) throw error;
-      return ((data ?? []) as Array<{ payload: Record<string, unknown> | null }>).map((row) => row.payload?.[MAIL_CONVERSATION_PAYLOAD_KEY]);
+      const messages = () => db.from("talent_messages").select("created_at").in("conversation_id", ids);
+      const [blocks, routed, redirected] = await Promise.all([
+        db.from("talent_messages").select("payload").in("conversation_id", ids)
+          .eq("message_type", "system").eq("role", "assistant").eq(`payload->${MAIL_CONVERSATION_PAYLOAD_KEY}->>address`, address).limit(200),
+        // Mails the hand-over to Harper of 11/23-11/25 already put in the chat (their mails, then Ashley's mail that
+        // said Harper answered): everything up to the latest of them counts as there, like a block moved before keys.
+        messages().eq("message_type", "mail").eq("payload->>via", "ashley_inbox").order("created_at", { ascending: false }).limit(1),
+        messages().eq("message_type", "system").not("payload->gtmAgentMemberRedirect", "is", null).order("created_at", { ascending: false }).limit(1),
+      ]);
+      for (const result of [blocks, routed, redirected]) if (result.error) throw result.error;
+      const handedOver = [...(routed.data ?? []), ...(redirected.data ?? [])] as Array<{ created_at: string }>;
+      return [
+        ...((blocks.data ?? []) as Array<{ payload: Record<string, unknown> | null }>).map((row) => row.payload?.[MAIL_CONVERSATION_PAYLOAD_KEY]),
+        ...handedOver.map((row) => ({ movedAt: new Date(row.created_at).toISOString() })),
+      ];
     },
     async insertBlock(row) {
       const { error } = await db.from("talent_messages").insert({
