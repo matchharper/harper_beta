@@ -12,9 +12,12 @@ import Link from "next/link";
 export default function OfficialJobsHeader({
   job,
   locale = "ko",
+  hideCta = false,
 }: {
   job?: OfficialJobsCareerJob;
   locale?: OfficialJobsLocale;
+  /** The one screen's postings leave the header button out: the boxes beside the posting are where to start. */
+  hideCta?: boolean;
 }) {
   const copy = getOfficialJobsCopy(locale);
 
@@ -45,20 +48,22 @@ export default function OfficialJobsHeader({
           </Link>
         </div>
         <nav className="flex items-center gap-4 text-[13px]  text-neutral-primary/58 sm:gap-6">
-          <OfficialJobsCtaLink
-            job={job}
-            onClick={() => {
-              void postOfficialJobEvent({
-                eventType: job ? "job_apply_click" : "jobs_cta_click",
-                jobSlug: job?.slug,
-                metadata: { source: "jobs_header" },
-              });
-            }}
-            variant="dark"
-            className="hidden md:flex"
-            size="md"
-            locale={locale}
-          />
+          {hideCta ? null : (
+            <OfficialJobsCtaLink
+              job={job}
+              onClick={() => {
+                void postOfficialJobEvent({
+                  eventType: job ? "job_apply_click" : "jobs_cta_click",
+                  jobSlug: job?.slug,
+                  metadata: { source: "jobs_header" },
+                });
+              }}
+              variant="dark"
+              className="hidden md:flex"
+              size="md"
+              locale={locale}
+            />
+          )}
         </nav>
       </div>
     </header>

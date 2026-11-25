@@ -719,7 +719,7 @@ test("에이전트 소싱: #5 mail arrivals and signups leave 기타, visitors s
 // Shaun 11/22 (/ops와 같게): 에이전트 소싱 is the set /ops #5 counts as 가입, made after its mail went out.
 const MAIL = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 
-test("에이전트 소싱 accounts: /ops #5's 가입 (link signup or claim, follow-up too), never a test person", () => {
+test("에이전트 소싱 accounts: /ops #5's 가입 (link signup or claim, follow-up too), never a test person or a job-page request", () => {
   const accounts = agentSourcingAccounts({
     mails: [
       { agent_person_id: "p1", claimed_talent_id: "a", created_at: "2026-11-20T01:00:00.000Z", id: MAIL(1) },
@@ -727,12 +727,15 @@ test("에이전트 소싱 accounts: /ops #5's 가입 (link signup or claim, foll
       { agent_person_id: "p3", claimed_talent_id: "t", created_at: "2026-11-20T01:10:00.000Z", id: MAIL(3) },
       { agent_person_id: "p4", claimed_talent_id: null, created_at: "2026-11-13T01:00:00.000Z", id: MAIL(4) },
       { agent_person_id: "p4", claimed_talent_id: "f", created_at: "2026-11-20T01:15:00.000Z", id: MAIL(5) },
+      // A job-page request's mail: someone who came to /jobs and asked, not agent sourcing.
+      { agent_person_id: "p5", claimed_talent_id: "r", created_at: "2026-11-20T01:20:00.000Z", id: MAIL(6) },
     ],
     people: [
       { followup_mail_id: null, id: "p1", is_test: false, mail_id: MAIL(1) },
       { followup_mail_id: null, id: "p2", is_test: false, mail_id: MAIL(2) },
       { followup_mail_id: null, id: "p3", is_test: true, mail_id: MAIL(3) },
       { followup_mail_id: MAIL(5), id: "p4", is_test: false, mail_id: MAIL(4) },
+      { followup_mail_id: null, id: "p5", is_test: false, mail_id: MAIL(6), method: "request" },
     ],
     linkSignupLogs: [
       { created_at: "2026-11-20T02:00:01.000Z", landingPath: `/career?utm_source=harper_gtm&gtm=${MAIL(1)}`, user_id: "a" },

@@ -169,7 +169,26 @@ export type PickOptions = {
   excludeCompanyNames?: string[];
   /** false: without the where-they-can-work rule (match.ts WORK_LOCATION_RULE); only a before/after replay sets it. */
   workLocationRule?: boolean;
+  /**
+   * Postings never proposed (a job-page request's seed, the posting they asked from): by Role id, and by company and
+   * title for a posting without one.
+   */
+  excludeRoleIds?: string[];
+  excludePostings?: ReadonlyArray<{ companyName: string; title: string }>;
 };
+
+/** A title as one key (lower case, letters and digits only), for leaving out a posting known by company and title. */
+const titleKey = (title: string | null | undefined) => String(title ?? "").toLowerCase().replace(/[^0-9a-z가-힣]/g, "");
+
+/** Whether a posting is one the caller left out (PickOptions excludeRoleIds / excludePostings). */
+function leftOut(
+  posting: { roleId: string | null | undefined; companyName: string | null | undefined; title: string | null | undefined },
+  roleIds: ReadonlySet<string>, postings: ReadonlyArray<{ companyName: string; title: string }>,
+): boolean {
+  if (posting.roleId && roleIds.has(posting.roleId.toLowerCase())) return true;
+  const title = titleKey(posting.title);
+  return Boolean(title) && postings.some((item) => titleKey(item.title) === title && isExcludedCompany(posting.companyName ?? "", [item.companyName]));
+}
 
 export async function pickAgentPostings(person: AgentPersonInput, opts: PickOptions, sources: PickSources): Promise<AgentMatch> {
   const totals = createCompanyRunUsage();
@@ -177,16 +196,26 @@ export async function pickAgentPostings(person: AgentPersonInput, opts: PickOpti
   const addUsd = (usd: number) => { directUsd += usd; };
   const excluded = [...new Set([person.currentCompany, ...(opts.excludeCompanyNames ?? [])]
     .map((name) => name?.trim() ?? "").filter(Boolean))];
+  const skip = {
+    roleIds: new Set((opts.excludeRoleIds ?? []).map((id) => id.trim().toLowerCase()).filter(Boolean)),
+    postings: opts.excludePostings ?? [],
+  };
   const result = await withLlmUsageContext(
     { requestId: randomUUID(), careerOrigin: "server", careerCapability: { name: "gtm_agent", step: "match" }, companyRunUsage: totals },
-    () => pick(person, excluded, sources, addUsd, opts.workLocationRule !== false),
+    () => pick(person, excluded, sources, addUsd, opts.workLocationRule !== false, skip),
   );
   return { ...result, costUsd: Number((totals.costUsd + directUsd).toFixed(6)) };
 }
 
-async function pick(person: AgentPersonInput, excluded: string[], sources: PickSources, addUsd: (usd: number) => void, workLocationRule: boolean): Promise<Omit<AgentMatch, "costUsd">> {
+async function pick(
+  person: AgentPersonInput, excluded: string[], sources: PickSources, addUsd: (usd: number) => void, workLocationRule: boolean,
+  skip: { roleIds: ReadonlySet<string>; postings: ReadonlyArray<{ companyName: string; title: string }> },
+): Promise<Omit<AgentMatch, "costUsd">> {
   const context = outreachContext(person, excluded, { workLocationRule });
-  const prompts = outreachPlanPrompts(workLocationRule);
+  // A job-page request (method 'request'): they asked, so the planner plans from the posting they asked from and their
+  // own facts, and its "not looking" never stops them (match.ts REQUEST_PLAN).
+  const request = person.method === "request";
+  const prompts = outreachPlanPrompts(workLocationRule, request);
   const planInput = (extra: Record<string, unknown>) => evidenceText({ user_context: context, salary_fx: salaryFx, ...extra });
   const internalLoad = sources.internalRoles().catch((error) => {
     console.warn("[gtm-agent:match] internal roles", error instanceof Error ? error.message : String(error));
@@ -198,7 +227,7 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
   const hasText = Boolean(person.signalText || person.profileText || person.headline);
   // A language the source knew (the DB's Korean people) first; else what they wrote.
   const language = person.language ?? (hasText ? detectLanguage([person.signalText, person.profileText, person.headline], "ko") : first.language ?? "ko");
-  if (!first.jobSeeking) {
+  if (!first.jobSeeking && !request) {
     return { postings: [], language, notJobSeeking: true, reason: first.jobSeekingReason, plans: [], postingTexts: [], frame: noFrames };
   }
   const firstPlan = planFrom(firstRaw);
@@ -218,15 +247,17 @@ async function pick(person: AgentPersonInput, excluded: string[], sources: PickS
 
   let read = 0;
   const searchAndScore = async (plan: V2SearchPlan, targetSalaryKrw: number | null, reason: string, revised: boolean) => {
-    const rows = await sources.searchPublic(plan, { targetSalaryKrw, excluded, seenRoleIds: [...cards.keys()] }, addUsd).catch((error) => {
+    const rows = await sources.searchPublic(plan, { targetSalaryKrw, excluded, seenRoleIds: [...skip.roleIds, ...cards.keys()] }, addUsd).catch((error) => {
       console.warn("[gtm-agent:match] public search", error instanceof Error ? error.message : String(error));
       return [] as RawRoleRow[];
     });
     const publicCards = rows.map(roleCard)
-      .filter((card) => card.roleId && card.roleName && !cards.has(card.roleId) && !isExcludedCompany(card.companyName ?? "", excluded))
+      .filter((card) => card.roleId && card.roleName && !cards.has(card.roleId) && !isExcludedCompany(card.companyName ?? "", excluded)
+        && !leftOut({ roleId: card.roleId, companyName: card.companyName, title: card.roleName }, skip.roleIds, skip.postings))
       .slice(0, PUBLIC_READ_MAX);
     // Every customer Role not scored yet (the revised search scores only new public postings).
-    const internalLeft = internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded));
+    const internalLeft = internal.filter((item) => !cards.has(item.meta.roleId!) && !postingExcluded(item.meta, excluded)
+      && !leftOut(item.meta, skip.roleIds, skip.postings));
     const fresh = [...internalLeft.map((item) => roleCard(item.row)), ...await sources.companyContext(publicCards)];
     for (const card of publicCards) {
       metaByRoleId.set(card.roleId, {

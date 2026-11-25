@@ -23,6 +23,7 @@ const OFFICIAL_JOB_EVENT_TYPES = new Set<OfficialJobEventType>([
   "job_list_click",
   "job_apply_click",
   "job_company_click",
+  "job_onescreen_step",
 ]);
 
 type OfficialJobEventBody = {

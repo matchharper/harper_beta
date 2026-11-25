@@ -32,6 +32,7 @@ import { routeToMember } from "./memberRoute.server";
 import { optOutAgentAddress } from "./replies.server";
 import { replyMailboxes } from "./replies";
 import { reviewPostingText } from "./review";
+import { requestContentCleared } from "./request";
 import { sendWindowOf } from "./sendPace.server";
 import { sendWindowOpen } from "./sendTiming";
 import { recordAgentSpend } from "./spend.server";
@@ -500,6 +501,8 @@ async function stopContact(args: { personId: string | null; mailId: string | nul
   await updateAgentPerson(person.id, {
     ...(person.status === "sent" ? { status: "ended" as const } : {}),
     endedAt: person.endedAt ?? new Date().toISOString(), followupDueAt: null,
+    // A job-page request's CV or profile text is cleared on an opt-out (agent/request.ts).
+    ...(person.method === "request" ? requestContentCleared(person.request, new Date()) : {}),
   }, { kind: "unsubscribed", by: AGENT, note: args.note.slice(0, 300) }, [person.status]);
 }
 
@@ -566,7 +569,11 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
       const match = await matchAgentPostings({
         ...full, signalText: [full.signalText, `What they asked for in their reply: ${conditions}`].filter(Boolean).join("\n\n"),
         replyWorkLocation: workLocation,
-      }, { excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))] });
+      }, {
+        excludeCompanyNames: [...new Set(sent.map((posting) => posting.companyName))],
+        // A job-page request: never the posting they asked from (agent/request.ts).
+        ...(full.request?.roleId ? { excludeRoleIds: [full.request.roleId] } : {}),
+      });
       // Logged as Ashley's (step reply): her replies have no cost cap (Shaun 11/22).
       await recordAgentSpend({ step: "reply", usd: match.costUsd, personId: full.id, isTest: full.isTest });
       const key = (posting: AgentPosting) => (posting.url || posting.roleId || "").trim().toLowerCase();

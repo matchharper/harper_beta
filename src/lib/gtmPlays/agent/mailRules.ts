@@ -3,7 +3,7 @@
  * reach a mail as plain words. Pure, so the run, the Ops screen and the tests agree.
  */
 import { isHarperMailAddress, isPersonalMailAddress, mailDomain, mailboxCanExist } from "../personalMail";
-import type { AgentPerson, AgentSettings } from "./types";
+import type { AgentEmailSource, AgentPerson, AgentSettings } from "./types";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Hosts
@@ -70,10 +70,12 @@ export function ownDomainAddress(email: string | null | undefined, pageUrls: Rea
  *   addresses never): its domain is that of `foundOn`, the page where the person was found (their own blog or site),
  *   never a shared platform. Without `foundOn` no such address passes. An address from an application or a lookup
  *   on another domain is treated as a work address.
+ * - An address the person typed themselves on Harper's job page to get this mail (source 'self', a request;
+ *   decided 11/24): yes on any domain, a work address too.
  */
 export function agentMailableAddress(
   email: string | null | undefined,
-  source: "import" | "post" | "lookup" | null,
+  source: AgentEmailSource | null,
   foundOn: ReadonlyArray<string | null | undefined> = [],
   /**
    * The person's handles (profileHandles of their profile and own links): a lookup address on a domain named after one
@@ -83,6 +85,7 @@ export function agentMailableAddress(
   ownHandles: readonly string[] = [],
 ): boolean {
   if (!email || !mailboxCanExist(email)) return false;
+  if (source === "self") return true;
   if (isPersonalMailAddress(email) || isHarperMailAddress(email)) return true;
   if (source === "lookup") return handleDomainAddress(email, ownHandles);
   return source === "post" && (ownDomainAddress(email, foundOn) || handleDomainAddress(email, ownHandles));

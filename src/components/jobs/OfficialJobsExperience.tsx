@@ -6,6 +6,7 @@ import CareerLandingClosingSection, {
   CAREER_LANDING_CLOSING_COPY,
 } from "@/components/landing/CareerLandingClosingSection";
 import OfficialJobsCtaLink from "./OfficialJobsCtaLink";
+import OfficialJobsOneScreenCtaLink from "./OfficialJobsOneScreenCta";
 import type { OfficialJobsCareerJob } from "@/lib/officialJobs";
 import type { OfficialJobsLocale } from "@/lib/officialJobs/copy";
 import { getOfficialJobsExperienceCopy } from "@/lib/officialJobs/experienceCopy";
@@ -41,13 +42,25 @@ export default function OfficialJobsExperience({
   locale,
   job,
   showAbout = false,
+  oneScreenHref,
 }: {
   locale: OfficialJobsLocale;
   job?: OfficialJobsCareerJob;
   showAbout?: boolean;
+  /** Set when this posting shows the one screen: the closing button opens it instead of sign-in. */
+  oneScreenHref?: string;
 }) {
   const copy = getOfficialJobsExperienceCopy(locale);
   const closing = CAREER_LANDING_CLOSING_COPY[locale];
+  const closingButtonClassName =
+    "mt-8 h-12 rounded-full border-stroke-strong bg-surface-inverse px-5 text-base font-medium text-on-inverse shadow-(--shadow-sm) transition-colors hover:bg-neutral-800 md:h-14 md:px-6";
+  const trackClosingClick = () => {
+    void postOfficialJobEvent({
+      eventType: job ? "job_apply_click" : "jobs_cta_click",
+      jobSlug: job?.slug,
+      metadata: { source: "jobs_closing_section" },
+    });
+  };
   return (
     <div className="break-keep bg-bg-basement text-neutral-primary mt-20">
       <PageContainer>
@@ -112,21 +125,26 @@ export default function OfficialJobsExperience({
       <CareerLandingClosingSection
         copy={closing}
         action={
-          <OfficialJobsCtaLink
-            job={job}
-            locale={locale}
-            size="lg"
-            className="mt-8 h-12 rounded-full border-stroke-strong bg-surface-inverse px-5 text-base font-medium text-on-inverse shadow-(--shadow-sm) transition-colors hover:bg-neutral-800 md:h-14 md:px-6"
-            onClick={() => {
-              void postOfficialJobEvent({
-                eventType: job ? "job_apply_click" : "jobs_cta_click",
-                jobSlug: job?.slug,
-                metadata: { source: "jobs_closing_section" },
-              });
-            }}
-          >
-            {closing.button}
-          </OfficialJobsCtaLink>
+          oneScreenHref ? (
+            <OfficialJobsOneScreenCtaLink
+              href={oneScreenHref}
+              size="lg"
+              className={closingButtonClassName}
+              onClick={trackClosingClick}
+            >
+              {closing.button}
+            </OfficialJobsOneScreenCtaLink>
+          ) : (
+            <OfficialJobsCtaLink
+              job={job}
+              locale={locale}
+              size="lg"
+              className={closingButtonClassName}
+              onClick={trackClosingClick}
+            >
+              {closing.button}
+            </OfficialJobsCtaLink>
+          )
         }
       />
     </div>

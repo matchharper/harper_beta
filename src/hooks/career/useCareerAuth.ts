@@ -128,13 +128,15 @@ export const useCareerAuth = () => {
   const [authInfo, setAuthInfo] = useState("");
 
   const buildCareerAuthCallbackUrl: (
-    legalAcceptance?: LegalDocumentAcceptance
-  ) => string | undefined = useCallback((legalAcceptance) => {
+    legalAcceptance?: LegalDocumentAcceptance,
+    nextPathOverride?: string
+  ) => string | undefined = useCallback((legalAcceptance, nextPathOverride) => {
     if (typeof window === "undefined") return undefined;
 
     const currentUrl = new URL(window.location.href);
+    // A page outside /career (the job page's one screen) names where to come back to.
     const explicitNextPath = resolveSafeNextPath(
-      currentUrl.searchParams.get("next")
+      nextPathOverride ?? currentUrl.searchParams.get("next")
     );
     const nextPath =
       explicitNextPath ||
@@ -299,7 +301,10 @@ export const useCareerAuth = () => {
   }, []);
 
   const handleGoogleLogin = useCallback(
-    async (legalAcceptance?: LegalDocumentAcceptance) => {
+    async (
+      legalAcceptance?: LegalDocumentAcceptance,
+      options?: { nextPath?: string }
+    ) => {
       if (authPending) return;
       if (!legalAcceptance) {
         redirectToCareerLoginForLegalAcknowledgement();
@@ -309,7 +314,10 @@ export const useCareerAuth = () => {
       setAuthError("");
       setAuthInfo("");
       try {
-        const redirectTo = buildCareerAuthCallbackUrl(legalAcceptance);
+        const redirectTo = buildCareerAuthCallbackUrl(
+          legalAcceptance,
+          options?.nextPath
+        );
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: { redirectTo },

@@ -5,6 +5,8 @@ export const OPS_AB_TESTS = [
   { key: "landing-stats", title: "홈 랜딩 통계 표시" },
   { key: "onboarding", title: "Career 온보딩 공개 설정 순서" },
   { key: "gmail-wait", title: "지원 준비 중 Gmail 카드" },
+  // Shown as "<company> 링크드인 공고화면" once opened: the name comes from the database, never this public code.
+  { key: "jobs-onescreen", title: "링크드인 공고화면 A/B" },
 ] as const;
 
 export type OpsAbTestKey = (typeof OPS_AB_TESTS)[number]["key"];

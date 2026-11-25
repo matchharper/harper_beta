@@ -26,6 +26,8 @@ import type { AgentOfferEvent, AgentPerson, AgentPosting, AgentSettings } from "
  *   matchharper.com are tests and not counted). Company mails have a cap of their own, the same number
  *   (agent/companyMail.server.ts; Shaun 11/22).
  * Whether the address may be mailed at all (personal mailbox) and the sending hours are the run's checks.
+ * A job-page request's first mail (`requested`, agent/request.server.ts; decided 11/24) skips the 30-day rule and the
+ * daily cap, since the person asked for it; the opt-out list still stops it, and it counts toward the day's total.
  * The log row is written before the provider call (a second worker finds it); its id goes into the mail's links.
  * A provider call that fails throws AgentSendError (agent/sendErrors.ts): the row is failed when the provider
  * refused it, and stays "sending" when the outcome is unknown (a timeout, a server error), for the next tick to ask
@@ -159,6 +161,8 @@ export async function deliverAgentMail(args: {
   render: (mailId: string, links: { harperUrl: string; unsubscribeUrl: string }) => { subject: string; html: string; text: string };
   /** The provider call's time limit (the tick's end is near). */
   timeoutMs?: number;
+  /** A mail the person asked for on Harper's job page: no 30-day rule, no daily cap (the opt-out list still applies). */
+  requested?: boolean;
 }): Promise<AgentSendResult> {
   if (!gtmWritesEnabled()) throw new GtmWritesOffError();
   const senderProblem = agentSenderProblem(args.settings);
@@ -189,7 +193,7 @@ export async function deliverAgentMail(args: {
   if (suppressedError) throw suppressedError;
   if (suppressed) return block(`보내지 않았어요 · 연락 받지 않기 목록(${suppressed.reason})`);
 
-  if (!isHarperAddress(to)) {
+  if (!isHarperAddress(to) && !args.requested) {
     const { data: recent, error: recentError } = await gtmMailsTable(admin).select("created_at,agent_person_id")
       .eq("audience", "candidate").eq("to_email", to).in("status", ["sending", "sent"])
       .gte("created_at", new Date(Date.now() - RECENT_CONTACT_DAYS * DAY_MS).toISOString())

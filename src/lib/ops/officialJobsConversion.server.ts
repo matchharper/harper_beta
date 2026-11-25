@@ -40,7 +40,8 @@ function statsSql() {
   return client;
 }
 
-async function readOnly<T>(
+/** Runs one query in a read-only transaction with a 15s cap. Also used by the job page's one-screen A/B card. */
+export async function readOnly<T>(
   query: string,
   parameters: string[]
 ): Promise<T[]> {

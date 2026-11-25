@@ -24,6 +24,7 @@ import {
 import { CAREER_ONBOARDING_STEP_ORDER_EXPOSURE_EVENT } from "@/lib/career/onboardingStepOrderExperiment";
 import { buildGmailWaitOfferExperiment } from "./gmailWaitOfferExperiment";
 import { fetchGmailWaitOfferExperimentRows } from "./gmailWaitOfferExperimentServer";
+import { fetchJobsOneScreenExperiment } from "./jobsOneScreenExperiment.server";
 import {
   OFFICIAL_JOBS_LAYOUT_ABTEST_A,
   OFFICIAL_JOBS_LAYOUT_ABTEST_B,
@@ -303,6 +304,12 @@ export async function fetchOpsAbTests(args: {
       );
       break;
     }
+    case "jobs-onescreen":
+      experiment = await fetchJobsOneScreenExperiment({
+        startIso,
+        excludeEmail: (email) => shouldExcludeEmail(email, exclusionTerms),
+      });
+      break;
     case "gmail-wait": {
       const rows = await fetchGmailWaitOfferExperimentRows(
         getTalentSupabaseAdmin(),
