@@ -56,11 +56,24 @@ export type CompanyProfilePeople = {
   schools: CompanyProfileOrganization[];
 };
 
+export type CompanyProfileLocation = {
+  count: number;
+  name: string;
+};
+
+/** What the company's LinkedIn page reports about everyone who lists it (harvestapi). */
+export type CompanyProfileLinkedIn = {
+  employeeCount: number | null;
+  locations: CompanyProfileLocation[];
+  schools: CompanyProfileOrganization[];
+};
+
 export type CompanyProfile = {
   companyDbId: number;
   funding: CompanyProfileFunding | null;
   headcount: CompanyProfileHeadcountMonth[];
   hiring: { active: number; recent: number };
+  linkedin: CompanyProfileLinkedIn | null;
   people: CompanyProfilePeople | null;
 };
 

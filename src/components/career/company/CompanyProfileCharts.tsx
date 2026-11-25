@@ -755,11 +755,13 @@ export function OrganizationRanking({
   items,
   mineLabel,
   school = false,
+  showLogo = true,
   total,
 }: {
   items: readonly CompanyProfileOrganization[];
   mineLabel: string;
   school?: boolean;
+  showLogo?: boolean;
   total: number;
 }) {
   const { locale } = useMessages();
@@ -769,13 +771,20 @@ export function OrganizationRanking({
       {items.map((item) => (
         <li
           key={item.name}
-          className="grid grid-cols-[22px_minmax(0,1fr)_auto] items-center gap-2.5 py-[7px]"
+          className={cn(
+            "grid items-center gap-2.5 py-[7px]",
+            showLogo
+              ? "grid-cols-[22px_minmax(0,1fr)_auto]"
+              : "grid-cols-[minmax(0,1fr)_auto]"
+          )}
         >
-          <OrganizationLogo
-            logoUrl={item.logoUrl}
-            name={item.name}
-            school={school}
-          />
+          {showLogo ? (
+            <OrganizationLogo
+              logoUrl={item.logoUrl}
+              name={item.name}
+              school={school}
+            />
+          ) : null}
           <div className="min-w-0">
             <div className="flex items-center justify-between gap-2 text-[13px]">
               <span className={cn("truncate", item.mine && "font-semibold")}>
@@ -801,8 +810,8 @@ export function OrganizationRanking({
           </div>
           <span className="text-right text-[12px] tabular-nums text-neutral-muted">
             {total > 0
-              ? `${item.count} (${Math.round((item.count / total) * 100)}%)`
-              : item.count}
+              ? `${item.count.toLocaleString()} (${Math.round((item.count / total) * 100)}%)`
+              : item.count.toLocaleString()}
           </span>
         </li>
       ))}
