@@ -53,7 +53,7 @@ function safeNextPath(value: unknown, slug: string) {
 }
 
 /**
- * Sends the one screen's sign-up code: a Harper mail with the 6-digit code and
+ * Sends the one screen's sign-up code: a Harper mail with the code (8 digits on prod) and
  * a link, from Supabase's own one-time code (admin generateLink). The person's
  * introduction waits until they enter the code (or open the link).
  */
