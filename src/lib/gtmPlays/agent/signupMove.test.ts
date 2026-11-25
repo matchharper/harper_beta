@@ -3,10 +3,10 @@ import test from "node:test";
 import { careerContentDateOnly, formatCareerContentSuggestion, readCareerContentSuggestionRow } from "@/lib/career/contentSuggestions";
 import type { HistoryEntry } from "./conversation";
 import {
-  MAIL_CONVERSATION_PAYLOAD_KEY, SIGNUP_QUESTION_MAX, gtmMailIdFromPath, intentSource, intentSummary, introQuestionLine,
-  introQuestions, mailContentItems, mailConversationBlock, moveMailConversation, parseIntentSource, parseSignupNext, questionFromIntentSummary,
-  sameMailAddress, signupLanding, signupNextFromPath, signupNextQuery, stepPosting, type MailPosting, type SignupMail, type SignupMoveDeps,
-  type SignupNext,
+  MAIL_CONVERSATION_PAYLOAD_KEY, SIGNUP_QUESTION_MAX, copyMailHistory, entriesToMove, entryKey, gtmMailIdFromPath, intentSource, intentSummary,
+  introQuestionLine, introQuestions, mailContentItems, mailConversationBlock, mailLocale, movedMarks, moveMailConversation, parseIntentSource,
+  parseSignupNext, questionFromIntentSummary, sameMailAddress, signupLanding, signupNextFromPath, signupNextQuery, stepPosting,
+  type MailPosting, type SignupMail, type SignupMoveDeps, type SignupNext,
 } from "./signupMove";
 import type { AgentOfferEvent } from "./types";
 
@@ -21,14 +21,18 @@ const entry = (patch: Partial<HistoryEntry> = {}): HistoryEntry => ({
   postings: [], threadKey: "thread-1", ...patch,
 });
 
-/** Fake database: every call is recorded, history answers only for its own address. */
+/**
+ * Fake database: every call is recorded, history answers only for its own address. `moved`: blocks already in the
+ * chat before the test (their payloads, e.g. one written before keys were kept).
+ */
 function fakeDeps(patch: {
   toEmail?: string; accountEmail?: string | null; confirmed?: boolean; history?: Record<string, HistoryEntry[]> | null;
-  postings?: MailPosting[]; mail?: boolean; offer?: SignupMail["offer"]; events?: AgentOfferEvent[];
+  postings?: MailPosting[]; mail?: boolean; offer?: SignupMail["offer"]; events?: AgentOfferEvent[]; moved?: Array<Record<string, unknown>>;
 } = {}) {
   const calls = {
-    history: [] as string[], blocks: [] as Array<{ content: string; payload: Record<string, unknown> }>, intents: [] as Array<{ source: string; summary: string }>,
-    added: [] as string[], content: [] as Array<{ conversationId: string; item: Record<string, unknown> }>,
+    history: [] as string[], blocks: [] as Array<{ conversationId: string; content: string; payload: Record<string, unknown> }>,
+    intents: [] as Array<{ source: string; summary: string }>, added: [] as string[],
+    content: [] as Array<{ conversationId: string; item: Record<string, unknown> }>,
   };
   const historyByAddress = patch.history === undefined
     ? { "candidate@example.com": [entry(), entry({ at: "2026-11-19T02:00:00.000Z", author: "counterpart", kind: "reply", subject: "Re: Two backend roles", text: "Interested in the first one." })] }
@@ -50,11 +54,12 @@ function fakeDeps(patch: {
     async conversationId(_userId, preferred) {
       return preferred ?? "conversation-1";
     },
-    async movedAlready(_userId, address) {
-      return calls.blocks.some((block) => (block.payload[MAIL_CONVERSATION_PAYLOAD_KEY] as { address: string }).address === address);
+    async movedBlocks(_userId, address) {
+      const written = calls.blocks.map((block) => block.payload[MAIL_CONVERSATION_PAYLOAD_KEY] as Record<string, unknown>);
+      return [...(patch.moved ?? []), ...written].filter((payload) => payload.address === address);
     },
     async insertBlock(row) {
-      calls.blocks.push({ content: row.content, payload: row.payload });
+      calls.blocks.push({ conversationId: row.conversationId, content: row.content, payload: row.payload });
     },
     async intentSummaries(_userId, source) {
       return calls.intents.filter((intent) => intent.source === source).map((intent) => intent.summary.replace(/\s+/g, " "));
@@ -133,9 +138,11 @@ test("move: the recipient's verified account gets that address's conversation on
   assert.equal(calls.blocks.length, 1);
   const payload = calls.blocks[0].payload[MAIL_CONVERSATION_PAYLOAD_KEY] as Record<string, unknown>;
   assert.deepEqual(payload, {
-    address: "candidate@example.com", mailId: MAIL_ID, entries: 2, step: "connect_request", postingUrl: POSTING.url,
-    movedAt: "2026-11-20T10:00:00.000Z",
+    address: "candidate@example.com", mailId: MAIL_ID, entries: 2,
+    keys: ["thread-1|agent_mail|2026-11-18T01:00:00.000Z", "thread-1|counterpart|2026-11-19T02:00:00.000Z"],
+    step: "connect_request", postingUrl: POSTING.url, movedAt: "2026-11-20T10:00:00.000Z",
   });
+  assert.equal(calls.blocks[0].conversationId, "conversation-1");
   assert.ok(calls.blocks[0].content.indexOf("Two backend roles") < calls.blocks[0].content.indexOf("Interested in the first one."));
   assert.equal(calls.intents.length, 1);
   assert.equal(calls.intents[0].source, intentSource(MAIL_ID, "connect_request", ROLE_ID));
@@ -184,7 +191,8 @@ test("move: repeated sign-up touches move once and record once", async () => {
   assert.equal((await run(deps)).status, "already_moved");
   assert.equal(calls.blocks.length, 1);
   assert.equal(calls.intents.length, 1);
-  assert.equal(calls.history.length, 1);
+  // Each touch reads the history to find a mail the chat does not hold yet; only ever the recipient's.
+  assert.deepEqual(calls.history, ["candidate@example.com", "candidate@example.com", "candidate@example.com"]);
 });
 
 test("move: a later touch that carries the question adds a record, and the intro reads that question", async () => {
@@ -366,4 +374,165 @@ test("content items: a date with no time is kept as whole days, and the card and
   assert.equal(timed.startsAt, "2026-12-03T00:00:00.000Z");
   assert.equal(careerContentDateOnly(row(timed)), false);
   assert.match(formatCareerContentSuggestion(row(single)), /When: 2026-12-10 \(date only, no time given\)/);
+});
+
+const ADDRESS = "candidate@example.com";
+const FIRST = entry();
+const REPLY = entry({ at: "2026-11-19T02:00:00.000Z", author: "counterpart", kind: "reply", subject: "Re: Two backend roles", text: "Interested in the first one." });
+const ASHLEY_ANSWER = entry({ at: "2026-11-25T03:00:00.000Z", author: "ashley", kind: "reply", subject: "Re: Two backend roles", text: "Here is the team's setup." });
+const THEIR_NEXT = entry({ at: "2026-11-25T05:00:00.000Z", author: "counterpart", kind: "reply", subject: "Re: Two backend roles", text: "Thanks, sounds good." });
+
+/** copyMailHistory on the fake, with a conversation thunk that counts how often it is asked. */
+function copier(deps: SignupMoveDeps, patch: { continued?: boolean; locale?: "ko" | "en" } = {}) {
+  const asked = { count: 0 };
+  const copy = () => copyMailHistory(deps, {
+    userId: USER_ID, address: ADDRESS, locale: patch.locale ?? "en", continued: patch.continued ?? true,
+    conversation: async () => {
+      asked.count += 1;
+      return "conversation-2";
+    },
+  });
+  return { copy, asked };
+}
+
+test("entry key: the mail's thread, author and time, the same for the same mail on every read", () => {
+  assert.equal(entryKey(FIRST), "thread-1|agent_mail|2026-11-18T01:00:00.000Z");
+  assert.equal(entryKey(entry({ ...REPLY, text: "changed text" })), entryKey(REPLY));
+  assert.notEqual(entryKey({ ...REPLY, author: "ashley" }), entryKey(REPLY));
+  assert.notEqual(entryKey({ ...REPLY, threadKey: "gmail:thread-2" }), entryKey(REPLY));
+});
+
+test("moved marks: a keyed block's keys; a block from before keys holds every mail up to its move", () => {
+  const marks = movedMarks([
+    { address: ADDRESS, keys: [entryKey(ASHLEY_ANSWER), 7], movedAt: "2026-11-30T00:00:00.000Z" },
+    { address: ADDRESS, entries: 2, movedAt: "2026-11-20T10:00:00.000Z" },
+    { address: ADDRESS, entries: 1, movedAt: "2026-11-19T10:00:00.000Z" },
+    null, "not a block", { address: ADDRESS, movedAt: "not a date" },
+  ]);
+  assert.deepEqual([...marks.keys], [entryKey(ASHLEY_ANSWER)]);
+  // The newest move of a block without keys; a keyed block's own movedAt is not a cut-off.
+  assert.equal(marks.movedUntil, Date.parse("2026-11-20T10:00:00.000Z"));
+  assert.equal(movedMarks([{ keys: [entryKey(FIRST)], movedAt: "2026-11-30T00:00:00.000Z" }]).movedUntil, null);
+  assert.deepEqual(movedMarks([]), { keys: new Set(), movedUntil: null });
+});
+
+test("entries to move: not another address's reply, not a keyed mail, not one at or before a block without keys", () => {
+  const atMove = entry({ at: "2026-11-20T10:00:00.000Z", author: "counterpart", kind: "reply", text: "Sent as it moved." });
+  const forwarded = entry({ at: "2026-11-25T04:00:00.000Z", author: "counterpart", kind: "reply", text: "Teammate here.", fromEmail: "teammate@example.org" });
+  const marks = movedMarks([
+    { address: ADDRESS, entries: 2, movedAt: "2026-11-20T10:00:00.000Z" },
+    { address: ADDRESS, keys: [entryKey(ASHLEY_ANSWER)], movedAt: "2026-11-25T03:30:00.000Z" },
+  ]);
+  assert.deepEqual(entriesToMove([FIRST, REPLY, atMove, ASHLEY_ANSWER, forwarded, THEIR_NEXT], marks), [THEIR_NEXT]);
+  assert.deepEqual(entriesToMove([FIRST, forwarded], movedMarks([])), [FIRST]);
+});
+
+test("copy: only the mails the chat does not hold, with their keys, in a continued block; a repeat writes nothing", async () => {
+  const history = { [ADDRESS]: [FIRST, REPLY] };
+  const { deps, calls } = fakeDeps({ history });
+  assert.equal((await run(deps)).status, "moved");
+  history[ADDRESS].push(ASHLEY_ANSWER, THEIR_NEXT);
+  const { copy, asked } = copier(deps);
+  assert.equal(await copy(), "moved");
+  assert.equal(calls.blocks.length, 2);
+  assert.equal(calls.blocks[1].conversationId, "conversation-2");
+  assert.deepEqual(calls.blocks[1].payload[MAIL_CONVERSATION_PAYLOAD_KEY], {
+    address: ADDRESS, entries: 2, keys: [entryKey(ASHLEY_ANSWER), entryKey(THEIR_NEXT)], step: null, postingUrl: null,
+    movedAt: "2026-11-20T10:00:00.000Z", continued: true,
+  });
+  const content = calls.blocks[1].content;
+  assert.ok(content.startsWith("**Your emails with Ashley (continued)**"));
+  assert.ok(content.indexOf("Here is the team's setup.") < content.indexOf("Thanks, sounds good."));
+  assert.ok(!content.includes("Interested in the first one."));
+  assert.equal(await copy(), "already_moved");
+  assert.equal(calls.blocks.length, 2);
+  assert.equal(asked.count, 1);
+});
+
+test("copy: the conversation is never asked for (or made) when there is nothing to write", async () => {
+  const none = copier(fakeDeps({ history: {} }).deps);
+  assert.equal(await none.copy(), "no_history");
+  const unwired = copier(fakeDeps({ history: null }).deps);
+  assert.equal(await unwired.copy(), "not_wired");
+  const onlyForwarded = copier(fakeDeps({ history: { [ADDRESS]: [entry({ author: "counterpart", kind: "reply", fromEmail: "teammate@example.org" })] } }).deps);
+  assert.equal(await onlyForwarded.copy(), "no_history");
+  // A block moved before keys were kept holds every mail up to its move.
+  const legacy = fakeDeps({ history: { [ADDRESS]: [FIRST, REPLY] }, moved: [{ address: ADDRESS, mailId: MAIL_ID, entries: 2, movedAt: "2026-11-20T10:00:00.000Z" }] });
+  const before = copier(legacy.deps);
+  assert.equal(await before.copy(), "already_moved");
+  assert.deepEqual(legacy.calls.blocks, []);
+  for (const asked of [none.asked, unwired.asked, onlyForwarded.asked, before.asked]) assert.equal(asked.count, 0);
+});
+
+test("copy: after a block moved before keys were kept, only the later mails go in", async () => {
+  const history = { [ADDRESS]: [FIRST, REPLY, THEIR_NEXT] };
+  const { deps, calls } = fakeDeps({ history, moved: [{ address: ADDRESS, mailId: MAIL_ID, entries: 2, movedAt: "2026-11-20T10:00:00.000Z" }] });
+  const { copy, asked } = copier(deps, { locale: "ko" });
+  assert.equal(await copy(), "moved");
+  assert.deepEqual((calls.blocks[0].payload[MAIL_CONVERSATION_PAYLOAD_KEY] as { keys: string[] }).keys, [entryKey(THEIR_NEXT)]);
+  assert.ok(calls.blocks[0].content.startsWith("**Ashley와 나눈 메일 (이어서)**"));
+  assert.ok(calls.blocks[0].content.includes("Thanks, sounds good."));
+  assert.ok(!calls.blocks[0].content.includes("Interested in the first one."));
+  assert.equal(asked.count, 1);
+});
+
+test("move: a later sign-up touch with a new mail adds a continued block, without the next step or question again", async () => {
+  const history = { [ADDRESS]: [FIRST, REPLY] };
+  const { deps, calls } = fakeDeps({ history });
+  assert.equal((await run(deps)).status, "moved");
+  history[ADDRESS].push(THEIR_NEXT);
+  assert.equal((await run(deps)).status, "moved");
+  assert.equal(calls.blocks.length, 2);
+  const [first, later] = calls.blocks;
+  assert.match(first.content, /회사에 물어볼 질문/);
+  assert.ok(later.content.startsWith("**Ashley와 나눈 메일 (이어서)**"));
+  assert.ok(!later.content.includes("회사에 물어볼 질문"));
+  assert.ok(!later.content.includes("가입 링크에 담긴 다음 단계"));
+  assert.deepEqual(later.payload[MAIL_CONVERSATION_PAYLOAD_KEY], {
+    address: ADDRESS, mailId: MAIL_ID, entries: 1, keys: [entryKey(THEIR_NEXT)], step: "connect_request", postingUrl: POSTING.url,
+    movedAt: "2026-11-20T10:00:00.000Z", continued: true,
+  });
+});
+
+test("copy: a block that would run long keeps the newest mails whole; the older ones left out are not copied later", async () => {
+  const long = Array.from({ length: 10 }, (_, index) => entry({
+    at: `2026-11-${String(10 + index).padStart(2, "0")}T01:00:00.000Z`, author: index % 2 ? "counterpart" : "ashley", kind: "reply",
+    text: `mail-${index} ${"x".repeat(2_900)}`,
+  }));
+  const { deps, calls } = fakeDeps({ history: { [ADDRESS]: long } });
+  const { copy } = copier(deps);
+  assert.equal(await copy(), "moved");
+  const { content, payload } = calls.blocks[0];
+  const block = payload[MAIL_CONVERSATION_PAYLOAD_KEY] as { entries: number; keys: string[] };
+  assert.ok(content.length < 16_000);
+  assert.ok(content.includes(`mail-9 ${"x".repeat(2_900)}`));
+  assert.ok(!content.includes("mail-0 "));
+  assert.ok(block.entries < 10 && block.entries > 1);
+  assert.deepEqual(block.keys, long.map(entryKey));
+  assert.equal(await copy(), "already_moved");
+});
+
+test("block: a continued block has its own heading and no next step or question line", () => {
+  const entries = [entry({ at: "2026-11-25T05:00:00.000Z", author: "counterpart", kind: "reply", text: "Later." })];
+  const ko = mailConversationBlock({ entries, locale: "ko", next: next(), posting: POSTING, withQuestion: true, continued: true });
+  assert.ok(ko.startsWith("**Ashley와 나눈 메일 (이어서)**"));
+  assert.match(ko, /메일 답장은 Ashley가 해요/);
+  assert.ok(!ko.includes("회사에 물어볼 질문"));
+  assert.ok(!ko.includes("가입 링크에 담긴 다음 단계"));
+  const en = mailConversationBlock({ entries, locale: "en", next: next(), posting: POSTING, withQuestion: true, continued: true });
+  assert.ok(en.startsWith("**Your emails with Ashley (continued)**"));
+  assert.ok(!en.includes("Your question for the company"));
+  assert.ok(!en.includes("before sign-up"));
+});
+
+test("locale: Korean when their mails are; with no English words of theirs, the language of our mails to them", () => {
+  const korean = entry({ subject: "백엔드 공고 두 개", text: "안녕하세요, 맞을 만한 공고예요." });
+  assert.equal(mailLocale([FIRST, entry({ author: "counterpart", kind: "reply", text: "네, 관심 있어요." })]), "ko");
+  assert.equal(mailLocale([korean, REPLY]), "en");
+  assert.equal(mailLocale([korean]), "ko");
+  assert.equal(mailLocale([korean, entry({ author: "counterpart", kind: "reply", text: "👍" })]), "ko");
+  assert.equal(mailLocale([FIRST]), "en");
+  // A colleague's reply from another address is not theirs.
+  assert.equal(mailLocale([FIRST, entry({ author: "counterpart", kind: "reply", text: "제가 대신 볼게요.", fromEmail: "teammate@example.org" })]), "en");
+  assert.equal(mailLocale([]), "en");
 });

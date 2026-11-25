@@ -67,7 +67,9 @@ type ReplayItem = {
   person: AshleyPerson | null;
   root: AshleyMail | null;
   /** Settled before any model call, as the tick does. */
-  settled?: "member" | "human_answered" | "no_person";
+  settled?: "human_answered" | "no_person";
+  /** A Harper account holder: Ashley answers them knowing it (the tick's AshleyIO.harperAccount). */
+  harperAccount?: boolean;
   /** Case mode: the history and the postings' state come from the case. */
   history?: HistoryEntry[];
   postingText?: Map<string, { text: string | null; canAskCompany: boolean | "asked" }>;
@@ -239,10 +241,10 @@ async function gmailItems(args: { mailbox: string | null; days: number; limit: n
       });
       const person = match.mail.personId ? await readAgentPerson(match.mail.personId) as AshleyPerson | null : null;
       const root = await readMail(match.mail.mailId);
-      const settled = await isMember(from) ? "member" as const
-        : root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
-          : !person || !root ? "no_person" as const : undefined;
-      items.push({ id, source: "gmail", note: `${mailbox} · matched by ${match.by}`, expect: args.labels.get(id) ?? null, message, person, root, settled });
+      const settled = root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
+        : !person || !root ? "no_person" as const : undefined;
+      const harperAccount = await isMember(from);
+      items.push({ id, source: "gmail", note: `${mailbox} · matched by ${match.by}`, expect: args.labels.get(id) ?? null, message, person, root, settled, harperAccount });
       count("replayed");
     }
   }
@@ -270,10 +272,10 @@ async function pendingItems(args: { limit: number; labels: Map<string, ReplayAct
     if (items.length >= args.limit) { count("over --limit"); continue; }
     const person = message.personId ? await readAgentPerson(message.personId) as AshleyPerson | null : null;
     const root = message.rootMailId ? await readMail(message.rootMailId) : null;
-    const settled = await isMember(message.counterpartEmail) ? "member" as const
-      : root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
-        : !person || !root ? "no_person" as const : undefined;
-    items.push({ id: message.id, source: "pending", note: "stored, not decided", expect: args.labels.get(message.id) ?? null, message, person, root, settled });
+    const settled = root && await personAnswered(root.id, message.occurredAt) ? "human_answered" as const
+      : !person || !root ? "no_person" as const : undefined;
+    const harperAccount = await isMember(message.counterpartEmail);
+    items.push({ id: message.id, source: "pending", note: "stored, not decided", expect: args.labels.get(message.id) ?? null, message, person, root, settled, harperAccount });
     count("replayed");
   }
   return { items, counts };
@@ -513,18 +515,18 @@ async function main() {
     try {
       let draft: CandidateDraft | null = null;
       if (item.settled) {
-        const reason = item.settled === "member" ? "회원 · Harper's chat answers it" : item.settled === "human_answered" ? "사람 몫 · a person already answered this mail" : "사람 · no person or first mail found";
+        const reason = item.settled === "human_answered" ? "사람 몫 · a person already answered this mail" : "사람 · no person or first mail found";
         result.outcome = { action: item.settled === "no_person" ? "hand_to_human" : item.settled, wouldSend: false, reason, checkReasons: [] };
       } else if (item.person && item.root) {
         // The tick's own time: a few minutes after the mail came.
         const now = new Date(Math.min(Date.now(), Date.parse(item.message.occurredAt) + 5 * 60_000));
-        draft = await draftCandidateReply(io, { message: item.message, earlier: item.unanswered, person: item.person, root: item.root, now });
+        draft = await draftCandidateReply(io, { message: item.message, earlier: item.unanswered, person: item.person, root: item.root, now, harperAccount: item.harperAccount });
         if (draft.kind === "wait") {
           // The tick holds the reply until the company mail its agreement starts went; the replay treats that mail as
           // gone and writes the reply the tick would write then.
           collected.push(`waited for the company mail: ${draft.signals.map((signal) => signal.companyName).join(", ")}`);
           for (const signal of draft.signals) if (signal.summaryConsent) asked.add(signal.postingUrl);
-          draft = await draftCandidateReply(io, { message: { ...item.message, signals: draft.signals }, earlier: item.unanswered, person: item.person, root: item.root, now });
+          draft = await draftCandidateReply(io, { message: { ...item.message, signals: draft.signals }, earlier: item.unanswered, person: item.person, root: item.root, now, harperAccount: item.harperAccount });
         }
         result.outcome = replay.replayOutcome(draft);
         result.type = draft.type;

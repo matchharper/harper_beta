@@ -12,28 +12,27 @@ import { gtmRead, gtmWrite, type GtmReadSql, type GtmWriteSql } from "../db.serv
 import { gtmUnsubscribeUrl } from "../mailSend.server";
 import { gtmFromHeader, gtmMailLinkOrigin } from "../shared";
 import {
-  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, MEMBER_REDIRECT_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
+  JOINED_CLAIM_STALE_MS, JOINED_PENDING, JOINED_TELL_DAYS, processAshleyReplies, type AshleyIO, type AshleyMail, type AshleyPerson, type AshleyTick, type CompanyIntroAsk,
   type CompanyIntroEnd, type JoinedPair, type OutgoingMail, type QueuedReply, type RelayMark, type RelayRow,
 } from "./ashleyAgent";
 import { postInReplyThread } from "./ashleyHandoff.server";
-import { CODE_REASON } from "./ashleyPrompt";
 import { UNREACHABLE_NOTICE_GAVE_UP, UNREACHABLE_NOTICE_TRIES_KEY } from "./ashleyMember";
 import {
-  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, finishAshleyMemberNotices, giveUpAshleyMemberIntro, placeAshleyMember,
-  requestAshleyMemberIntro, tellAshleyMember, unfinishedAshleyMemberIntros,
+  closeAshleyIntroForJoinedLink, finishAshleyMemberIntro, giveUpAshleyMemberIntro, placeAshleyMember,
+  requestAshleyMemberIntro, unfinishedAshleyMemberIntros,
 } from "./ashleyMember.server";
 import { companyAsk, companyMailedToday, companyMailsStopped } from "./companyMail.server";
 import { measured } from "./compose.server";
 import type { ConversationStore } from "./conversation";
-import { conversationStore, routedMemberMails, undecidedInboundForTick } from "./conversation.server";
+import { conversationStore, undecidedInboundForTick } from "./conversation.server";
 import { internalRoles, matchAgentPostings } from "./match.server";
 import type { InternalCandidate } from "./match";
-import { routeToMember } from "./memberRoute.server";
 import { optOutAgentAddress } from "./replies.server";
 import { replyMailboxes } from "./replies";
 import { reviewPostingText } from "./review";
 import { sendWindowOf } from "./sendPace.server";
 import { sendWindowOpen } from "./sendTiming";
+import { copyMailsToHarper, verifiedMemberOf } from "./signupMove.server";
 import { recordAgentSpend } from "./spend.server";
 import { readAgentPerson, readAgentSettings, releaseAgentSendLease, takeAgentSendLease, updateAgentPerson } from "./store.server";
 import { SEND_LEASE_MS } from "./tickRules";
@@ -531,8 +530,6 @@ export type AshleyDeps = {
   budgetMs?: number;
   /** Where asking a posting's company stands for a candidate (default: agent/companyMail.server.ts companyAsk). */
   companyAsk?: AshleyIO["companyAsk"];
-  /** A signed-up person's mail to Harper's chat (default: memberRoute.server.ts). */
-  routeToMember?: AshleyIO["routeToMember"];
 };
 
 /** The server's I/O for the agent (the replay builds its own, read-only, with no sender). */
@@ -541,6 +538,19 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
   const window = sendWindowOf(settings);
   const readPosting = postingReader();
   const store: ConversationStore = deps.store ?? { ...conversationStore, listUndecidedInbound: undecidedInboundForTick };
+  // The Harper account of an address, read once per tick (harperAccount, then copyToHarper); a failed read is read again.
+  const accounts = new Map<string, Promise<{ userId: string } | null>>();
+  const accountOf = (email: string) => {
+    const address = email.trim().toLowerCase();
+    const known = accounts.get(address);
+    if (known) return known;
+    const read = verifiedMemberOf(address);
+    accounts.set(address, read);
+    read.catch(() => {
+      if (accounts.get(address) === read) accounts.delete(address);
+    });
+    return read;
+  };
   return {
     store,
     settings: {
@@ -556,6 +566,12 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     readPerson: (id) => readAgentPerson(id) as Promise<AshleyPerson | null>,
     readMail,
     isMember,
+    harperAccount: async (email) => Boolean(await accountOf(email)),
+    copyToHarper: async (email) => {
+      const address = email.trim().toLowerCase();
+      const member = await accountOf(address);
+      return member ? copyMailsToHarper(address, member) : null;
+    },
     isSuppressed,
     postingState: readPosting,
     async findSimilar(person, conditions, sent, workLocation) {
@@ -583,22 +599,6 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     },
     unsubscribeUrl: (mailId) => gtmUnsubscribeUrl(mailId, gtmMailLinkOrigin()),
     relays,
-    routeToMember: deps.routeToMember ?? routeToMember,
-    memberRedirects: (limit) => routedMemberMails(limit, CODE_REASON.member, MEMBER_REDIRECT_DAYS).catch((error) => {
-      if (missingSchema(error)) return [];
-      throw error;
-    }),
-    noteMemberChat: async ({ userId, conversationId, inboundMessageIds }, content) => {
-      // role assistant, type system: a third party's words in the chat, as a company's answer for a member goes (ashleyMember.server.ts).
-      const { getTalentSupabaseAdmin } = await import("@/lib/talentOnboarding/admin");
-      const db = getTalentSupabaseAdmin() as unknown as { from: (table: string) => any };
-      const { error } = await db.from("talent_messages").insert({
-        conversation_id: conversationId, user_id: userId, role: "assistant", message_type: "system", content,
-        // routedMemberMails reads inboundMessageIds: the mails this one told them about are not told again.
-        payload: { gtmAgentMemberRedirect: { inboundMessageIds: [...inboundMessageIds], via: "ashley" } },
-      });
-      if (error) throw error;
-    },
     companyAsk: deps.companyAsk ?? ((input) => companyAsk(input, { store })),
     latestInbound,
     queuedReplies: (limit) => queuedReplies(limit).catch((error) => {
@@ -612,7 +612,6 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     companyMailsStopped: async () => (await companyMailsStopped({ mark: false })).stopped,
     placeMember: placeAshleyMember,
     requestMemberIntro: requestAshleyMemberIntro,
-    tellMember: tellAshleyMember,
     closeIntroForJoinedLink: closeAshleyIntroForJoinedLink,
     unfinishedMemberIntros: unfinishedAshleyMemberIntros,
     finishMemberIntro: finishAshleyMemberIntro,
@@ -620,7 +619,6 @@ export async function ashleyServerIO(deps: AshleyDeps = {}): Promise<AshleyIO> {
     unreachableNotices,
     sendUnreachableNotice: notifyUnreachable,
     giveUpUnreachableNotice,
-    finishMemberNotices: finishAshleyMemberNotices,
   };
 }
 

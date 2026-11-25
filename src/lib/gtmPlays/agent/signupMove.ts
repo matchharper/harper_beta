@@ -137,8 +137,58 @@ const STEP_LABEL: Record<"ko" | "en", Record<SignupStep, string>> = {
   },
 };
 
-/** talent_messages.payload key that marks the moved block (one per address and account). */
+/**
+ * talent_messages.payload key of a moved block: the mail conversation with one address, in the account's chat. The
+ * first goes at sign-up; after that each new exchange with Ashley is copied in a block of its own (Shaun 11/25: Ashley
+ * answers the mail, and the same conversation is in Harper too). Each block lists the entries it holds (keys), with
+ * the older ones it left out for length (they are not copied later either).
+ */
 export const MAIL_CONVERSATION_PAYLOAD_KEY = "gtmMailConversation";
+
+/** One mail's identity in a block (payload keys): its thread, who wrote it and when (one address's history). */
+export const entryKey = (entry: Pick<HistoryEntry, "threadKey" | "author" | "at">) => `${entry.threadKey}|${entry.author}|${entry.at}`;
+
+/**
+ * What the chat already holds of one address's mails, from its blocks' payloads: the keys they list, and for a block
+ * moved before keys were kept (before 11/25), every mail up to its move.
+ */
+export type MovedMarks = { keys: ReadonlySet<string>; movedUntil: number | null };
+
+export function movedMarks(payloads: readonly unknown[]): MovedMarks {
+  const keys = new Set<string>();
+  let movedUntil: number | null = null;
+  for (const payload of payloads) {
+    const block = (payload && typeof payload === "object" ? payload : {}) as { keys?: unknown; movedAt?: unknown };
+    if (Array.isArray(block.keys)) {
+      for (const key of block.keys) if (typeof key === "string") keys.add(key);
+      continue;
+    }
+    const at = typeof block.movedAt === "string" ? Date.parse(block.movedAt) : NaN;
+    if (Number.isFinite(at)) movedUntil = Math.max(movedUntil ?? at, at);
+  }
+  return { keys, movedUntil };
+}
+
+/** The address's own mails the chat does not hold yet, oldest first (a reply from another address never moves). */
+export function entriesToMove(entries: readonly HistoryEntry[], marks: MovedMarks): HistoryEntry[] {
+  return entries.filter((entry) => !entry.fromEmail && !marks.keys.has(entryKey(entry))
+    && !(marks.movedUntil !== null && Date.parse(entry.at) <= marks.movedUntil));
+}
+
+const HANGUL = /[가-힣]/;
+
+/**
+ * The language of a copied block, as Ashley answers them (ashleyAgent.ts): Korean when their own mails have Hangul;
+ * when they wrote no English words either (or nothing yet), Korean when our mails to them are Korean.
+ */
+export function mailLocale(entries: readonly HistoryEntry[]): "ko" | "en" {
+  const own = entries.filter((entry) => !entry.fromEmail);
+  const theirs = own.filter((entry) => entry.author === "counterpart").map((entry) => entry.text).join("\n");
+  if (HANGUL.test(theirs)) return "ko";
+  if (/[a-z]{3,}/i.test(theirs)) return "en";
+  return own.some((entry) => entry.author !== "counterpart" && HANGUL.test(`${entry.subject}\n${entry.text}`)) ? "ko" : "en";
+}
+
 const ENTRY_TEXT_MAX = 3_000;
 const BLOCK_MAX = 16_000;
 
@@ -158,11 +208,17 @@ function postingName(posting: MailPosting | null) {
  */
 export function mailConversationBlock(args: {
   entries: readonly HistoryEntry[]; locale: "ko" | "en"; next: SignupNext; posting: MailPosting | null; withQuestion: boolean;
+  /** A block after the first one (Ashley still answers the mail): its own heading, and no next step or question. */
+  continued?: boolean;
 }): string {
   const ko = args.locale === "ko";
-  const head = ko
-    ? ["**Ashley와 나눈 메일 (가입 전)**", "하퍼 팀 Ashley Kim(Talent Partner)과 가입 전에 메일로 나눈 이야기예요. 가입하시면서 하퍼 대화로 옮겼어요. 지난 기록이고, 새 요청이나 동의는 아니에요."]
-    : ["**Your emails with Ashley (before sign-up)**", "What you and Ashley Kim (Talent Partner, Harper) wrote by email before you signed up, moved into Harper when you signed up. Earlier records, not a new request or consent."];
+  const head = args.continued
+    ? ko
+      ? ["**Ashley와 나눈 메일 (이어서)**", "하퍼 팀 Ashley Kim(Talent Partner)과 메일로 나눈 이야기를 하퍼 대화에도 옮겼어요. 메일 답장은 Ashley가 해요. 지난 기록이고, 새 요청이나 동의는 아니에요."]
+      : ["**Your emails with Ashley (continued)**", "What you and Ashley Kim (Talent Partner, Harper) wrote by email, copied into Harper too. Ashley answers the email. Earlier records, not a new request or consent."]
+    : ko
+      ? ["**Ashley와 나눈 메일 (가입 전)**", "하퍼 팀 Ashley Kim(Talent Partner)과 가입 전에 메일로 나눈 이야기예요. 가입하시면서 하퍼 대화로 옮겼어요. 지난 기록이고, 새 요청이나 동의는 아니에요."]
+      : ["**Your emails with Ashley (before sign-up)**", "What you and Ashley Kim (Talent Partner, Harper) wrote by email before you signed up, moved into Harper when you signed up. Earlier records, not a new request or consent."];
   const entries = [...args.entries].sort((left, right) => left.at.localeCompare(right.at)).map((entry) => {
     const who = entry.author === "counterpart" ? (ko ? "보내신 답장" : "You replied") : (ko ? "Ashley가 보낸 메일" : "Ashley wrote");
     const text = entry.text.trim().length > ENTRY_TEXT_MAX ? `${entry.text.trim().slice(0, ENTRY_TEXT_MAX)}…` : entry.text.trim();
@@ -170,7 +226,8 @@ export function mailConversationBlock(args: {
     return `**${day(entry.at, args.locale)} · ${who}**${subject}\n${text}`;
   });
   const name = postingName(args.posting);
-  const tail = [
+  // The link's next step and question are the first block's: a later one does not repeat them.
+  const tail = args.continued ? [] : [
     args.next.step
       ? `${ko ? "가입 링크에 담긴 다음 단계" : "Next step in your sign-up link"}: ${STEP_LABEL[args.locale][args.next.step]}${name ? ` (${name})` : ""}`
       : "",
@@ -315,7 +372,8 @@ export type SignupMoveDeps = {
   history: ConversationStore["history"] | null;
   /** The person's Harper conversation (the given one when it is theirs). */
   conversationId(userId: string, preferred: string | null): Promise<string>;
-  movedAlready(userId: string, address: string): Promise<boolean>;
+  /** The payloads (MAIL_CONVERSATION_PAYLOAD_KEY values) of the blocks already in the account's chats for this address. */
+  movedBlocks(userId: string, address: string): Promise<unknown[]>;
   insertBlock(row: { userId: string; conversationId: string; content: string; payload: Record<string, unknown> }): Promise<void>;
   /** The entry records already written for this source (their summaries). */
   intentSummaries(userId: string, source: string): Promise<string[]>;
@@ -336,7 +394,7 @@ export type SignupMoveResult = {
 
 /**
  * One call per sign-up touch (account creation, onboarding submit, the mail link's claim); safe to repeat: an entry
- * record is written once per mail·step·Role and text, and the conversation is moved once per address.
+ * record is written once per mail·step·Role and text, and each mail of the conversation is moved once.
  */
 export async function moveMailConversation(deps: SignupMoveDeps, args: {
   userId: string; mailId: string; next: SignupNext; locale: "ko" | "en"; conversationId?: string | null;
@@ -372,21 +430,59 @@ export async function moveMailConversation(deps: SignupMoveDeps, args: {
     await deps.recordIntent({ userId: args.userId, conversationId, source, summary });
   }
   if (!same) return { status: "other_address", conversationId };
-  const address = normalizeAddress(mail.toEmail);
-  if (await deps.movedAlready(args.userId, address)) return { status: "already_moved", conversationId };
-  if (!deps.history) return { status: "not_wired", conversationId };
-  // Only what this address wrote and got: a reply from another address (a colleague it was forwarded to) stays out.
-  const entries = (await deps.history(address)).filter((entry) => !entry.fromEmail);
-  if (!entries.length) return { status: "no_history", conversationId };
+  const status = await copyMailHistory(deps, {
+    userId: args.userId, conversation: async () => conversationId, address: normalizeAddress(mail.toEmail), locale: args.locale,
+    continued: false, next: args.next, posting, mailId: mail.id,
+  });
+  return { status, conversationId };
+}
+
+const NO_NEXT: SignupNext = { step: null, posting: null, question: null };
+/** The mails read for a move: as many as the history gives (conversationRules.ts HISTORY_MAX_LIMIT; this file stays client-safe). */
+export const MOVE_HISTORY_LIMIT = 50;
+
+/**
+ * The address's mails the account's chat does not hold yet, as one block there (at sign-up, with the link's next step;
+ * after the first block, a "continued" one). Safe to repeat: a mail goes in once (entryKey). The caller has checked
+ * that the account's verified email is this address. Only what this address wrote and got: a reply from another
+ * address (a colleague it was forwarded to) stays out. `conversation` is asked only when there is a block to write, so
+ * an account with no chat gets none for nothing.
+ */
+export async function copyMailHistory(
+  deps: Pick<SignupMoveDeps, "history" | "movedBlocks" | "insertBlock" | "now">,
+  args: {
+    userId: string; conversation: () => Promise<string>; address: string; locale: "ko" | "en"; continued: boolean;
+    next?: SignupNext; posting?: MailPosting | null; mailId?: string | null;
+  },
+): Promise<"moved" | "already_moved" | "not_wired" | "no_history"> {
+  if (!deps.history) return "not_wired";
+  const own = (await deps.history(args.address, { limit: MOVE_HISTORY_LIMIT })).filter((entry) => !entry.fromEmail);
+  if (!own.length) return "no_history";
+  const blocks = await deps.movedBlocks(args.userId, args.address);
+  const entries = entriesToMove(own, movedMarks(blocks)).sort((left, right) => left.at.localeCompare(right.at));
+  if (!entries.length) return "already_moved";
+  // A later sign-up touch after the first block adds to it as any later exchange does.
+  const continued = args.continued || blocks.length > 0;
+  const next = args.next ?? NO_NEXT;
+  const render = (shown: readonly HistoryEntry[]) => mailConversationBlock({
+    entries: shown, locale: args.locale, next, posting: args.posting ?? null, withQuestion: true, continued,
+  });
+  // The newest mails that fit in one block: cutting the end would drop the latest ones and still mark them moved.
+  let shown = entries;
+  let content = render(shown);
+  while (shown.length > 1 && content.length >= BLOCK_MAX) {
+    shown = shown.slice(1);
+    content = render(shown);
+  }
   await deps.insertBlock({
-    userId: args.userId, conversationId,
-    content: mailConversationBlock({ entries, locale: args.locale, next: args.next, posting, withQuestion: true }),
+    userId: args.userId, conversationId: await args.conversation(), content,
     payload: {
       [MAIL_CONVERSATION_PAYLOAD_KEY]: {
-        address, mailId: mail.id, entries: entries.length, step: args.next.step, postingUrl: posting?.url ?? args.next.posting,
-        movedAt: (deps.now?.() ?? new Date()).toISOString(),
+        address: args.address, ...(args.mailId ? { mailId: args.mailId } : {}), entries: shown.length, keys: entries.map(entryKey),
+        step: next.step, postingUrl: args.posting?.url ?? next.posting, movedAt: (deps.now?.() ?? new Date()).toISOString(),
+        ...(continued ? { continued: true } : {}),
       },
     },
   });
-  return { status: "moved", conversationId };
+  return "moved";
 }

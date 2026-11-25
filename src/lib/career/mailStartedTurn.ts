@@ -2,7 +2,8 @@ import type { TALENT_TOOL_NAMES } from "@/lib/talentOnboarding/tools";
 
 /**
  * A member's reply to an Ashley mail (#5 candidate outreach), recorded in their Harper chat and answered by Harper
- * right away (gtmPlays/agent/memberRoute.server.ts, Shaun 11/23 "바로 처리"). The person is not in the chat when that
+ * right away (the routing of 11/23-11/25, Shaun 11/23 "바로 처리"; since 11/25 Ashley answers these mails herself and
+ * copies them into the chat, so only rows recorded before then are read here). The person is not in the chat when that
  * turn runs, so it answers, reads and saves, and leaves every step that acts toward others for the person to start
  * in Harper: Harper offers it in the chat, and their click or message there starts an ordinary turn.
  * No runtime imports: the GTM agent reads ASHLEY_INBOX_VIA without loading the tool catalog.
@@ -53,7 +54,7 @@ export function ashleyInboxMailForModel(content: string, payload: unknown): stri
   return lines.join("\n");
 }
 
-/** A chat row that is a member's mail to Ashley, recorded by memberRoute.server.ts. */
+/** A chat row that is a member's mail to Ashley, recorded by the routing of 11/23-11/25. */
 export function isAshleyInboxMail(row: InputRow): boolean {
   const payload = row.payload && typeof row.payload === "object" && !Array.isArray(row.payload) ? row.payload as Record<string, unknown> : {};
   return row.message_type === "mail" && payload.via === ASHLEY_INBOX_VIA;

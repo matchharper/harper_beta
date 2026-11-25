@@ -9,8 +9,12 @@ import type { AgentEvent } from "./types";
 import { history } from "./conversation.server";
 import {
   MAIL_CONVERSATION_PAYLOAD_KEY,
+  MOVE_HISTORY_LIMIT,
+  copyMailHistory,
   introQuestions,
+  mailLocale,
   moveMailConversation,
+  sameMailAddress,
   type MailPosting,
   type SignupMoveDeps,
   type SignupNext,
@@ -73,11 +77,17 @@ export function signupMoveDeps(admin: TalentAdminClient, history: ConversationSt
       if (insertError) throw insertError;
       return String(inserted.id);
     },
-    async movedAlready(userId, address) {
-      const { data, error } = await db.from("talent_messages").select("id").eq("user_id", userId).eq("message_type", "system")
-        .eq(`payload->${MAIL_CONVERSATION_PAYLOAD_KEY}->>address`, address).limit(1);
+    async movedBlocks(userId, address) {
+      // By the account's conversations: talent_messages is read by conversation (its index), never by user alone.
+      const { data: conversations, error: conversationError } = await admin.from("talent_conversations").select("id").eq("user_id", userId)
+        .order("updated_at", { ascending: false }).limit(50);
+      if (conversationError) throw conversationError;
+      const ids = (conversations ?? []).map((row) => String(row.id));
+      if (!ids.length) return [];
+      const { data, error } = await db.from("talent_messages").select("payload").in("conversation_id", ids)
+        .eq("message_type", "system").eq("role", "assistant").eq(`payload->${MAIL_CONVERSATION_PAYLOAD_KEY}->>address`, address).limit(200);
       if (error) throw error;
-      return (data ?? []).length > 0;
+      return ((data ?? []) as Array<{ payload: Record<string, unknown> | null }>).map((row) => row.payload?.[MAIL_CONVERSATION_PAYLOAD_KEY]);
     },
     async insertBlock(row) {
       const { error } = await db.from("talent_messages").insert({
@@ -167,6 +177,41 @@ export async function runGtmSignupMove(args: {
     console.error("[gtm-agent] signup move failed", args.mailId, error);
     return null;
   }
+}
+
+/**
+ * The one Harper account that signed in with this address and verified it (the move's own rule, sameMailAddress), or
+ * null: none, two accounts on it, or not verified.
+ */
+export async function verifiedMemberOf(address: string, admin?: TalentAdminClient): Promise<{ userId: string } | null> {
+  const email = address.trim().toLowerCase();
+  if (!email) return null;
+  const client = admin ?? (await import("@/lib/talentOnboarding/admin")).getTalentSupabaseAdmin();
+  const { data, error } = await client.from("talent_users").select("user_id")
+    .ilike("email", email.replace(/[\\%_]/g, "\\$&")).is("deleted_at", null).limit(2);
+  if (error) throw error;
+  if ((data ?? []).length !== 1) return null;
+  const userId = String(data![0].user_id);
+  const account = await signupMoveDeps(client, null, "en").readAccount(userId);
+  return sameMailAddress(account, email) ? { userId } : null;
+}
+
+/**
+ * After sign-up a member's mails with Ashley stay Ashley's to answer (Shaun 11/25), and the conversation is copied into
+ * their Harper chat as it goes: the mails the chat does not hold yet, as one "continued" block (copyMailHistory). The
+ * caller passes the member (verifiedMemberOf). Throws on a database error (the next exchange copies what is missing).
+ */
+export async function copyMailsToHarper(address: string, member: { userId: string }) {
+  const { getTalentSupabaseAdmin } = await import("@/lib/talentOnboarding/admin");
+  const admin = getTalentSupabaseAdmin();
+  const email = address.trim().toLowerCase();
+  const entries = await history(email, { limit: MOVE_HISTORY_LIMIT });
+  const locale = mailLocale(entries);
+  const deps = signupMoveDeps(admin, async () => entries, locale);
+  // Their latest chat, asked only when there is a block to write (an account with no chat gets one only then).
+  return copyMailHistory(deps, {
+    userId: member.userId, conversation: () => deps.conversationId(member.userId, null), address: email, locale, continued: true,
+  });
 }
 
 /** Questions the person asked a customer company through Ashley, for that company's 09:00 Slack intro. */

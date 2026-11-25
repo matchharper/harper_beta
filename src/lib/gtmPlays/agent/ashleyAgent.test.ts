@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   askedBefore, asksFor, ASHLEY_NOTE, COMPANY_ASK_WAIT_MS, historyBefore, historyForMails, MEMBER_INTRO_WAIT_MS, processAshleyMessage,
-  finishIntroEnds, JOINED_GAVE_UP, JOINED_HANDED_OFF, JOINED_MEMBER, JOINED_NOT_SENT, JOINED_PENDING, joinedFailures, MEMBER_INTRO_TRIES, MEMBER_TELL_TRIES,
-  processAshleyReplies, sendMemberRedirects, SUPERSEDED_REASON, UNREACHABLE_NOTICE_TRIES,
+  finishIntroEnds, JOINED_GAVE_UP, JOINED_HANDED_OFF, JOINED_MEMBER, JOINED_NOT_SENT, JOINED_PENDING, joinedFailures, MEMBER_INTRO_TRIES,
+  parseStoredReply, processAshleyReplies, SUPERSEDED_REASON, UNREACHABLE_NOTICE_TRIES, withHarperLine,
   tellCompanyIntroAsks, tellJoinedCompanies, type AshleyIO, type AshleyLlmCall, type AshleyMail, type AshleyPerson, type CompanyIntroAsk,
-  type CompanyIntroEnd, type JoinedPair, type MemberIntro, type MemberRedirect, type OutgoingMail, type RelayRow,
+  type CompanyIntroEnd, type JoinedPair, type MemberIntro, type OutgoingMail, type RelayRow,
 } from "./ashleyAgent";
+import { ASHLEY_COPY, harperChatLink } from "./ashleyMail";
 import { CODE_REASON, historyText, parseCandidateDecision } from "./ashleyPrompt";
 import type { CompanyAsk } from "./companyMail";
 import type { ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
@@ -69,7 +70,9 @@ type Script = {
 
 function harness(opts: {
   script?: Script; messages?: ConversationMessage[]; history?: Record<string, HistoryEntry[]>; personAnswers?: Record<string, string>;
-  member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean | "asked" | (() => CompanyAsk); similar?: AgentPosting[]; routeToMember?: AshleyIO["routeToMember"] | null;
+  member?: boolean; suppressed?: string[]; windowOpen?: boolean; enabled?: boolean; canAsk?: boolean | "asked" | (() => CompanyAsk); similar?: AgentPosting[];
+  /** Addresses that are a Harper account's verified email (AshleyIO.harperAccount). */
+  harperAccounts?: string[];
   people?: AshleyPerson[]; mails?: AshleyMail[]; signals?: InterestSignal[]; sendFails?: boolean;
   /** Sends to these addresses fail (the others go). */
   sendFailsTo?: string[];
@@ -86,10 +89,6 @@ function harness(opts: {
   /** A company mail went to the company today (companyMailedToday); company mails stopped (a spam complaint). */
   companyMailedToday?: boolean;
   companyMailsStopped?: boolean;
-  /** The company's words for a member: fails every time, fails the first time, or not wired (null). */
-  tellMember?: "fails" | "fails_once" | null;
-  /** Routed member mails memberRedirects returns (not wired when left out). */
-  memberRedirects?: MemberRedirect[];
 } = {}) {
   const messages = [...(opts.messages ?? [])];
   const queued: ConversationMessage[] = [];
@@ -112,9 +111,8 @@ function harness(opts: {
     && (linkEnd.get(`${other.companyEmail}|${other.personId}`) !== JOINED_PENDING));
   const memberCalls: Array<{ introRequestId: string; companyMailId: string; personId: string }> = [];
   const placeCalls: Array<{ companyMailId: string; personId: string }> = [];
-  // The member's chat as tellMember writes it: one message per key (the real once-only), in order.
-  const tellCalls: Array<{ personId: string; content: string; key: string; relay: { companyEmail: string; personId: string; inboundMessageId: string } }> = [];
-  let tellTries = 0;
+  // The addresses whose mails with Ashley were copied into Harper (AshleyIO.copyToHarper), in order.
+  const copies: string[] = [];
   // The joined step's end per relay row (company_link_provider_id).
   const linkEnd = new Map<string, string | null>();
   // The request's state as joinedToTell reads it: told by Ashley (open), closed for the joined mail, or gone on as
@@ -122,7 +120,6 @@ function harness(opts: {
   const introRequests = new Map(Object.entries(opts.introRequestFor ?? {}).map(([personId, id]) => [personId, { id, state: "open" as "open" | "joined_link" | "member" }]));
   const closedIntros: string[] = [];
   const recorded: Array<Parameters<NonNullable<ConversationStore["recordSent"]>>[0]> = [];
-  const memberChatNotes: Array<{ ids: string[]; content: string }> = [];
   // The KST day each Ashley mail went, per address (the 1/day rule). Every send is checked right before it goes, so
   // the last checked time is the send's time.
   const dayOf = (at: Date) => kstDayWindow(at).start;
@@ -135,10 +132,7 @@ function harness(opts: {
     saveInbound: async () => { throw new Error("not used"); },
     listUndecidedInbound: async (limit, filter) => {
       const seen = new Set<string>();
-      const open = messages.filter((message) => !message.decision && message.direction === "inbound" && message.author === "counterpart");
-      // onlyMembers: a candidate's mail from an address the member check knows (the database reads talent_users).
-      const members = filter?.onlyMembers ? await Promise.all(open.map((message) => io.isMember(message.counterpartEmail))) : null;
-      return open.filter((message, index) => !members || (members[index] && message.counterpartKind === "candidate"))
+      return messages.filter((message) => !message.decision && message.direction === "inbound" && message.author === "counterpart")
         .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt))
         .filter((message) => !filter?.counterpartEmail || message.counterpartEmail === filter.counterpartEmail)
         .filter((message) => !filter?.notMailedOn || !mailedOn(message.counterpartEmail, filter.notMailedOn))
@@ -209,6 +203,8 @@ function harness(opts: {
     readPerson: async (id) => people.get(id) ?? null,
     readMail: async (id) => mails.get(id) ?? null,
     isMember: async () => opts.member ?? false,
+    harperAccount: async (email) => (opts.harperAccounts ?? []).includes(email),
+    copyToHarper: async (email) => { copies.push(email); },
     isSuppressed: async (email) => (opts.suppressed ?? []).includes(email),
     postingState: async (posting) => ({
       open: true, text: posting.kind === "external" ? "Backend Engineer at Company A. Hybrid, Seoul office. We build payments." : "Platform Engineer. Remote within Korea.",
@@ -250,8 +246,8 @@ function harness(opts: {
     notePerson: async (id, note, postings) => {
       notes.push(note);
       if (postings?.length) notePostings.push([...postings]);
-      // The timeline lines the joined mail's and the member chat message's tries are counted from.
-      if (note.startsWith(ASHLEY_NOTE.joinedFailed) || note.startsWith(ASHLEY_NOTE.memberRelayFailed)) {
+      // The timeline lines the joined mail's tries are counted from.
+      if (note.startsWith(ASHLEY_NOTE.joinedFailed)) {
         people.get(id)?.events.push({ at: clock.toISOString(), kind: "note", by: "agent", note });
       }
     },
@@ -332,27 +328,17 @@ function harness(opts: {
       }
       return answer;
     } : undefined,
-    tellMember: opts.tellMember === null ? undefined : async (input) => {
-      tellTries += 1;
-      if (opts.tellMember === "fails" || (opts.tellMember === "fails_once" && tellTries === 1)) throw new Error("talent message not written");
-      if (!tellCalls.some((call) => call.key === input.key)) tellCalls.push(input);
-    },
     closeIntroForJoinedLink: async (id) => {
       closedIntros.push(id);
       for (const intro of introRequests.values()) if (intro.id === id && intro.state === "open") intro.state = "joined_link";
     },
-    routeToMember: opts.routeToMember === null ? undefined : opts.routeToMember ?? (async () => undefined),
-    ...(opts.memberRedirects ? {
-      memberRedirects: async () => opts.memberRedirects!,
-      noteMemberChat: async (chat: { inboundMessageIds: readonly string[] }, content: string) => { memberChatNotes.push({ ids: [...chat.inboundMessageIds], content }); },
-    } : {}),
     companyAsk: async (): Promise<CompanyAsk> => (typeof opts.canAsk === "function" ? opts.canAsk()
       : opts.canAsk === "asked" ? { state: "asked", at: "2026-11-20T03:00:00.000Z" } : opts.canAsk ? { state: "can" } : { state: "no" }),
     latestInbound: async () => messages.filter((item) => item.counterpartKind === "candidate").at(-1) ?? null,
   };
   return {
     io, messages, queued, decisions, held, historyCalls, sent, slack, stops, notes, notePostings, similarCalls, llmCalls, relayRows, personAnswers, recorded,
-    memberCalls, placeCalls, tellCalls, linkEnd, closedIntros, people, memberChatNotes, setClock: (at: Date) => { clock = at; },
+    memberCalls, placeCalls, copies, linkEnd, closedIntros, people, setClock: (at: Date) => { clock = at; },
   };
 }
 
@@ -627,144 +613,134 @@ test("a mail after a person's answer is Ashley's again (Shaun 11/21: one mail, o
   assert.equal(h.sent.length, 1);
 });
 
-test("member: routed to Harper and recorded 회원; a failed route or none wired goes to a person", async () => {
-  const routed: string[] = [];
+const ACCOUNT = ["candidate@example.com"];
+
+test("a Harper account holder's mail is Ashley's to answer by mail (Shaun 11/25): she knows, the mail ends with the Harper line, the mails are copied", async () => {
   const message = inbound();
-  const h = harness({ messages: [message], member: true, routeToMember: async (m) => { routed.push(m.id); } });
-  assert.equal(await processAshleyMessage(h.io, message, NOW), "member");
-  assert.deepEqual(routed, [message.id]);
-  assert.deepEqual([h.decisions[0].decision, h.decisions[0].reason], ["no_reply", "회원"]);
-  assert.equal(h.llmCalls.length, 0);
+  const h = harness({ messages: [message], member: true, harperAccounts: ACCOUNT, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  assert.equal(message.decision, "reply");
+  assert.deepEqual(h.sent.map((mail) => mail.to), ["candidate@example.com"]);
+  // Every model call is told they have an account (decide, write, the next-step check).
+  assert.deepEqual(h.llmCalls.map((call) => call.label), ["gtm-agent:ashley-decide", "gtm-agent:ashley-write", "gtm-agent:ashley-link"]);
+  for (const call of h.llmCalls) assert.match(contextOf(call), /## Harper account\nThey already have a Harper account with this address/, call.label);
+  // No link from the draft: Harper's own, under the Harper line, which is the body's last paragraph (once).
+  const en = ASHLEY_COPY.en;
+  const stored = parseStoredReply(h.queued[0].bodyText, h.io.settings.origin);
+  assert.ok(stored.body.endsWith(`It is hybrid in Seoul.\n\n${en.harperCopied}`), stored.body);
+  assert.equal(stored.body.split(en.harperCopied).length, 2);
+  assert.deepEqual(stored.link, { label: en.harperCopiedLabel, url: harperChatLink(h.io.settings.origin) });
+  assert.ok(h.sent[0].text.includes(`It is hybrid in Seoul.\n\n${en.harperCopied}\n\n${en.harperCopiedLabel} (https://matchharper.com/career)`), h.sent[0].text);
+  // Copied after the tick decided it.
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
 
-  const second = inbound();
-  const failing = harness({ messages: [second], member: true, routeToMember: async () => { throw new Error("no member with that address"); } });
-  assert.equal(await processAshleyMessage(failing.io, second, NOW), "hand_to_human");
-  assert.match(failing.decisions[0].reason, /^회원 · /);
+  // In Korean, with the draft's own link: that link stays, the Korean line ends the body.
+  const ko = inbound({ newText: "백엔드 자리 관심 있어요. 다음 단계가 뭔가요?", bodyText: "백엔드 자리 관심 있어요. 다음 단계가 뭔가요?" });
+  const k = harness({
+    messages: [ko], people: [person({ language: "ko", name: "이지민" })], harperAccounts: ACCOUNT,
+    script: { decide: decide("reply", "interested"), writerCalls: [["signup_link", { next_step: "connect_request", posting: "P2" }]], text: "안녕하세요, 지민님.\n\n관심 가져 주셔서 감사해요. 아래에서 팀에 소개를 요청하실 수 있어요." },
+  });
+  assert.deepEqual((await processAshleyReplies(k.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  const koStored = parseStoredReply(k.queued[0].bodyText, k.io.settings.origin);
+  assert.ok(koStored.body.endsWith(`\n\n${ASHLEY_COPY.ko.harperCopied}`), koStored.body);
+  assert.match(koStored.link?.url ?? "", /\/jobs\/invite\/.*next=connect_request/);
+  assert.ok(k.sent[0].text.includes(`${ASHLEY_COPY.ko.harperCopied}\n\nCompany B에 소개 요청하기 (https://matchharper.com/jobs/invite/`), k.sent[0].text);
+  assert.deepEqual(k.copies, ["candidate@example.com"]);
 
-  const third = inbound();
-  const none = harness({ messages: [third], member: true, routeToMember: null });
-  assert.equal(await processAshleyMessage(none.io, third, NOW), "hand_to_human");
-  assert.equal(none.decisions[0].reason, CODE_REASON.memberNoRoute);
+  // Not an account holder: no account fact, no Harper line, no Harper link. The tick still asks for the copy of every
+  // decided candidate mail (the server copies only an account holder's).
+  const plain = inbound();
+  const p = harness({ messages: [plain], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  assert.deepEqual((await processAshleyReplies(p.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  for (const call of p.llmCalls) assert.doesNotMatch(contextOf(call), /## Harper account/, call.label);
+  assert.ok(!p.sent[0].text.includes(en.harperCopied));
+  assert.doesNotMatch(p.sent[0].text, /matchharper\.com\/career/);
+  assert.deepEqual(parseStoredReply(p.queued[0].bodyText, p.io.settings.origin), { body: "Hi Sam,\n\nIt is hybrid in Seoul.", link: null });
+  assert.deepEqual(p.copies, ["candidate@example.com"]);
 });
 
-test("member: every undecided mail of theirs goes to Harper, oldest first, each decided 회원 (none closed unread)", async () => {
-  const routed: string[] = [];
+test("the copy into Harper is best effort: a failure is logged and the tick goes on", async () => {
+  const h = harness({ messages: [inbound()], harperAccounts: ACCOUNT, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  h.io.copyToHarper = async () => { throw new Error("chat down"); };
+  const logged: unknown[][] = [];
+  const log = console.error;
+  console.error = (...args: unknown[]) => { logged.push(args); };
+  try {
+    const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
+    assert.deepEqual([tick.outcomes, tick.errors], [{ sent: 1 }, []]);
+  } finally {
+    console.error = log;
+  }
+  assert.ok(logged.some((args) => args.join(" ").includes("chat down")));
+});
+
+test("an account holder's mails waiting together get one reply that reads them all, like anyone's; copied once", async () => {
   const first = inbound({ occurredAt: "2026-11-20T01:00:00.000Z", newText: "Is it remote?" });
   const second = inbound({ occurredAt: "2026-11-20T02:00:00.000Z", newText: "Also, what is the pay?" });
-  const h = harness({ messages: [first, second], member: true, routeToMember: async (m) => { routed.push(m.id); } });
-  await processAshleyReplies(h.io, { limit: 5, now: NOW });
-  assert.deepEqual(routed, [first.id, second.id]);
-  assert.deepEqual(h.decisions.map((row) => [row.id, row.reason]), [[first.id, "회원"], [second.id, "회원"]]);
-  assert.equal(h.sent.length, 0);
+  const h = harness({ messages: [first, second], member: true, harperAccounts: ACCOUNT, script: { decide: decide("reply", "question"), text: "Hi Sam, thanks for asking." } });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  assert.equal(h.sent.length, 1);
+  assert.match(contextOf(h.llmCalls[0]), /### Mail 1 of 2[\s\S]*Is it remote\?[\s\S]*### Mail 2 of 2[\s\S]*Also, what is the pay\?/);
+  assert.deepEqual([first.decision, first.decisionReason, second.decision], ["no_reply", SUPERSEDED_REASON, "reply"]);
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
 });
 
-test("member: a mail that cannot go to Harper goes to a person, the newer ones stay open (not closed with it)", async () => {
-  const first = inbound({ occurredAt: "2026-11-20T01:00:00.000Z" });
-  const second = inbound({ occurredAt: "2026-11-20T02:00:00.000Z" });
-  const third = inbound({ occurredAt: "2026-11-20T03:00:00.000Z" });
-  const h = harness({
-    messages: [first, second, third], member: true,
-    routeToMember: async (m) => { if (m.id === second.id) throw new Error("chat unavailable"); },
-  });
-  assert.equal(await processAshleyMessage(h.io, third, NOW, [first, second]), "member_held");
-  assert.deepEqual(h.decisions.map((row) => [row.id, row.decision]), [[first.id, "no_reply"], [second.id, "hand_to_human"]]);
-  assert.equal(third.decision, null);
-  // The tick: the open one goes next, on its own (the newest failing is the person's).
-  await processAshleyReplies(h.io, { limit: 5, now: NOW });
-  assert.deepEqual([third.decision, third.decisionReason], ["no_reply", "회원"]);
-});
-
-test("member: their mails are found at any hour even behind many others' waiting mails", async () => {
-  const routed: string[] = [];
-  const others = Array.from({ length: 12 }, (_, i) => inbound({ counterpartEmail: `other-${i}@example.com`, occurredAt: `2026-11-19T0${i % 10}:00:00.000Z` }));
-  const mine = inbound({ occurredAt: "2026-11-20T05:00:00.000Z" });
-  const h = harness({ messages: [...others, mine], windowOpen: false, routeToMember: async (m) => { routed.push(m.id); } });
-  h.io.isMember = async (email) => email === "candidate@example.com";
-  assert.deepEqual((await processAshleyReplies(h.io, { limit: 1, now: NOW })).members, { member: 1 });
-  assert.deepEqual(routed, [mine.id]);
-});
-
-test("member: routed at any hour (outside the sending hours, and on a day Ashley already wrote to them); others wait", async () => {
-  const routed: string[] = [];
+test("an account holder's mail waits for the sending hours like anyone's (nothing at any hour); off on /ops, nothing", async () => {
   const mine = inbound({ newText: "Thanks, I signed up." });
-  const theirs = inbound({ counterpartEmail: "other@example.com", newText: "Tell me more." });
-  const h = harness({
-    messages: [mine, theirs], windowOpen: false, mailedToday: ["candidate@example.com"],
-    routeToMember: async (m) => { routed.push(m.id); },
-  });
-  h.io.isMember = async (email) => email === "candidate@example.com";
+  const h = harness({ messages: [mine], member: true, harperAccounts: ACCOUNT, windowOpen: false, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nGreat." } });
   const tick = await processAshleyReplies(h.io, { limit: 5, now: NOW });
-  assert.equal(tick.reason, "window_closed");
-  assert.deepEqual(tick.members, { member: 1 });
-  assert.deepEqual(routed, [mine.id]);
-  assert.equal(theirs.decision, null);
-  // Off on /ops: nothing at all.
-  const off = harness({ messages: [inbound()], member: true, enabled: false, routeToMember: async (m) => { routed.push(m.id); } });
-  await processAshleyReplies(off.io, { limit: 5, now: NOW });
-  assert.equal(routed.length, 1);
+  assert.deepEqual([tick.ran, tick.reason, tick.outcomes], [false, "window_closed", {}]);
+  assert.equal(mine.decision, null);
+  assert.equal(h.llmCalls.length + h.sent.length + h.copies.length, 0);
+  const off = harness({ messages: [inbound()], member: true, harperAccounts: ACCOUNT, enabled: false, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nGreat." } });
+  assert.equal((await processAshleyReplies(off.io, { limit: 5, now: NOW })).reason, "reply_agent_off");
+  assert.equal(off.llmCalls.length + off.sent.length + off.copies.length, 0);
 });
 
-const redirectOf = (patch: Partial<MemberRedirect> = {}, mail: Partial<ConversationMessage> = {}): MemberRedirect => ({
-  inbound: inbound({ decision: "no_reply", decisionReason: "회원", ...mail }), userId: "user-1", conversationId: "conversation-1", chatMessageId: "101",
-  routedAt: "2026-11-20T02:05:00.000Z", harperAnswered: true, ...patch,
+test("a mail left open is not copied into Harper (deferred, waiting for its company mail); the next decision of that address copies it", async () => {
+  // Ashley already wrote to them today: not even taken by the tick.
+  const today = harness({ messages: [inbound()], harperAccounts: ACCOUNT, mailedToday: ["candidate@example.com"], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  assert.deepEqual((await processAshleyReplies(today.io, { limit: 5, now: NOW })).outcomes, {});
+  assert.deepEqual(today.copies, []);
+
+  // The hours close while Ashley writes: deferred, nothing recorded, nothing copied.
+  const message = inbound();
+  let open = true;
+  const h = harness({ messages: [message], harperAccounts: ACCOUNT, script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid." } });
+  h.io.settings.windowOpen = () => open;
+  const write = h.io.llm;
+  h.io.llm = async (call) => {
+    const result = await write(call);
+    if (call.label === "gtm-agent:ashley-write") open = false;
+    return result;
+  };
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { deferred: 1 });
+  assert.equal(message.decision, null);
+  assert.deepEqual(h.copies, []);
+
+  // Waiting for the company mail their agreement started: not copied either.
+  const waiting = harness({ messages: [inbound({ newText: "Sure, please ask them." })], people: [askedPerson()], canAsk: true, harperAccounts: ACCOUNT, script: { decide: agreed() } });
+  assert.deepEqual((await processAshleyReplies(waiting.io, { limit: 5, now: NOW })).outcomes, { waiting_company: 1 });
+  assert.deepEqual(waiting.copies, []);
+
+  // The next send day: decided, sent, copied.
+  open = true;
+  h.io.llm = write;
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NEXT_SEND_DAY })).outcomes, { sent: 1 });
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
 });
 
-test("member redirect: once Harper answered, one Ashley mail in their thread with the Harper link, kept in the chat too", async () => {
-  const answered = redirectOf();
-  const h = harness({ memberRedirects: [answered] });
-  assert.deepEqual(await sendMemberRedirects(h.io, NOW, 5), { sent: 1 });
-  assert.equal(h.sent.length, 1);
-  const mail = h.sent[0];
-  assert.equal(mail.to, "candidate@example.com");
-  assert.equal(mail.subject, "Re: Two roles for you");
-  assert.equal(mail.headers?.["In-Reply-To"], answered.inbound.rfcMessageId);
-  assert.match(mail.text, /^Hi Sam Lee,\n\nThanks for your reply\.\n\nHarper has answered it in your Harper chat\./);
-  assert.match(mail.text, /See Harper's answer \(https:\/\/matchharper\.com\/career\)/);
-  assert.equal(h.recorded.length, 1);
-  assert.equal(h.recorded[0].rootMailId, ROOT_ID);
-  assert.equal(h.memberChatNotes.length, 1);
-  assert.deepEqual(h.memberChatNotes[0].ids, [answered.inbound.id]);
-  assert.match(h.memberChatNotes[0].content, /^\[Ashley's email in the same thread, sent after Harper's answer\]\nHi Sam Lee,/);
-  assert.ok(h.notes.some((note) => note.startsWith(ASHLEY_NOTE.memberRedirect)));
-  // The same day again: one Ashley mail per address a day.
-  assert.deepEqual(await sendMemberRedirects(h.io, NOW, 5), { deferred: 1 });
-  assert.equal(h.sent.length, 1);
-});
-
-test("member redirect: two answered mails of one address get one mail, answering the newest; a Korean mail gets the Korean words", async () => {
-  const older = redirectOf({}, { newText: "급여가 궁금해요", bodyText: "급여가 궁금해요" });
-  const newer = redirectOf({}, { newText: "원격도 되나요?", bodyText: "원격도 되나요?" });
-  const h = harness({ memberRedirects: [older, newer] });
-  assert.deepEqual(await sendMemberRedirects(h.io, NOW, 5), { sent: 1 });
-  assert.equal(h.sent.length, 1);
-  assert.equal(h.sent[0].headers?.["In-Reply-To"], newer.inbound.rfcMessageId);
-  assert.deepEqual(h.memberChatNotes[0].ids, [older.inbound.id, newer.inbound.id]);
-  assert.match(h.sent[0].text, /Harper 대화창에서 답했어요/);
-  assert.match(h.sent[0].text, /Harper에서 답 보기 \(https:\/\/matchharper\.com\/career\)/);
-});
-
-test("member redirect: no answer yet waits; other addresses and opt-outs get nothing", async () => {
-  const h = harness({ memberRedirects: [redirectOf({ harperAnswered: false })] });
-  assert.deepEqual(await sendMemberRedirects(h.io, NOW, 5), { waiting_harper: 1 });
-  assert.equal(h.sent.length, 0);
-  // An answered mail waits while the address's newer mail still waits for Harper (one mail covers both).
-  const waitsForNewest = harness({ memberRedirects: [redirectOf(), redirectOf({ harperAnswered: false })] });
-  assert.deepEqual(await sendMemberRedirects(waitsForNewest.io, NOW, 5), { waiting_harper: 1 });
-  assert.equal(waitsForNewest.sent.length, 0);
-
-  const otherAddress = harness({ memberRedirects: [redirectOf({}, { counterpartEmail: "work@example.com" })] });
-  assert.deepEqual(await sendMemberRedirects(otherAddress.io, NOW, 5), { skipped: 1 });
-  const optedOut = harness({ memberRedirects: [redirectOf()], suppressed: ["candidate@example.com"] });
-  assert.deepEqual(await sendMemberRedirects(optedOut.io, NOW, 5), { skipped: 1 });
-  assert.equal(otherAddress.sent.length + optedOut.sent.length, 0);
-});
-
-test("member redirect: sent from the tick inside the sending hours only", async () => {
-  const closed = harness({ memberRedirects: [redirectOf()], windowOpen: false });
-  assert.equal((await processAshleyReplies(closed.io, { limit: 5, now: NOW })).memberRedirects, undefined);
-  assert.equal(closed.sent.length, 0);
-  const open = harness({ memberRedirects: [redirectOf()] });
-  assert.deepEqual((await processAshleyReplies(open.io, { limit: 5, now: NOW })).memberRedirects, { sent: 1 });
+test("withHarperLine: the Harper line once, at the end; the mail's own link kept, Harper's link when it has none", () => {
+  const origin = "https://matchharper.com";
+  const own = { label: "Continue with Company A", url: "https://matchharper.com/jobs/invite/x" };
+  const kept = withHarperLine({ body: "Hi Sam,\n\nIt is hybrid.\n\n", link: own, language: "en" }, origin);
+  assert.equal(kept.body, `Hi Sam,\n\nIt is hybrid.\n\n${ASHLEY_COPY.en.harperCopied}`);
+  assert.deepEqual(kept.link, own);
+  const added = withHarperLine({ body: "안녕하세요, 지민님.\n\n원격 근무가 가능해요.", link: null, language: "ko" }, origin);
+  assert.equal(added.body, `안녕하세요, 지민님.\n\n원격 근무가 가능해요.\n\n${ASHLEY_COPY.ko.harperCopied}`);
+  assert.equal(added.body.split(ASHLEY_COPY.ko.harperCopied).length, 2);
+  assert.deepEqual(added.link, { label: ASHLEY_COPY.ko.harperCopiedLabel, url: harperChatLink(origin) });
+  assert.equal(added.link?.url, "https://matchharper.com/career");
 });
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -837,9 +813,9 @@ test("a reply written as the hours close is not kept: nothing is recorded, and t
   assert.equal(h.sent.length, 1);
 });
 
-test("a reply whose sending was cut off (left queued) is sent again with the same key, as written", async () => {
+test("a reply whose sending was cut off (left queued) is sent again with the same key, as written (an account holder's Harper line once), then copied", async () => {
   const message = inbound();
-  const h = harness({ messages: [message], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
+  const h = harness({ messages: [message], harperAccounts: ["candidate@example.com"], script: { decide: decide("reply", "question"), text: "Hi Sam,\n\nIt is hybrid in Seoul." } });
   const send = h.io.send!;
   h.io.send = async () => { throw new Error("killed"); };
   // A crash between storing and sending: the row stays queued (the fake marks it failed; put it back as a crash would leave it).
@@ -855,6 +831,10 @@ test("a reply whose sending was cut off (left queued) is sent again with the sam
   assert.equal(h.llmCalls.length, calls);
   assert.equal(h.sent[0].idempotencyKey, `gtm-agent-reply:${h.queued[0].id}`);
   assert.match(h.sent[0].text, /It is hybrid in Seoul\./);
+  assert.equal(h.sent[0].text.split(ASHLEY_COPY.en.harperCopied).length, 2);
+  assert.ok(h.sent[0].text.includes(`${ASHLEY_COPY.en.harperCopiedLabel} (https://matchharper.com/career)`));
+  // The first try was cut off (no copy); the flush that sent it asks for the copy.
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
 });
 
 test("pre-send check failure: held, the reason recorded, a person @mentioned with the draft", async () => {
@@ -1746,123 +1726,118 @@ test("joined after a request made on Harper: the member request ends the joined 
   }
 });
 
-test("company answers after the candidate joined: the words go once into their Harper chat, as they are; the joined mail is the tick's, not a reply", async () => {
+test("company answers about a candidate who is a member: the words go to them by mail like anyone's (Shaun 11/25), with Harper's last lines; the joined mail is still the tick's", async () => {
   const candidateQuestion = inbound({ occurredAt: "2026-11-19T02:00:00.000Z", decision: "reply" });
   const answer = companyInbound("Hi Ashley, yes, the role can be fully remote within Korea. Best, Kim");
   const h = harness({
-    messages: [candidateQuestion, answer], mails: [rootMail(), companyMail], member: true,
+    messages: [candidateQuestion, answer], mails: [rootMail(), companyMail], member: true, harperAccounts: ACCOUNT, memberNow: [PERSON_ID],
     script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, the role can be fully remote within Korea." } },
   });
-  assert.equal(await processAshleyMessage(h.io, answer, NOW), "no_reply");
-  // Nothing by mail from the decision: not to the candidate, not to the company.
-  assert.equal(h.sent.length + h.queued.length, 0);
-  assert.equal(answer.decision, "no_reply");
-  assert.match(answer.decisionReason ?? "", /Harper 회원/);
-  assert.deepEqual(h.tellCalls.map((call) => [call.personId, call.key, call.relay.inboundMessageId]),
-    [[PERSON_ID, `jobs@company-a.example|${PERSON_ID}`, answer.id]]);
-  assert.equal(h.tellCalls[0].content, 'Company A answered the question you asked about Backend Engineer:\n\n"yes, the role can be fully remote within Korea."');
+  assert.equal(await processAshleyMessage(h.io, answer, NOW), "sent");
+  assert.equal(answer.decision, "reply");
+  assert.equal(h.sent.length, 1);
+  const relay = h.sent[0];
+  assert.equal(relay.to, "candidate@example.com");
+  assert.equal(relay.headers["In-Reply-To"], candidateQuestion.rfcMessageId);
+  // The company's words as they are, then "ask Harper for an introduction" (no sign-up), then the Harper line; the
+  // relay's own link stays.
+  const en = ASHLEY_COPY.en;
+  assert.ok(relay.text.includes(`"yes, the role can be fully remote within Korea."\n\n${en.relayAfterMember[0]}\n\n${en.harperCopied}\n\nContinue with Company A (https://matchharper.com/jobs/invite/`), relay.text);
+  assert.ok(!relay.text.includes(en.relayAfter[0]));
+  // The pair's one relay, claimed as an answer; nothing marked joined by the relay itself.
   const pair = h.relayRows.get(PAIR_KEY)!;
-  assert.equal(pair.kind, "answer");
-  // The member relay's marker: candidate_noted_at at or after joined_noted_at.
-  assert.ok(pair.joinedNotedAt && pair.candidateNotedAt && pair.candidateNotedAt >= pair.joinedNotedAt);
-  assert.equal(pair.companyLinkSentAt, null);
-  assert.ok(h.notes.some((note) => note.startsWith(ASHLEY_NOTE.memberRelay)));
+  assert.deepEqual([pair.kind, pair.inboundMessageId, pair.joinedNotedAt, pair.candidateNotedAt], ["answer", answer.id, null, null]);
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
   assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/);
-  // The one joined mail: the tick's, in the thread of the company's answer.
+  // The company's one mail after that is the tick's joined mail, in the thread of its answer.
   assert.deepEqual(await tellJoinedCompanies(h.io, NEXT_SEND_DAY, 5), { sent: 1 });
-  assert.equal(h.sent[0].to, "jobs@company-a.example");
-  assert.equal(h.sent[0].headers["In-Reply-To"], answer.rfcMessageId);
-  assert.equal(h.placeCalls.length, 1);
-  // A later company mail gets nothing more, and the words were written once.
+  assert.equal(h.sent[1].to, "jobs@company-a.example");
+  assert.equal(h.sent[1].headers["In-Reply-To"], answer.rfcMessageId);
+  assert.match(h.sent[1].text, /The candidate you asked about has just joined Harper\./);
+  // A later company mail gets nothing more.
   const again = companyInbound("Also, the salary band is flexible.");
   h.messages.push(again);
   assert.equal(await processAshleyMessage(h.io, again, new Date(NEXT_SEND_DAY.getTime() + DAY)), "no_reply");
-  assert.deepEqual(await tellJoinedCompanies(h.io, new Date(NEXT_SEND_DAY.getTime() + DAY), 5), {});
-  assert.equal(h.sent.length, 1);
-  assert.equal(h.tellCalls.length, 1);
+  assert.equal(h.sent.length, 2);
+});
+
+test("after a relay, an account holder's one fixed answer says to ask on Harper (no sign-up), with the Harper line", async () => {
+  const after = inbound({ newText: "Great, can you ask them about the team size?", bodyText: "Great, can you ask them about the team size?" });
+  const h = harness({
+    messages: [after], mails: [rootMail(), companyMail], harperAccounts: ACCOUNT,
+    relays: [joinedRelay({ joinedNotedAt: null, candidateNotedAt: null, createdAt: "2026-11-19T03:00:00.000Z" })],
+    script: { decide: decide("reply", "question"), text: "SHOULD NOT BE USED" },
+  });
+  assert.deepEqual((await processAshleyReplies(h.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  const en = ASHLEY_COPY.en;
+  const stored = parseStoredReply(h.queued[0].bodyText, h.io.settings.origin);
+  assert.equal(stored.body, ["Hi Sam Lee,", ...en.relayAfterMember, en.harperCopied].join("\n\n"));
+  assert.match(stored.link?.url ?? "", /next=connect_request/);
+  assert.ok(!h.sent[0].text.includes("SHOULD NOT BE USED"));
+  assert.ok(h.relayRows.get(PAIR_KEY)!.candidateNotedAt);
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
+  // Not an account holder: the sign-up words, no Harper line.
+  const other = inbound({ newText: "Great, can you ask them about the team size?", bodyText: "Great, can you ask them about the team size?" });
+  const o = harness({
+    messages: [other], mails: [rootMail(), companyMail],
+    relays: [joinedRelay({ joinedNotedAt: null, candidateNotedAt: null, createdAt: "2026-11-19T03:00:00.000Z" })],
+    script: { decide: decide("reply", "question"), text: "SHOULD NOT BE USED" },
+  });
+  assert.deepEqual((await processAshleyReplies(o.io, { limit: 5, now: NOW })).outcomes, { sent: 1 });
+  assert.equal(parseStoredReply(o.queued[0].bodyText, o.io.settings.origin).body, ["Hi Sam Lee,", ...en.relayAfter].join("\n\n"));
 });
 
 test("company wants more after the candidate joined: no reply of its own; the tick's joined mail is the one; nothing to the candidate, no person", async () => {
   const message = companyInbound("We'd love to talk with this candidate. Can you share more?");
   const h = harness({
-    messages: [inbound({ decision: "reply" }), message], mails: [rootMail(), companyMail], member: true,
+    messages: [inbound({ decision: "reply" }), message], mails: [rootMail(), companyMail], member: true, harperAccounts: ACCOUNT,
     script: { companyDecide: { type: "wants_more", reason: "wants to talk", candidate: null, relay_text: null } },
   });
   assert.equal(await processAshleyMessage(h.io, message, NOW), "no_reply");
-  assert.equal(h.sent.length + h.tellCalls.length, 0);
+  assert.equal(h.sent.length + h.copies.length, 0);
   assert.equal(h.relayRows.get(PAIR_KEY)?.kind, "wants_more");
+  assert.ok(h.relayRows.get(PAIR_KEY)?.joinedNotedAt);
   assert.equal(h.relayRows.get(PAIR_KEY)?.candidateNotedAt, null);
+  assert.match(message.decisionReason ?? "", new RegExp(CODE_REASON.memberJoined));
   assert.deepEqual(await tellJoinedCompanies(h.io, NOW, 5), { sent: 1 });
   assert.match(h.sent[0].text, /You can ask to be connected here\./);
   assert.doesNotMatch(h.slack.join("\n"), /<@U0HANDOFF>/);
 });
 
-test("company answers after the candidate joined: Ashley wrote to them today → waits; the chat message not written → the mail stays undecided and the pair free, tried again once", async () => {
+test("company answers about a member: Ashley wrote to them or to the company today → waits, unread; nothing claimed or copied", async () => {
   const decideAnswer = { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, remote is fine." } };
   for (const address of ["jobs@company-a.example", "candidate@example.com"]) {
     const answer = companyInbound("Hi, yes, remote is fine.");
-    const h = harness({ messages: [answer], mails: [rootMail(), companyMail], member: true, mailedToday: [address], script: decideAnswer });
+    const h = harness({ messages: [answer], mails: [rootMail(), companyMail], member: true, harperAccounts: ACCOUNT, mailedToday: [address], script: decideAnswer });
     assert.equal(await processAshleyMessage(h.io, answer, NOW), "deferred", address);
-    assert.equal(h.tellCalls.length + h.sent.length + h.relayRows.size, 0, address);
+    assert.equal(answer.decision, null, address);
+    assert.equal(h.llmCalls.length + h.sent.length + h.relayRows.size + h.copies.length, 0, address);
   }
-
-  const answer = companyInbound("Hi, yes, remote is fine.");
-  const h = harness({ messages: [answer], mails: [rootMail(), companyMail], member: true, tellMember: "fails_once", script: decideAnswer });
-  await assert.rejects(processAshleyMessage(h.io, answer, NOW), /talent message not written/);
-  assert.equal(answer.decision, null);
-  assert.equal(h.relayRows.size + h.tellCalls.length, 0);
-  assert.equal(await processAshleyMessage(h.io, answer, NOW), "no_reply");
-  assert.equal(h.tellCalls.length, 1);
-  assert.equal(h.relayRows.size, 1);
-
-  // No way to Harper chat wired: a person.
-  const unwired = companyInbound("Hi, yes, remote is fine.");
-  const none = harness({ messages: [unwired], mails: [rootMail(), companyMail], member: true, tellMember: null, script: decideAnswer });
-  assert.equal(await processAshleyMessage(none.io, unwired, NOW), "hand_to_human");
-  assert.equal(none.relayRows.size, 0);
-  assert.match(none.slack.join("\n"), /<@U0HANDOFF>/);
 });
 
-test("company answers after the candidate joined: the chat message failing every tick is tried MEMBER_TELL_TRIES times, then the mail goes to a person", async () => {
+test("company answers about a member: a tick that died after the claim sends the relay mail on the next read, once", async () => {
   const answer = companyInbound("Hi, yes, remote is fine.");
   const h = harness({
-    messages: [answer], mails: [rootMail(), companyMail], member: true, tellMember: "fails",
-    script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, remote is fine." } },
-  });
-  for (let tick = 1; tick < MEMBER_TELL_TRIES; tick += 1) {
-    await assert.rejects(processAshleyMessage(h.io, answer, NOW), /talent message not written/);
-    assert.equal(answer.decision, null);
-  }
-  assert.equal(await processAshleyMessage(h.io, answer, NOW), "hand_to_human");
-  assert.equal(answer.decision, "hand_to_human");
-  assert.match(answer.decisionReason ?? "", /하퍼 대화에 3번 넣지 못했어요/);
-  assert.equal(h.notes.filter((note) => note.startsWith(ASHLEY_NOTE.memberRelayFailed)).length, MEMBER_TELL_TRIES);
-  assert.equal(h.llmCalls.length, MEMBER_TELL_TRIES);
-  // The pair stays free (a person takes it), nothing by mail.
-  assert.equal(h.relayRows.size + h.sent.length, 0);
-  assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 1);
-});
-
-test("company answers after the candidate joined: a tick that died after the claim is finished by the next read (marks, no second message)", async () => {
-  const answer = companyInbound("Hi, yes, remote is fine.");
-  const h = harness({
-    messages: [answer], mails: [rootMail(), companyMail], member: true,
+    messages: [inbound({ occurredAt: "2026-11-19T02:00:00.000Z", decision: "reply" }), answer], mails: [rootMail(), companyMail], member: true, harperAccounts: ACCOUNT,
     relays: [joinedRelay({ inboundMessageId: answer.id, joinedNotedAt: null, candidateNotedAt: null, createdAt: "2026-11-20T02:59:00.000Z" })],
     script: { companyDecide: { type: "answer", reason: "remote answered", candidate: "C1", relay_text: "yes, remote is fine." } },
   });
-  assert.equal(await processAshleyMessage(h.io, answer, NOW), "no_reply");
-  const pair = h.relayRows.get(PAIR_KEY)!;
-  assert.ok(pair.joinedNotedAt && pair.candidateNotedAt);
-  assert.equal(h.tellCalls.length, 1);
-  assert.equal(h.sent.length, 0);
+  assert.equal(await processAshleyMessage(h.io, answer, NOW), "sent");
+  assert.deepEqual(h.sent.map((mail) => mail.to), ["candidate@example.com"]);
+  assert.ok(h.sent[0].text.includes(`"yes, remote is fine."\n\n${ASHLEY_COPY.en.relayAfterMember[0]}\n\n${ASHLEY_COPY.en.harperCopied}`));
+  // Read again (its decision lost): the one reply is already there.
+  answer.decision = null;
+  assert.equal(await processAshleyMessage(h.io, answer, NEXT_SEND_DAY), "already");
+  assert.equal(h.sent.length, 1);
+  assert.deepEqual(h.copies, ["candidate@example.com"]);
 });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Ends of companies' requests a tick left unfinished
 
-const NO_ENDS = { done: 0, retry: 0, stopped: 0, handed_off: 0, notices: 0, notice_retry: 0, notice_handed_off: 0, member_notices: 0 };
+const NO_ENDS = { done: 0, retry: 0, stopped: 0, handed_off: 0, notices: 0, notice_retry: 0, notice_handed_off: 0 };
 
-test("intro ends: an unconfirmed member request is tried again, then handed to a person; members' missing Career runs are made", async () => {
+test("intro ends: an unconfirmed member request is tried again, then handed to a person", async () => {
   const h = harness();
   const results: Array<{ done: true } | { done: false; reason: string }> = [{ done: true }, { done: false, reason: "card busy" }, { done: false, reason: "card busy" }];
   const gaveUp: string[] = [];
@@ -1871,8 +1846,7 @@ test("intro ends: an unconfirmed member request is tried again, then handed to a
   ];
   h.io.finishMemberIntro = async () => results.shift()!;
   h.io.giveUpMemberIntro = async (id) => { gaveUp.push(id); };
-  h.io.finishMemberNotices = async () => 2;
-  assert.deepEqual(await finishIntroEnds(h.io, 5), { ...NO_ENDS, done: 1, retry: 1, handed_off: 1, member_notices: 2 });
+  assert.deepEqual(await finishIntroEnds(h.io, 5), { ...NO_ENDS, done: 1, retry: 1, handed_off: 1 });
   assert.deepEqual(gaveUp, ["intro-c"]);
   assert.equal(h.slack.filter((line) => line.includes("<@U0HANDOFF>")).length, 1);
   assert.match(h.slack.join("\n"), /card busy/);
@@ -1922,7 +1896,6 @@ test("intro ends: a failed unreachable notice is sent again (UNREACHABLE_NOTICE_
   late.io.unfinishedMemberIntros = async () => { read += 1; return []; };
   late.io.unreachableNotices = async () => { read += 1; return [{ id: "notice-a", personId: PERSON_ID, tries: 0 }]; };
   late.io.sendUnreachableNotice = async () => { throw new Error("should not be called"); };
-  late.io.finishMemberNotices = async () => { read += 1; return 0; };
   assert.deepEqual(await finishIntroEnds(late.io, 5, Date.now() - 1), NO_ENDS);
   assert.equal(read, 1);
 });
