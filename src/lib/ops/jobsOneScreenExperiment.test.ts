@@ -55,8 +55,9 @@ test("each step shows who stayed and who left out of the step before, for both a
   assert.equal(metric(summary, 0, "따로: 이미 회원")?.value, 1);
   assert.equal(metric(summary, 0, "따로: 이미 회원")?.detail, "그중 소개 1");
   assert.deepEqual(summary.variants[0].primary, { numerator: 1, denominator: 3, rate: 1 / 3 });
-  // B's card account button counts as pressing the sign-up button.
+  // B's card account button counts as pressing the sign-up button; b2 stopped at 1 but asked for similar postings.
   assert.equal(metric(summary, 1, "2.")?.value, 0.5);
+  assert.equal(metric(summary, 1, "2.")?.detail, "1 남음 · 1 추천받기 (50.0%) · 0 빠짐 (0.0%)");
   assert.equal(metric(summary, 1, "따로: 비슷한")?.value, 0.5);
   assert.deepEqual(summary.variants[1].primary, { numerator: 1, denominator: 2, rate: 0.5 });
   assert.equal(summary.status, "running");
@@ -117,7 +118,7 @@ test("a one-screen account that never submitted still counts as a sign-up, timed
   });
   // b3 is left out by its auth address; b2 had an account before (a member); b4's account could not be read.
   assert.equal(summary.variants[1].sampleCount, 2);
-  assert.equal(metric(summary, 1, "3.")?.detail, "1 남음 · 0 빠짐 (0.0%)");
+  assert.equal(metric(summary, 1, "3.")?.detail, "1 남음 · 0 추천받기 (0.0%) · 0 빠짐 (0.0%)");
   assert.equal(metric(summary, 1, "따로: 이미 회원")?.value, 1);
   assert.equal(metric(summary, 1, "따로: 이미 회원")?.detail, "그중 소개 0");
   // Without auth.users the same rows are viewers only.
@@ -149,6 +150,30 @@ test("a later step reached without the earlier one recorded counts for both, so 
   });
   const kept = ["2.", "3.", "4.", "5."].map((step) => metric(intro, 0, step)?.detail);
   assert.deepEqual(kept, ["1 남음 · 1 빠짐 (50.0%)", "1 남음 · 0 빠짐 (0.0%)", "1 남음 · 0 빠짐 (0.0%)", "1 남음 · 0 빠짐 (0.0%)"]);
+});
+
+test("in B, someone who stopped at a step but asked for similar postings is 추천받기, not 빠짐", () => {
+  const summary = buildJobsOneScreenExperiment({
+    companyName: "Acme",
+    excludeEmail: () => false,
+    rows: [
+      row({ anonymous_id: "b1", arm: "B", similar_requested: true }),
+      row({ anonymous_id: "b2", arm: "B" }),
+      row({ anonymous_id: "b3", arm: "B", card_account: true, similar_requested: true }),
+      row({ anonymous_id: "b4", arm: "B", card_account: true, signed_up: true, similar_requested: true }),
+      row({ anonymous_id: "b5", arm: "B", talk_click: true }),
+      row({ anonymous_id: "a1", similar_requested: true }),
+    ],
+  });
+  // Step 2: 5 viewed, 3 pressed, b1 asked for similar, b2 left with nothing.
+  assert.equal(metric(summary, 1, "2.")?.detail, "3 남음 · 1 추천받기 (20.0%) · 1 빠짐 (20.0%)");
+  // Step 3: b3 pressed, did not sign up, asked for similar; b5 left; b4 signed up (and asked too, so 남음).
+  assert.equal(metric(summary, 1, "3.")?.detail, "1 남음 · 1 추천받기 (33.3%) · 1 빠짐 (33.3%)");
+  // Step 4: b4 signed up but sent nothing, after asking for similar.
+  assert.equal(metric(summary, 1, "4.")?.detail, "0 남음 · 1 추천받기 (100.0%) · 0 빠짐 (0.0%)");
+  // A has no such button: its split stays 남음 · 빠짐.
+  assert.equal(metric(summary, 0, "2.")?.detail, "0 남음 · 1 빠짐 (100.0%)");
+  assert.equal(metric(summary, 1, "따로: 비슷한")?.detail, "3 / 5");
 });
 
 test("each summary row has one description for both arms, since the table shows the first arm's", () => {
