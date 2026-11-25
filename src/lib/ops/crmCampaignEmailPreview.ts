@@ -52,8 +52,8 @@ const BROADCAST_FOOTERS = {
   ],
 } as const;
 
-// The Worker adds the same line with each recipient's own link (`email_reply/crm_broadcast.py`).
-const BROADCAST_UNSUBSCRIBE_LINE = {
+// Each delivery adds this line with the recipient's own link (`src/lib/email/runtime/contact.ts`).
+export const BROADCAST_UNSUBSCRIBE_LINE = {
   en: { before: "To stop receiving Harper update emails, ", link: "unsubscribe", after: "." },
   ko: { before: "Harper 소식 메일을 그만 받으려면 ", link: "수신거부", after: "를 눌러 주세요." },
 } as const;

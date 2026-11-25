@@ -2,6 +2,24 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+## 2026-11-25 CRM 단체 메일마다 보내는 사람 정하기, 웹 발송에 수신거부 추가 (운영 DB·Worker·웹)
+
+사용자 승인으로 이 세션의 변경만 내보냈다. 같은 checkout의 다른 세션 변경은 넣지 않았다.
+
+- **운영 DB.** [`20261125120000_crm_broadcast_sender.sql`](../../supabase/migrations/20261125120000_crm_broadcast_sender.sql)을 적용했다(이력 `20261125051712 crm_broadcast_sender`, 14:17 KST 전후, 한 transaction, `lock_timeout` 3초). `crm_email_broadcasts.from_email`을 더했고, `list_crm_email_broadcasts`는 이 값을 돌려주며(반환 칸이 바뀌어 drop 후 다시 만들고 `service_role`에만 실행 권한), `queue_crm_email_broadcast`는 이 값을 각 발송 행의 `payload.from`에 복사한다. 적용 전 진행 중인 CRM 발송은 0건이었고, 같은 내용을 rollback transaction에서 먼저 돌려 확인했다.
+- **Worker.** [harper_worker#76](https://github.com/matchharper/harper_worker/pull/76)을 머지하고 `551a769f`로 release를 만들었다. 14:19 KST에 이메일 답장 worker의 `release.conf`만 바꾸고(이전 파일 `release.conf.bak-20261125`) 재시작했다. 직전 처리 중인 `email_reply_jobs`·`contact_queue`는 0건이었다. Opportunity(`opportunity-current`는 `0884198f`)와 company-first, external-sourcing, found-items-expiry, slack-agent는 바뀐 모듈(`email_reply.*`)을 쓰지 않아 그대로 두었다. 서버 기록은 `/home/ec2-user/deployment-records/20261125/`, [사건 #1 댓글](https://github.com/matchharper/harper_incidents/issues/1#issuecomment-7153664833)에 있다.
+- **실제 발송 경로.** chris@로 250명씩 다시 확정하자 첫 6통이 hello@로 나갔다. 단체 메일(`contact_queue` type `crm_broadcast`)은 Worker가 아니라 웹 메일 런타임(`src/lib/email/runtime/contact.ts`)이 보내고 있었다. 이 런타임에는 11/23의 수신거부 링크와 `List-Unsubscribe` 헤더도 없어서, 11/25 오전의 500통과 이 6통(모두 506통)이 수신거부 링크 없이 나갔다(Resend 원문으로 확인). 두 메일을 일시중지하고 런타임이 발신자·수신거부 줄·원클릭 헤더를 쓰도록 고쳤다. 위 Worker 변경은 CRM 발송에 쓰이지 않는다.
+- 이 migration을 다시 적용하지 않는다.
+
+## 2026-11-25 CRM 단체 메일은 이메일마다 가장 최근 가입 계정에만 (운영 DB만, 웹·Worker 변경 없음)
+
+사용자 승인으로 [`20261125090000_crm_broadcast_newest_account_per_email.sql`](../../supabase/migrations/20261125090000_crm_broadcast_newest_account_per_email.sql)을 운영에 적용했다(이력 version `20261125012631 crm_broadcast_newest_account_per_email`, 10:26 KST 전후, 한 transaction, `lock_timeout` 3초). `count_crm_email_broadcast_recipients`와 `queue_crm_email_broadcast`가 같은 이메일의 삭제되지 않은 계정 중 가장 최근에 가입한 계정만 고른다. 그 계정이 수신거부했거나 연락을 껐으면 옛 계정으로 대신 보내지 않는다.
+
+- 적용 전 두 함수의 운영 본문이 `20261123160000_crm_broadcast_unsubscribe.sql`과 같은 것을 확인했다. 같은 내용을 rollback transaction에서 먼저 실행해 ko 초안의 발송 확정이 2,487건(이메일 모두 다름, 테스트 계정 0건)을 넣는 것을 확인했다.
+- 적용 뒤 두 함수 본문이 로컬 정본과 같고, 실행 권한은 그대로 `service_role`뿐이다. 대상(온보딩 완료자)은 ko 2,493 → 2,487명, en 3,703 → 3,701명이다.
+- 테스트 계정(`talent_test_accounts`)은 이 변경 전부터 빠진다. 등록되면 `dont_share`로 고정되고, `contact_queue` 트리거가 큐 행을 취소한다. 적용 시점에 대상 안의 테스트 계정은 0명이었다. 팀원 계정(@matchharper.com 등)은 테스트 계정이 아니어서 대상에 남는다.
+- 이 migration을 다시 적용하지 않는다.
+
 ## 2026-11-24 가입을 마치지 않은 사람의 첫 연락과 가입 양식 이동 (#441) — 웹 배포 후 운영 DB 적용
 
 #441을 dev에 머지하고 #442(dev → main, 머지 커밋 `bdccda4a`)로 운영에 배포했다. Vercel production `dpl_4vWnQF2fUoCuYJGGb9FNhYBY2naV` Ready, `matchharper.com`이 이 커밋을 서비스한다(11/24 18:04 KST 전후). 함께 나간 #440은 안 본 답장 메일 배포 기록이다. #440이 `OpsEmailActionMetrics` 파일들을 지우면서 import를 남겨 dev preview 빌드가 실패했고, #441에서 그 import를 지웠다.

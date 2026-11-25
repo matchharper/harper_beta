@@ -17,6 +17,7 @@ import {
   type OpsCrmCampaignPreferredLocale,
 } from "@/lib/ops/crmCampaigns";
 import { buildCrmBroadcastPreviewDocument } from "@/lib/ops/crmCampaignEmailPreview";
+import { INTERNAL_EMAIL_DOMAIN } from "@/lib/internalAccess";
 import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/server";
 import type { Database } from "@/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -103,6 +104,24 @@ function normalizeRequiredEmail(value: unknown, field: string) {
   return normalized;
 }
 
+/**
+ * "Name <address>" or a bare address. Resend only sends from our verified domain, so an address
+ * elsewhere would fail every delivery of the broadcast; empty means the default sender.
+ */
+function normalizeFromEmail(value: unknown) {
+  if (value == null || String(value).trim() === "") return null;
+  if (typeof value !== "string") throw new Error("fromEmail must be text");
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const address = (normalized.match(/<([^<>]+)>$/)?.[1] ?? normalized).trim();
+  if (!/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(address)) {
+    throw new Error("fromEmail must be an email address or Name <address>");
+  }
+  if (address.split("@")[1]?.toLowerCase() !== INTERNAL_EMAIL_DOMAIN) {
+    throw new Error(`fromEmail must be an @${INTERNAL_EMAIL_DOMAIN} address`);
+  }
+  return normalized;
+}
+
 function toCount(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
@@ -141,6 +160,7 @@ function toBroadcast(row: BroadcastListRow): OpsCrmBroadcast {
       sent: toCount(row.sent_count),
       total: toCount(row.total_count),
     },
+    fromEmail: row.from_email || null,
     htmlContent: row.html_content,
     id: row.id,
     name: row.name,
@@ -183,6 +203,7 @@ export async function saveOpsCrmBroadcast(args: {
   const admin = getTalentSupabaseAdmin();
   const id = normalizeOptionalId(args.input.id);
   const fields = {
+    from_email: normalizeFromEmail(args.input.fromEmail),
     html_content: normalizeRequiredText(
       args.input.htmlContent,
       "htmlContent",
@@ -303,6 +324,7 @@ export async function sendOpsCrmBroadcastTestEmail(args: {
   );
   const html = buildCrmBroadcastPreviewDocument(htmlContent, locale ?? "ko");
   const response = await sendResendEmail({
+    from: normalizeFromEmail(args.input.fromEmail) ?? undefined,
     html,
     subject: `[Harper CRM test] ${subject}`,
     text: htmlToPlainText(html),
