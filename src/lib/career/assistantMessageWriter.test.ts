@@ -313,3 +313,19 @@ test("an application check stays on its reply when the same reply resumes", asyn
   const other = await createCareerAssistantMessageWriter({ admin, userId: "user", conversationId: "conversation", replyId: "next", startedAt });
   assert.equal(toTalentMessageResponse((await other.finish("다른 답", []))!).workApplicationCheck, undefined);
 });
+
+test("local tool labels keep their tool and model-response number, continuing after a resumed attempt", async () => {
+  const { admin, rows } = database();
+  const calls = [{ name: "web_search", call: 1 }, { name: "open_url", call: 1 }, { name: "upsert_note", call: 2 }];
+  const make = (toolOfLog: (index: number) => { name: string; call: number } | undefined) => createCareerAssistantMessageWriter({
+    admin, userId: "user", conversationId: "conversation", replyId: "invocation:tools",
+    startedAt: new Date().toISOString(), toolOfLog,
+  });
+  const first = await make(index => calls[index]);
+  await first.logs(["찾는 중", "읽는 중"]);
+  await first.logs(["찾는 중", "읽는 중", "기록 중"]);
+  const resumed = await make(() => ({ name: "web_search", call: 1 }));
+  await resumed.logs(["다시 찾는 중"]);
+  const events = toTalentMessageResponse(rows[0]).workEvents ?? [];
+  assert.deepEqual(events.map(event => event.tool), [...calls, { name: "web_search", call: 3 }]);
+});

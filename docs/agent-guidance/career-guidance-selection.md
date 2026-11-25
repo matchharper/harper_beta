@@ -10,7 +10,7 @@
 - **A에도 `web_search`·`open_url` 기본 제공과 Career `web_research` 제거가 포함돼 있다.** A 복원은 이 웹 도구 변경을 취소하지 않는다.
 - [C 변경·검증 결과](../evaluation/career-agent-autonomy/reports/2026-11-03-retained-guidance.md), [평가 정본](../evaluation/career-agent-autonomy/README.md).
 
-실제 기본 경로는 `buildCareerMainPrompt` → `CAREER_MAIN_PROMPT_2`의 C 본문이다. Resume/Application/Opportunity search handbook과 catalog, Career Memory 도구 설명도 C의 구성으로 유지한다. 평가 runner의 `--guidance-revision`은 평가 프로세스만 바꾸며 제품 설정이 아니다. 기존의 명시적 개발용 prompt override도 A/B/C 선택 기능이 아니다.
+실제 기본 경로는 `buildCareerMainPrompt` → [main.md](../../src/lib/career/prompts/main.md)의 C 본문이다(2026-11-24까지는 `mainPrompt2.ts`의 `CAREER_MAIN_PROMPT_2`). Resume/Application/Opportunity search handbook과 catalog, Career Memory 도구 설명도 C의 구성으로 유지한다. 평가 runner의 `--guidance-revision`은 평가 프로세스만 바꾸며 제품 설정이 아니다. 기존의 명시적 개발용 prompt override도 A/B/C 선택 기능이 아니다.
 
 이 A/B/C 변경의 범위는 일반 Career 텍스트 대화의 main prompt와 공유 handbook/도구 설명이다. 온보딩·음성·백그라운드 전용 main prompt는 원래 별도 계약이며 이번 선택으로 텍스트용 C 본문을 복사하지 않았다.
 
@@ -136,3 +136,18 @@ git apply docs/evaluation/career-agent-autonomy/restore-a.patch
 - **그대로인 것:** 채팅은 여전히 "어떤 점이 끌리세요?" 같은 선호 질문으로 끝났다. 다음 메시지가 다른 기회 이야기("나머지는 별로예요")면 세 명 모두 그 이유만 묻고, 관심 기회의 흐름을 놓았다. Shaun은 변경 전에만 '지원 준비' 선택지 버튼이 나왔다.
 - **부작용:** 시장만 보려는 Chris에게는 두 조건 모두 지원을 권하지 않았고 마무리 말에 대화를 닫았다.
 - **한계:** 사람마다 한 번씩만 돌렸고 웹 검색 결과가 실행마다 달라, 차이의 일부는 흔들림일 수 있다.
+
+## 2026-11-24 main prompt를 마크다운으로 (로컬, 미배포)
+
+사용자 요청으로 Career main prompt 본문을 [main.md](../../src/lib/career/prompts/main.md)로 옮겼다. `mainPrompts.ts`는 이 파일을 import해 `{internal_opportunities}`(공유 문단 [internal-opportunities.md](../../src/lib/career/prompts/internal-opportunities.md)), `{output_language}`, `{positions_tab_label}`만 채운다. 화면 표시 계약은 `mainPrompt2.ts`에서 [textChatDisplay.ts](../../src/lib/career/prompts/textChatDisplay.ts)로 이름을 바꿨다. 안 쓰던 옛 main prompt(`CAREER_MAIN_PROMPT`)와 다른 미사용 프롬프트는 `prompts/archive/`, dev 말투 실험(friendly)과 끝맺음 평가의 `light` 변형은 `prompts/experiments/`로 옮겼다. 조립 결과는 맨 앞 빈 줄 하나가 빠진 것 말고 글자까지 같다(professional·friendly, 한국어·영어). C 선택은 유지한다.
+
+- A 복원 패치(`restore-a.patch`)와 `scripts/evaluation/careerAutonomyGuidance.ts`의 과거 commit 재생은 `mainPrompt2.ts`를 기준으로 한다. 이 변경 이후 commit에는 그 파일이 없으므로, 복원하려면 A의 본문을 main.md에 옮겨 적는다.
+
+## 2026-11-24 정기 실행이 기회 도구로 시작 (로컬, 미배포)
+
+사용자는 Haiku 정기 추천이 웹 검색만 하다 끝나고, 저장된 검색이나 후보를 읽고 역할을 한 번에 본 뒤 골라 추천하는 흐름으로 간 적이 없다고 했다. 원인은 도구였다. background 실행은 selector 없이 고정 묶음(`CAREER_BACKGROUND_PRELOAD`: 예약·발송·회사 연락)으로 시작하고, 늘 열린 도구 가운데 탐색 수단은 `web_search`·`open_url`뿐이었다. `search_opportunities`·`read_matching`·`get_role_context`·`upsert_opportunities`는 모델이 직접 불러와야 열렸다.
+
+- 정기 실행은 `careerBackgroundPreload`로 `opportunities`와 `opportunity_search`를 더해 시작한다. 다른 background 실행은 그대로다. 같은 고정 입력에서 첫 호출 도구가 23개에서 32개가 되고, 위 다섯 도구가 처음부터 들어간다. 입력은 도구 설명 약 2.9만 자와 handbook 약 5천 자만큼 늘었다.
+- 탐색을 잇는 정기 실행(정기 확인 예약, 매칭을 이어 가는 예약, 공개 자료 변화: `isCareerDiscoveryRun`)은 재방문 호출과 같은 함수로, 그 매칭에서 아직 추천하지 않은 상위 후보 10개와 검색 상태를 함께 받는다. 실행이 특정 매칭을 이어 가면 그 매칭을 읽고, 검색 기록이 없으면 옛 후보를 대신 넣지 않는다.
+- 순서를 지시하는 문장은 넣지 않았다. LLM 지도와 run debug 미리보기, 정기 실행을 쓰는 평가 두 개(`evalCareerAgentAutonomy`, `evalCareerFirstMessage`)도 같은 선택을 쓴다.
+- 확인: 첫 호출 도구 목록을 변경 전후로 조립해 비교했고, 후보 읽기는 실제 SQL 테스트에 매칭 지정 사례를 더했다. 실제 Haiku 정기 실행을 다시 돌려 행동이 바뀌는지는 확인하지 않았다.

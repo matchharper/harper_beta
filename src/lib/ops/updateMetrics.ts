@@ -1,76 +1,422 @@
-// 업데이트 지표: compares weeks before and after a release on the metrics the release is expected to move.
-// Weeks are 7-day blocks anchored at the release time, so the first week after it starts at the release itself.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// /ops/update-metrics — "배포 후 실험중인 지표"
+//
+// 사용자가 정한 화면 원칙(2026-11-24). 이 화면을 고칠 때 먼저 읽고 지킨다.
+//  1. 우리가 배포한 변화 중 지표로 추적해야 하는 것만 둔다. 단순 오류 수정은 넣지 않는다.
+//  2. 맨 위에는 여러 변화가 함께 반영되는 대표 지표 하나(OPS_HEADLINE_CHART: 가입과 3일 안 채팅)를 두고, 추적 중인
+//     변화의 배포일을 세로선으로 표시한다.
+//  3. 그 아래는 추적할 작업 단위(OPS_TRACKED_CHANGES)마다 접히는 줄을 둔다. 접힌 줄에는 이름, 배포일, 대표 값의 배포 전후만
+//     보인다. 펼치면 그 작업을 확인할 지표를 한 그래프에 그린다. 함께 볼 수 있는 지표는 한 그래프에 막대(건수)와
+//     선(비율)으로 같이 넣는다.
+//  4. 추적을 계속할지 끝낼지는 화면에서 누른다(ops_tracked_changes.ended_at). 끝낸 변화는 맨 아래 '종료'에 접혀 있고
+//     다시 켤 수 있다. 변화 자체와 그 지표는 코드(OPS_TRACKED_CHANGES)에 더한다.
+//  5. 범위(30·90·180일, 직접 선택)와 단위(일·주)를 /ops/metrics처럼 고른다.
+//  6. 화면 글씨는 최소로 둔다. 설명과 계산식은 ⓘ 안에 넣는다. "가입·첫 추천 업데이트" 같은 묶음 제목, 메일 종류별 표,
+//     "버튼 메일 행동 비율 -", "안 본 답장 메일 0통" 같은 숫자 칸을 다시 만들지 않는다.
+//  7. /ops 지표 그래프(Talent 지표와 이 화면)에는 그 그래프에 정말 영향을 주는 중요한 변화만 배포일에 표시한다. 모든 커밋을
+//     넣지 않는다. 표시는 OPS_TRACKED_CHANGES 중 추적 중인 것이고, 어느 그래프에 영향을 주는지는 talentCharts에 적는다.
+//     마우스를 올리면 날짜 아래에 무엇을 바꿨는지 쉬운 말(detail)로 보이고, 표시를 누르면 이 화면의 그 변화 줄이 열린다.
+//     그 줄에서 PR(links)로 갈 수 있다. (OpsChartTooltip, OpsChangeMarks)
+//
+// 새 변화를 추적하려면 OPS_TRACKED_CHANGES에 항목을 더한다. detail에는 사용자에게 무엇이 바뀌었는지 한두 문장으로 쓰고,
+// talentCharts에는 그 변화가 실제로 움직일 Talent 지표 그래프만 적는다. 필요한 지표가 없으면 UPDATE_METRICS에 정의를 더하고
+// buildOpsUpdateMetrics에서 날마다 값을 만든다.
+//
+// 값은 KST 날짜마다 만든다. 가입 코호트 지표는 그날 가입한 사람, 그 밖의 지표는 그날 일어난 일로 센다. 화면이 날을 주로
+// 묶는다. 가입 N일 안 지표는 가입한 지 N일이 안 된 사람도 지금까지 한 것으로 센다(2026-11-21·11-23 기준). 그래서 최근
+// 값은 기간이 차면서 오를 수 있다.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-/**
- * Cohort metrics look at what a talent did in the first 3 days after signing up. Talents still inside those days
- * count with what they did so far, so recent weeks show values right away.
- */
+/** Cohort metrics look at what a talent did in the first 3 days after signing up. */
 const COHORT_DAYS = 3;
 /** A landing visit converts when the same browser signs up within a day. */
 const LANDING_CONVERSION_DAYS = 1;
-
-export const UPDATE_METRICS_WEEKS_BEFORE = 4;
-export const UPDATE_METRICS_MAX_WEEKS_AFTER = 8;
-
-export type OpsUpdateRelease = {
-  /** KST date (YYYY-MM-DD) the release went out; null until it does. */
-  deployedOn: string | null;
-  id: string;
-  title: string;
-};
-
-/** Releases followed on /ops/update-metrics. Set deployedOn once the release is in production. */
-export const OPS_UPDATE_RELEASES: OpsUpdateRelease[] = [
-  {
-    deployedOn: "2026-11-20",
-    id: "2026-11-signup-first-recommendation",
-    title: "가입·첫 추천 업데이트",
-  },
-];
-
-export type UpdateMetricsBucket = {
-  end: string;
-  /** Still running: the latest week after the release. */
-  partial: boolean;
-  side: "after" | "before";
-  start: string;
-};
-
-export type UpdateMetricValue =
-  | { denominator: number; kind: "rate"; numerator: number }
-  | { days: number; kind: "count"; value: number }
-  | { denominator: number; kind: "average"; total: number };
+/** The folded row compares the days since the deploy with this many days before it. */
+export const UPDATE_METRICS_BEFORE_DAYS = 28;
 
 export type UpdateMetricUnit = "count" | "minutes" | "percent" | "usd";
 
-export type UpdateMetricRow = {
+export type UpdateMetricValue =
+  /** A share: numerator out of denominator. */
+  | { denominator: number; kind: "rate"; numerator: number }
+  /** A count over `days` days (the running day counts as the part that has passed). */
+  | { days: number; kind: "count"; value: number }
+  /** A per-person average: total over denominator people. */
+  | { denominator: number; kind: "average"; total: number };
+
+export type UpdateMetricDefinition = {
   /** Which way is an improvement; null when either way is fine. */
   better: "down" | "up" | null;
+  /** ⓘ text: what is counted and how. */
   detail: string;
-  key: string;
   label: string;
   unit: UpdateMetricUnit;
-  values: {
-    after: UpdateMetricValue;
-    before: UpdateMetricValue;
-    buckets: UpdateMetricValue[];
-  };
 };
 
-export type UpdateMetricGroup = {
-  key: string;
-  label: string;
-  rows: UpdateMetricRow[];
+const SINCE_SO_FAR = "가입한 지 기간이 안 된 사람은 지금까지 한 것으로 셉니다.";
+
+/** Every metric the screen can draw. Keys are stable: tracked changes and stored snapshots refer to them. */
+export const UPDATE_METRICS = {
+  signups: {
+    better: "up",
+    detail: "그 기간에 가입한 talent 수입니다.",
+    label: "가입",
+    unit: "count",
+  },
+  chatRate24h: {
+    better: "up",
+    detail: `그 기간 가입자 중 가입 후 24시간 안에 채팅 메시지를 보낸 비율입니다. 직접 입력과 채팅 버튼(선택지, 오픈 포지션 더 추천, 소개 요청, 양식 답변)으로 보낸 메시지를 모두 셉니다. ${SINCE_SO_FAR}`,
+    label: "24시간 안 채팅",
+    unit: "percent",
+  },
+  chatRate3d: {
+    better: "up",
+    detail: `그 기간 가입자 중 가입 후 3일 안에 채팅 메시지를 보낸 비율입니다. 직접 입력과 채팅 버튼으로 보낸 메시지를 모두 셉니다. ${SINCE_SO_FAR}`,
+    label: "3일 안 채팅",
+    unit: "percent",
+  },
+  startedWithoutMaterials: {
+    better: null,
+    detail:
+      "그 기간 가입자 중 이력서·LinkedIn 없이 3일 안에 온보딩을 제출하거나 채팅을 시작한 비율입니다. 자료 여부는 지금 프로필 기준입니다.",
+    label: "자료 없이 시작",
+    unit: "percent",
+  },
+  costPerChatter: {
+    better: "down",
+    detail:
+      "가입 후 3일 안에 채팅한 사람의 첫 3일 LLM 추정 비용 평균입니다(llm_logs, 도구별 배분 행 제외).",
+    label: "1인당 비용 (3일)",
+    unit: "usd",
+  },
+  llmMinutesPerChatter: {
+    better: "down",
+    detail:
+      "가입 후 3일 안에 채팅한 사람의 첫 3일 LLM 호출 시간(elapsedMs) 합계 평균입니다. 병렬 호출은 겹쳐 더해집니다.",
+    label: "1인당 LLM 시간 (3일)",
+    unit: "minutes",
+  },
+  companyRecommendations: {
+    better: "up",
+    detail: "Worker 정기 추천을 뺀 추천 중 회사 자체를 추천한 건수입니다.",
+    label: "회사 추천",
+    unit: "count",
+  },
+  hiringPostRecommendations: {
+    better: "up",
+    detail: "Worker 정기 추천을 뺀 추천 중 채용 글(공식 공고가 아닌 글)을 추천한 건수입니다.",
+    label: "채용 글 추천",
+    unit: "count",
+  },
+  nonPostingShare: {
+    better: "up",
+    detail: "Worker 정기 추천을 뺀 전체 추천 중 회사 자체·채용 글 추천의 비율입니다.",
+    label: "추천 중 공고 아닌 기회",
+    unit: "percent",
+  },
+  recommendationRecipients: {
+    better: "up",
+    detail: "그 기간 가입자 중 가입 후 3일 안에 추천을 받은 사람 수입니다.",
+    label: "3일 안 추천 받은 사람",
+    unit: "count",
+  },
+  recipientLikeRate: {
+    better: "up",
+    detail:
+      "가입 후 3일 안에 추천을 받은 사람 중 그 추천에 3일 안에 좋아요를 하나 이상 누른 비율입니다. ‘이미 지원했던 회사/역할’로 제외한 것도 좋아요로 셉니다.",
+    label: "추천 받은 사람 중 좋아요",
+    unit: "percent",
+  },
+  applyWithHarperRate: {
+    better: "up",
+    detail: "가입 후 3일 안에 추천을 받은 사람 중 3일 안에 ‘Harper와 지원하기’를 누른 비율입니다.",
+    label: "Harper와 지원하기",
+    unit: "percent",
+  },
+  gmailProposedRate: {
+    better: null,
+    detail: `그 기간 가입자 중 3일 안에 Harper가 채팅에서 Gmail 연결 카드를 보여 준 비율입니다. ${SINCE_SO_FAR}`,
+    label: "Gmail 연결 제안",
+    unit: "percent",
+  },
+  gmailRate: {
+    better: "up",
+    detail: `그 기간 가입자 중 3일 안에 Gmail을 연결한 비율입니다. ${SINCE_SO_FAR}`,
+    label: "Gmail 연결",
+    unit: "percent",
+  },
+  landingVisitors: {
+    better: "up",
+    detail: "후보자 랜딩(/)을 처음 본 브라우저 수입니다(landing_stats_exposure).",
+    label: "랜딩 방문",
+    unit: "count",
+  },
+  landingConversion: {
+    better: "up",
+    detail:
+      "후보자 랜딩을 본 브라우저 중 하루 안에 같은 브라우저로 가입한 비율입니다. 본 지 하루가 안 된 방문은 지금까지 가입한 것으로 셉니다.",
+    label: "랜딩 전환율",
+    unit: "percent",
+  },
+  jobsWithoutRoleSignups: {
+    better: null,
+    detail:
+      "/jobs 공고로 가입했는데 그 공고에 연결된 내부 Role이 없는 사람 수입니다. 가입 경로는 /ops/metrics와 같은 규칙으로 정합니다.",
+    label: "미연결 공고로 가입",
+    unit: "count",
+  },
+  jobsWithoutRoleRecommended: {
+    better: "up",
+    detail: "미연결 /jobs 공고로 가입한 사람 중 가입 후 3일 안에 다른 추천을 받은 비율입니다.",
+    label: "다른 추천을 받음",
+    unit: "percent",
+  },
+  choiceEmails: {
+    better: null,
+    detail:
+      "Harper가 보낸 메일(정기 추천, 예약 실행, 이메일 답장, 연락 큐) 중 선택지 버튼이 들어간 메일 수입니다. 보낸 날로 셉니다.",
+    label: "버튼 메일",
+    unit: "count",
+  },
+  plainEmails: {
+    better: null,
+    detail: "Harper가 보낸 메일 중 선택지 버튼이 없는 메일 수입니다.",
+    label: "버튼 없는 메일",
+    unit: "count",
+  },
+  emailActionRate: {
+    better: "up",
+    detail:
+      "Harper가 보낸 메일 중 받은 사람이 72시간 안에 행동한 비율입니다. 행동은 답장 메일, 채팅, 기회 반응(좋아요·싫어요, 저장 단계 변경)입니다. 72시간이 안 된 메일은 지금까지 한 것으로 셉니다.",
+    label: "메일 받은 뒤 행동",
+    unit: "percent",
+  },
+  choiceEmailActionRate: {
+    better: "up",
+    detail: "선택지 버튼이 들어간 메일 중 72시간 안에 행동한 비율입니다. 행동의 기준은 ‘메일 받은 뒤 행동’과 같습니다.",
+    label: "버튼 메일 행동",
+    unit: "percent",
+  },
+  plainEmailActionRate: {
+    better: "up",
+    detail: "선택지 버튼이 없는 메일 중 72시간 안에 행동한 비율입니다.",
+    label: "버튼 없는 메일 행동",
+    unit: "percent",
+  },
+  unseenReviewed: {
+    better: null,
+    detail:
+      "답장을 5분 동안 보지 않고 떠나 Harper가 메일로도 전할지 검토한 수입니다(Career 실행 career_reply_unseen). 그사이 돌아와 본 답장은 검토하지 않습니다.",
+    label: "안 본 답장 검토",
+    unit: "count",
+  },
+  unseenEmailed: {
+    better: null,
+    detail: "그 검토에서 Harper가 실제로 메일을 보낸 수입니다.",
+    label: "메일로 전함",
+    unit: "count",
+  },
+  unseenEmailActionRate: {
+    better: "up",
+    detail:
+      "안 본 답장을 메일로 받은 사람 중 72시간 안에 행동한 비율입니다. 행동은 답장 메일, 채팅, 기회 반응입니다.",
+    label: "메일 받고 돌아옴",
+    unit: "percent",
+  },
+} as const satisfies Record<string, UpdateMetricDefinition>;
+
+export type UpdateMetricKey = keyof typeof UPDATE_METRICS;
+
+/** One chart: bars on the left axis, lines on the right axis (the left when there are no bars). */
+export type UpdateMetricChart = {
+  bars?: UpdateMetricKey[];
+  /** Bars that are parts of one whole are stacked; otherwise they stand side by side. */
+  stackBars?: boolean;
+  lines?: UpdateMetricKey[];
 };
+
+/** /ops/metrics (Talent 지표) charts a tracked change can be marked on. */
+export type OpsTalentChartKey =
+  | "activeTalents"
+  | "applyDelegation"
+  | "applySuccess"
+  | "connections"
+  | "dau"
+  | "gmail"
+  | "internalAcceptance"
+  | "messages"
+  | "recommendationFeedback"
+  | "signups"
+  | "wau";
+
+export type OpsTrackedChange = UpdateMetricChart & {
+  /** KST date (YYYY-MM-DD) the change reached production. The charts draw a line there. */
+  deployedOn: string;
+  /** What changed for users, in a sentence or two. Shown under the date when hovering a marked chart. */
+  detail: string;
+  key: string;
+  /** Where to read the change itself (the PR that shipped it). */
+  links: Array<{ label: string; url: string }>;
+  /** The metric whose before and after show on the folded row. */
+  primary: UpdateMetricKey;
+  /** Talent 지표 charts this change really moves; only those mark it. */
+  talentCharts: OpsTalentChartKey[];
+  title: string;
+};
+
+const PR_436 = { label: "PR #436", url: "https://github.com/matchharper/harper_beta/pull/436" };
+const PR_400 = { label: "PR #400", url: "https://github.com/matchharper/harper_beta/pull/400" };
+
+/** The one metric many changes move at once: signups, and how many of them talk to Harper within 3 days. */
+export const OPS_HEADLINE_CHART: UpdateMetricChart & { primary: UpdateMetricKey } = {
+  bars: ["signups"],
+  lines: ["chatRate3d"],
+  primary: "chatRate3d",
+};
+
+/**
+ * Changes followed on /ops/update-metrics, newest deploy first. A team member ends or resumes one on the screen
+ * (ops_tracked_changes); the definition stays here.
+ */
+export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
+  {
+    bars: ["signups"],
+    deployedOn: "2026-11-24",
+    detail:
+      "가입하면 Harper가 바로 추천하지 않고 먼저 인사합니다. 낸 자료에서 이해한 점과 해 줄 수 있는 일을 말하고, 왜 왔는지와 지금 상황을 선택지 버튼으로 묻습니다.",
+    key: "2026-11-24-first-greeting",
+    links: [PR_436],
+    lines: ["chatRate24h"],
+    primary: "chatRate24h",
+    talentCharts: ["messages", "activeTalents", "dau"],
+    title: "가입 직후 첫 인사",
+  },
+  {
+    bars: ["unseenReviewed", "unseenEmailed"],
+    deployedOn: "2026-11-24",
+    detail:
+      "답장을 5분 동안 보지 않고 떠나면 Harper가 메일로도 전할지 정합니다. 그사이 돌아와 보면 보내지 않습니다.",
+    key: "2026-11-24-unseen-reply-email",
+    links: [PR_436],
+    lines: ["unseenEmailActionRate"],
+    primary: "unseenEmailActionRate",
+    talentCharts: ["activeTalents", "dau", "wau"],
+    title: "보지 못한 답장은 메일로",
+  },
+  {
+    bars: ["choiceEmails", "plainEmails"],
+    deployedOn: "2026-11-24",
+    detail:
+      "Harper 메일에도 선택지 버튼이 들어갑니다. Gmail·Outlook·iCloud에서는 답장 창이 열리고, 다른 메일함에서는 채팅 입력창에 답이 채워집니다.",
+    key: "2026-11-24-email-choice-buttons",
+    links: [PR_436],
+    lines: ["choiceEmailActionRate", "plainEmailActionRate"],
+    primary: "emailActionRate",
+    stackBars: true,
+    talentCharts: ["messages", "activeTalents", "dau"],
+    title: "메일 선택지 버튼",
+  },
+  {
+    bars: ["landingVisitors"],
+    deployedOn: "2026-11-20",
+    detail: "후보자 랜딩 /를 새 디자인으로 바꿨습니다.",
+    key: "2026-11-20-landing",
+    links: [PR_400],
+    lines: ["landingConversion"],
+    primary: "landingConversion",
+    talentCharts: ["signups"],
+    title: "새 랜딩",
+  },
+  {
+    bars: ["companyRecommendations", "hiringPostRecommendations"],
+    deployedOn: "2026-11-20",
+    detail: "공식 공고 말고도 회사 자체와 채용 글(채용 신호)을 찾아 추천합니다.",
+    key: "2026-11-20-non-posting",
+    links: [PR_400],
+    lines: ["nonPostingShare"],
+    primary: "nonPostingShare",
+    stackBars: true,
+    talentCharts: ["recommendationFeedback"],
+    title: "공고가 아닌 기회 추천",
+  },
+  {
+    bars: ["recommendationRecipients"],
+    deployedOn: "2026-11-20",
+    detail: "Career 노트와 회사 탐색으로 가입 후 첫 추천을 고릅니다.",
+    key: "2026-11-20-first-recommendations",
+    links: [PR_400],
+    lines: ["recipientLikeRate", "applyWithHarperRate"],
+    primary: "recipientLikeRate",
+    talentCharts: ["recommendationFeedback", "applyDelegation"],
+    title: "첫 3일 추천",
+  },
+  {
+    bars: ["signups"],
+    deployedOn: "2026-11-20",
+    detail: "이력서·LinkedIn 없이도 온보딩을 마치고 채팅을 시작할 수 있습니다.",
+    key: "2026-11-20-without-materials",
+    links: [PR_400],
+    lines: ["startedWithoutMaterials"],
+    primary: "startedWithoutMaterials",
+    talentCharts: ["signups", "messages"],
+    title: "자료 없이 시작",
+  },
+  {
+    deployedOn: "2026-11-20",
+    detail: "가입 후 대화에서 Harper가 Gmail 연결을 제안합니다.",
+    key: "2026-11-20-gmail",
+    links: [PR_400],
+    lines: ["gmailProposedRate", "gmailRate"],
+    primary: "gmailRate",
+    talentCharts: ["gmail"],
+    title: "Gmail 연결",
+  },
+  {
+    bars: ["jobsWithoutRoleSignups"],
+    deployedOn: "2026-11-20",
+    detail: "내부 Role이 없는 /jobs 공고로 들어온 사람에게도 다른 기회를 추천합니다.",
+    key: "2026-11-20-jobs-without-role",
+    links: [PR_400],
+    lines: ["jobsWithoutRoleRecommended"],
+    primary: "jobsWithoutRoleRecommended",
+    talentCharts: ["recommendationFeedback"],
+    title: "/jobs 미연결 공고 유입",
+  },
+  {
+    bars: ["costPerChatter"],
+    deployedOn: "2026-11-20",
+    detail: "가입·첫 추천을 바꾼 뒤 1인당 비용과 LLM 시간이 얼마나 늘었는지 봅니다.",
+    key: "2026-11-20-cost",
+    links: [PR_400],
+    lines: ["llmMinutesPerChatter"],
+    primary: "costPerChatter",
+    talentCharts: [],
+    title: "1인당 비용·LLM 시간",
+  },
+];
+
+export const OPS_TRACKED_CHANGE_KEYS = new Set(OPS_TRACKED_CHANGES.map((change) => change.key));
+
+/**
+ * Which chart a mark belongs to: a Talent 지표 chart, this screen's headline (every tracked change), or one tracked
+ * change's own chart (that change only).
+ */
+export type OpsChangeChart = OpsTalentChartKey | "headline" | { change: string };
+
+export function changeMovesChart(change: OpsTrackedChange, chart: OpsChangeChart) {
+  if (chart === "headline") return true;
+  if (typeof chart === "object") return change.key === chart.change;
+  return change.talentCharts.includes(chart);
+}
 
 export type OpsUpdateMetricsResponse = {
-  buckets: UpdateMetricsBucket[];
-  deployedAt: string;
+  /** KST dates covered, oldest first. Starts before the chosen range when a deploy needs its 28 days before. */
+  days: string[];
   generatedAt: string;
-  groups: UpdateMetricGroup[];
+  /** One value per day in `days`. A key can be missing in a result saved by an older build. */
+  metrics: Partial<Record<UpdateMetricKey, UpdateMetricValue[]>>;
 };
 
 export type UpdateMetricsSignupRow = {
@@ -90,16 +436,12 @@ export type UpdateMetricsSignupRow = {
   userId: string;
 };
 
-export type UpdateMetricsUsageRow = Pick<
-  UpdateMetricsSignupRow,
-  "costUsd3d" | "llmMs3d" | "userId"
->;
+export type UpdateMetricsUsageRow = Pick<UpdateMetricsSignupRow, "costUsd3d" | "llmMs3d" | "userId">;
 
 export type UpdateMetricsRecommendationRow = {
-  bucketIndex: number;
   company: number;
+  day: string;
   hiringPost: number;
-  nonPostingTalents: number;
   total: number;
 };
 
@@ -108,7 +450,22 @@ export type UpdateMetricsLandingRow = {
   signedUpAt: Date | string | null;
 };
 
-const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+export type UpdateMetricsEmailRow = {
+  choiceActed: number;
+  choiceEmails: number;
+  day: string;
+  plainActed: number;
+  plainEmails: number;
+};
+
+export type UpdateMetricsUnseenReplyRow = {
+  acted: number;
+  day: string;
+  emailed: number;
+  reviewed: number;
+};
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 export function kstDateOnly(ms: number) {
   return new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
@@ -116,461 +473,258 @@ export function kstDateOnly(ms: number) {
 
 /** KST midnight of a YYYY-MM-DD date, as epoch ms. */
 export function kstMidnightMs(date: string) {
-  if (!isDateOnly(date)) throw new Error("배포일이 올바르지 않습니다.");
+  if (!DATE_ONLY.test(date)) throw new Error("날짜가 올바르지 않습니다.");
   const ms = Date.parse(`${date}T00:00:00+09:00`);
-  if (!Number.isFinite(ms)) throw new Error("배포일이 올바르지 않습니다.");
+  if (!Number.isFinite(ms)) throw new Error("날짜가 올바르지 않습니다.");
   return ms;
 }
 
-export function buildUpdateMetricsBuckets(deployedAtMs: number, nowMs: number) {
-  const buckets: UpdateMetricsBucket[] = [];
-  for (let week = UPDATE_METRICS_WEEKS_BEFORE; week >= 1; week -= 1) {
-    const start = deployedAtMs - week * WEEK_MS;
-    const end = Math.min(start + WEEK_MS, nowMs);
-    if (end <= start) break;
-    buckets.push({
-      end: new Date(end).toISOString(),
-      partial: start + WEEK_MS > nowMs,
-      side: "before",
-      start: new Date(start).toISOString(),
-    });
-  }
-  for (let week = 0; week < UPDATE_METRICS_MAX_WEEKS_AFTER; week += 1) {
-    const start = deployedAtMs + week * WEEK_MS;
-    if (start >= nowMs) break;
-    const end = Math.min(start + WEEK_MS, nowMs);
-    buckets.push({
-      end: new Date(end).toISOString(),
-      partial: start + WEEK_MS > nowMs,
-      side: "after",
-      start: new Date(start).toISOString(),
-    });
-  }
-  return buckets;
+export function addDays(day: string, days: number) {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Every KST date from start to end, inclusive. */
+export function daysBetween(start: string, end: string) {
+  const days: string[] = [];
+  for (let day = start; day <= end; day = addDays(day, 1)) days.push(day);
+  return days;
+}
+
+/**
+ * The days the server reads for a chosen range: from the range start, or 28 days before the earliest tracked deploy
+ * when that is earlier, so every folded row has its before period.
+ */
+export function updateMetricsWindow(range: { from: string; to: string }) {
+  const earliestBefore = OPS_TRACKED_CHANGES.reduce(
+    (min, change) => {
+      const start = addDays(change.deployedOn, -UPDATE_METRICS_BEFORE_DAYS);
+      return start < min ? start : min;
+    },
+    range.from
+  );
+  return { from: earliestBefore, to: range.to };
 }
 
 const toMs = (value: Date | string | null | undefined) =>
   value === null || value === undefined ? null : new Date(value).getTime();
 
-const within = (
-  at: Date | string | null,
-  fromMs: number,
-  days: number
-) => {
+const within = (at: Date | string | null, fromMs: number, days: number) => {
   const ms = toMs(at);
   return ms !== null && ms >= fromMs && ms < fromMs + days * DAY_MS;
 };
 
-function bucketIndexOf(buckets: UpdateMetricsBucket[], atMs: number) {
-  return buckets.findIndex(
-    (bucket) => atMs >= Date.parse(bucket.start) && atMs < Date.parse(bucket.end)
-  );
-}
-
-const rate = (numerator: number, denominator: number): UpdateMetricValue => ({
+export const rate = (numerator: number, denominator: number): UpdateMetricValue => ({
   denominator,
   kind: "rate",
   numerator,
 });
 
-const average = (total: number, denominator: number): UpdateMetricValue => ({
+export const average = (total: number, denominator: number): UpdateMetricValue => ({
   denominator,
   kind: "average",
   total,
 });
 
-function sumValues(values: UpdateMetricValue[]): UpdateMetricValue | null {
+/** Adds values of one metric: rates and averages over all their rows, counts over all their days. */
+export function sumValues(values: UpdateMetricValue[]): UpdateMetricValue | null {
   const first = values[0];
   if (!first) return null;
   if (first.kind === "rate") {
-    return values.reduce<UpdateMetricValue>(
-      (acc, value) =>
-        acc.kind === "rate" && value.kind === "rate"
-          ? rate(acc.numerator + value.numerator, acc.denominator + value.denominator)
-          : acc,
-      rate(0, 0)
-    );
+    let numerator = 0;
+    let denominator = 0;
+    for (const value of values) {
+      if (value.kind !== "rate") continue;
+      numerator += value.numerator;
+      denominator += value.denominator;
+    }
+    return rate(numerator, denominator);
   }
   if (first.kind === "average") {
-    return values.reduce<UpdateMetricValue>(
-      (acc, value) =>
-        acc.kind === "average" && value.kind === "average"
-          ? average(acc.total + value.total, acc.denominator + value.denominator)
-          : acc,
-      average(0, 0)
-    );
+    let total = 0;
+    let denominator = 0;
+    for (const value of values) {
+      if (value.kind !== "average") continue;
+      total += value.total;
+      denominator += value.denominator;
+    }
+    return average(total, denominator);
   }
-  return values.reduce<UpdateMetricValue>(
-    (acc, value) =>
-      acc.kind === "count" && value.kind === "count"
-        ? { days: acc.days + value.days, kind: "count", value: acc.value + value.value }
-        : acc,
-    { days: 0, kind: "count", value: 0 }
+  let value = 0;
+  let days = 0;
+  for (const item of values) {
+    if (item.kind !== "count") continue;
+    value += item.value;
+    days += item.days;
+  }
+  return { days, kind: "count", value };
+}
+
+/** What a chart point shows: a rate (0–1), a per-person average, or the count itself. */
+export function updateMetricChartValue(value: UpdateMetricValue | null | undefined) {
+  if (!value) return null;
+  if (value.kind === "rate") return value.denominator > 0 ? value.numerator / value.denominator : null;
+  if (value.kind === "average") return value.denominator > 0 ? value.total / value.denominator : null;
+  return value.value;
+}
+
+/** What a before/after comparison shows: like the chart, but a count is per day so periods of any length compare. */
+export function updateMetricPeriodValue(value: UpdateMetricValue | null | undefined) {
+  if (value?.kind === "count") return value.days > 0 ? value.value / value.days : null;
+  return updateMetricChartValue(value);
+}
+
+/** The pooled value of `key` over KST days [start, end]; null when no day of it is in the data. */
+export function updateMetricBetween(
+  response: OpsUpdateMetricsResponse,
+  key: UpdateMetricKey,
+  start: string,
+  end: string
+) {
+  const values = response.metrics[key] ?? [];
+  return sumValues(
+    response.days.flatMap((day, index) =>
+      day >= start && day <= end && values[index] ? [values[index]] : []
+    )
   );
 }
 
-/** Before and after pool their weeks: rates and averages over all rows, counts per 7 days. */
-function withSides(
-  buckets: UpdateMetricsBucket[],
-  values: UpdateMetricValue[],
-  empty: UpdateMetricValue
-): UpdateMetricRow["values"] {
-  const side = (name: UpdateMetricsBucket["side"]) =>
-    sumValues(values.filter((_, index) => buckets[index]?.side === name)) ?? empty;
-  return { after: side("after"), before: side("before"), buckets: values };
-}
-
-/** The value a cell shows: a rate (0–1), a per-person average, or a count per 7 days. */
-export function updateMetricDisplayValue(value: UpdateMetricValue) {
-  if (value.kind === "rate") {
-    return value.denominator > 0 ? value.numerator / value.denominator : null;
-  }
-  if (value.kind === "average") {
-    return value.denominator > 0 ? value.total / value.denominator : null;
-  }
-  return value.days > 0 ? (value.value / value.days) * 7 : null;
+/** The days since the deploy against the 28 days before it, for a change's primary metric. */
+export function trackedChangeComparison(response: OpsUpdateMetricsResponse, change: { deployedOn: string; primary: UpdateMetricKey }) {
+  const lastDay = response.days.at(-1) ?? change.deployedOn;
+  return {
+    after:
+      lastDay >= change.deployedOn
+        ? updateMetricBetween(response, change.primary, change.deployedOn, lastDay)
+        : null,
+    before: updateMetricBetween(
+      response,
+      change.primary,
+      addDays(change.deployedOn, -UPDATE_METRICS_BEFORE_DAYS),
+      addDays(change.deployedOn, -1)
+    ),
+  };
 }
 
 export function buildOpsUpdateMetrics(args: {
-  deployedAtMs: number;
+  emails: UpdateMetricsEmailRow[];
+  /** KST dates [from, to] the rows were read for. */
+  from: string;
   /** Signups attributed to a /jobs posting with no internal Role behind it. */
   jobsWithoutRoleUserIds: Set<string>;
   landing: UpdateMetricsLandingRow[];
   nowMs: number;
   recommendations: UpdateMetricsRecommendationRow[];
   signups: UpdateMetricsSignupRow[];
+  to: string;
+  unseenReplies: UpdateMetricsUnseenReplyRow[];
 }): OpsUpdateMetricsResponse {
-  const buckets = buildUpdateMetricsBuckets(args.deployedAtMs, args.nowMs);
-  const bucketDays = buckets.map(
-    (bucket) => (Date.parse(bucket.end) - Date.parse(bucket.start)) / DAY_MS
+  const today = kstDateOnly(args.nowMs);
+  const days = daysBetween(args.from, args.to < today ? args.to : today);
+  const indexOf = new Map(days.map((day, index) => [day, index]));
+  // The running day counts as the part of it that has passed, so per-day averages stay fair.
+  const dayLength = days.map((day) =>
+    day === today ? Math.max(0, (args.nowMs - kstMidnightMs(day)) / DAY_MS) : 1
   );
-  const signupsByBucket = buckets.map(() => [] as UpdateMetricsSignupRow[]);
-  for (const signup of args.signups) {
-    const index = bucketIndexOf(buckets, new Date(signup.signedUpAt).getTime());
-    if (index >= 0) signupsByBucket[index]?.push(signup);
-  }
-  const cohort = (
-    measure: (rows: UpdateMetricsSignupRow[]) => UpdateMetricValue
-  ) => signupsByBucket.map(measure);
-  const signedUpMs = (row: UpdateMetricsSignupRow) => new Date(row.signedUpAt).getTime();
-  const chatted = (row: UpdateMetricsSignupRow) =>
-    within(row.firstChatAt, signedUpMs(row), COHORT_DAYS);
-  const started = (row: UpdateMetricsSignupRow) =>
-    chatted(row) || within(row.onboardingSubmittedAt, signedUpMs(row), COHORT_DAYS);
-  const recipients = (rows: UpdateMetricsSignupRow[]) =>
-    rows.filter((row) => row.recommendations3d > 0);
-
-  const row = (
-    definition: Omit<UpdateMetricRow, "values">,
-    values: UpdateMetricValue[],
-    empty: UpdateMetricValue
-  ): UpdateMetricRow => ({ ...definition, values: withSides(buckets, values, empty) });
-
-  const emptyRate = rate(0, 0);
-  const emptyAverage = average(0, 0);
-  const emptyCount: UpdateMetricValue = { days: 0, kind: "count", value: 0 };
-
-  const recommendationsByBucket = buckets.map(
-    (_, index) =>
-      args.recommendations.find((item) => item.bucketIndex === index) ?? {
-        bucketIndex: index,
-        company: 0,
-        hiringPost: 0,
-        nonPostingTalents: 0,
-        total: 0,
-      }
-  );
-
-  const landingByBucket = buckets.map(() => ({ converted: 0, visitors: 0 }));
-  for (const visit of args.landing) {
-    const atMs = new Date(visit.at).getTime();
-    const index = bucketIndexOf(buckets, atMs);
-    const bucket = landingByBucket[index];
-    if (!bucket) continue;
-    bucket.visitors += 1;
-    if (within(visit.signedUpAt, atMs, LANDING_CONVERSION_DAYS)) bucket.converted += 1;
-  }
-
-  const groups: UpdateMetricGroup[] = [
-    {
-      key: "signup",
-      label: "가입 → 채팅",
-      rows: [
-        row(
-          {
-            better: "up",
-            detail: "주에 가입한 talent 수입니다. 배포 전·후 칸은 7일 평균입니다.",
-            key: "signups",
-            label: "가입",
-            unit: "count",
-          },
-          signupsByBucket.map((rows, index) => ({
-            days: bucketDays[index] ?? 0,
-            kind: "count",
-            value: rows.length,
-          })),
-          emptyCount
-        ),
-        row(
-          {
-            better: "up",
-            detail:
-              "가입 후 3일 안에 채팅 메시지를 한 번이라도 보낸 비율입니다. 직접 입력한 메시지와 채팅 버튼(오픈 포지션 더 추천, 소개 요청, 양식 답변)으로 보낸 메시지를 모두 셉니다. 가입한 지 3일이 안 된 사람은 지금까지 한 것으로 셉니다.",
-            key: "chatRate",
-            label: "가입 대비 채팅 진행",
-            unit: "percent",
-          },
-          cohort((rows) => rate(rows.filter(chatted).length, rows.length)),
-          emptyRate
-        ),
-        row(
-          {
-            better: null,
-            detail:
-              "전체 가입자 중 이력서·LinkedIn 없이 온보딩을 제출하거나 채팅을 시작한 비율입니다. 자료 여부는 지금 프로필 기준입니다.",
-            key: "startedWithoutMaterials",
-            label: "이력서·LinkedIn 없이 시작",
-            unit: "percent",
-          },
-          cohort((rows) =>
-            rate(rows.filter((item) => started(item) && !item.hasMaterials).length, rows.length)
-          ),
-          emptyRate
-        ),
-        row(
-          {
-            better: null,
-            detail: "전체 가입자 중 프로필에 이력서 파일이나 LinkedIn URL이 있는 비율입니다. 지금 프로필 기준입니다.",
-            key: "submittedMaterials",
-            label: "이력서·LinkedIn 제출",
-            unit: "percent",
-          },
-          cohort((rows) => rate(rows.filter((item) => item.hasMaterials).length, rows.length)),
-          emptyRate
-        ),
-      ],
-    },
-    {
-      key: "cost",
-      label: "1인당 시간·비용",
-      rows: [
-        row(
-          {
-            better: "down",
-            detail:
-              "가입 후 3일 안에 채팅한 사람의 첫 3일 LLM 추정 비용 평균입니다(llm_logs, 도구별 배분 행 제외).",
-            key: "costPerChatter",
-            label: "1인당 비용 (3일)",
-            unit: "usd",
-          },
-          cohort((rows) => {
-            const people = rows.filter(chatted);
-            return average(
-              people.reduce((sum, item) => sum + item.costUsd3d, 0),
-              people.length
-            );
-          }),
-          emptyAverage
-        ),
-        row(
-          {
-            better: "down",
-            detail:
-              "가입 후 3일 안에 채팅한 사람의 첫 3일 LLM 호출 시간(elapsedMs) 합계 평균입니다. 병렬 호출은 겹쳐 더해집니다.",
-            key: "llmMinutesPerChatter",
-            label: "1인당 LLM 시간 (3일)",
-            unit: "minutes",
-          },
-          cohort((rows) => {
-            const people = rows.filter(chatted);
-            return average(
-              people.reduce((sum, item) => sum + item.llmMs3d / 60_000, 0),
-              people.length
-            );
-          }),
-          emptyAverage
-        ),
-      ],
-    },
-    {
-      key: "nonPosting",
-      label: "공고가 아닌 기회 추천",
-      rows: [
-        row(
-          {
-            better: "up",
-            detail:
-              "회사 자체 추천과 채용 글 추천 건수입니다. 배포 전·후 칸은 7일 평균입니다.",
-            key: "nonPostingCount",
-            label: "추천 건수",
-            unit: "count",
-          },
-          recommendationsByBucket.map((item, index) => ({
-            days: bucketDays[index] ?? 0,
-            kind: "count",
-            value: item.company + item.hiringPost,
-          })),
-          emptyCount
-        ),
-        row(
-          {
-            better: "up",
-            detail:
-              "Worker 정기 추천을 뺀 전체 추천 중 회사 자체·채용 글 추천의 비율입니다.",
-            key: "nonPostingShare",
-            label: "추천 중 비율",
-            unit: "percent",
-          },
-          recommendationsByBucket.map((item) => rate(item.company + item.hiringPost, item.total)),
-          emptyRate
-        ),
-      ],
-    },
-    {
-      key: "firstRecommendations",
-      label: "첫 3일 추천",
-      rows: [
-        row(
-          {
-            better: "up",
-            detail:
-              "가입 후 3일 안에 추천을 받은 사람 중 그 추천에 3일 안에 좋아요를 하나 이상 누른 비율입니다. ‘이미 지원했던 회사/역할’로 제외한 것도 좋아요로 셉니다.",
-            key: "recipientLikeRate",
-            label: "추천 받은 사람 중 좋아요",
-            unit: "percent",
-          },
-          cohort((rows) => {
-            const people = recipients(rows);
-            return rate(people.filter((item) => item.liked3d > 0).length, people.length);
-          }),
-          emptyRate
-        ),
-        row(
-          {
-            better: "up",
-            detail:
-              "첫 3일 추천에 첫 3일 안에 남긴 좋아요·싫어요 중 좋아요 비율입니다. ‘이미 지원했던 회사/역할’로 제외한 것도 좋아요로 셉니다.",
-            key: "feedbackLikeRate",
-            label: "피드백 중 좋아요",
-            unit: "percent",
-          },
-          cohort((rows) =>
-            rate(
-              rows.reduce((sum, item) => sum + item.liked3d, 0),
-              rows.reduce((sum, item) => sum + item.liked3d + item.disliked3d, 0)
-            )
-          ),
-          emptyRate
-        ),
-        row(
-          {
-            better: "up",
-            detail:
-              "가입 후 3일 안에 추천을 받은 사람 중 3일 안에 ‘Harper와 지원하기’를 누른 비율입니다.",
-            key: "applyWithHarperRate",
-            label: "Harper와 지원하기",
-            unit: "percent",
-          },
-          cohort((rows) => {
-            const people = recipients(rows);
-            return rate(
-              people.filter((item) => within(item.applyWithHarperAt, signedUpMs(item), COHORT_DAYS))
-                .length,
-              people.length
-            );
-          }),
-          emptyRate
-        ),
-      ],
-    },
-    {
-      key: "email",
-      label: "이메일 연결",
-      rows: [
-        row(
-          {
-            better: null,
-            detail:
-              "가입 후 3일 안에 Harper가 채팅에서 Gmail 연결 카드(읽기·보내기)를 보여 준 비율입니다. 이 카드는 2026-11-04부터 있었습니다.",
-            key: "gmailProposedRate",
-            label: "가입 대비 Gmail 연결 제안",
-            unit: "percent",
-          },
-          cohort((rows) =>
-            rate(
-              rows.filter((item) => within(item.gmailProposedAt, signedUpMs(item), COHORT_DAYS))
-                .length,
-              rows.length
-            )
-          ),
-          emptyRate
-        ),
-        row(
-          {
-            better: "up",
-            detail: "가입 후 3일 안에 Gmail을 연결한 비율입니다.",
-            key: "gmailRate",
-            label: "가입 대비 Gmail 연결",
-            unit: "percent",
-          },
-          cohort((rows) =>
-            rate(
-              rows.filter((item) => within(item.gmailAt, signedUpMs(item), COHORT_DAYS)).length,
-              rows.length
-            )
-          ),
-          emptyRate
-        ),
-      ],
-    },
-    {
-      key: "landing",
-      label: "랜딩페이지",
-      rows: [
-        row(
-          {
-            better: "up",
-            detail:
-              "후보자 랜딩(/)을 본 브라우저 중 하루 안에 같은 브라우저로 가입한 비율입니다. 방문은 landing_stats_exposure로 셉니다. 본 지 하루가 안 된 방문은 지금까지 가입한 것으로 셉니다. 배포 전 칸은 4주를 합친 주간 평균입니다.",
-            key: "landingConversion",
-            label: "랜딩 전환율",
-            unit: "percent",
-          },
-          landingByBucket.map((item) => rate(item.converted, item.visitors)),
-          emptyRate
-        ),
-      ],
-    },
-    {
-      key: "jobs",
-      label: "/jobs 미연결 공고 유입",
-      rows: [
-        row(
-          {
-            better: "up",
-            detail:
-              "/jobs 공고로 가입했는데 그 공고에 연결된 내부 Role이 없는 사람 중 가입 후 3일 안에 추천을 받은 비율입니다. 가입 경로는 /ops/metrics와 같은 규칙으로 정합니다.",
-            key: "jobsWithoutRoleRecommended",
-            label: "다른 추천을 받음",
-            unit: "percent",
-          },
-          cohort((rows) => {
-            const people = rows.filter((item) => args.jobsWithoutRoleUserIds.has(item.userId));
-            return rate(
-              people.filter((item) => item.recommendations3d > 0).length,
-              people.length
-            );
-          }),
-          emptyRate
-        ),
-      ],
-    },
-  ];
-
-  return {
-    buckets,
-    deployedAt: new Date(args.deployedAtMs).toISOString(),
-    generatedAt: new Date(args.nowMs).toISOString(),
-    groups,
+  const byDay = <T>(rows: T[], dayOf: (row: T) => string) => {
+    const grouped = days.map(() => [] as T[]);
+    for (const row of rows) {
+      const index = indexOf.get(dayOf(row));
+      if (index !== undefined) grouped[index]?.push(row);
+    }
+    return grouped;
   };
+  const count = (values: number[]): UpdateMetricValue[] =>
+    values.map((value, index) => ({ days: dayLength[index] ?? 1, kind: "count", value }));
+
+  const signedUpMs = (row: UpdateMetricsSignupRow) => new Date(row.signedUpAt).getTime();
+  const signups = byDay(args.signups, (row) => kstDateOnly(signedUpMs(row)));
+  const chattedWithin = (row: UpdateMetricsSignupRow, daysAfter: number) =>
+    within(row.firstChatAt, signedUpMs(row), daysAfter);
+  const started = (row: UpdateMetricsSignupRow) =>
+    chattedWithin(row, COHORT_DAYS) || within(row.onboardingSubmittedAt, signedUpMs(row), COHORT_DAYS);
+  const share = (rows: UpdateMetricsSignupRow[], test: (row: UpdateMetricsSignupRow) => boolean) =>
+    rate(rows.filter(test).length, rows.length);
+  const chatterAverage = (rows: UpdateMetricsSignupRow[], amount: (row: UpdateMetricsSignupRow) => number) => {
+    const people = rows.filter((row) => chattedWithin(row, COHORT_DAYS));
+    return average(people.reduce((sum, row) => sum + amount(row), 0), people.length);
+  };
+  const recipients = signups.map((rows) => rows.filter((row) => row.recommendations3d > 0));
+  const jobsSignups = signups.map((rows) => rows.filter((row) => args.jobsWithoutRoleUserIds.has(row.userId)));
+
+  const recommendations = byDay(args.recommendations, (row) => row.day).map((rows) =>
+    rows.reduce(
+      (sum, row) => ({
+        company: sum.company + row.company,
+        hiringPost: sum.hiringPost + row.hiringPost,
+        total: sum.total + row.total,
+      }),
+      { company: 0, hiringPost: 0, total: 0 }
+    )
+  );
+
+  const landing = byDay(args.landing, (row) => kstDateOnly(new Date(row.at).getTime())).map((rows) => ({
+    converted: rows.filter((row) => within(row.signedUpAt, new Date(row.at).getTime(), LANDING_CONVERSION_DAYS))
+      .length,
+    visitors: rows.length,
+  }));
+
+  const emails = byDay(args.emails, (row) => row.day).map((rows) =>
+    rows.reduce(
+      (sum, row) => ({
+        choiceActed: sum.choiceActed + row.choiceActed,
+        choiceEmails: sum.choiceEmails + row.choiceEmails,
+        plainActed: sum.plainActed + row.plainActed,
+        plainEmails: sum.plainEmails + row.plainEmails,
+      }),
+      { choiceActed: 0, choiceEmails: 0, plainActed: 0, plainEmails: 0 }
+    )
+  );
+
+  const unseen = byDay(args.unseenReplies, (row) => row.day).map((rows) =>
+    rows.reduce(
+      (sum, row) => ({
+        acted: sum.acted + row.acted,
+        emailed: sum.emailed + row.emailed,
+        reviewed: sum.reviewed + row.reviewed,
+      }),
+      { acted: 0, emailed: 0, reviewed: 0 }
+    )
+  );
+
+  const metrics: Record<UpdateMetricKey, UpdateMetricValue[]> = {
+    signups: count(signups.map((rows) => rows.length)),
+    chatRate24h: signups.map((rows) => share(rows, (row) => chattedWithin(row, 1))),
+    chatRate3d: signups.map((rows) => share(rows, (row) => chattedWithin(row, COHORT_DAYS))),
+    startedWithoutMaterials: signups.map((rows) => share(rows, (row) => started(row) && !row.hasMaterials)),
+    costPerChatter: signups.map((rows) => chatterAverage(rows, (row) => row.costUsd3d)),
+    llmMinutesPerChatter: signups.map((rows) => chatterAverage(rows, (row) => row.llmMs3d / 60_000)),
+    companyRecommendations: count(recommendations.map((item) => item.company)),
+    hiringPostRecommendations: count(recommendations.map((item) => item.hiringPost)),
+    nonPostingShare: recommendations.map((item) => rate(item.company + item.hiringPost, item.total)),
+    recommendationRecipients: count(recipients.map((rows) => rows.length)),
+    recipientLikeRate: recipients.map((rows) => share(rows, (row) => row.liked3d > 0)),
+    applyWithHarperRate: recipients.map((rows) =>
+      share(rows, (row) => within(row.applyWithHarperAt, signedUpMs(row), COHORT_DAYS))
+    ),
+    gmailProposedRate: signups.map((rows) =>
+      share(rows, (row) => within(row.gmailProposedAt, signedUpMs(row), COHORT_DAYS))
+    ),
+    gmailRate: signups.map((rows) => share(rows, (row) => within(row.gmailAt, signedUpMs(row), COHORT_DAYS))),
+    landingVisitors: count(landing.map((item) => item.visitors)),
+    landingConversion: landing.map((item) => rate(item.converted, item.visitors)),
+    jobsWithoutRoleSignups: count(jobsSignups.map((rows) => rows.length)),
+    jobsWithoutRoleRecommended: jobsSignups.map((rows) => share(rows, (row) => row.recommendations3d > 0)),
+    choiceEmails: count(emails.map((item) => item.choiceEmails)),
+    plainEmails: count(emails.map((item) => item.plainEmails)),
+    emailActionRate: emails.map((item) =>
+      rate(item.choiceActed + item.plainActed, item.choiceEmails + item.plainEmails)
+    ),
+    choiceEmailActionRate: emails.map((item) => rate(item.choiceActed, item.choiceEmails)),
+    plainEmailActionRate: emails.map((item) => rate(item.plainActed, item.plainEmails)),
+    unseenReviewed: count(unseen.map((item) => item.reviewed)),
+    unseenEmailed: count(unseen.map((item) => item.emailed)),
+    unseenEmailActionRate: unseen.map((item) => rate(item.acted, item.emailed)),
+  };
+
+  return { days, generatedAt: new Date(args.nowMs).toISOString(), metrics };
 }

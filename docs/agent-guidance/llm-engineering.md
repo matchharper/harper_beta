@@ -7,6 +7,7 @@
 - Company-side LLM의 tool policy·schema·result·loader·기능 목록·기본 context 설계·수정·리뷰 전에는 [도구 정보 설계 가이드](../company-side-tool-information-guide-ko.md)를 읽는다. 로딩 전 기능 인식, 실행 계약, 결과 사실, 미호출 도구의 기존 효과와 후속 대화의 정보 배치는 이 정본을 따른다.
 - Company-side LLM의 prompt·context·tool·model·evaluation 변경 전에는 [Company-side agent 변경 정본](../company-side-agent-engineering-contract-ko.md)을 읽는다. 해당 책임 원본을 수정하고 관련 frozen 평가를 재실행하며 한계와 실패를 기록한다.
 - 회사 대화 기반 Role 검색·평가 이력·범위별 Memory는 [회사 agentic Role 검색](../company/company-agentic-role-search-implementation-ko.md)과 연결된 평가 계약을 함께 따른다.
+- Career main prompt 본문은 [main.md](../../src/lib/career/prompts/main.md)에 있고 코드는 이를 텍스트로 import한다. 프롬프트를 고칠 때는 `.md`를 고친다. 쓰지 않는 프롬프트는 같은 폴더의 `archive/`, 실험·비교용은 `experiments/`에 둔다. 폴더 구성과 `.md` import 방법은 [prompts/README.md](../../src/lib/career/prompts/README.md)에 있다.
 
 ## 모든 LLM tool result의 텍스트화 — 필수
 

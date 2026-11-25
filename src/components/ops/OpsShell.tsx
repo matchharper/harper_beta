@@ -145,9 +145,9 @@ export const OPS_NAV_GROUPS: OpsNavGroup[] = [
         matchPrefix: "/ops/metrics",
       },
       {
-        description: "배포 전후 주간 지표 비교",
+        description: "배포한 변화를 지표로 추적",
         href: "/ops/update-metrics",
-        label: "업데이트 지표",
+        label: "배포 후 실험중인 지표",
         matchPrefix: "/ops/update-metrics",
       },
       {

@@ -42,7 +42,7 @@ async function main() {
     import("@/lib/career/chatTurn"), import("@/lib/agentTools/web"), import("@/lib/tools/exaClient"),
     import("@/lib/llm/usageContext"), import("@/lib/llm/debugUsage"), import("@/lib/career/matching/searchOutput"),
     import("@/lib/llm/toolDescriptions"), import("@/lib/career/handbooks/registry"), import("@/lib/career/handbooks/opportunitySearch"),
-    import("@/lib/career/prompts/mainPrompt2"), import("@/lib/talentOnboarding/openUrlTool"), import("@/lib/talentOnboarding/roleContextFormat"),
+    import("@/lib/career/prompts/mainPrompts"), import("@/lib/talentOnboarding/openUrlTool"), import("@/lib/talentOnboarding/roleContextFormat"),
     import("@/lib/talentOnboarding/tools"),
   ]);
   console.log(`READY ${ARM}`);

@@ -1,10 +1,23 @@
-# 일반 Career 채팅 프롬프트와 추가 입력
+# Career 프롬프트
+
+## 폴더 구성
+
+| 위치 | 내용 |
+| --- | --- |
+| [main.md](./main.md) | **Career main prompt 정본.** 일반 채팅·이메일·정기 실행에 `career_main` 블록으로 들어가는 본문 전체다. 프롬프트를 고칠 때는 이 파일을 고친다. |
+| [internal-opportunities.md](./internal-opportunities.md) | main.md의 `{internal_opportunities}` 자리에 들어가는 Harper 연결 기회 문단. 온보딩·음성 지침([rawPrompts.ts](./rawPrompts.ts))과 같은 문장을 쓴다. |
+| [mainPrompts.ts](./mainPrompts.ts) | main.md를 import해 `{internal_opportunities}`, `{output_language}`, `{positions_tab_label}`을 채운다. 본문은 두지 않는다. |
+| [textChatDisplay.ts](./textChatDisplay.ts) | 텍스트 채팅의 화면 표시 계약(`career_chat_display`). 화면 이름을 번역 사전에서 읽어 TS로 둔다. |
+| [experiments/](./experiments/) | 운영에서 쓰지 않는 비교·실험용 프롬프트. `friendly-voice.md`는 dev 대화 버전 ‘friendly’에서 main.md의 말투 문단을 바꾸고, `ending-a-reply-light.md`는 [끝맺음 평가](../../../../scripts/evalCareerReplyContinuation.ts)의 `light` 변형이다. |
+| [archive/](./archive/) | 어디서도 쓰지 않는 옛 프롬프트와 옛 구조 설명. 코드가 읽지 않으며 참고로만 둔다. |
+
+`.md` 프롬프트는 텍스트로 import한다. Next 빌드는 [next.config.mjs](../../../../next.config.mjs)의 규칙으로, tsx 테스트·평가 스크립트는 [registerMarkdownText.ts](../../llm/registerMarkdownText.ts)로 읽는다. `.md`를 import하는 파일은 그 앞에 `import "@/lib/llm/registerMarkdownText";`를 둔다.
+
+## 일반 채팅의 추가 입력
 
 2026-10-31 로컬 구현 기준이다. 배포 여부를 뜻하지 않는다. 온보딩, 음성 통화와 그 종료/완료 메시지는 이 문서의 범위에서 제외한다.
 
-## 기본 프롬프트 정본
-
-일반 `/career` 텍스트 대화의 기본 지침은 [mainPrompts.ts](./mainPrompts.ts)의 `buildCareerMainPrompt`에서 읽는다. [conversationPlan.ts](./conversationPlan.ts)는 이를 `career_main` 블록 하나로 넣고 사용자와 실행 상태를 별도 context로 조립한다. 기본 역할·대화·언어·출력 형식·공통 실행 계약은 같은 파일에 있다. `CAREER_MAIN_PROMPT`는 호칭·채널·응답·실행 안내까지 다른 문구 상수 참조 없이 연속된 문자열이다. 치환값은 대화 언어와 Jobs 탭 이름뿐이다. 온보딩/통화/백그라운드의 기본 지침은 `rawPrompts.ts`에서 별도로 관리한다. 언어 설정 도구의 저장 범위는 `talentOnboarding/languageSettingTool.ts`의 도구 설명이 소유하며, 도구 유무에 따른 시스템 프롬프트 분기는 없다.
+일반 `/career` 텍스트 대화의 기본 지침은 [main.md](./main.md)이고, [mainPrompts.ts](./mainPrompts.ts)의 `buildCareerMainPrompt`가 읽는다. [conversationPlan.ts](./conversationPlan.ts)는 이를 `career_main` 블록 하나로 넣고 사용자와 실행 상태를 별도 context로 조립한다. 치환값은 대화 언어, Jobs 탭 이름, Harper 연결 기회 문단뿐이다. 온보딩/통화/백그라운드의 기본 지침은 `rawPrompts.ts`에서 별도로 관리한다. 언어 설정 도구의 저장 범위는 `talentOnboarding/languageSettingTool.ts`의 도구 설명이 소유하며, 도구 유무에 따른 시스템 프롬프트 분기는 없다.
 
 실제 입력은 `career_main`만으로 끝나지 않는다. 아래의 호출 목적, 원본 사실, 도구 정의, 필요한 handbook, 실행 결과와 이력이 함께 들어간다. **조건부 지침을 모두 없앤 것은 아니다.** 특히 선택한 카드, 업로드, 회사 연락 context와 도구 결과에 남은 지침은 아래에 별도로 표시한다.
 
@@ -28,7 +41,7 @@
 | `conversationMode=match_quality` 또는 `career_check_in`으로 명시적으로 시작 | [conversationPlan.ts](./conversationPlan.ts)의 `call_mode_instruction` → [conversationStarters.ts](./conversationStarters.ts)의 starter `turnInstruction`. 블록 이름과 달리 텍스트 요청에서도 이 mode가 지정되면 해당 시작 목적을 추가한다. |
 | 회사 팔로우 직후 | [companyFollowUpReply.ts](../companyFollowUpReply.ts)의 `buildCompanyFollowUpInstruction`. 팔로우한 회사 사실과 후속 메시지 지침을 넣는다. 1–2문장, 질문 억제 등의 기존 작성 지침도 유지되어 있다. |
 | Gmail 읽기 연결 완료 | [background/prompt.ts](../background/prompt.ts)의 `gmail_connected` 사건을 원래 대화에 전달한다. Career LLM이 기존 맥락과 연결된 메일에서 확인할 내용, 다음 실행을 위해 남길 개인 기록을 판단한다. |
-| 예약 작업, source 변화, 평가 완료, 회사 후속 연락 의무 등 background invocation | [background/prompt.ts](../background/prompt.ts)의 `renderCareerBackgroundInvocation`. 위임 목적·source/ref/revision·평가/오류·후속 연락 사실을 넣고, 별도 background 실행·이메일 전달 계약을 적용한다. [background/server.ts](../background/server.ts)는 최근 실제 발송 이력도 제공한다. 일반 foreground 채팅과 별도 호출이다. |
+| 예약 작업, source 변화, 평가 완료, 회사 후속 연락 의무 등 background invocation | [background/prompt.ts](../background/prompt.ts)의 `renderCareerBackgroundInvocation`. 위임 목적·source/ref/revision·평가/오류·후속 연락 사실을 넣고, 별도 background 실행·이메일 전달 계약을 적용한다. [background/server.ts](../background/server.ts)는 최근 실제 발송 이력도 제공한다. 일반 foreground 채팅과 별도 호출이다. background 실행은 selector 없이 고정 묶음으로 시작한다. 정기 실행(`isScheduledCareerRun`)은 여기에 `opportunities`와 `opportunity_search`를 더해 저장된 검색, 후보, 역할 읽기, 게시 도구를 첫 호출부터 쓴다([scheduledModel.ts](../background/scheduledModel.ts)의 `careerBackgroundPreload`, 2026-11-24 로컬). 정기 확인 예약, 매칭을 이어 가는 예약, 공개 자료 변화처럼 탐색을 잇는 정기 실행(`isCareerDiscoveryRun`)은 재방문처럼 그 매칭에서 아직 추천하지 않은 상위 후보 10개와 검색 상태를 함께 받는다. |
 
 [chatTurn.ts](../chatTurn.ts)는 사용자 텍스트 없이 proactive context만 있는 호출에서도 실제 대화 이력을 유지한다. 재접속 호출은 과거 이력 뒤에 실제 앱 사건을 명시한 provider `user` 메시지를 붙여 새 턴을 연다. 이는 사용자 발화나 새로운 동의가 아니며 대화 DB에 저장하지 않는다. 재접속 지침은 이 사건 입력에 한 번만 넣고, 준비된 추천 사실은 runtime context에 둔다. 다른 proactive 호출은 기존 runtime context를 사용한다. 큐/비동기 재개는 원래 호출의 context와 reply 식별자를 보존한다.
 
@@ -82,6 +95,6 @@
 
 ## 개발용 프롬프트 교체
 
-[promptExperiment.server.ts](./promptExperiment.server.ts), [promptExperiment.ts](./promptExperiment.ts)는 production이 아닌 환경에서 허용된 요청의 `v1/v2/v3` 파일을 읽는다. `.local/healingpaper-input-audit/06-prompts-only*.txt`의 section으로 기본 지침·capability 설명·handbook 본문을 교체/제거할 수 있다. 기본 프롬프트 override는 `career_main` 한 section을 사용한다. 기존 실험 파일/저장 snapshot의 세 section(`chat_core`, `default_conversation_guidance`, `autonomous_career_work`)은 호환을 위해 읽을 때만 연결한다. 이 override가 선택된 개발 요청에서는 `mainPrompts.ts` 원문과 실제 입력이 다를 수 있다. production에서는 이 파일 override를 적용하지 않는다.
+[promptExperiment.server.ts](./promptExperiment.server.ts), [promptExperiment.ts](./promptExperiment.ts)는 production이 아닌 환경에서 허용된 요청의 `v1/v2/v3` 파일을 읽는다. `.local/healingpaper-input-audit/06-prompts-only*.txt`의 section으로 기본 지침·capability 설명·handbook 본문을 교체/제거할 수 있다. 기본 프롬프트 override는 `career_main` 한 section을 사용한다. 기존 실험 파일/저장 snapshot의 세 section(`chat_core`, `default_conversation_guidance`, `autonomous_career_work`)은 호환을 위해 읽을 때만 연결한다. 이 override가 선택된 개발 요청에서는 main.md 원문과 실제 입력이 다를 수 있다. production에서는 이 파일 override를 적용하지 않는다.
 
-기존 전체 경로/이전 구조 설명은 [conditional-prompts.md](./conditional-prompts.md)에 보존되어 있다. 일반 텍스트 채팅의 현재 기본 프롬프트와 남은 추가 입력 범위는 이 문서를 우선한다.
+기존 전체 경로/이전 구조 설명은 [archive/conditional-prompts.md](./archive/conditional-prompts.md)에 보존되어 있다. 일반 텍스트 채팅의 현재 기본 프롬프트와 남은 추가 입력 범위는 이 문서를 우선한다.

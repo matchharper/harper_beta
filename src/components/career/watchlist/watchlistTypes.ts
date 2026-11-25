@@ -35,6 +35,7 @@ export type CompanyLeadershipPerson = {
   linkedinUrl: string | null;
   name: string;
   previousCompanies: string[];
+  profilePictureUrl?: string | null;
   role: string | null;
 };
 

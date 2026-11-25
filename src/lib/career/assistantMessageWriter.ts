@@ -2,7 +2,7 @@ import { parseRecommendJobPostingStatusLog } from "@/lib/talentOnboarding/recomm
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { toTalentMessageResponse, type TalentMessageRow, type TalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { withIsMobile } from "@/lib/requestDevice";
-import { CAREER_TURN_ACTIVITY, readCareerTurnEvents, type CareerTurnEvent } from "./turnDisplay";
+import { CAREER_TURN_ACTIVITY, readCareerTurnEvents, type CareerTurnEvent, type CareerTurnToolCall } from "./turnDisplay";
 import { readCareerTurnPlan, type CareerTurnPlanItem } from "./turnPlan";
 
 /** A stable public activity row, followed by an append-only final reply.
@@ -19,6 +19,8 @@ export async function createCareerAssistantMessageWriter(args: {
   check?: () => Promise<unknown>;
   /** Direct transport; transient text never needs a DB round trip to be visible. */
   onLiveMessage?: (message: Omit<TalentMessageResponse, "id"> & { id: string }) => void;
+  /** Local development only: the tool call behind the log at this index. */
+  toolOfLog?: (index: number) => CareerTurnToolCall | undefined;
 }) {
   const table = () => args.admin.from("talent_messages");
   const { data: previous, error } = await table().select("*")
@@ -34,6 +36,8 @@ export async function createCareerAssistantMessageWriter(args: {
   // A resumed attempt continues the same reply, so its checklist continues too.
   let plan: CareerTurnPlanItem[] = readCareerTurnPlan(previousPayload?.workPlan) ?? [];
   let applicationCheck = previousPayload?.workApplicationCheck === true;
+  // A resumed attempt numbers its model responses after the earlier attempt's.
+  const toolCallOffset = Math.max(0, ...events.map(event => event.tool?.call ?? 0));
   let segment = "";
   let segmentStartedAt: string | undefined;
   let segmentChunks: Array<{ text: string; createdAt: string }> = [];
@@ -44,7 +48,9 @@ export async function createCareerAssistantMessageWriter(args: {
   let writes: Promise<unknown> = Promise.resolve();
   const appendLogs = (next: string[]) => {
     for (let i = seenLogs.length; i < next.length; i++) {
-      if (!parseRecommendJobPostingStatusLog(next[i])) events.push({ id: `tool:${events.length}`, kind: "tool", text: next[i], createdAt: new Date().toISOString() });
+      const tool = args.toolOfLog?.(i);
+      if (!parseRecommendJobPostingStatusLog(next[i])) events.push({ id: `tool:${events.length}`, kind: "tool", text: next[i], createdAt: new Date().toISOString(),
+        ...(tool ? { tool: { name: tool.name, call: tool.call + toolCallOffset } } : {}) });
       logs.push(next[i]);
     }
     seenLogs = [...next];

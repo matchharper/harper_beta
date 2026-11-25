@@ -16,7 +16,7 @@ import { runToolCall, unwrapToolCall } from "@/lib/llm/toolExecution";
 import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollowedCompanies } from "../companies/preparation";
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
 import { readCompanyIntroContext } from "./companyIntro";
-import { getScheduledCareerModelOptions, isScheduledCareerRun } from "./scheduledModel";
+import { getScheduledCareerModelOptions, isCareerDiscoveryRun, isScheduledCareerRun } from "./scheduledModel";
 import { CAREER_REPLY_UNSEEN_TRIGGER } from "./unseenReply";
 
 export async function readCareerBackgroundRun(admin: TalentAdminClient, runId: string) {
@@ -134,6 +134,7 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
         runId: run.id,
         trigger: run.trigger,
         scheduledWork: isScheduledCareerRun(run),
+        discovery: isScheduledCareerRun(run) && isCareerDiscoveryRun(run),
         matchingIds, researchMatchingId,
         ...(continuesChat ? { replyChannel: "chat" as const } : {}),
         ...(run.trigger === "gmail_connected" ? { gmailConnectionGeneration: run.trigger_payload.gmailConnectionGeneration } : {}),

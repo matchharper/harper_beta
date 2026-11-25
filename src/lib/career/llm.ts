@@ -1527,6 +1527,8 @@ async function runCareerChatAssistantImpl(args: {
   executeTool: (args: {
     callId?: string;
     input: Record<string, unknown>;
+    /** Index of the model response that requested this call. */
+    loop?: number;
     name: string;
   }) => Promise<unknown>;
   messages: Array<{
@@ -1861,6 +1863,7 @@ async function runCareerChatAssistantImpl(args: {
                 callId: toolCall.id,
                 name: toolCall.name,
                 input: toolInput,
+                loop,
               });
               if (capabilityStep)
                 await observeToolCall(() =>
@@ -2080,6 +2083,8 @@ async function runCareerChatAssistantStreamImpl(args: {
   executeTool: (args: {
     callId?: string;
     input: Record<string, unknown>;
+    /** Index of the model response that requested this call. */
+    loop?: number;
     name: string;
   }) => Promise<unknown>;
   messages: Array<{
@@ -2437,6 +2442,7 @@ async function runCareerChatAssistantStreamImpl(args: {
                 callId: toolCall.id,
                 name: toolCall.name,
                 input: toolInput,
+                loop,
               });
               if (capabilityStep)
                 await observeToolCall(() =>

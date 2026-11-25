@@ -497,6 +497,8 @@ export async function runTalentAssistantToolLoop(args: {
   executeTool: (args: {
     callId?: string;
     input: Record<string, unknown>;
+    /** Index of the model response that requested this call. */
+    loop?: number;
     name: string;
   }) => Promise<unknown>;
   maxToolLoops?: number;
@@ -744,6 +746,7 @@ export async function runTalentAssistantToolLoop(args: {
           callId: toolCallId,
           name: toolName,
           input: parsedArguments,
+          loop,
         });
             if (capabilityStep) await observeToolCall(() => args.toolRuntime!.recordResult(toolName, result, capabilityStep, parsedArguments, toolCallId));
             return result;

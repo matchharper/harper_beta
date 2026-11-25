@@ -718,7 +718,7 @@
   }
 }
 @media (min-width: 1024px) {
-  .career-workspace-body[data-panel="history"]:not([data-call="true"]):has([data-opportunity-detail]) {
+  .career-workspace-body[data-panel="history"]:not([data-call="true"]):has(:is([data-opportunity-detail], [data-career-wide-page])) {
     grid-template-columns: minmax(0, 1fr) clamp(var(--career-panel-width), 50%, 660px);
   }
 }

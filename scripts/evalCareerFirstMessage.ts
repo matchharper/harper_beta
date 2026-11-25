@@ -44,7 +44,7 @@ async function main() {
   const { selectCareerPreloads } = await import("@/lib/career/capabilities/decisions");
   const { runCareerChatAssistant } = await import("@/lib/career/llm");
   const { renderCareerBackgroundInvocation } = await import("@/lib/career/background/prompt");
-  const { CAREER_BACKGROUND_PRELOAD, getScheduledCareerModelOptions } = await import("@/lib/career/background/scheduledModel");
+  const { careerBackgroundPreload, getScheduledCareerModelOptions } = await import("@/lib/career/background/scheduledModel");
   const { formatTalentMessageContentForLlmPrompt, formatTalentConversationReferencesForLlm } = await import("@/lib/career/opportunityFeedbackNote");
   const { buildTalentProfileContext } = await import("@/lib/talentOnboarding/profileStore");
   const { renderTalentContextPrompt } = await import("@/lib/talentOnboarding/talentContexts");
@@ -178,7 +178,7 @@ async function main() {
     assert.ok(spec, `Unknown case ${renderOnly}`);
     const prepared = prepare(spec);
     const runtime = new CareerCapabilityRuntime({ mode: capabilityMode, eligibleTools: prepared.tools, promptArgs: () => prepared.promptArgs as any,
-      selection: prepared.scheduled ? CAREER_BACKGROUND_PRELOAD : { capabilityIds: [], handbookIds: [], status: "selected", elapsedMs: 0 } });
+      selection: prepared.scheduled ? careerBackgroundPreload({ scheduledWork: true }) : { capabilityIds: [], handbookIds: [], status: "selected", elapsedMs: 0 } });
     const step = runtime.resolveStep(false);
     console.log(step.systemBlocks.map(block => `<<${block.key}>>\n${block.text}`).join("\n\n"));
     console.log("\n<<messages>>\n" + prepared.llmMessages.map((m: Row) => `${m.role}: ${m.content}`).join("\n"));
@@ -223,7 +223,7 @@ async function main() {
     const extra = extraExecutors(spec, sent);
     const ajv = new Ajv({ strict: false, allowUnionTypes: true, validateFormats: false });
     const validators = new Map(prepared.tools.map(tool => [tool.function.name, ajv.compile(tool.function.parameters)]));
-    const selection = prepared.scheduled ? CAREER_BACKGROUND_PRELOAD : await selectCareerPreloads({ eligibleNames: new Set(prepared.toolNames), eligibleTools: prepared.tools,
+    const selection = prepared.scheduled ? careerBackgroundPreload({ scheduledWork: true }) : await selectCareerPreloads({ eligibleNames: new Set(prepared.toolNames), eligibleTools: prepared.tools,
       input: { messages: prepared.llmMessages, currentContext: ["Gmail: not_connected.", prepared.proactiveContext].join("\n\n") },
       activeHandbooks: [], signal, background: false });
     const runtime = new CareerCapabilityRuntime({

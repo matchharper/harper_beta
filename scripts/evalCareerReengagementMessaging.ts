@@ -57,7 +57,7 @@ async function main() {
     "src/lib/career/prompts/cases/lifecyclePrompts.ts",
     "src/lib/career/prompts/conversationPlan.ts",
     "src/lib/career/prompts/mainPrompts.ts",
-    "src/lib/career/prompts/mainPrompt2.ts",
+    "src/lib/career/prompts/main.md",
     "src/lib/career/llm.ts",
     "src/lib/llm/providerTrace.ts",
     "src/lib/career/textChatModelConfig.ts",

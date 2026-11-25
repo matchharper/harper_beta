@@ -24,7 +24,8 @@ async function main() {
       mode: 0o600,
     });
   const sources = [
-    "src/lib/career/prompts/mainPrompt2.ts",
+    "src/lib/career/prompts/main.md",
+    "src/lib/career/prompts/textChatDisplay.ts",
     "src/lib/career/prompts/conversationPlan.ts",
     "src/lib/career/prompts/mainPrompts.ts",
     "src/lib/career/llm.ts",

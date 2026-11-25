@@ -1,9 +1,25 @@
-// Read-only SQL behind /ops/update-metrics (배포 전후 비교 지표).
+// Read-only SQL behind /ops/update-metrics (배포 후 실험중인 지표). 화면 원칙은 updateMetrics.ts 맨 위 주석에 있다.
 // Shared parameters: $1 window start, $2 window end (timestamptz), $3 excluded email terms.
 // The people and test-only Role rules match /ops/metrics (talentMetricsOverview.sql.ts).
+// Rows that count per day carry their KST date (`day`); the screen adds days into weeks itself.
 
 import { OPERATIONAL_OPPORTUNITY_FEEDBACK_REASON } from "@/lib/career/opportunityFeedbackSignals";
+import { CAREER_REPLY_UNSEEN_TRIGGER } from "@/lib/career/background/unseenReply";
 import { TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST } from "@/lib/talentOnboarding/onboarding";
+
+/** How long after an email an action still counts as a response to it. */
+export const EMAIL_ACTION_WINDOW_HOURS = 72;
+
+/**
+ * A turn the person sent Harper in chat: typed, or sent by a chat button (more open positions, an introduction
+ * request, a form answer). Onboarding submission, card save/exclude notes, calls and mail are not chat turns.
+ */
+const CHAT_MESSAGE_TYPES = String.raw`(
+  'chat',
+  '${TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST}',
+  'agent_introduction_action',
+  'career_form_response'
+)`;
 
 const BASE_CTES = String.raw`
 included_users as materialized (
@@ -89,19 +105,12 @@ select
   signups.user_id::text as "userId",
   signups.created_at as "signedUpAt",
   signups.has_materials as "hasMaterials",
-  -- A turn the person sent Harper in chat: typed, or sent by a chat button (more open positions, an introduction
-  -- request, a form answer). Onboarding submission, card save/exclude notes, calls and mail are not chat turns.
   (
     select min(message.created_at)
     from public.talent_messages message
     where message.user_id = signups.user_id
       and message.role = 'user'
-      and coalesce(message.message_type, 'chat') in (
-        'chat',
-        '${TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST}',
-        'agent_introduction_action',
-        'career_form_response'
-      )
+      and coalesce(message.message_type, 'chat') in ${CHAT_MESSAGE_TYPES}
   ) as "firstChatAt",
   (
     select min(log.created_at)
@@ -166,9 +175,8 @@ group by signups.user_id
 `;
 
 /**
- * Recommendations made outside the Worker's scheduled runs, per week ($4: the sorted week boundaries; $1 and $2 are its
- * first and last): all of them and those that are not an official posting — a company itself (company_workspace_id)
- * or a hiring post (company_roles.information.hiringPost).
+ * Recommendations made outside the Worker's scheduled runs, per KST day: all of them and those that are not an official
+ * posting — a company itself (company_workspace_id) or a hiring post (company_roles.information.hiringPost).
  */
 export const UPDATE_METRICS_RECOMMENDATIONS_SQL = String.raw`
 with ${BASE_CTES},
@@ -193,11 +201,10 @@ recommendations as materialized (
     and not exists (select 1 from test_only_roles test_role where test_role.role_id = recommendation.role_id)
 )
 select
-  width_bucket(recommended_at, $4::timestamptz[]) - 1 as "bucketIndex",
+  to_char(recommended_at at time zone 'Asia/Seoul', 'YYYY-MM-DD') as "day",
   count(*)::int as "total",
   count(*) filter (where coalesce(is_company, false))::int as "company",
-  count(*) filter (where coalesce(is_hiring_post, false) and not coalesce(is_company, false))::int as "hiringPost",
-  count(distinct talent_id) filter (where coalesce(is_company, false) or coalesce(is_hiring_post, false))::int as "nonPostingTalents"
+  count(*) filter (where coalesce(is_hiring_post, false) and not coalesce(is_company, false))::int as "hiringPost"
 from recommendations
 group by 1
 order by 1
@@ -238,4 +245,129 @@ export const UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL = String.raw`
 select slug
 from public.official_jobs
 where role_id is null
+`;
+
+/**
+ * Whether the person acted within 72 hours after `${at}`: a reply email, a chat turn, or a reaction to an opportunity
+ * (feedback or a saved-stage change). `${talent}` is their id. Used for every email Harper sent.
+ */
+const ACTED_AFTER = (talent: string, at: string) => String.raw`(
+  exists (
+    select 1
+    from public.career_email_messages reply
+    where reply.talent_id = ${talent}
+      and reply.direction = 'inbound'
+      and reply.occurred_at > ${at}
+      and reply.occurred_at <= ${at} + interval '${EMAIL_ACTION_WINDOW_HOURS} hours'
+  )
+  or exists (
+    select 1
+    from public.talent_messages turn
+    where turn.user_id = ${talent}
+      and turn.role = 'user'
+      and coalesce(turn.message_type, 'chat') in ${CHAT_MESSAGE_TYPES}
+      and turn.created_at > ${at}
+      and turn.created_at <= ${at} + interval '${EMAIL_ACTION_WINDOW_HOURS} hours'
+  )
+  or exists (
+    select 1
+    from public.talent_opportunity_recommendation recommendation
+    where recommendation.talent_id = ${talent}
+      and recommendation.feedback_at > ${at}
+      and recommendation.feedback_at <= ${at} + interval '${EMAIL_ACTION_WINDOW_HOURS} hours'
+  )
+  or exists (
+    select 1
+    from public.talent_progress progress
+    where progress.talent_id = ${talent}
+      and progress.kind = 'saved_stage_changed'
+      and progress.created_at > ${at}
+      and progress.created_at <= ${at} + interval '${EMAIL_ACTION_WINDOW_HOURS} hours'
+  )
+)`;
+
+/**
+ * Every email Harper sent a talent (career_email_messages, outbound and sent) per KST send day, split by whether it
+ * carried choice buttons, and how many of each the person acted on within 72 hours. An email had buttons when its
+ * saved Markdown holds a choice block with at least two choices, the rule the renderer uses
+ * (src/lib/career/choiceButtons.ts).
+ */
+export const UPDATE_METRICS_EMAILS_SQL = String.raw`
+with ${BASE_CTES},
+emails as materialized (
+  select
+    mail.talent_id,
+    mail.occurred_at,
+    exists (
+      select 1
+      from regexp_matches(
+        coalesce(message.content, ''),
+        '\[\[CAREER_CHOICE_BUTTONS\]\](.*?)\[\[/CAREER_CHOICE_BUTTONS\]\]',
+        'g'
+      ) block(parts)
+      cross join lateral (select btrim(block.parts[1]) as payload) choice
+      where case
+        when not pg_input_is_valid(choice.payload, 'jsonb') then 0
+        when jsonb_typeof(choice.payload::jsonb) = 'array' then jsonb_array_length(choice.payload::jsonb)
+        when jsonb_typeof(choice.payload::jsonb -> 'choices') = 'array' then jsonb_array_length(choice.payload::jsonb -> 'choices')
+        else 0
+      end >= 2
+    ) as has_choices
+  from public.career_email_messages mail
+  join included_users users on users.user_id = mail.talent_id
+  left join public.talent_messages message on message.id = mail.talent_message_id
+  where mail.direction = 'outbound'
+    and mail.status = 'sent'
+    and mail.occurred_at >= $1::timestamptz
+    and mail.occurred_at < $2::timestamptz
+),
+acted as (
+  select
+    to_char(emails.occurred_at at time zone 'Asia/Seoul', 'YYYY-MM-DD') as day,
+    emails.has_choices,
+    ${ACTED_AFTER("emails.talent_id", "emails.occurred_at")} as acted
+  from emails
+)
+select
+  day as "day",
+  count(*) filter (where has_choices)::int as "choiceEmails",
+  count(*) filter (where has_choices and acted)::int as "choiceActed",
+  count(*) filter (where not has_choices)::int as "plainEmails",
+  count(*) filter (where not has_choices and acted)::int as "plainActed"
+from acted
+group by day
+order by day
+`;
+
+/**
+ * Replies a person left unseen in Career (Career runs with trigger career_reply_unseen) per KST day of the run: how
+ * many the agent reviewed, how many it emailed (a sent email delivery from that run), and how many of those emails the
+ * person acted on within 72 hours.
+ */
+export const UPDATE_METRICS_UNSEEN_REPLIES_SQL = String.raw`
+with ${BASE_CTES},
+runs as materialized (
+  select run.id, run.talent_id, run.created_at
+  from public.opportunity_discovery_run run
+  join included_users users on users.user_id = run.talent_id
+  where run.trigger = '${CAREER_REPLY_UNSEEN_TRIGGER}'
+    and run.created_at >= $1::timestamptz
+    and run.created_at < $2::timestamptz
+),
+sent as materialized (
+  select runs.id as run_id, min(delivery.sent_at) as sent_at
+  from runs
+  join public.talent_opportunity_delivery delivery on delivery.discovery_run_id = runs.id
+  where delivery.channel = 'email' and delivery.status = 'sent' and delivery.sent_at is not null
+  group by runs.id
+)
+select
+  to_char(runs.created_at at time zone 'Asia/Seoul', 'YYYY-MM-DD') as "day",
+  count(*)::int as "reviewed",
+  count(sent.run_id)::int as "emailed",
+  count(sent.run_id) filter (where ${ACTED_AFTER("runs.talent_id", "sent.sent_at")})::int as "acted"
+from runs
+left join sent on sent.run_id = runs.id
+group by 1
+order by 1
 `;

@@ -20,6 +20,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tooltips } from "@/components/ui/tooltip";
+import {
+  changeMarkLines,
+  OpsChartTooltipBox,
+  OpsSeriesTooltip,
+  useOpenChanges,
+  useOpsChangeMarks,
+} from "@/components/ops/metrics/OpsChartTooltip";
+import type { OpsTalentChartKey } from "@/lib/ops/updateMetrics";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ACTIVITY_WEEKDAYS, latestObservedWeekday, weeklyActivityChartPoints, type WeeklyActivityChartPoint } from "@/lib/ops/talentMetricsPresentation";
 import type {
@@ -55,16 +63,6 @@ type ChartSeries = {
 };
 
 const RECOMMENDATION_COUNT_DISPLAY_DIVISOR = 5;
-
-const tooltipStyle = {
-  background: "var(--color-popover)",
-  border: "var(--popover-border-width) solid var(--color-popover-border)",
-  borderRadius: "var(--radius-popover)",
-  boxShadow: "var(--shadow-popover)",
-  backdropFilter: "blur(var(--blur-popover))",
-  color: "var(--color-popover-foreground)",
-  fontSize: "12px",
-};
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
@@ -105,6 +103,7 @@ function ChartTitle({
 }
 
 function MetricChart({
+  changeChart,
   data,
   description,
   leftAxisFormatter,
@@ -113,6 +112,8 @@ function MetricChart({
   series,
   title,
 }: {
+  /** Which tracked changes this chart marks (OpsChartTooltip). */
+  changeChart: OpsTalentChartKey;
   data: TrendPoint[];
   description: string;
   leftAxisFormatter?: (value: number) => string;
@@ -123,6 +124,8 @@ function MetricChart({
 }) {
   const seriesByKey = new Map(series.map((item) => [item.key, item]));
   const hasRightAxis = series.some((item) => item.axis === "right");
+  const marks = useOpsChangeMarks(changeChart, data);
+  const openChanges = useOpenChanges();
   return (
     <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
       <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -182,21 +185,20 @@ function MetricChart({
                 yAxisId="right"
               />
             ) : null}
+            {changeMarkLines(marks, openChanges, { yAxisId: "left" })}
             <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(value, name) => {
-                const definition = seriesByKey.get(
-                  String(name) as ChartSeries["key"]
-                );
-                const numericValue = Number(value);
-                return [
-                  definition?.formatter?.(numericValue) ??
-                    formatDecimal(numericValue),
-                  definition?.label ?? String(name),
-                ];
-              }}
-              labelFormatter={(_, payload) =>
-                String(payload?.[0]?.payload?.fullLabel ?? "")
+              content={
+                <OpsSeriesTooltip
+                  chart={changeChart}
+                  describe={(key, value) => {
+                    const definition = seriesByKey.get(key as ChartSeries["key"]);
+                    return {
+                      color: definition?.color,
+                      label: definition?.label ?? key,
+                      value: definition?.formatter?.(value) ?? formatDecimal(value),
+                    };
+                  }}
+                />
               }
             />
             {series.map((item) =>
@@ -245,6 +247,7 @@ function hasTrendValues(
 }
 
 function ActivityChart({
+  changeChart,
   color,
   data,
   description,
@@ -254,6 +257,7 @@ function ActivityChart({
   trendLabel,
   type,
 }: {
+  changeChart: OpsTalentChartKey;
   color: string;
   data: Array<
     OpsTalentMetricDailyActivityPoint | OpsTalentMetricRetentionPoint
@@ -267,6 +271,8 @@ function ActivityChart({
   type: "bar" | "line";
 }) {
   const showTrend = Boolean(trendLabel) && type === "bar" && hasTrendValues(data);
+  const marks = useOpsChangeMarks(changeChart, data);
+  const openChanges = useOpenChanges();
   return (
     <section className="min-w-0 border-t border-neutral-1000-a05 py-5 lg:px-5 lg:first:pl-0 lg:last:pr-0">
       <div className="flex min-h-8 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -308,20 +314,25 @@ function ActivityChart({
               tickLine={false}
               width={42}
             />
+            {changeMarkLines(marks, openChanges)}
             <Tooltip
-              contentStyle={tooltipStyle}
-              formatter={(value, name) =>
-                name === TREND_KEY
-                  ? [Math.round(Number(value)).toLocaleString("ko-KR"), trendLabel ?? ""]
-                  : [
-                      percent
-                        ? formatPercent(Number(value))
-                        : Number(value).toLocaleString("ko-KR"),
-                      title,
-                    ]
-              }
-              labelFormatter={(_, payload) =>
-                String(payload?.[0]?.payload?.fullLabel ?? "")
+              content={
+                <OpsSeriesTooltip
+                  chart={changeChart}
+                  describe={(key, value) =>
+                    key === TREND_KEY
+                      ? {
+                          color: TREND_COLOR,
+                          label: trendLabel ?? "",
+                          value: Math.round(value).toLocaleString("ko-KR"),
+                        }
+                      : {
+                          color,
+                          label: title,
+                          value: percent ? formatPercent(value) : value.toLocaleString("ko-KR"),
+                        }
+                  }
+                />
               }
             />
             {type === "bar" ? (
@@ -383,32 +394,30 @@ function WeeklyActivityTooltip({
   const counts = point?.weekdayCumulativeActiveTalentCounts;
   if (!active || !point || !counts) return null;
   return (
-    <div className="rounded-popover border border-popover-border bg-popover p-3 text-xs text-popover-foreground shadow-(--shadow-popover)">
-      <div className="mb-2 font-medium">{point.fullLabel}</div>
-      {ACTIVITY_WEEKDAYS.slice(0, throughDay + 1).map((day, index) => (
-        <div className="flex items-center justify-between gap-5 py-0.5" key={day.key}>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: WEEKDAY_COLORS[index] }} />
-            {day.label}요일까지
-          </span>
-          <span className="tabular-nums">
-            {counts[index] == null
-              ? "집계 전"
-              : `${counts[index].toLocaleString("ko-KR")}명`}
-          </span>
-        </div>
-      ))}
-    </div>
+    <OpsChartTooltipBox
+      chart="wau"
+      point={point}
+      rows={ACTIVITY_WEEKDAYS.slice(0, throughDay + 1).map((day, index) => ({
+        color: WEEKDAY_COLORS[index],
+        key: day.key,
+        label: `${day.label}요일까지`,
+        value: counts[index] == null ? "집계 전" : `${counts[index].toLocaleString("ko-KR")}명`,
+      }))}
+      title={point.fullLabel}
+    />
   );
 }
 
 function WeeklyActivityChart({ data }: { data: OpsTalentMetricRetentionPoint[] }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const marks = useOpsChangeMarks("wau", data);
+  const openChanges = useOpenChanges();
   // Existing RPCs and cached responses contain only the whole-week total.
   // Keep that total readable until weekday counts are available for every week.
   if (data.some((point) => point.weekdayCumulativeActiveTalentCounts == null)) {
     return (
       <ActivityChart
+        changeChart="wau"
         color="var(--color-action)"
         data={data}
         description="월요일부터 일요일까지 각 주에 한 번 이상 활동한 고유 인원입니다. 진행 중인 주는 현재까지 집계합니다. 요일별 데이터가 아직 없어 주별 전체 값을 표시합니다."
@@ -449,6 +458,7 @@ function WeeklyActivityChart({ data }: { data: OpsTalentMetricRetentionPoint[] }
             <CartesianGrid stroke="color-mix(in srgb, var(--color-neutral-1000) 6%, transparent)" vertical={false} />
             <XAxis axisLine={false} dataKey="label" fontSize={11} minTickGap={20} tick={{ fill: "var(--color-neutral-soft)" }} tickLine={false} />
             <YAxis allowDecimals={false} axisLine={false} domain={[0, "auto"]} fontSize={11} tick={{ fill: "var(--color-neutral-soft)" }} tickLine={false} width={42} />
+            {changeMarkLines(marks, openChanges)}
             <Tooltip content={<WeeklyActivityTooltip throughDay={throughDay} />} />
             {ACTIVITY_WEEKDAYS.slice(0, throughDay + 1).map((day, index) => (
               <Bar key={day.key} dataKey={day.key} fill={WEEKDAY_COLORS[index]} maxBarSize={32} stackId="weekly-active" isAnimationActive={false} />
@@ -622,6 +632,7 @@ export function OpsTalentMetricsConversionCharts({
             type: "line",
           },
         ]}
+        changeChart="recommendationFeedback"
         title="추천 수락 · 거절"
       />
       <MetricChart
@@ -646,6 +657,7 @@ export function OpsTalentMetricsConversionCharts({
             type: "line",
           },
         ]}
+        changeChart="internalAcceptance"
         title="Internal 추천 수락률"
       />
     </div>
@@ -681,6 +693,7 @@ export function OpsTalentMetricsEngagementCharts({
             type: "line",
           },
         ]}
+        changeChart="messages"
         title="사용자 메시지"
       />
       <ActivityChart
@@ -688,6 +701,7 @@ export function OpsTalentMetricsEngagementCharts({
         data={dailyActivity}
         description="날짜별 고유 활성 talent입니다. 메시지, 로그인, Career 행동, 추천 열람·클릭·피드백을 활동으로 봅니다. Harper가 talent 대신 실행한 작업은 세지 않습니다. 선: 7일 평균(그날 포함 지난 7일 DAU의 평균, 진행 중인 오늘 제외). 날마다 센 인원의 평균이라 WAU(7일 동안의 고유 인원)와 다릅니다."
         metricKey="activeTalentCount"
+        changeChart="dau"
         title="DAU"
         trendLabel="7일 평균"
         type="bar"
@@ -755,33 +769,32 @@ function SeriesLegend({ items }: { items: OverviewSeries[] }) {
 
 function OverviewSeriesTooltip({
   active,
+  chart,
   payload,
   series,
 }: {
   active?: boolean;
+  chart: OpsTalentChartKey;
   payload?: ReadonlyArray<{ payload?: OpsTalentMetricOverviewTrendPoint }>;
   series: OverviewSeries[];
 }) {
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
   return (
-    <div className="rounded-popover border border-popover-border bg-popover p-3 text-xs text-popover-foreground shadow-(--shadow-popover)">
-      <div className="mb-2 font-medium">{point.fullLabel}</div>
-      {series.map((item) => {
+    <OpsChartTooltipBox
+      chart={chart}
+      point={point}
+      rows={series.map((item) => {
         const value = point[item.key];
-        return (
-          <div className="flex items-center justify-between gap-5 py-0.5" key={item.key}>
-            <span className="inline-flex items-center gap-2">
-              <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: item.color }} />
-              {item.label}
-            </span>
-            <span className="tabular-nums">
-              {typeof value === "number" ? item.format(value) : "-"}
-            </span>
-          </div>
-        );
+        return {
+          color: item.color,
+          key: item.key,
+          label: item.label,
+          value: typeof value === "number" ? item.format(value) : "-",
+        };
       })}
-    </div>
+      title={point.fullLabel}
+    />
   );
 }
 
@@ -791,10 +804,12 @@ function OverviewSeriesTooltip({
  * values themselves.
  */
 function OverviewTrendChart({
+  changeChart,
   lines = [],
   nested,
   trend,
 }: {
+  changeChart: OpsTalentChartKey;
   lines?: OverviewSeries[];
   nested?: { inner: OverviewSeries; outer: OverviewSeries };
   trend: OpsTalentMetricOverviewTrendPoint[];
@@ -812,6 +827,8 @@ function OverviewTrendChart({
   const series = [...(nested ? [nested.outer, nested.inner] : []), ...lines];
   const left = nested?.outer ?? lines.find((line) => line.axis !== "right");
   const right = lines.find((line) => line.axis === "right");
+  const marks = useOpsChangeMarks(changeChart, trend);
+  const openChanges = useOpenChanges();
   return (
     <ResponsiveContainer height="100%" width="100%">
       <ComposedChart data={data} margin={{ left: 0, right: 6, top: 8 }}>
@@ -852,7 +869,8 @@ function OverviewTrendChart({
             yAxisId="right"
           />
         ) : null}
-        <Tooltip content={<OverviewSeriesTooltip series={series} />} />
+        {changeMarkLines(marks, openChanges, { yAxisId: "left" })}
+        <Tooltip content={<OverviewSeriesTooltip chart={changeChart} series={series} />} />
         {/* recharts 2 finds Bar children by type, so they cannot sit inside a fragment. */}
         {nested ? (
           <Bar
@@ -926,6 +944,7 @@ function ApplySuccessChart({ trend }: { trend: OpsTalentMetricOverviewTrendPoint
       </div>
       <div className="mt-3 h-[260px] w-full">
         <OverviewTrendChart
+          changeChart="applySuccess"
           lines={[APPLY_SUCCESS_RATE]}
           nested={{ inner: APPLY_SUBMITTED, outer: APPLY_CONFIRMED }}
           trend={trend}
@@ -975,6 +994,7 @@ function ApplyDelegationChart({ trend }: { trend: OpsTalentMetricOverviewTrendPo
       </div>
       <div className="mt-3 h-[260px] w-full">
         <OverviewTrendChart
+          changeChart="applyDelegation"
           lines={[APPLY_HARPER_96H_RATE, APPLY_HARPER_96H_TALENTS]}
           nested={{ inner: APPLY_HARPER_24H, outer: APPLY_CLICK_24H }}
           trend={trend}
@@ -1012,6 +1032,7 @@ export function OpsTalentMetricsOverviewCharts({
             type: "bar",
           },
         ]}
+        changeChart="connections"
         title="연결 추이"
       />
       <MetricChart
@@ -1025,6 +1046,7 @@ export function OpsTalentMetricsOverviewCharts({
           stack: "signups",
           type: "bar" as const,
         }))}
+        changeChart="signups"
         title="신규 가입 · 채널별"
       />
       <MetricChart
@@ -1039,6 +1061,7 @@ export function OpsTalentMetricsOverviewCharts({
             type: "bar",
           },
         ]}
+        changeChart="activeTalents"
         title="활동 유저"
       />
       <MetricChart
@@ -1061,6 +1084,7 @@ export function OpsTalentMetricsOverviewCharts({
             type: "line",
           },
         ]}
+        changeChart="gmail"
         title="Gmail 연동률"
       />
       <ApplyDelegationChart trend={trend} />

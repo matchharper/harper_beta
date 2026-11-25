@@ -5,7 +5,10 @@ export type CareerTurnEvent = {
   text: string;
   createdAt?: string;
   chunks?: Array<{ text: string; createdAt: string }>;
+  /** Local development only: the tool and which model response called it. */
+  tool?: CareerTurnToolCall;
 };
+export type CareerTurnToolCall = { name: string; call: number };
 export const CAREER_TURN_ACTIVITY = "career_turn_activity";
 
 export function readCareerTurnEvents(value: unknown): CareerTurnEvent[] {

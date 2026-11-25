@@ -33,3 +33,24 @@ test("the scheduled model applies to schedules and daily batches, including reco
   assert.equal(scheduled("company_request_followup_due"), false);
   assert.equal(scheduled("conversation_completed"), false);
 });
+
+test("scheduled work starts with the opportunity tools; other background work keeps its bundle", async () => {
+  const { careerBackgroundPreload, CAREER_BACKGROUND_PRELOAD } = await import("./scheduledModel");
+  assert.deepEqual(careerBackgroundPreload({ scheduledWork: false }), CAREER_BACKGROUND_PRELOAD);
+  assert.deepEqual(careerBackgroundPreload(undefined), CAREER_BACKGROUND_PRELOAD);
+  const scheduled = careerBackgroundPreload({ scheduledWork: true });
+  assert.ok(scheduled.capabilityIds.includes("opportunities"));
+  assert.ok(scheduled.handbookIds.includes("opportunity_search"));
+  for (const id of CAREER_BACKGROUND_PRELOAD.capabilityIds) assert.ok(scheduled.capabilityIds.includes(id));
+});
+
+test("discovery runs are the check-in, a reservation on a matching, or changed public resources", async () => {
+  const { isCareerDiscoveryRun } = await import("./scheduledModel");
+  const run = (sourceEvents: unknown[]) => isCareerDiscoveryRun({ trigger_payload: { sourceEvents } });
+  assert.equal(run([{ sourceKind: "schedule", scheduleKey: "career_check_in" }]), true);
+  assert.equal(run([{ sourceKind: "schedule", targetRefs: { matchingId: "m-1" } }]), true);
+  assert.equal(run([{ sourceKind: "public_discovery" }]), true);
+  assert.equal(run([{ sourceKind: "schedule", scheduleKey: null }]), false);
+  assert.equal(run([{ dailySourceId: "appointment" }]), false);
+  assert.equal(run([]), false);
+});
