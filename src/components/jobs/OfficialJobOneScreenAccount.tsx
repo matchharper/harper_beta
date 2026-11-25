@@ -51,7 +51,7 @@ type LogStep = (
 
 const OTP_MAX_DIGITS = 10;
 
-/** The email-code path of ① 계정: send a 6-digit code, then confirm it (signs the person in). */
+/** The email-code path of ① 계정: send a code (Supabase OTP, 6 to 10 digits by project setting; prod sends 8), then confirm it (signs the person in). */
 export function useOneScreenEmailCode(args: {
   slug: string;
   kind: OfficialJobsOneScreenKind;
