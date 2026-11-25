@@ -29,6 +29,7 @@ import {
   smoothHeadcountMonths,
   type CompanyProfile,
 } from "@/lib/career/companyProfileTypes";
+import { formatCareerLocation } from "@/lib/career/locationDisplay";
 import {
   getFaviconUrlForWebsite,
   getSchoolDisplayName,
@@ -547,8 +548,29 @@ function PeopleSection({
   profile: CompanyProfile | null;
 }) {
   const t = useCareerT();
+  const { locale } = useMessages();
   const people = profile?.people ?? null;
-  if (!people && leaders.length === 0) return null;
+  // The LinkedIn page counts everyone who lists the company, so it replaces
+  // the school counts read from the profiles we collected.
+  const linkedin = profile?.linkedin ?? null;
+  const linkedinTotal = linkedin?.employeeCount ?? 0;
+  const linkedinSchools = linkedin?.schools.length ? linkedin.schools : null;
+  const schools = linkedinSchools ?? people?.schools ?? [];
+  const locations = (linkedin?.locations ?? []).map((location) => ({
+    companyDbId: null,
+    count: location.count,
+    logoUrl: null,
+    mine: false,
+    name: formatCareerLocation(location.name, locale) ?? location.name,
+  }));
+  if (
+    !people &&
+    leaders.length === 0 &&
+    schools.length === 0 &&
+    locations.length === 0
+  ) {
+    return null;
+  }
 
   const otherLabel = t("career.company.page.flow_other", "그 외");
   const muted = (name: string, count: number, tooltip: string) => ({
@@ -700,18 +722,40 @@ function PeopleSection({
           </p>
         </>
       ) : null}
-      {people && people.schools.length > 0 ? (
+      {schools.length > 0 ? (
         <>
           <SubTitle className="mt-6">
             {t("career.company.page.schools", "출신 학교")}
           </SubTitle>
           <OrganizationRanking
-            items={people.schools}
+            items={schools}
             mineLabel={t("career.company.page.my_school", "회원님 모교")}
             school
-            total={people.profileCount}
+            total={linkedinSchools ? linkedinTotal : (people?.profileCount ?? 0)}
           />
         </>
+      ) : null}
+      {locations.length > 0 ? (
+        <>
+          <SubTitle className="mt-6">
+            {t("career.company.page.locations", "지역")}
+          </SubTitle>
+          <OrganizationRanking
+            items={locations}
+            mineLabel=""
+            showLogo={false}
+            total={linkedinTotal}
+          />
+        </>
+      ) : null}
+      {(linkedinSchools || locations.length > 0) && linkedinTotal > 0 ? (
+        <p className="mt-2 text-[12.5px] leading-5 text-neutral-muted">
+          {t(
+            "career.company.page.linkedin_people_caption",
+            "LinkedIn에 이 회사를 적은 {count}명 기준이에요.",
+            { values: { count: linkedinTotal.toLocaleString() } }
+          )}
+        </p>
       ) : null}
     </Section>
   );

@@ -14,6 +14,7 @@ import type {
   CompanyProfile,
   CompanyProfileFunding,
   CompanyProfileHeadcountMonth,
+  CompanyProfileLinkedIn,
   CompanyProfileOrganization,
   CompanyProfilePeople,
 } from "@/lib/career/companyProfileTypes";
@@ -23,6 +24,7 @@ const STATEMENT_TIMEOUT_MS = 15000;
 const MEMBER_LIMIT = 800;
 const TOP_ORGANIZATIONS = 7;
 const TOP_SCHOOLS = 6;
+const TOP_LOCATIONS = 6;
 const MIN_PEOPLE_PROFILES = 20;
 const NPS_LABEL = "국민연금 가입 현황";
 
@@ -191,11 +193,13 @@ export async function fetchCompanyProfile(args: {
     const [companyRow] = await tx<
       {
         crunchbase_information: unknown;
+        employee_count: number | null;
         investors: string | null;
         last_funding_round_description: string | null;
         last_funding_stage: string | null;
         main_investors: string | null;
         nps: string | null;
+        people_stats: unknown;
         total_funding_raised: string | null;
         active_roles: number;
         recent_roles: number;
@@ -207,6 +211,9 @@ export async function fetchCompanyProfile(args: {
       )
       SELECT
         cd.crunchbase_information,
+        CASE WHEN jsonb_typeof(cd.harvestapi_information->'employeeCount') = 'number'
+          THEN (cd.harvestapi_information->>'employeeCount')::float END AS employee_count,
+        cd.harvestapi_information->'peopleStats' AS people_stats,
         cd.investors,
         fund.total_funding_raised,
         fund.main_investors,
@@ -249,6 +256,7 @@ export async function fetchCompanyProfile(args: {
         funding: null,
         headcount: [],
         hiring: { active: 0, recent: 0 },
+        linkedin: null,
         people: null,
       };
     }
@@ -257,6 +265,7 @@ export async function fetchCompanyProfile(args: {
       ? await loadTalentBackground(tx, args.talentId)
       : null;
     const people = await loadPeople(tx, companyDbId, talent);
+    const employeeCount = Number(companyRow.employee_count) || 0;
     const funding = await buildFunding(tx, companyRow);
 
     return {
@@ -267,9 +276,63 @@ export async function fetchCompanyProfile(args: {
         active: Number(companyRow.active_roles ?? 0),
         recent: Number(companyRow.recent_roles ?? 0),
       },
+      linkedin: readLinkedInPeopleStats(
+        employeeCount,
+        companyRow.people_stats,
+        talent
+      ),
       people,
     };
   });
+}
+
+/** Locations and schools from the company's LinkedIn People tab, as harvestapi stored them. */
+function readLinkedInPeopleStats(
+  employeeCount: number,
+  peopleStats: unknown,
+  talent: TalentBackground | null
+): CompanyProfileLinkedIn | null {
+  const groups = Array.isArray(peopleStats) ? peopleStats : [];
+  const stat = (title: string) => {
+    const group = groups.find(
+      (item) => item && typeof item === "object" && item.statTitle === title
+    );
+    const values: unknown[] = Array.isArray(group?.values) ? group.values : [];
+    return values.flatMap((value) => {
+      const row = value as { count?: unknown; title?: unknown };
+      const name = cleanText(row?.title);
+      const count = Number(row?.count);
+      return name && Number.isFinite(count) && count > 0
+        ? [{ count, name }]
+        : [];
+    });
+  };
+
+  const locations = stat("Locations").slice(0, TOP_LOCATIONS);
+  const schoolCounts = new Map<string, { count: number; name: string }>();
+  for (const row of stat("School")) {
+    const key = getSchoolKey(row.name) || normalizeName(row.name);
+    const current = schoolCounts.get(key);
+    schoolCounts.set(key, {
+      count: (current?.count ?? 0) + row.count,
+      name: current?.name ?? findSchool(row.name)?.en ?? row.name,
+    });
+  }
+  const schools = Array.from(schoolCounts.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, TOP_SCHOOLS)
+    .map(([key, school]) => ({
+      companyDbId: null,
+      count: school.count,
+      logoUrl: getSchoolLogoUrl(school.name),
+      mine: Boolean(talent?.schoolKeys.has(key)),
+      name: school.name,
+    }));
+
+  if (!employeeCount && locations.length === 0 && schools.length === 0) {
+    return null;
+  }
+  return { employeeCount: employeeCount || null, locations, schools };
 }
 
 type Tx = TransactionSql;
