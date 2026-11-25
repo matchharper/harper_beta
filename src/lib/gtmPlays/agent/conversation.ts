@@ -112,8 +112,7 @@ export type ConversationStore = {
    * firstPerAddress: only each address's oldest (the tick reads the rest with it). notMailedOn: not the addresses
    * Ashley already sent a mail to on that time's KST day (they wait for the next send day).
    */
-  /** onlyMembers: candidates' mails from an address a Harper member signed in with (they go to Harper at any hour). */
-  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date; onlyMembers?: boolean }): Promise<ConversationMessage[]>;
+  listUndecidedInbound(limit: number, opts?: { counterpartEmail?: string; firstPerAddress?: boolean; notMailedOn?: Date }): Promise<ConversationMessage[]>;
   recordDecision(messageId: string, decision: AshleyDecisionKind, reason: string, signals: InterestSignal[]): Promise<void>;
   /** Stores an undecided mail's signals (the company-mail worker reads them) while its reply waits for that mail. */
   holdSignals(messageId: string, signals: InterestSignal[]): Promise<void>;

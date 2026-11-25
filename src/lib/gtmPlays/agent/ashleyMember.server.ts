@@ -1,24 +1,19 @@
 import "server-only";
 
-import { createOpportunityDiscoveryRun, getOpportunityAdmin } from "@/lib/opportunityDiscovery/store";
 import type { OrgAgentAdminClient } from "@/lib/org/agent/data";
 import { returnClosedConnectionHolds } from "@/lib/org/agent/externalInvite.server";
 import { ASHLEY_CANDIDATE_KEY, ASHLEY_INTRO_TAKEN } from "@/lib/org/agent/externalSourcing";
 import { getSupabaseAdmin } from "@/lib/server/candidateAccess";
-import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import { syncGtmCompanyInviteAsClaimer } from "../companyInvite.server";
 import type { GtmCompanyInviteState } from "../companyInvite";
 import { gtmRead, gtmWrite } from "../db.server";
 import { JOINED_CLAIM_STALE_MS, type AshleyIO, type MemberIntro } from "./ashleyAgent";
-import {
-  MEMBER_ANSWER_PAYLOAD_KEY, MEMBER_ANSWER_RUN_KEY, MEMBER_INTRO_DONE, MEMBER_INTRO_GAVE_UP, MEMBER_INTRO_TRIES_KEY,
-  memberAnswerPayload, memberAnswerRunInstruction, memberIntroFinish, memberIntroStep,
-} from "./ashleyMember";
+import { MEMBER_INTRO_DONE, MEMBER_INTRO_GAVE_UP, MEMBER_INTRO_TRIES_KEY, memberIntroFinish, memberIntroStep } from "./ashleyMember";
 import { ashleyCandidateNow } from "./companyMail.server";
 
 /**
  * #5 One of Ashley's candidates is (now) a Harper member, and the company that wanted them is on Harper (Shaun 11/22
- * 16:08, 16:10): no person in between and nothing by mail to the member. Built from Harper's own paths only:
+ * 16:08, 16:10): no person in between. Built from Harper's own paths only:
  * - the member comes into the company's Role ("연결을 요청할 후보") through the company mail's own sync, in the name of
  *   the person who claimed the mail (companyInvite.server.ts syncGtmCompanyInviteAsClaimer: evaluated, then published);
  * - a connection request the company made on Ashley's 외부 후보 card goes on as Harper's connection request for a member
@@ -26,17 +21,13 @@ import { ashleyCandidateNow } from "./companyMail.server";
  *   Harper). The external request is closed first (not_sendable, ashley_member_request) and its credit given back
  *   through the sweep every closed request takes (externalInvite.server.ts returnClosedConnectionHolds), so the
  *   member request's own credit is the only one taken. It is marked done (result.memberIntroDone) once Harper's request
- *   is there; one a tick left unmarked is tried again (unfinishedAshleyMemberIntros), then handed to a person;
- * - a company's words for a member go into their Harper chat as they are: one Harper message (role assistant, type
- *   system: the shape of the mail conversation moved in at sign-up, signupMove.server.ts insertBlock), once per key;
- *   then a Career run that names that message, and no company text, tells them (once per message; a run that failed
- *   after the message was written is made by a later tick, finishAshleyMemberNotices).
+ *   is there; one a tick left unmarked is tried again (unfinishedAshleyMemberIntros), then handed to a person.
+ * A company's answer reaches a member by mail like anyone's (Ashley's relay), and is copied into their Harper chat with
+ * the rest of the mails (AshleyIO.copyToHarper).
  */
 
 type Admin = OrgAgentAdminClient;
 const admin = () => getSupabaseAdmin() as unknown as Admin;
-// jsonb paths and these tables are not all in the generated Database types.
-type Untyped = { from: (table: string) => any };
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 type MemberCard = { id: string; status: string };
@@ -247,98 +238,4 @@ export const closeAshleyIntroForJoinedLink: NonNullable<AshleyIO["closeIntroForJ
     returning id
   `);
   if (closed.length) await returnClosedConnectionHolds(admin());
-};
-
-/**
- * AshleyIO.tellMember: the company's words into the member's Harper chat, as they are (the agent wrote the content:
- * ashleyMail.ts memberAnswerContent), once per key (payload); then a Career run that tells them about that message,
- * created only when none names it yet. Throws only when the message could not be written; a run that cannot be made
- * after it is logged and made by a later tick (finishAshleyMemberNotices), the message never written twice.
- */
-export const tellAshleyMember: NonNullable<AshleyIO["tellMember"]> = async ({ personId, content, key, relay }) => {
-  const now = await ashleyCandidateNow(personId);
-  if (!now?.talentId) throw new Error("the member's Harper account was not found");
-  const talentId = now.talentId;
-  const talent = getTalentSupabaseAdmin();
-  const db = talent as unknown as Untyped;
-  let message = await memberMessage(talentId, { [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>key`]: key });
-  if (!message) {
-    // The member email path's own choice of conversation (latest, or a new chat one), as a routed mail goes.
-    const { ensureEmailConversation } = await import("@/lib/email/runtime/store");
-    const conversationId = await ensureEmailConversation(talent, talentId);
-    // role assistant: no talent_messages role/type reads as a third party's words to Career; the content marks them (memberAnswerContent: lead line, quotes).
-    const { data: inserted, error } = await db.from("talent_messages").insert({
-      conversation_id: conversationId, user_id: talentId, role: "assistant", message_type: "system", content,
-      payload: memberAnswerPayload({ key, relay }),
-    }).select("id,conversation_id").single();
-    if (error) throw error;
-    message = inserted as MemberMessage;
-  }
-  await memberRunMade(talentId, message).catch((error) => {
-    console.error("[gtm-agent] member's Career run not made yet (a later tick makes it)", talentId, String(message!.id), errorText(error));
-  });
-};
-
-type MemberMessage = { id: number | string; conversation_id: string };
-
-/** The member's chat message of a company's words, by its payload. */
-async function memberMessage(talentId: string, payload: Record<string, string>): Promise<MemberMessage | null> {
-  let query = (getTalentSupabaseAdmin() as unknown as Untyped).from("talent_messages").select("id,conversation_id")
-    .eq("user_id", talentId).eq("message_type", "system");
-  for (const [path, value] of Object.entries(payload)) query = query.eq(path, value);
-  const { data, error } = await query.limit(1);
-  if (error) throw error;
-  return ((data ?? [])[0] as MemberMessage | undefined) ?? null;
-}
-
-/** The Career run that tells the member about the message, made when none names it yet; true when made now. */
-async function memberRunMade(talentId: string, message: MemberMessage): Promise<boolean> {
-  const messageId = String(message.id);
-  const [run] = await gtmRead((sql) => sql<Array<{ id: string }>>`
-    select o.id::text as id from public.opportunity_discovery_run o
-    where o.talent_id = ${talentId}::uuid and o.trigger_payload ->> ${MEMBER_ANSWER_RUN_KEY}::text = ${messageId}
-    limit 1
-  `);
-  if (run) return false;
-  await createOpportunityDiscoveryRun({
-    admin: getOpportunityAdmin(),
-    conversationId: message.conversation_id,
-    runMode: "immediate",
-    talentId,
-    trigger: "immediate_opportunity_requested",
-    triggerPayload: {
-      entryPoint: "gtm_agent_company_answer", source: "gtm_agent", [MEMBER_ANSWER_RUN_KEY]: messageId,
-      instruction: memberAnswerRunInstruction(messageId),
-    },
-  });
-  return true;
-}
-
-/**
- * AshleyIO.finishMemberNotices: the member relays of the last day (an answer whose words went into the chat: its
- * candidate_noted_at at or after its joined_noted_at), newest first: each one's message gets its Career run when it has
- * none (the run's failure after the message was written). How many were made.
- */
-export const finishAshleyMemberNotices: NonNullable<AshleyIO["finishMemberNotices"]> = async (limit) => {
-  const relays = await gtmRead((sql) => sql<Array<{ company_email: string; person_id: string }>>`
-    select r.company_email, r.person_id::text as person_id from public.gtm_agent_relays r
-    where r.kind = 'answer' and r.joined_noted_at is not null and r.candidate_noted_at >= r.joined_noted_at
-      and r.candidate_noted_at > now() - interval '1 day'
-    order by r.candidate_noted_at desc limit ${limit}::int
-  `);
-  let made = 0;
-  for (const relay of relays) {
-    try {
-      const now = await ashleyCandidateNow(relay.person_id);
-      if (!now?.talentId) continue;
-      const message = await memberMessage(now.talentId, {
-        [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>relayCompanyEmail`]: relay.company_email,
-        [`payload->${MEMBER_ANSWER_PAYLOAD_KEY}->>relayPersonId`]: relay.person_id,
-      });
-      if (message && await memberRunMade(now.talentId, message)) made += 1;
-    } catch (error) {
-      console.warn("[gtm-agent] member's Career run not made yet", relay.person_id, errorText(error));
-    }
-  }
-  return made;
 };
