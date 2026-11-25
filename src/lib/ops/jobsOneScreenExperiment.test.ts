@@ -27,7 +27,7 @@ const row = (patch: Partial<JobsOneScreenBrowserRow>): JobsOneScreenBrowserRow =
 const metric = (summary: ReturnType<typeof buildJobsOneScreenExperiment>, arm: 0 | 1, prefix: string) =>
   summary.variants[arm].summaryMetrics?.find((item) => item.label.startsWith(prefix));
 
-test("each step is a share of the browsers that saw a posting, for both arms", () => {
+test("each step shows who stayed and who left out of the step before, for both arms", () => {
   const summary = buildJobsOneScreenExperiment({
     companyName: "Acme",
     excludeEmail: () => false,
@@ -41,14 +41,20 @@ test("each step is a share of the browsers that saw a posting, for both arms", (
     ],
   });
   assert.equal(summary.title, "Acme 링크드인 공고화면");
-  assert.equal(summary.variants[0].sampleCount, 4);
+  // The member (a4) is not part of the sign-up funnel: a row of its own.
+  assert.equal(summary.variants[0].sampleCount, 3);
   assert.equal(summary.variants[1].sampleCount, 2);
-  assert.equal(metric(summary, 0, "1.")?.value, 1);
-  assert.equal(metric(summary, 0, "2.")?.value, 0.5);
-  assert.equal(metric(summary, 0, "3.")?.value, 0.25);
+  assert.equal(metric(summary, 0, "1.")?.value, 3);
+  assert.equal(metric(summary, 0, "1.")?.format, "count");
+  assert.equal(metric(summary, 0, "2.")?.value, 2 / 3);
+  assert.equal(metric(summary, 0, "2.")?.detail, "2 남음 · 1 빠짐 (33.3%)");
+  assert.equal(metric(summary, 0, "3.")?.value, 0.5);
+  assert.equal(metric(summary, 0, "3.")?.detail, "1 남음 · 1 빠짐 (50.0%)");
   assert.equal(metric(summary, 0, "5.")?.label, "5. Acme에 소개가 나감");
-  assert.equal(metric(summary, 0, "5.")?.value, 0.25);
-  assert.equal(metric(summary, 0, "따로: 이미 회원")?.detail, "1 / 4 · 그중 소개 1");
+  assert.equal(metric(summary, 0, "5.")?.value, 1);
+  assert.equal(metric(summary, 0, "따로: 이미 회원")?.value, 1);
+  assert.equal(metric(summary, 0, "따로: 이미 회원")?.detail, "그중 소개 1");
+  assert.deepEqual(summary.variants[0].primary, { numerator: 1, denominator: 3, rate: 1 / 3 });
   // B's card account button counts as pressing the sign-up button.
   assert.equal(metric(summary, 1, "2.")?.value, 0.5);
   assert.equal(metric(summary, 1, "따로: 비슷한")?.value, 0.5);
@@ -109,20 +115,21 @@ test("a one-screen account that never submitted still counts as a sign-up, timed
       row({ anonymous_id: "b4", arm: "B", first_at: first, pending_user_ids: ["u-unknown"] }),
     ],
   });
-  // b3 is left out by its auth address; b4's account could not be read, so it is a plain viewer.
-  assert.equal(summary.variants[1].sampleCount, 3);
-  assert.equal(metric(summary, 1, "3.")?.detail, "1 / 3 · 누른 곳 중 100%");
-  assert.equal(metric(summary, 1, "따로: 이미 회원")?.detail, "1 / 3 · 그중 소개 0");
+  // b3 is left out by its auth address; b2 had an account before (a member); b4's account could not be read.
+  assert.equal(summary.variants[1].sampleCount, 2);
+  assert.equal(metric(summary, 1, "3.")?.detail, "1 남음 · 0 빠짐 (0.0%)");
+  assert.equal(metric(summary, 1, "따로: 이미 회원")?.value, 1);
+  assert.equal(metric(summary, 1, "따로: 이미 회원")?.detail, "그중 소개 0");
   // Without auth.users the same rows are viewers only.
   const without = buildJobsOneScreenExperiment({
     companyName: "Acme",
     excludeEmail: () => false,
     rows: [row({ anonymous_id: "b1", arm: "B", pending_user_ids: ["u-new"] })],
   });
-  assert.equal(metric(without, 1, "3.")?.value, 0);
+  assert.equal(without.variants[1].primary.numerator, 0);
 });
 
-test("a sign-up that never pressed is not counted in the share of presses", () => {
+test("a later step reached without the earlier one recorded counts for both, so 남음 + 빠짐 is the step before", () => {
   const summary = buildJobsOneScreenExperiment({
     companyName: "Acme",
     excludeEmail: () => false,
@@ -132,7 +139,16 @@ test("a sign-up that never pressed is not counted in the share of presses", () =
       row({ anonymous_id: "a3", signed_up: true }),
     ],
   });
-  assert.equal(metric(summary, 0, "3.")?.detail, "2 / 3 · 누른 곳 중 50%");
+  assert.equal(metric(summary, 0, "2.")?.detail, "3 남음 · 0 빠짐 (0.0%)");
+  assert.equal(metric(summary, 0, "3.")?.detail, "2 남음 · 1 빠짐 (33.3%)");
+  // An intro with no form recorded still sits inside 4 (and 3, 2).
+  const intro = buildJobsOneScreenExperiment({
+    companyName: "Acme",
+    excludeEmail: () => false,
+    rows: [row({ anonymous_id: "a1", intro_new: true }), row({ anonymous_id: "a2" })],
+  });
+  const kept = ["2.", "3.", "4.", "5."].map((step) => metric(intro, 0, step)?.detail);
+  assert.deepEqual(kept, ["1 남음 · 1 빠짐 (50.0%)", "1 남음 · 0 빠짐 (0.0%)", "1 남음 · 0 빠짐 (0.0%)", "1 남음 · 0 빠짐 (0.0%)"]);
 });
 
 test("each summary row has one description for both arms, since the table shows the first arm's", () => {
