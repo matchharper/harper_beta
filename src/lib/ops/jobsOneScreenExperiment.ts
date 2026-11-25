@@ -103,8 +103,13 @@ export function buildJobsOneScreenExperiment({
     ...(watched.length ? [`지켜본 기간: ${watched.join(", ")} (차이가 크면 숫자도 흔들려요)`] : []),
   ];
   const explain = (...lines: string[]) => [...lines, ...shared].join("\n");
-  const base = "분모: 공고를 본 브라우저 (1번 줄)";
-  const late = (what: string) => `주의: A는 가입한 뒤 나중에 ${what} 초반에는 A가 낮게 보여요. 2주 넘게 돌린 뒤 비교하세요.`;
+  const base = "분모: 1번 브라우저 (공고를 본 브라우저)";
+  const kept = (step: number) =>
+    `분모: ${step}번까지 온 브라우저. 남음 + 빠짐 = 100% (B는 남음 + 추천받기 + 빠짐 = 100%)`;
+  const similarLeft =
+    "추천받기 (B만): 다음 단계로 안 넘어갔지만 \"비슷한 공고 추천받기\"를 신청한 브라우저. 빠짐에는 넣지 않음";
+  const late = (what: string) =>
+    `주의: A는 가입한 뒤 나중에 ${what}, 최근에 온 브라우저는 아직 빠짐으로 잡혀요. 2주 넘게 돌린 뒤 비교하세요.`;
   const similarDescription = explain(
     "B에만 있어요. A 화면에는 이 버튼이 없어요.",
     base,
@@ -112,15 +117,21 @@ export function buildJobsOneScreenExperiment({
   );
 
   const makeVariant = (arm: "A" | "B", label: string, description: string): OpsAbTestVariant => {
-    const group = browsers.filter((browser) => browser.arm === arm);
+    const all = browsers.filter((browser) => browser.arm === arm);
+    // People who had an account before the posting are not part of the sign-up funnel: one row of their own.
+    const isMember = (b: Browser) => b.had_account && !b.signed_up;
+    const members = all.filter(isMember);
+    const membersIntroduced = members.filter((b) => b.intro_any).length;
+    const group = all.filter((b) => !isMember(b));
     const total = group.length;
     const count = (hit: (browser: Browser) => boolean) => group.filter(hit).length;
-    const share = (numerator: number, extra?: string): Pick<OpsAbTestMetric, "value" | "detail"> => ({
+    // Every cell reads the same way: the count first, then its share in brackets, as in "562 남음 (50.1%)".
+    const of = (n: number, base: number, word = "") =>
+      `${n.toLocaleString()}${word ? ` ${word}` : ""}${base > 0 ? ` (${((n / base) * 100).toFixed(1)}%)` : ""}`;
+    const share = (numerator: number): Pick<OpsAbTestMetric, "value" | "displayValue"> => ({
       value: makeOpsAbTestRate(numerator, total).rate,
-      detail: `${numerator.toLocaleString()} / ${total.toLocaleString()}${extra ? ` · ${extra}` : ""}`,
+      displayValue: of(numerator, total),
     });
-    const ofPrevious = (numerator: number, previous: number) =>
-      previous > 0 ? `앞 단계의 ${Math.round((numerator / previous) * 100)}%` : undefined;
     const absent = (name: string, text: string): OpsAbTestMetric => ({
       format: "rate",
       label: name,
@@ -129,66 +140,85 @@ export function buildJobsOneScreenExperiment({
       description: text,
     });
 
-    const isPressed = (b: Browser) => b.talk_click || (arm === "B" && b.card_account);
-    const pressed = count(isPressed);
-    const signedUp = count((b) => b.signed_up);
-    // Not every sign-up pressed first (a later sign-up from the home page), so the share of presses uses both.
-    const pressedThenSignedUp = count((b) => isPressed(b) && b.signed_up);
-    const submitted = count((b) => b.submitted);
-    const introduced = count((b) => b.intro_new);
-    const members = group.filter((b) => b.had_account && !b.signed_up);
-    const membersIntroduced = members.filter((b) => b.intro_any).length;
+    // Each step sits inside the one before, so 남음 + 빠짐 is the step before (100%): a later step reached
+    // without the earlier one recorded (a sign-up from another page, an intro before the form) counts for both.
+    const introduced = (b: Browser) => b.intro_new;
+    const submitted = (b: Browser) => b.submitted || introduced(b);
+    const signedUp = (b: Browser) => b.signed_up || submitted(b);
+    const pressed = (b: Browser) => b.talk_click || (arm === "B" && b.card_account) || signedUp(b);
+    const stages = [(_: Browser) => true, pressed, signedUp, submitted, introduced];
+    const reached = stages.map(count);
+    // 남음 + (B only) 추천받기 + 빠짐 = the step before: in B, someone who stopped here but asked for similar postings
+    // did not leave with nothing, so they get their own share instead of counting as 빠짐.
+    // The big line is who stayed, the small line who did not: both out of the step before, same order.
+    const stay = (step: number): Pick<OpsAbTestMetric, "value" | "displayValue" | "detail"> => {
+      const before = reached[step - 2];
+      const now = reached[step - 1];
+      const similar =
+        arm === "B" ? count((b) => stages[step - 2](b) && !stages[step - 1](b) && b.similar_requested) : 0;
+      const left = before - now - similar;
+      return {
+        value: makeOpsAbTestRate(now, before).rate,
+        displayValue: of(now, before, "남음"),
+        detail: [...(arm === "B" ? [of(similar, before, "추천받기")] : []), of(left, before, "빠짐")].join(" · "),
+      };
+    };
 
     // One description per row for both arms: the summary table shows the first arm's.
     const steps: OpsAbTestMetric[] = [
       {
-        format: "rate",
+        format: "count",
         label: "1. 공고를 봄",
-        ...share(total),
-        description: explain("모든 줄의 분모예요 (100%). LinkedIn, 검색, 공유 링크 등 어디서 들어왔든 셈"),
+        value: total,
+        displayValue: of(total, total),
+        description: explain(
+          "모든 단계의 시작이에요. LinkedIn, 검색, 공유 링크 등 어디서 들어왔든 셈",
+          "이미 회원으로 확인된 브라우저는 여기서 빼고 \"따로: 이미 회원\"에 셈"
+        ),
       },
       {
         format: "rate",
         label: "2. 가입 버튼을 누름",
-        ...share(pressed),
+        ...stay(2),
         description: explain(
-          base,
-          "분자: 그중 가입 버튼을 누른 브라우저",
-          "가입 버튼: A는 Talk to Harper. B는 Talk to Harper, 또는 카드의 Google·이메일 코드 버튼 (PC 카드는 처음부터 열려 있어서 이 버튼이 첫 버튼)"
+          kept(1),
+          "남음: 가입 버튼을 누른 브라우저. A는 Talk to Harper, B는 Talk to Harper 또는 카드의 Google·이메일 코드 버튼 (버튼 없이 다른 화면에서 가입한 브라우저도 셈)",
+          "빠짐: 누르지 않고 나간 브라우저",
+          similarLeft
         ),
       },
       {
         format: "rate",
         label: "3. 새로 가입함",
-        ...share(
-          signedUp,
-          pressed > 0 ? `누른 곳 중 ${Math.round((pressedThenSignedUp / pressed) * 100)}%` : undefined
-        ),
+        ...stay(3),
         description: explain(
-          base,
-          "분자: 그중 공고를 본 뒤 Harper 계정을 새로 만든 브라우저 (B에서 코드나 Google로 계정만 만들고 나간 경우도 셈)",
-          "작은 글씨 \"누른 곳 중\": 2번 브라우저 중 가입한 비율"
+          kept(2),
+          "남음: Harper 계정을 새로 만든 브라우저 (B에서 코드나 Google로 계정만 만들고 나간 경우도 셈)",
+          "빠짐: 눌렀지만 가입하지 않은 브라우저",
+          similarLeft
         ),
       },
       {
         format: "rate",
         label: "4. 이력서나 LinkedIn을 냄",
-        ...share(submitted, ofPrevious(submitted, signedUp)),
+        ...stay(4),
         description: explain(
-          base,
-          "분자: 그중 새로 가입하고 이력서나 LinkedIn까지 낸 브라우저 (A는 Harper 가입 폼, B는 카드의 \"가입하고 소개 보내기\" 또는 가입 폼)",
-          "작은 글씨 \"앞 단계의\": 3번 브라우저 중 낸 비율",
+          kept(3),
+          "남음: 이력서나 LinkedIn까지 낸 브라우저. A는 Harper 가입 폼, B는 카드의 \"가입하고 소개 보내기\" 또는 가입 폼",
+          "빠짐: 가입했지만 아직 안 낸 브라우저",
+          similarLeft,
           late("내서")
         ),
       },
       {
         format: "rate",
         label: `5. ${company}에 소개가 나감`,
-        ...share(introduced, ofPrevious(introduced, submitted)),
+        ...stay(5),
         description: explain(
-          base,
-          `분자: 그중 새로 가입하고 ${company} 자리로 소개가 실제로 나간 브라우저 (채팅 소개와 같은 기록. 실패·취소는 뺌)`,
-          "작은 글씨 \"앞 단계의\": 4번 브라우저 중 소개가 나간 비율",
+          kept(4),
+          `남음: ${company} 자리로 소개가 실제로 나간 브라우저 (채팅 소개와 같은 기록. 실패·취소는 뺌)`,
+          "빠짐: 자료를 냈지만 아직 소개가 안 나간 브라우저",
+          similarLeft,
           late("소개가 나가서")
         ),
       },
@@ -201,12 +231,12 @@ export function buildJobsOneScreenExperiment({
             description: similarDescription,
           },
       {
-        format: "rate",
+        format: "count",
         label: "따로: 이미 회원",
-        ...share(members.length, `그중 소개 ${membersIntroduced.toLocaleString()}`),
+        value: members.length,
+        detail: `그중 소개 ${membersIntroduced.toLocaleString()}`,
         description: explain(
-          base,
-          "분자: 그중 공고를 보기 전부터 Harper 계정이 있던 브라우저. 3~5번에는 넣지 않음",
+          "공고를 보기 전부터 Harper 계정이 있던 브라우저 수예요. 가입할 사람이 아니라서 1~5번에서는 뺌",
           `작은 글씨 "그중 소개": 이 브라우저 중 ${company}에 소개가 나간 수`
         ),
       },
@@ -222,7 +252,7 @@ export function buildJobsOneScreenExperiment({
       label,
       description,
       sampleCount: total,
-      primary: makeOpsAbTestRate(signedUp, total),
+      primary: makeOpsAbTestRate(reached[2], total),
       summaryMetrics: steps,
       metrics: [
         card("카드: Google·이메일 코드 누름", (b) => b.card_account, "카드의 계정 칸에서 Google·이메일 코드 버튼을 누른 브라우저"),
@@ -245,7 +275,7 @@ export function buildJobsOneScreenExperiment({
     title: companyName?.trim() ? `${companyName.trim()} 링크드인 공고화면` : "링크드인 공고화면 A/B",
     allocation: "브라우저별 고정 50:50",
     unitLabel: "브라우저",
-    primaryMetricLabel: "가입률 (3. 새로 가입함)",
+    primaryMetricLabel: "가입률 (1번 중 3번까지 온 비율)",
     metricLayout: "table",
     status: !browsers.length
       ? "awaiting_data"
@@ -254,7 +284,7 @@ export function buildJobsOneScreenExperiment({
         : "observing",
     firstObservedAt: dates.length ? new Date(dates[0]).toISOString() : null,
     lastObservedAt: dates.length ? new Date(dates[dates.length - 1]).toISOString() : null,
-    caveat: `${company} 공고를 처음 본 때부터 지금까지 일어난 일을 세요. 선택한 기간에 처음 본 브라우저만 셉니다. 각 비율은 공고를 본 브라우저 수로 나눈 값이에요. 가입(3단계)은 A와 B 모두 공고를 본 그 자리에서 일어나서 바로 비교할 수 있어요. 4·5단계는 B는 카드에서 한 번에 끝나고 A는 가입 뒤 폼과 채팅에서 나중에 일어나서, 최근에 온 사람이 많을수록 A가 낮게 보여요. 그래서 4·5단계는 실험을 2주 넘게 돌린 뒤에 비교하세요. 봇, 내부·테스트 계정, A와 B를 둘 다 본 브라우저는 빼요.`,
+    caveat: `${company} 공고를 처음 본 때부터 지금까지 일어난 일을 세요. 선택한 기간에 처음 본 브라우저만 셉니다. 각 단계의 %는 앞 단계까지 온 브라우저 중 남은 비율이고, 빠짐과 더하면 100%예요. 가입(3단계)은 A와 B 모두 공고를 본 그 자리에서 일어나서 바로 비교할 수 있어요. 4·5단계는 B는 카드에서 한 번에 끝나고 A는 가입 뒤 폼과 채팅에서 나중에 일어나서, 최근에 온 사람이 많을수록 A의 빠짐이 크게 보여요. 그래서 4·5단계는 실험을 2주 넘게 돌린 뒤에 비교하세요. 봇, 내부·테스트 계정, A와 B를 둘 다 본 브라우저는 빼고, 이미 회원은 따로 셉니다.`,
     variants,
     conclusion: compareOpsAbTestRates({
       first: variants[0].primary,
