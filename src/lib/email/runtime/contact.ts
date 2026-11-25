@@ -13,7 +13,12 @@ import {
 import { getCareerOnboardingChecklistCoverage } from "@/lib/talentOnboarding/calls";
 import { getOnboardingQuestionChecklist } from "@/lib/talentOnboarding/insightChecklist";
 import { completeOnboardingAndQueueInitialOpportunityRun } from "@/lib/opportunityDiscovery/store";
-import { createReplyToken, hashReplyToken } from "@/lib/email/security";
+import {
+  createReplyToken,
+  hashReplyToken,
+  signCrmBroadcastUnsubscribe,
+} from "@/lib/email/security";
+import { BROADCAST_UNSUBSCRIBE_LINE } from "@/lib/ops/crmCampaignEmailPreview";
 import { getDefaultResendFromEmail } from "@/lib/email/send";
 import { htmlToPlainText } from "@/lib/email/parse";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
@@ -65,7 +70,12 @@ type ContactCopy = {
   replyAlias?: string;
   conversationId?: string;
   allowCompleted?: boolean;
+  from?: string;
+  headers?: Record<string, string>;
 };
+function escapeHtmlAttribute(value: string) {
+  return value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+}
 const SIGNUP = "career_signup_no_profile_submit";
 const PROFILE = "career_profile_submitted_no_answer";
 async function cancel(ctx: Context, reason: string) {
@@ -539,11 +549,24 @@ async function crmCopy(ctx: Context): Promise<ContactCopy | null> {
   }
   if (!p.subject || !p.htmlBody) throw new Error("crm_broadcast_copy_missing");
   const plain = htmlToPlainText(p.htmlBody);
+  // Each recipient's own link; mail apps also show it as their unsubscribe button (RFC 8058).
+  const unsubscribeUrl = new URL("/api/email/crm-unsubscribe", getConfiguredPublicSiteUrl());
+  unsubscribeUrl.searchParams.set("u", String(ctx.job.user_id));
+  unsubscribeUrl.searchParams.set("t", signCrmBroadcastUnsubscribe(String(ctx.job.user_id)));
+  const line = BROADCAST_UNSUBSCRIBE_LINE[p.locale === "en" ? "en" : "ko"];
+  const unsubscribeHtml =
+    `<p style="margin:0 0 12px;font-size:12px;line-height:1.6;color:#6b7280;">${line.before}` +
+    `<a href="${escapeHtmlAttribute(unsubscribeUrl.href)}" style="color:#6b7280;">${line.link}</a>${line.after}</p>`;
   return {
     subject: p.subject,
     body: plain,
-    html: wrapEmailHtml(p.htmlBody + buildHarperEmailFooterHtml()),
-    text: `${plain}\n\n${HARPER_EMAIL_FOOTER_TEXT}`,
+    html: wrapEmailHtml(p.htmlBody + buildHarperEmailFooterHtml() + unsubscribeHtml),
+    text: `${plain}\n\n${HARPER_EMAIL_FOOTER_TEXT}\n\n${line.before}${line.link}${line.after} ${unsubscribeUrl.href}`,
+    from: typeof p.from === "string" && p.from.trim() ? p.from.trim() : undefined,
+    headers: {
+      "List-Unsubscribe": `<${unsubscribeUrl.href}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
     mailType: "crm_broadcast",
     allowCompleted: true,
     metadata: {
@@ -799,7 +822,8 @@ export async function processEmailContact(
       copy.replyAlias
     );
     delivery = {
-      from: getDefaultResendFromEmail(),
+      from: copy.from ?? getDefaultResendFromEmail(),
+      ...(copy.headers ? { headers: copy.headers } : {}),
       to: profile.email,
       subject: copy.subject,
       ...(copy.html
