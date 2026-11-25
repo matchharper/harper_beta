@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { cx, opsTheme } from "@/components/ops/theme";
 import {
-  CHANNEL_DAILY_MAX_LIMITS, CHANNEL_LABELS, COMPANY_CHANNELS, FILL_CHANNELS, MAIN_CHANNELS, hasDailyMax, type AgentChannelKey,
+  CHANNEL_DAILY_MAX_LIMITS, CHANNEL_LABELS, COMPANY_CHANNELS, FILL_CHANNELS, MAIN_CHANNELS, REQUEST_CHANNELS, hasDailyMax, type AgentChannelKey,
   type ChannelSetting,
 } from "@/lib/gtmPlays/agent/channels";
 import { clampSendHours, SEND_HOURS_LIMIT } from "@/lib/gtmPlays/agent/people";
@@ -47,13 +47,15 @@ const HINTS = {
   channels: "에이전트가 사람을 찾는 길이에요. 끈 채널의 사람에게는 메일을 쓰지도 보내지도 않아요.",
   mainChannels: "하루 메일 수 안에서 보내요.",
   fillChannels: "채널마다 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
+  requestChannels: "공고 페이지에서 '비슷한 공고 추천받기'를 누른 분에게 바로 보내는 메일이에요. 하루 최대만큼만 받고 보내요(후속 메일 포함, 0~100통). 끄면 공고 페이지에서 버튼이 사라져요.",
   companyChannels: "채용 글을 올린 회사의 대표·리더에게 보내는 회사 메일이에요. 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
 } as const;
 
-/** 채널's groups, in the queue's order (agent/channels.ts): the existing channels, the new ones, then the company side. */
+/** 채널's groups, in the queue's order (agent/channels.ts): the existing channels, the new ones, the job-page requests, then the company side. */
 const CHANNEL_GROUPS: ReadonlyArray<{ label: string; hint: string; keys: readonly AgentChannelKey[] }> = [
   { label: "기본", hint: HINTS.mainChannels, keys: MAIN_CHANNELS },
   { label: "보충", hint: HINTS.fillChannels, keys: FILL_CHANNELS },
+  { label: "공고 페이지", hint: HINTS.requestChannels, keys: REQUEST_CHANNELS },
   { label: "회사 쪽", hint: HINTS.companyChannels, keys: COMPANY_CHANNELS },
 ];
 

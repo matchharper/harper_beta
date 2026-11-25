@@ -6,6 +6,7 @@ import {
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import { OFFICIAL_JOBS_ONESCREEN_ENTRY_DOMAIN } from "@/lib/officialJobs/oneScreen";
 import { parseIntentSource } from "@/lib/gtmPlays/agent/signupMove";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { fetchLatestTalentActivityEvent, type TalentActivityEventRow } from "@/lib/talentOnboarding/activityEvents";
@@ -88,13 +89,24 @@ export async function fetchCareerEntrySource(args: CareerEntrySourceArgs & { inc
     eventType: OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
     userId: args.userId,
   });
+  const fromOneScreen = Boolean(
+    intentEvent?.changed_domains?.includes(OFFICIAL_JOBS_ONESCREEN_ENTRY_DOMAIN)
+  );
+  const opportunityContext = intentEvent && args.includeOpportunity !== false
+    ? await readEntryOpportunity(args, intentEvent)
+    : null;
   return {
     intentSummary: intentEvent?.summary ?? null,
     /** The entry was a link in a Harper outreach mail (gtmPlays/agent/signupMove.ts intentSource). */
     fromMail: parseIntentSource(intentEvent?.source) !== null,
-    opportunityContext: intentEvent && args.includeOpportunity !== false
-      ? await readEntryOpportunity(args, intentEvent)
-      : null,
+    /** The entry was the job page's one screen; its record says what was agreed and sent. */
+    fromOneScreen,
+    opportunityContext: fromOneScreen && intentEvent?.summary && opportunityContext?.entryOpportunity
+      ? {
+          ...opportunityContext,
+          entryOpportunity: { ...opportunityContext.entryOpportunity, oneScreenRecord: intentEvent.summary },
+        }
+      : opportunityContext,
   };
 }
 

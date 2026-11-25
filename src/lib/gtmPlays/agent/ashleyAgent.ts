@@ -55,6 +55,7 @@ import {
 import type { AshleyDecisionKind, ConversationMessage, ConversationStore, HistoryEntry, InterestSignal } from "./conversation";
 import type { CompanyAsk } from "./companyMail";
 import { agentPersonLink } from "./replies";
+import { REQUEST_FOUND_BY, requestContextLine } from "./request";
 import type { AgentEvent, AgentPerson, AgentPosting } from "./types";
 import { kstDayWindow } from "../sendLimit";
 
@@ -98,7 +99,7 @@ export type AshleyPerson = Pick<
   AgentPerson,
   "id" | "name" | "headline" | "location" | "currentCompany" | "profileText" | "source" | "language" | "email" | "postings"
   | "mailId" | "followupMailId" | "sentAt" | "isTest" | "events"
-> & Partial<Pick<AgentPerson, "messageKind" | "offerEvents">>;
+> & Partial<Pick<AgentPerson, "messageKind" | "offerEvents" | "method" | "request">>;
 
 type Tool = (typeof WRITER_TOOLS)[number];
 
@@ -499,6 +500,8 @@ async function sentPostings(io: AshleyIO, person: AshleyPerson, root: AshleyMail
 const contextPerson = (person: AshleyPerson): ContextPerson => ({
   name: person.name, headline: person.headline, location: person.location, currentCompany: person.currentCompany,
   profileText: person.profileText, source: person.source, language: person.language,
+  // A job-page request (agent/request.ts): they asked for the mail; nothing is added for anyone else.
+  ...(person.method === "request" ? { requested: requestContextLine(person.request) } : {}),
 });
 
 function signalsOf(decision: CandidateDecision, postings: readonly ContextPosting[], message: ConversationMessage, personId: string): InterestSignal[] {
@@ -623,7 +626,7 @@ export async function draftCandidateReply(io: AshleyIO, c: CandidateCase): Promi
       switch (name) {
         case "read_outreach":
           return outreachText({
-            person: contextPerson(person), postings, foundBy: person.source, firstMailAt: person.sentAt,
+            person: contextPerson(person), postings, foundBy: person.method === "request" ? REQUEST_FOUND_BY : person.source, firstMailAt: person.sentAt,
             followupSent: Boolean(person.followupMailId), now, offer: storedOffer(person.messageKind), events: person.offerEvents ?? [],
           });
         case "read_posting": {

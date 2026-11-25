@@ -338,6 +338,8 @@ export type ContextPerson = {
   profileText: string | null;
   source: string | null;
   language: "ko" | "en" | null;
+  /** A job-page request's person (agent/request.ts requestContextLine): how they asked for the mail. */
+  requested?: string | null;
 };
 
 /** toEmail: where our mail went (shown when the mail came from another address). */
@@ -387,6 +389,7 @@ export function historyText(entries: readonly HistoryEntry[], now: Date): string
 
 export function personText(person: ContextPerson): string {
   return [
+    person.requested ?? null,
     person.name ? `Name: ${person.name}` : null,
     person.headline ? `Headline: ${person.headline}` : null,
     person.location ? `Location: ${person.location}` : null,

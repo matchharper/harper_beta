@@ -5,7 +5,7 @@ import { createCompanyRunUsage } from "@/lib/llm/runUsage";
 import { withLlmUsageContext } from "@/lib/llm/usageContext";
 import { gtmStructuredCall } from "../llm.server";
 import { personFacts } from "./match";
-import { REVIEW_SCHEMA, REVIEW_SYSTEM_PROMPT, parseReviews, reviewUserPrompt } from "./review";
+import { REVIEW_SCHEMA, parseReviews, reviewSystemPrompt, reviewUserPrompt } from "./review";
 import type { AgentPersonInput, AgentPosting, AgentPostingReview } from "./types";
 
 /** The grader never holds a person up for long: past this, no grade. */
@@ -34,7 +34,8 @@ export async function reviewAgentPostings(args: {
         label: "gtm-agent:posting-review",
         schemaName: "gtm_agent_posting_review",
         schema: REVIEW_SCHEMA as unknown as Record<string, unknown>,
-        system: REVIEW_SYSTEM_PROMPT,
+        // A job-page request reads its seed for what the person wants (review.ts REVIEW_REQUEST_RULE).
+        system: reviewSystemPrompt(args.person.method === "request"),
         user: reviewUserPrompt(personFacts(args.person), args.postings.map((posting, index) => ({
           companyName: posting.companyName, title: posting.title, location: posting.location, text: args.texts[index] ?? null,
         }))),

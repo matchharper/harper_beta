@@ -40,6 +40,8 @@ import { followUpsOnHold, readReplyReadingTroubles } from "./replies.server";
 import { withReviews } from "./review";
 import { postingsToMail } from "./review";
 import { reviewAgentPostings } from "./review.server";
+import { REQUEST_FOLLOWUP_SKIPPED_NOTE, requestContentCleared, requestFollowupAllowed } from "./request";
+import { runDueJobPageRequests } from "./request.server";
 import { closePendingAgentMail, deliverAgentMail, listPendingAgentMails, resendAgentMail } from "./send.server";
 import { AgentSendError, IDEMPOTENCY_WINDOW_MS } from "./sendErrors";
 import { channelRoomToday, mailsToSendNow, sendWindowNow, sendWindowOf, sentTimingNote, spendTickMail, tickMailBudget } from "./sendPace.server";
@@ -67,7 +69,7 @@ import {
 import { signalTuningVersion, type SignalTuning } from "./tuning";
 import {
   addAgentRunCounts, agentDeliveryStats, agentDeliveryStatsByChannel, brakeAgent, brakeAgentChannel, channelSql, channelUseToday,
-  countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
+  closedOf, closedRoleIds, countAgentSendQueue, ensureDailyAgentRun, insertAgentPeople,
   leaseAgentRun, listAgentPeopleToHandle, listRunningEmailLookups, readAgentPerson, readAgentSenderUser, readAgentSettings,
   readSearchOutcomes, readSignalLogs, readSignalMemory, releaseAgentRun, releaseAgentSendLease, resumeAgentRuns,
   requeueAgentRun, setAgentRunConfig, takeAgentSendLease, updateAgentPerson, writeSignalLog, type AgentRun,
@@ -118,7 +120,6 @@ const EXPIRE_BATCH = 50;
 const REACTIONS = 48;
 const DAY_MS = 86_400_000;
 const AGENT = "agent";
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 type TickResult = { ran: boolean; reason?: string; runId?: string; counts?: Record<string, number> };
@@ -568,6 +569,24 @@ async function pullGithub(tick: Tick): Promise<void> {
   }
 }
 
+/** Job-page requests a tick takes up at most (each as long as a cold person's pick). */
+const REQUESTS_PER_TICK = 2;
+
+/**
+ * Job-page requests due now (agent/request.server.ts): one whose run after the request did not finish, a hold that
+ * ended, a wait for postings (REQUEST_RECHECK_DAYS) that ended. On every tick of any run, any day of the week (a
+ * request is not part of a day's run: no run_id), within the tick's time for people. Never stops the tick.
+ */
+async function handleJobPageRequests(tick: Tick): Promise<void> {
+  try {
+    const counts = await runDueJobPageRequests({ limit: REQUESTS_PER_TICK, mayStart: () => mayStartPerson(tick.startedAt, Date.now()) });
+    for (const [outcome, n] of Object.entries(counts)) tick.bump(`request_${outcome}`, n);
+  } catch (error) {
+    console.error("[gtm-agent] job-page requests", error);
+    tick.problems.push(`공고 페이지 요청을 처리하지 못했어요 · ${errorText(error).slice(0, 160)}`);
+  }
+}
+
 /**
  * The run's people a tick moves on (found, and matched ones still without a mail), a few within the tick's time slice
  * and today's money. A step that fails for a passing reason (a model error) is tried again after a wait, and the
@@ -640,24 +659,6 @@ async function handlePeople(tick: Tick, options: { undatedPaused: boolean }): Pr
   return true;
 }
 
-/** The Roles among `postings` that are no longer open (gone, expired, or not active any more). */
-async function closedRoleIds(postings: readonly AgentPosting[]): Promise<Set<string>> {
-  const ids = [...new Set(postings.map((posting) => posting.roleId).filter((id): id is string => Boolean(id && UUID.test(id))))];
-  if (!ids.length) return new Set();
-  const rows = await gtmRead((sql) => sql<Array<{ role_id: string }>>`
-    select wanted.id::text as role_id
-    from unnest(${ids}::uuid[]) as wanted(id)
-    left join public.company_roles r on r.role_id = wanted.id
-    where r.role_id is null or coalesce(r.is_expired, false) or (r.expires_at is not null and r.expires_at <= now())
-      or coalesce(lower(btrim(r.status)), 'active') not in ('active', 'top_priority')
-  `);
-  return new Set(rows.map((row) => row.role_id.toLowerCase()));
-}
-
-/** The person's postings with the closed ones marked by lower-cased Role id (stillOpenPostings compares as stored). */
-function closedOf(postings: readonly AgentPosting[], closed: ReadonlySet<string>): Set<string> {
-  return new Set(postings.flatMap((posting) => (posting.roleId && closed.has(posting.roleId.toLowerCase()) ? [posting.roleId] : [])));
-}
 
 /**
  * The last look before a first mail goes out (a mail may have waited days): an expired draft is skipped; the rules
@@ -771,11 +772,13 @@ async function settlePendingMails(tick: Tick): Promise<SendOutcome & { pending: 
       continue;
     }
     pending.add(person.id);
-    if (paused || !sendWindowNow(settings, now) || agentSenderProblem(settings) || !maySendNow(tick.startedAt, Date.now())) continue;
+    // A job-page request's mail goes at any hour and outside the cold pace (agent/request.ts REQUEST_SEND_HOURS).
+    const requested = person.method === "request";
+    if (paused || (!requested && !sendWindowNow(settings, now)) || agentSenderProblem(settings) || !maySendNow(tick.startedAt, Date.now())) continue;
     try {
       const result = await resendAgentMail(mail, sendCallTimeoutMs(tick.startedAt, Date.now()));
       pending.delete(person.id);
-      spendTickMail(await tickMailBudget(settings, now));
+      if (!requested) spendTickMail(await tickMailBudget(settings, now));
       const followupDueAt = new Date(now.getTime() + settings.followupDays * DAY_MS).toISOString();
       if (first) {
         sent += 1;
@@ -867,6 +870,7 @@ async function sendApproved(tick: Tick, sentBy: string, limit: number, pending: 
 type ReactionRow = {
   id: string; events: Array<{ kind: string }> | null; first_opened_at: string | Date | null; claimed_at: string | Date | null;
   unsubscribed_at: string | Date | null; delivery_status: string | null; followup_mail_id: string | null;
+  method: string; request: AgentPerson["request"];
 };
 
 /**
@@ -879,7 +883,7 @@ async function noticeReactions(limit: number) {
   const rows = await gtmRead((sql) => sql<ReactionRow[]>`
     with gtm_signups as materialized ${gtmSignupsCte(sql)}
     select p.id, p.events, m.first_opened_at, m.unsubscribed_at, m.delivery_status, p.followup_mail_id::text as followup_mail_id,
-      coalesce(m.claimed_at, s.at) as claimed_at
+      coalesce(m.claimed_at, s.at) as claimed_at, p.method, to_jsonb(p) -> 'request' as request
     from public.gtm_agent_people p
     join public.gtm_mails m on m.id in (p.mail_id, p.followup_mail_id)
     left join gtm_signups s on s.mail_id = m.id::text
@@ -896,9 +900,11 @@ async function noticeReactions(limit: number) {
     const seen = seenBy.get(row.id) ?? new Set((row.events ?? []).map((event) => event.kind));
     seenBy.set(row.id, seen);
     if (seen.has("unsubscribed") || seen.has("bounced")) continue;
+    // A job-page request's CV or profile text is cleared on an opt-out or a bounce (the form's promise: agent/request.ts).
+    const cleared = row.method === "request" ? requestContentCleared(row.request, new Date()) : {};
     if (row.unsubscribed_at) {
       seen.add("unsubscribed");
-      await updateAgentPerson(row.id, { status: "ended", endedAt: new Date().toISOString(), followupDueAt: null }, { kind: "unsubscribed", by: AGENT, note: "연락 받지 않기를 눌렀어요" }, ["sent"]);
+      await updateAgentPerson(row.id, { status: "ended", endedAt: new Date().toISOString(), followupDueAt: null, ...cleared }, { kind: "unsubscribed", by: AGENT, note: "연락 받지 않기를 눌렀어요" }, ["sent"]);
       continue;
     }
     if (row.delivery_status) {
@@ -906,7 +912,7 @@ async function noticeReactions(limit: number) {
       if (row.delivery_status === "complained") {
         await agentAlert("complaint", "받는 사람이 메일을 스팸으로 신고했어요. 최근 7일 2건이면 에이전트가 스스로 꺼져요");
       }
-      await updateAgentPerson(row.id, { status: "ended", endedAt: new Date().toISOString(), followupDueAt: null }, { kind: "bounced", by: AGENT, note: row.delivery_status }, ["sent"]);
+      await updateAgentPerson(row.id, { status: "ended", endedAt: new Date().toISOString(), followupDueAt: null, ...cleared }, { kind: "bounced", by: AGENT, note: row.delivery_status }, ["sent"]);
       continue;
     }
     if (row.claimed_at && !seen.has("signed_up")) {
@@ -924,7 +930,7 @@ async function noticeReactions(limit: number) {
 async function expireDrafts(tick: Tick) {
   const rows = await gtmRead((sql) => sql<Array<{ id: string }>>`
     select p.id::text as id from public.gtm_agent_people p
-    where p.status = 'approved'
+    where p.status = 'approved' and p.method <> 'request'
       and coalesce((
         select max((e.value ->> 'at')::timestamptz)
         from jsonb_array_elements(case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) e(value)
@@ -998,6 +1004,12 @@ async function followUps(
     if (followupTooLate(person.followupDueAt, now)) {
       await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
         { kind: "ended", by: AGENT, note: FOLLOWUP_LATE_NOTE }, ["sent"]);
+      continue;
+    }
+    // A job-page request gets its follow-up only after a click on the first mail (request.ts REQUEST_FOLLOWUP_RULE).
+    if (person.method === "request" && !requestFollowupAllowed({ clicked: openedLink(person.events), replied: Boolean(person.repliedAt) })) {
+      await updateAgentPerson(id, { status: "ended", endedAt: now.toISOString(), followupDueAt: null },
+        { kind: "ended", by: AGENT, note: REQUEST_FOLLOWUP_SKIPPED_NOTE }, ["sent"]);
       continue;
     }
     if (person.channel === "email") {
@@ -1461,6 +1473,7 @@ export async function runAgentTick(args: { now?: Date; startedAt?: number } = {}
     await expireDrafts(tick);
     if (sentBy) await sendMailsAlone(tick, sentBy);
     await settleLookups(tick);
+    await handleJobPageRequests(tick);
     // New people cost money (lookup, postings, writing): not while the written mails already cover days of sending,
     // and not on a day mails do not go out (Shaun 11/21: signals stay up to 30 days, so the next sending day finds the
     // same people, and no mail is written days before it can go). A manual run ("지금 실행") still runs.

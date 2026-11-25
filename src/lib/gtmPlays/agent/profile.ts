@@ -11,6 +11,11 @@ import { mailPlainText, withoutLinks } from "./mailRules";
 
 /** The most profile_text holds (summaries and the excerpt together). */
 export const PROFILE_TEXT_CHARS = 3_000;
+/**
+ * The most a job-page request's profile_text holds (method 'request'): their CV is the best text the agent ever gets
+ * about someone, so the readers take more of it (match.ts personFacts; agent/request.ts).
+ */
+export const REQUEST_PROFILE_TEXT_CHARS = 8_000;
 /** The most one summary holds (the judge's background, or what a later read of their pages added). */
 export const SUMMARY_CHARS = 900;
 
@@ -20,6 +25,8 @@ export const PROFILE_LABEL = {
   linkedinSummary: "Summary from their public LinkedIn profile",
   linkedinExcerpt: "Their public LinkedIn profile (excerpt)",
   file: "From their application file",
+  /** The CV they gave on Harper's job page (a request): its text only, the file is never kept. */
+  cv: "Their CV (they gave it on Harper's job page)",
   /** Their own pages read later (a blog's about page, GitHub, a portfolio, their LinkedIn profile: profileRead.ts). */
   ownPages: (hosts: string) => `From their own pages (${hosts})`,
 } as const;
@@ -73,7 +80,7 @@ export function profileTextFrom(parts: readonly ProfilePart[], max = PROFILE_TEX
 
 const LABELS = [
   PROFILE_LABEL.summary, PROFILE_LABEL.excerpt, PROFILE_LABEL.linkedinSummary, PROFILE_LABEL.linkedinExcerpt, PROFILE_LABEL.file,
-  "From their own pages (",
+  PROFILE_LABEL.cv, "From their own pages (",
 ];
 
 /** Whether profile_text is in the labelled form (rows from before hold a page's raw text or a file's columns). */

@@ -120,10 +120,17 @@ export function buildCareerPostOnboardingContextSection(args: {
     160
   );
   const findSimilarRequest = buildCareerEntryFindSimilarRequest(args.context);
+  // Written by the server when the candidate signed up on the job page's card: a fact, not a request.
+  const oneScreenRecord = opportunity.oneScreenRecord
+    ? cleanCareerPromptInlineValue(opportunity.oneScreenRecord, 1200)
+    : "";
   if (args.factsOnly)
     return [
       "## Current conversation entry opportunity",
       "Source: the candidate entered this conversation from a Harper /jobs opportunity.",
+      oneScreenRecord
+        ? `Entry record from the job page's sign-up card (what the candidate agreed to there and what Harper already did): ${oneScreenRecord}`
+        : "",
       `Company: ${companyName || "not available"}`,
       `Role: ${roleTitle || "not available"}`,
       findSimilarRequest ||
@@ -143,6 +150,10 @@ export function buildCareerPostOnboardingContextSection(args: {
   const toolNames = new Set(args.toolNames ?? []);
   const toolGuidance = findSimilarRequest
     ? [`- ${findSimilarRequest}`]
+    : oneScreenRecord
+      ? roleId && toolNames.has("apply_to_internal_role")
+        ? [`- Tool-only exact active roleId: ${JSON.stringify(roleId)}.`]
+        : []
     : roleId
       ? toolNames.has("apply_to_internal_role")
         ? [
@@ -163,7 +174,9 @@ export function buildCareerPostOnboardingContextSection(args: {
     "The candidate began this exact onboarding conversation from a Harper /jobs opportunity.",
     `- Company: ${JSON.stringify(companyName || "not available")}`,
     `- Role: ${JSON.stringify(roleTitle || "not available")}`,
-    "- Treat this as strong source intent, not as a completed recommendation, candidate acceptance, company contact, or profile sharing.",
+    oneScreenRecord
+      ? `- Entry record from the job page's sign-up card (what the candidate agreed to there and what Harper already did): ${oneScreenRecord}`
+      : "- Treat this as strong source intent, not as a completed recommendation, candidate acceptance, company contact, or profile sharing.",
     ...toolGuidance,
   ].join("\n");
 }

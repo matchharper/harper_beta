@@ -41,6 +41,17 @@ export const REVIEW_SYSTEM_PROMPT = [
   "reason: one short sentence in Korean only, even when the texts are in English (한국어 해요체, never Japanese or English, at most about 60 characters) naming the deciding point in plain everyday words, e.g. '백엔드 5년 경력과 시니어 백엔드 자리가 잘 맞아요.', '7년 이상을 요구하는데 경력이 2년이에요.', '서울 출근 자리인데 해외에 살고 이사 계획이 안 보여요.' Do not repeat the company name. No markdown, no links.",
 ].join("\n");
 
+/**
+ * What the grader adds for a job-page request (method 'request', agent/request.ts): the person asked for roles like
+ * the seed posting, so where their own facts say nothing of the role family or level they want, the seed does.
+ */
+export const REVIEW_REQUEST_RULE = "This person asked Harper themselves for roles similar to the seed posting in their facts. When their own facts do not show the role family or level they want, read them from the seed: a role of the seed's family and level is not a doubt for lack of their facts alone. Every other point is checked as usual.";
+
+/** The grader's instructions: the same rubric for everyone, with the request rule for a job-page request. */
+export function reviewSystemPrompt(request: boolean): string {
+  return request ? `${REVIEW_SYSTEM_PROMPT}\n${REVIEW_REQUEST_RULE}` : REVIEW_SYSTEM_PROMPT;
+}
+
 export const REVIEW_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -190,4 +201,16 @@ export function postingsToMail(postings: readonly AgentPosting[], max: number): 
     else (kept.length < max ? kept : spare).push(posting);
   }
   return { kept, dropped, spare };
+}
+
+/**
+ * The postings a job-page request's mail carries (agent/request.ts; decided 11/24): the person asked, so the mail fills
+ * up to `max` — 잘 맞음 first, then 애매, each in the pick's order — and never carries 안 맞음 or an ungraded posting.
+ * None left: no mail yet (the request waits and is looked at again).
+ */
+export function requestPostingsToMail(postings: readonly AgentPosting[], max: number): { kept: AgentPosting[]; dropped: AgentPosting[] } {
+  const good = postings.filter((posting) => posting.review?.grade === "good");
+  const unsure = postings.filter((posting) => posting.review?.grade === "unsure");
+  const kept = [...good, ...unsure].slice(0, Math.max(0, max));
+  return { kept, dropped: postings.filter((posting) => !kept.includes(posting)) };
 }

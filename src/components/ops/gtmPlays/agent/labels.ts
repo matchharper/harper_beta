@@ -1,5 +1,6 @@
 import { applicantListCompany } from "@/lib/gtmPlays/agent/applicantList";
 import { AGENT_CHANNELS, CHANNEL_LABELS, type AgentChannelKey, type ChannelSettings } from "@/lib/gtmPlays/agent/channels";
+import { REQUEST_SOURCE } from "@/lib/gtmPlays/agent/request";
 import { EXPLORE_SOURCE, signalSourceInfo } from "@/lib/gtmPlays/agent/signals";
 import { excludeBucket, type AgentExcludeBucket, type FunnelColumn } from "@/lib/gtmPlays/agent/funnel";
 import {
@@ -22,6 +23,8 @@ export function sourceLabel(source: string): string {
   if (source === "other") return "기타";
   // People from a bought list (dbSource.server.ts).
   if (source === "db") return "구매 DB";
+  // People who asked on Harper's job page for similar postings (agent/request.ts REQUEST_SOURCE).
+  if (source === REQUEST_SOURCE) return "공고 페이지";
   const list = applicantListCompany(source);
   if (list) return `${list} 지원자`;
   try {
@@ -38,6 +41,7 @@ export const METHOD_LABEL: Record<AgentMethod, string> = {
   signal_post: "구직 글",
   layoff_company: "구조조정 회사 출신",
   db: "구매 DB",
+  request: "공고 페이지 요청",
 };
 
 export const STATUS_LABEL: Record<AgentStatus, string> = {

@@ -36,14 +36,21 @@ export const FILL_CHANNELS = ["coaching_post", "event_post", "comment", "github"
  * day cap. Never a candidate's channel (channelOf).
  */
 export const COMPANY_CHANNELS = ["company_post"] as const;
+/**
+ * People who asked on Harper's job page for similar postings (agent/request.ts, 11/24): their mail goes right away
+ * through agent/request.server.ts, never through the tick's queue, within this channel's own daily max (first mails and
+ * follow-ups). Its own bounce brake; left out of the whole agent's brake (store.server.ts agentDeliveryStats).
+ */
+export const REQUEST_CHANNELS = ["request"] as const;
 
 export type AgentMainChannel = (typeof MAIN_CHANNELS)[number];
 export type AgentFillChannel = (typeof FILL_CHANNELS)[number];
 export type AgentCompanyChannel = (typeof COMPANY_CHANNELS)[number];
+export type AgentRequestChannel = (typeof REQUEST_CHANNELS)[number];
 /** A candidate's channel (where channelOf puts a person). */
-export type AgentCandidateChannel = AgentMainChannel | AgentFillChannel;
+export type AgentCandidateChannel = AgentMainChannel | AgentFillChannel | AgentRequestChannel;
 export type AgentChannelKey = AgentCandidateChannel | AgentCompanyChannel;
-export const CANDIDATE_CHANNELS: readonly AgentCandidateChannel[] = [...MAIN_CHANNELS, ...FILL_CHANNELS];
+export const CANDIDATE_CHANNELS: readonly AgentCandidateChannel[] = [...MAIN_CHANNELS, ...FILL_CHANNELS, ...REQUEST_CHANNELS];
 export const AGENT_CHANNELS: readonly AgentChannelKey[] = [...CANDIDATE_CHANNELS, ...COMPANY_CHANNELS];
 
 export const CHANNEL_LABELS: Record<AgentChannelKey, string> = {
@@ -55,6 +62,7 @@ export const CHANNEL_LABELS: Record<AgentChannelKey, string> = {
   comment: "LinkedIn 댓글",
   github: "GitHub 구직 표시",
   db: "구매 DB",
+  request: "공고 페이지 요청",
   company_post: "회사 소싱 (채용 글)",
 };
 
@@ -70,6 +78,7 @@ export type ChannelFacts = {
 
 /** The person's channel, from where they were found, how, and why they wrote. */
 export function channelOf(person: ChannelFacts): AgentCandidateChannel {
+  if (person.method === "request") return "request";
   if (person.method === "db") return "db";
   if (person.method === "applicant") return "applicant";
   if (person.method === "layoff_company") return "layoff";
@@ -89,9 +98,13 @@ export function isCompanyChannel(channel: AgentChannelKey): channel is AgentComp
   return (COMPANY_CHANNELS as readonly string[]).includes(channel);
 }
 
-/** A channel with a daily max of its own: the new candidate channels and the company side. */
+export function isRequestChannel(channel: AgentChannelKey): channel is AgentRequestChannel {
+  return (REQUEST_CHANNELS as readonly string[]).includes(channel);
+}
+
+/** A channel with a daily max of its own: the new candidate channels, the job-page requests and the company side. */
 export function hasDailyMax(channel: AgentChannelKey): boolean {
-  return isFillChannel(channel) || isCompanyChannel(channel);
+  return isFillChannel(channel) || isCompanyChannel(channel) || isRequestChannel(channel);
 }
 
 /** The offer the intent picks: the purchased DB has none (general), events go with postings (general). */
@@ -142,12 +155,18 @@ export type ChannelSetting = { enabled: boolean; dailyMax: number | null };
 export type ChannelSettings = Record<AgentChannelKey, ChannelSetting>;
 
 export const CHANNEL_DAILY_MAX_DEFAULT = 20;
+/** Job-page requests a day by default (decided 11/24: on, 30 a day). */
+export const REQUEST_DAILY_MAX_DEFAULT = 30;
 export const CHANNEL_DAILY_MAX_LIMITS = { min: 0, max: 100 } as const;
 
+/** A channel's daily max when none is saved (null: no max of its own). */
+export function defaultDailyMax(channel: AgentChannelKey): number | null {
+  if (!hasDailyMax(channel)) return null;
+  return isRequestChannel(channel) ? REQUEST_DAILY_MAX_DEFAULT : CHANNEL_DAILY_MAX_DEFAULT;
+}
+
 export function defaultChannelSettings(): ChannelSettings {
-  return Object.fromEntries(AGENT_CHANNELS.map((key) => [
-    key, { enabled: true, dailyMax: hasDailyMax(key) ? CHANNEL_DAILY_MAX_DEFAULT : null },
-  ])) as ChannelSettings;
+  return Object.fromEntries(AGENT_CHANNELS.map((key) => [key, { enabled: true, dailyMax: defaultDailyMax(key) }])) as ChannelSettings;
 }
 
 export type ChannelSettingIssue = { channel: AgentChannelKey; message: string };
@@ -171,7 +190,7 @@ export function normalizeChannelSettings(input: unknown): { settings: ChannelSet
     if (!hasDailyMax(key) || raw.dailyMax === undefined || raw.dailyMax === null || raw.dailyMax === "") continue;
     const value = typeof raw.dailyMax === "number" ? raw.dailyMax : Number(String(raw.dailyMax).trim());
     if (!Number.isFinite(value)) {
-      issues.push({ channel: key, message: `${label} 하루 최대: 숫자가 아니라서 기본값으로 둬요 (${CHANNEL_DAILY_MAX_DEFAULT}).` });
+      issues.push({ channel: key, message: `${label} 하루 최대: 숫자가 아니라서 기본값으로 둬요 (${defaultDailyMax(key)}).` });
       continue;
     }
     const { min, max } = CHANNEL_DAILY_MAX_LIMITS;

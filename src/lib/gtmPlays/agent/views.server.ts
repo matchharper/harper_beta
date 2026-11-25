@@ -26,6 +26,7 @@ import { withVerdict, type PostingRef } from "./review";
 import { gtmSignupsCte } from "./signups.server";
 import type { AgentSpendStep } from "./spend";
 import { optOutAgentAddress, readReplyReadingTroubles } from "./replies.server";
+import { requestContentCleared } from "./request";
 import {
   contactOutcome, logFiltersMatch, type AgentReached, type AgentStage, type ContactOutcome, type LogAfterFilter,
   type LogFindFilter,
@@ -609,7 +610,7 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   if (current.status === "replied") {
     if (!args.stop) return current;
     await optOutAgentAddress(current.mailId, current.email);
-    const ended = await updateAgentPerson(args.id, { endedAt: now }, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" }, ["replied"]);
+    const ended = await updateAgentPerson(args.id, { endedAt: now, ...requestCleared(current) }, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" }, ["replied"]);
     if (!ended) throw moved();
     return ended;
   }
@@ -620,7 +621,12 @@ export async function markReplied(args: { id: string; userId: string; text: stri
   if (!person) throw moved();
   if (!args.stop) return person;
   await optOutAgentAddress(person.mailId, person.email);
-  return (await updateAgentPerson(person.id, {}, { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" })) ?? person;
+  return (await updateAgentPerson(person.id, requestCleared(person), { kind: "unsubscribed", by: args.userId, note: "답장으로 연락 그만 요청" })) ?? person;
+}
+
+/** A job-page request's CV or profile text, cleared on an opt-out (agent/request.ts requestContentCleared). */
+function requestCleared(person: AgentPerson) {
+  return person.method === "request" ? requestContentCleared(person.request, new Date()) : {};
 }
 
 /**

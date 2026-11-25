@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { clearJobPageRequestForMail } from "@/lib/gtmPlays/agent/request.server";
 import { unsubscribeGtmMail } from "@/lib/gtmPlays/mailSend.server";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,9 @@ export async function POST(req: NextRequest) {
   try {
     const result = await unsubscribeGtmMail({ mailId, token });
     if (!result.ok) return page("<p style=\"margin:0\">링크가 올바르지 않아요. · This link is not valid.</p>", 404);
+    // A job-page request's CV or profile text goes with the opt-out (agent/request.server.ts). The opt-out above stands
+    // either way; the tick also clears it while the row is still 'sent'.
+    await clearJobPageRequestForMail(mailId.trim()).catch((error) => console.error("[gtm-unsubscribe] request content not cleared", mailId, error));
     return page("<p style=\"margin:0\">앞으로 Harper에서 연락드리지 않을게요. · You won’t hear from Harper again.</p>");
   } catch (error) {
     console.error("[gtm-unsubscribe] failed", error);
