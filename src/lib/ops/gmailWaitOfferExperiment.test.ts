@@ -4,7 +4,7 @@ import {
   assignGmailWaitOfferVariant,
   GMAIL_WAIT_OFFER_EXPERIMENT,
 } from "@/lib/career/gmailWaitOfferExperiment";
-import { buildGmailWaitOfferExperiment, type GmailWaitOfferOutcomes } from "./gmailWaitOfferExperiment";
+import { buildGmailWaitOfferExperiment, GMAIL_WAIT_OFFER_METRICS, type GmailWaitOfferOutcomes } from "./gmailWaitOfferExperiment";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -22,9 +22,10 @@ function idsFor(variant: "no_card" | "card", count: number) {
 }
 const exposure = (userId: string, hour: number, variant = assignGmailWaitOfferVariant(userId), experiment: string = GMAIL_WAIT_OFFER_EXPERIMENT) =>
   ({ user_id: userId, created_at: at(hour), meta_data: { experiment, variant } });
-const none = (): GmailWaitOfferOutcomes => ({ connections: [], submissions: [], emailCodeStops: [], reviewForms: [], formAnswers: [] });
+const none = (): GmailWaitOfferOutcomes => ({ connections: [], completions: [], actions: [] });
 const detail = (summary: ReturnType<typeof buildGmailWaitOfferExperiment>, side: 0 | 1, label: string) =>
   summary.variants[side].summaryMetrics?.find((metric) => metric.label === label)?.detail;
+const { completed, silent, connected } = GMAIL_WAIT_OFFER_METRICS;
 
 test("each person keeps one side, and the two sides split about evenly", () => {
   const ids = Array.from({ length: 2000 }, (_, index) => `user-${index}`);
@@ -39,7 +40,7 @@ test("a person counts once from the first exposure ever, on their assigned side 
   const outcomes = none();
   // b1 connects 2 hours after first seeing the card; the later exposure does not restart the clock.
   outcomes.connections.push({ userId: b1, at: at(2) });
-  // b2 connects 30 hours later: outside the 24-hour window.
+  // b2 connects 30 hours later: there is no fixed window, so it still counts.
   outcomes.connections.push({ userId: b2, at: at(30) });
   // a1 connected before the exposure: not counted.
   outcomes.connections.push({ userId: a1, at: at(-1) });
@@ -56,17 +57,19 @@ test("a person counts once from the first exposure ever, on their assigned side 
   const [a, b] = summary.variants;
   assert.equal(summary.status, "running");
   assert.deepEqual([a.sampleCount, b.sampleCount], [2, 2]);
-  assert.deepEqual([a.primary.numerator, a.primary.denominator], [0, 2]);
-  assert.deepEqual([b.primary.numerator, b.primary.denominator], [1, 2]);
-  assert.equal(detail(summary, 1, "24시간 안 Gmail 연결"), "1 / 2명");
+  assert.equal(detail(summary, 0, connected), "0 / 2명");
+  assert.equal(detail(summary, 1, connected), "2 / 2명");
+  // Something after `now` is not counted yet.
+  const early = buildGmailWaitOfferExperiment({ exposures: [exposure(b2, 0)], outcomes, since: origin, now: origin + DAY });
+  assert.equal(detail(early, 1, connected), "0 / 1명");
 });
 
 test("a person first exposed before the chosen range is left out, not counted from a later exposure", () => {
   const [b1, b2] = idsFor("card", 2);
   const outcomes = none();
-  outcomes.connections.push({ userId: b1, at: at(49) });
+  outcomes.completions.push({ userId: b1, at: at(49) });
   const summary = buildGmailWaitOfferExperiment({
-    // b1 was first seen on day 0 and did not connect; seen again on day 2 inside a range that starts on day 1.
+    // b1 was first seen on day 0; seen again on day 2 inside a range that starts on day 1.
     exposures: [exposure(b1, 0), exposure(b1, 48), exposure(b2, 30)],
     outcomes,
     since: origin + DAY,
@@ -76,39 +79,55 @@ test("a person first exposed before the chosen range is left out, not counted fr
   assert.deepEqual([summary.variants[1].primary.numerator, summary.variants[1].primary.denominator], [0, 1]);
 });
 
-test("each measure counts only people whose window has passed, and staff are left out", () => {
+test("everyone counts from the start, the primary measure is a finished application, and staff are left out", () => {
   const [a1] = idsFor("no_card", 1);
   const [b1, b2] = idsFor("card", 2);
   const outcomes = none();
-  outcomes.connections.push({ userId: b1, at: at(1) }, { userId: b2, at: at(1) });
-  outcomes.submissions.push({ userId: b1, at: at(2) });
-  const early = buildGmailWaitOfferExperiment({
+  outcomes.completions.push({ userId: b1, at: at(1) }, { userId: b2, at: at(1) });
+  const summary = buildGmailWaitOfferExperiment({
     exposures: [exposure(a1, 0), exposure(b1, 0), exposure(b2, 0)],
     outcomes,
     excludedUserIds: new Set([b2]),
     since: origin,
     now: origin + 2 * HOUR,
   });
-  assert.equal(early.variants[1].sampleCount, 1);
-  // Two hours in, no one's day or week has passed yet.
-  assert.equal(detail(early, 1, "24시간 안 Gmail 연결"), "0 / 0명");
-  assert.equal(detail(early, 1, "7일 안 웹 제출 성공"), "0 / 0명");
-  const later = buildGmailWaitOfferExperiment({ exposures: [exposure(a1, 0), exposure(b1, 0)], outcomes, since: origin, now: origin + 8 * DAY });
-  assert.equal(detail(later, 1, "24시간 안 Gmail 연결"), "1 / 1명");
-  assert.equal(detail(later, 1, "7일 안 웹 제출 성공"), "1 / 1명");
+  assert.equal(summary.primaryMetricLabel, completed);
+  assert.equal(summary.variants[1].sampleCount, 1);
+  // Two hours in, both sides already have numbers.
+  assert.equal(detail(summary, 0, completed), "0 / 1명");
+  assert.equal(detail(summary, 1, completed), "1 / 1명");
+  assert.deepEqual([summary.variants[1].primary.numerator, summary.variants[1].primary.denominator], [1, 1]);
   assert.equal(buildGmailWaitOfferExperiment({ exposures: [], outcomes: none(), since: origin, now: origin }).status, "awaiting_data");
 });
 
-test("a code stop counts only when nothing was submitted after it, and a form answer must name that form", () => {
-  const [a1, a2] = idsFor("no_card", 2);
+test("a person left silently only when they did nothing and did not connect after the start", () => {
+  const [a1, a2, a3, a4] = idsFor("no_card", 4);
   const outcomes = none();
-  // a1 stopped at a code at hour 5 and Harper finished the application at hour 6; a2 stopped and never finished.
-  outcomes.emailCodeStops.push({ userId: a1, at: at(5) }, { userId: a2, at: at(5) });
-  outcomes.submissions.push({ userId: a1, at: at(6) }, { userId: a2, at: at(1) });
-  // a1 answered its review form; a2 only answered a different form after its review form arrived.
-  outcomes.reviewForms.push({ userId: a1, at: at(1), formId: "10" }, { userId: a2, at: at(1), formId: "20" });
-  outcomes.formAnswers.push({ userId: a1, at: at(2), formIds: ["10"] }, { userId: a2, at: at(2), formIds: ["99"] });
-  const summary = buildGmailWaitOfferExperiment({ exposures: [exposure(a1, 0), exposure(a2, 0)], outcomes, since: origin, now: origin + 8 * DAY });
-  assert.equal(detail(summary, 0, "메일 인증 코드에서 끝내 못 냄"), "1 / 2명");
-  assert.equal(detail(summary, 0, "확인 폼에 답함"), "1 / 2명");
+  // a1 asked before the start only; a2 clicked "직접 지원" after it; a3 only connected Gmail; a4 did nothing.
+  outcomes.actions.push({ userId: a1, at: at(-1) }, { userId: a2, at: at(3) });
+  outcomes.connections.push({ userId: a3, at: at(5) });
+  const summary = buildGmailWaitOfferExperiment({
+    exposures: [exposure(a1, 0), exposure(a2, 0), exposure(a3, 0), exposure(a4, 0)],
+    outcomes,
+    since: origin,
+    now: origin + 3 * DAY,
+  });
+  assert.equal(detail(summary, 0, silent), "2 / 4명");
+});
+
+test("each explanation names the count and how long each side has been watched", () => {
+  const [a1] = idsFor("no_card", 1);
+  const [b1] = idsFor("card", 1);
+  const summary = buildGmailWaitOfferExperiment({
+    exposures: [exposure(a1, 0), exposure(b1, 24)],
+    outcomes: none(),
+    since: origin,
+    now: origin + 2 * DAY,
+  });
+  const text = summary.variants[0].summaryMetrics?.find((metric) => metric.label === silent)?.description ?? "";
+  assert.match(text, /분모: 선택한 기간에 대신 지원을 처음 시작한 사람/);
+  assert.match(text, /지켜본 기간: A 평균 2\.0일, B 평균 1\.0일/);
+  // One side with no one yet is left out of the line rather than shown as zero.
+  const one = buildGmailWaitOfferExperiment({ exposures: [exposure(a1, 0)], outcomes: none(), since: origin, now: origin + DAY });
+  assert.match(one.variants[0].summaryMetrics?.[0].description ?? "", /지켜본 기간: A 평균 1\.0일 \(/);
 });
