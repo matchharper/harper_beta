@@ -125,9 +125,12 @@ export function buildJobsOneScreenExperiment({
     const group = all.filter((b) => !isMember(b));
     const total = group.length;
     const count = (hit: (browser: Browser) => boolean) => group.filter(hit).length;
-    const share = (numerator: number): Pick<OpsAbTestMetric, "value" | "detail"> => ({
+    // Every cell reads the same way: the count first, then its share in brackets, as in "562 남음 (50.1%)".
+    const of = (n: number, base: number, word = "") =>
+      `${n.toLocaleString()}${word ? ` ${word}` : ""}${base > 0 ? ` (${((n / base) * 100).toFixed(1)}%)` : ""}`;
+    const share = (numerator: number): Pick<OpsAbTestMetric, "value" | "displayValue"> => ({
       value: makeOpsAbTestRate(numerator, total).rate,
-      detail: `${numerator.toLocaleString()} / ${total.toLocaleString()}`,
+      displayValue: of(numerator, total),
     });
     const absent = (name: string, text: string): OpsAbTestMetric => ({
       format: "rate",
@@ -147,19 +150,18 @@ export function buildJobsOneScreenExperiment({
     const reached = stages.map(count);
     // 남음 + (B only) 추천받기 + 빠짐 = the step before: in B, someone who stopped here but asked for similar postings
     // did not leave with nothing, so they get their own share instead of counting as 빠짐.
-    const stay = (step: number): Pick<OpsAbTestMetric, "value" | "detail"> => {
+    // The big line is who stayed, the small line who did not: both out of the step before, same order.
+    const stay = (step: number): Pick<OpsAbTestMetric, "value" | "displayValue" | "detail"> => {
       const before = reached[step - 2];
       const now = reached[step - 1];
       const similar =
         arm === "B" ? count((b) => stages[step - 2](b) && !stages[step - 1](b) && b.similar_requested) : 0;
       const left = before - now - similar;
-      const part = (n: number) => (before > 0 ? ` (${((n / before) * 100).toFixed(1)}%)` : "");
-      const parts = [
-        `${now.toLocaleString()} 남음`,
-        ...(arm === "B" ? [`${similar.toLocaleString()} 추천받기${part(similar)}`] : []),
-        `${left.toLocaleString()} 빠짐${part(left)}`,
-      ];
-      return { value: makeOpsAbTestRate(now, before).rate, detail: parts.join(" · ") };
+      return {
+        value: makeOpsAbTestRate(now, before).rate,
+        displayValue: of(now, before, "남음"),
+        detail: [...(arm === "B" ? [of(similar, before, "추천받기")] : []), of(left, before, "빠짐")].join(" · "),
+      };
     };
 
     // One description per row for both arms: the summary table shows the first arm's.
@@ -168,7 +170,7 @@ export function buildJobsOneScreenExperiment({
         format: "count",
         label: "1. 공고를 봄",
         value: total,
-        detail: "시작 (100%)",
+        displayValue: of(total, total),
         description: explain(
           "모든 단계의 시작이에요. LinkedIn, 검색, 공유 링크 등 어디서 들어왔든 셈",
           "이미 회원으로 확인된 브라우저는 여기서 빼고 \"따로: 이미 회원\"에 셈"
