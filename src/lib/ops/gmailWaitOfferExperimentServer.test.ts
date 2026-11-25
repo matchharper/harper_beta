@@ -27,9 +27,9 @@ function fakeAdmin(tables: Record<string, Record<string, unknown>[]>) {
 const START = "2026-11-23T00:00:00Z";
 const END = "2026-11-25T00:00:00Z";
 
-test("reads what exposed people did: server-confirmed connections, submissions, code stops, review forms and their answers", async () => {
-  const run = (updated_at: string, extra: Record<string, unknown>) => ({ kind: "browser_run", "request->>execution_environment": "production",
-    user_id: "u", created_at: updated_at, updated_at, ...extra });
+test("reads what exposed people did: confirmed connections, finished applications and the person's own moves", async () => {
+  const op = (kind: string, created_at: string, extra: Record<string, unknown>) => ({ kind, "request->>execution_environment": "production",
+    user_id: "u", created_at, updated_at: created_at, ...extra });
   const { admin } = fakeAdmin({
     logs: [
       // Exposures before the range still come back, so the builder can tell who was first seen earlier.
@@ -38,26 +38,30 @@ test("reads what exposed people did: server-confirmed connections, submissions, 
       { type: GMAIL_CONNECTION_CONFIRMED_EVENT, user_id: "u", created_at: "2026-11-24T01:00:00Z" },
       // The app's own log is not the measure.
       { type: "career_gmail_connect_succeeded", user_id: "u", created_at: "2026-11-24T01:00:01Z" },
+      { type: "career_click_mobile_history_external_apply_directly", user_id: "u", created_at: "2026-11-24T01:30:00Z" },
     ],
     talent_external_operations: [
-      run("2026-11-24T03:00:00Z", { submitted: "YES", verificationCode: "none" }),
-      run("2026-11-24T04:00:00Z", { submitted: "no", verificationCode: "email" }),
-      { ...run("2026-11-24T05:00:00Z", { submitted: "yes" }), "request->>execution_environment": "development:x" },
+      op("browser_run", "2026-11-24T03:00:00Z", { mode: "execute", submitted: "YES" }),
+      op("browser_run", "2026-11-24T04:00:00Z", { mode: "prepare", submitted: "no" }),
+      { ...op("browser_run", "2026-11-24T05:00:00Z", { mode: "execute", submitted: "yes" }), "request->>execution_environment": "development:x" },
+      op("email_send", "2026-11-24T06:00:00Z", { status: "succeeded", action: "send" }),
+      // A reply to a company's mail, or a mail that did not go out, is not an application.
+      op("email_send", "2026-11-24T07:00:00Z", { status: "succeeded", action: "reply" }),
+      op("email_send", "2026-11-24T08:00:00Z", { status: "failed", action: "send" }),
     ],
     talent_messages: [
-      { message_type: "career_form", user_id: "u", created_at: "2026-11-24T00:10:00Z", form_id: "10", related_refs: [{ type: "browser_session", id: "s" }] },
-      { message_type: "career_form", user_id: "u", created_at: "2026-11-24T00:20:00Z", form_id: "11", related_refs: [{ type: "document", id: "d" }] },
-      { message_type: "career_form_response", user_id: "u", created_at: "2026-11-24T00:30:00Z", form_id: "10", responses: null },
-      { message_type: "career_form_response", user_id: "u", created_at: "2026-11-24T00:40:00Z", form_id: null, responses: [{ formId: "12" }, { formId: 13 }] },
+      { message_type: "chat", role: "user", user_id: "u", created_at: "2026-11-24T00:10:00Z" },
+      { message_type: "chat", role: "assistant", user_id: "u", created_at: "2026-11-24T00:11:00Z" },
+      { message_type: "career_form_response", role: "user", user_id: "u", created_at: "2026-11-24T00:30:00Z" },
+      { message_type: "career_form", role: "assistant", user_id: "u", created_at: "2026-11-24T00:20:00Z" },
     ],
   });
   const { exposures, outcomes } = await fetchGmailWaitOfferExperimentRows(admin, START, END);
   assert.deepEqual(exposures.map((row) => row.user_id), ["old", "u"]);
   assert.deepEqual(outcomes.connections.map((event) => event.at), ["2026-11-24T01:00:00Z"]);
-  assert.deepEqual(outcomes.submissions.map((event) => event.at), ["2026-11-24T03:00:00Z"]);
-  assert.deepEqual(outcomes.emailCodeStops.map((event) => event.at), ["2026-11-24T04:00:00Z"]);
-  assert.deepEqual(outcomes.reviewForms.map((form) => form.formId), ["10"]);
-  assert.deepEqual(outcomes.formAnswers.map((answer) => answer.formIds), [["10"], ["12", "13"]]);
+  assert.deepEqual(outcomes.completions.map((event) => event.at).sort(), ["2026-11-24T03:00:00Z", "2026-11-24T06:00:00Z"]);
+  assert.deepEqual(outcomes.actions.map((event) => event.at).sort(),
+    ["2026-11-24T00:10:00Z", "2026-11-24T00:30:00Z", "2026-11-24T01:30:00Z", "2026-11-24T03:00:00Z"]);
 });
 
 test("pages through more than one page of exposures and reads nothing more when no one is in range", async () => {

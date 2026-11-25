@@ -456,7 +456,14 @@ function SummaryComparison({ experiment }: { experiment: OpsAbTestSummary }) {
           <TableRow key={metric.label}>
             <TableCell>
               <div className="flex items-center gap-1">
-                {metric.label}
+                {/* The name itself shows how the number is counted, like the ⓘ next to it. */}
+                {metric.description ? (
+                  <Tooltips text={metric.description}>
+                    <span className="cursor-help">{metric.label}</span>
+                  </Tooltips>
+                ) : (
+                  metric.label
+                )}
                 {metric.description ? (
                   <Tooltips text={metric.description}>
                     <MuteButton
