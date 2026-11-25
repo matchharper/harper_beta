@@ -24,6 +24,8 @@ export type OpsCrmBroadcast = {
   completedAt: string | null;
   createdAt: string;
   deliveryCounts: OpsCrmBroadcastDeliveryCounts;
+  /** "Name <address>" or an address; null uses the default sender. */
+  fromEmail: string | null;
   htmlContent: string;
   id: string;
   name: string;
@@ -41,6 +43,7 @@ export type OpsCrmBroadcastsResponse = {
 };
 
 export type OpsCrmBroadcastSaveInput = {
+  fromEmail?: unknown;
   htmlContent?: unknown;
   id?: unknown;
   name?: unknown;

@@ -44,6 +44,7 @@ import type { OpsCrmCampaignPreferredLocale } from "@/lib/ops/crmCampaigns";
 import { buildCrmBroadcastPreviewDocument } from "@/lib/ops/crmCampaignEmailPreview";
 
 type BroadcastDraft = {
+  fromEmail: string;
   htmlContent: string;
   id: string | null;
   name: string;
@@ -56,7 +57,11 @@ type BroadcastDraft = {
 type PreviewViewport = "desktop" | "mobile";
 type BroadcastStatusFilter = "all" | OpsCrmBroadcastStatus;
 
+// The Worker's sender when a broadcast leaves it empty.
+const DEFAULT_SENDER = "Harper <hello@matchharper.com>";
+
 const EMPTY_DRAFT: BroadcastDraft = {
+  fromEmail: "",
   htmlContent: "",
   id: null,
   name: "",
@@ -98,6 +103,7 @@ function toScheduledIso(value: string) {
 
 function broadcastToDraft(broadcast: OpsCrmBroadcast): BroadcastDraft {
   return {
+    fromEmail: broadcast.fromEmail ?? "",
     htmlContent: broadcast.htmlContent,
     id: broadcast.id,
     name: broadcast.name,
@@ -110,6 +116,7 @@ function broadcastToDraft(broadcast: OpsCrmBroadcast): BroadcastDraft {
 
 function normalizeDraftForComparison(draft: BroadcastDraft) {
   return {
+    fromEmail: draft.fromEmail.trim(),
     htmlContent: draft.htmlContent.trim(),
     name: draft.name.trim(),
     recipientOnboardingDoneOnly: draft.recipientOnboardingDoneOnly,
@@ -369,6 +376,7 @@ export function CrmBroadcastWorkspace() {
         "/api/internal/crm/broadcasts",
         {
           body: JSON.stringify({
+            fromEmail: draft.fromEmail,
             htmlContent: draft.htmlContent,
             id: draft.id ?? undefined,
             name: draft.name,
@@ -408,6 +416,7 @@ export function CrmBroadcastWorkspace() {
           "/api/internal/crm/broadcasts/test-email",
           {
             body: JSON.stringify({
+              fromEmail: draft.fromEmail,
               htmlContent: draft.htmlContent,
               recipientPreferredLocale: draft.recipientPreferredLocale,
               subject: draft.subject,
@@ -819,25 +828,47 @@ export function CrmBroadcastWorkspace() {
                 <div>
                   <label
                     className={opsTheme.label}
-                    htmlFor="crm-broadcast-subject"
+                    htmlFor="crm-broadcast-from"
                   >
-                    새 메일 제목
+                    보내는 사람
                   </label>
                   <UiInput
                     unstyled
-                    id="crm-broadcast-subject"
-                    value={draft.subject}
+                    id="crm-broadcast-from"
+                    value={draft.fromEmail}
                     onChange={(event) =>
                       setDraft((current) => ({
                         ...current,
-                        subject: event.target.value,
+                        fromEmail: event.target.value,
                       }))
                     }
-                    maxLength={200}
-                    placeholder="받는 사람에게 표시될 제목"
+                    placeholder={DEFAULT_SENDER}
                     className={cx(opsTheme.input, "mt-2")}
                   />
                 </div>
+              </div>
+
+              <div>
+                <label
+                  className={opsTheme.label}
+                  htmlFor="crm-broadcast-subject"
+                >
+                  새 메일 제목
+                </label>
+                <UiInput
+                  unstyled
+                  id="crm-broadcast-subject"
+                  value={draft.subject}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      subject: event.target.value,
+                    }))
+                  }
+                  maxLength={200}
+                  placeholder="받는 사람에게 표시될 제목"
+                  className={cx(opsTheme.input, "mt-2")}
+                />
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
@@ -1056,6 +1087,12 @@ export function CrmBroadcastWorkspace() {
               <span className="text-neutral-muted">예상 대상</span>
               <span className="font-medium text-neutral-primary">
                 {(audienceCount ?? 0).toLocaleString()}명
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-neutral-muted">보내는 사람</span>
+              <span className="text-neutral-primary">
+                {draft.fromEmail.trim() || DEFAULT_SENDER}
               </span>
             </div>
             <div>
