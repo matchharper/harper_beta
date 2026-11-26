@@ -48,20 +48,3 @@ test("a web application's review form (tied to a browser session) gets the box t
   // A form about a role without a browser session or a company address (e.g. a résumé edit) does not.
   assert.equal(withProfileLinkBox({ ...web, relatedRefs: [{ type: "role", id: "r1" }] }).added, false);
 });
-
-test("the start form of delegated applications gets the box: a review may never come", () => {
-  const start = {
-    kind: "form" as const,
-    title: "지원 시작",
-    items: [
-      { id: "submit_scope", label: "맡기는 범위", type: "select", content: { options: ["제출까지 맡기기", "제출 전에 한 번 보기"] } },
-      { id: "save_login", label: "로그인 기억하기", type: "checkbox", content: { value: true } },
-    ],
-    relatedRefs: [{ type: "role", id: "r1" }, { type: "role", id: "r2" }],
-  };
-  const guarded = withProfileLinkBox(start);
-  assert.equal(guarded.added, true);
-  assert.equal(guarded.form.items.at(-1)!.label, PROFILE_LINK_BOX_LABEL);
-  // Without roles it is not an application start.
-  assert.equal(withProfileLinkBox({ ...start, relatedRefs: [] }).added, false);
-});

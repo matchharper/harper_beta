@@ -29,7 +29,9 @@ export function responsesIn(payload: unknown): CareerFormResponse[] {
 /**
  * Whether the person keeps the box checked for this application: their answer on the form that approved it, else the
  * box as the newest review form for the role holds it (its last answer, or its initial value when they approved in
- * chat without answering the form). null when no reviewed form for these roles has the box.
+ * chat without answering the form). A submission delegated with no form for these roles at all (nothing left to ask,
+ * so no review) keeps the box's default: the link goes in; the user removes it in chat (profile_link=false). null when
+ * forms for these roles exist but none has the box.
  */
 export async function approvedProfileLinkChoice(context: Pick<ExternalToolContext, "admin" | "userId" | "conversationId">,
   args: { roleRefs: string[]; authorization: { payload: unknown }[] }): Promise<{ include: boolean; roleId: string } | null> {
@@ -41,12 +43,14 @@ export async function approvedProfileLinkChoice(context: Pick<ExternalToolContex
       const roleId = formRoles(response.formSnapshot).find((id) => roles.includes(id));
       if (item && roleId) return { include: response.values[item.id] === true, roleId };
     }
+  let sawForm = false;
   for (const roleId of roles) {
     const { data, error } = await (context.admin.from("talent_messages") as any).select("id,payload")
       .eq("user_id", context.userId).eq("conversation_id", context.conversationId).eq("message_type", "career_form")
       .contains("payload", { relatedRefs: [{ type: "role", id: roleId }] }).order("id", { ascending: false }).limit(1).maybeSingle();
     if (error) throw new Error(error.message);
     const form = parseCareerForm(data?.payload);
+    if (form) sawForm = true;
     const item = form && profileLinkItem(form);
     if (!form || !item) continue;
     const answered = await (context.admin.from("talent_messages") as any).select("payload")
@@ -58,7 +62,7 @@ export async function approvedProfileLinkChoice(context: Pick<ExternalToolContex
     const initial = typeof item.content === "object" && item.content.value === true;
     return { include: last ? last.values[item.id] === true : initial, roleId };
   }
-  return null;
+  return sawForm ? null : { include: true, roleId: roles[0] };
 }
 
 /** The company and posting of a role, as the candidate summary link names them. */
