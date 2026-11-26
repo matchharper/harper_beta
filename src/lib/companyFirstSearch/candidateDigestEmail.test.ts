@@ -165,6 +165,11 @@ test("the ask calls the person the way the greeting calls people", () => {
   assert.equal(candidateCallName(`[김민준](${url}): 서빙`), "김민준");
   assert.equal(candidateCallName(`[Kim Minji](${url}): 서빙`), "Kim Minji");
   assert.equal(candidateCallName(`✅ [Mary\\-Jane O'Neil](${url}) — 결제 시스템을 만들었어요.`), "Mary-Jane");
+  // The label is Markdown: emphasis, a ✅ inside it and a "님" the Worker added come off.
+  assert.equal(candidateCallName(`[**Sam Lee**](${url}): Built a ledger`), "Sam");
+  assert.equal(candidateCallName(`[**김민준**](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[김민준님](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[✅ 김민준](${url}) — 서빙`), "김민준");
   assert.equal(candidateCallName("김민준님은 토스에서 일했어요."), "");
   // Text that links no one: the ask goes without a name.
   const email = build({ sections: [{ kind: "company_first", parts: [{ candidateId: "c2", text: "김민준님은 토스에서 일했어요." }] }] });
@@ -304,6 +309,17 @@ test("missing action links or candidates are rejected instead of sending a parti
         ],
       }),
     /at least one candidate/
+  );
+  // Worker text that breaks the Markdown (an unclosed code fence) would swallow the links.
+  assert.throws(
+    () =>
+      build({
+        sections: [{
+          kind: "company_first",
+          parts: [{ candidateId: "c2", text: `[김민준](${web("c2")}): 서빙\n\n김민준님은 모델 서빙을 맡았어요.\n\n\`\`\`` }],
+        }],
+      }),
+    /action links could not be placed/
   );
 });
 

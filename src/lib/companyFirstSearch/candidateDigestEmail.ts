@@ -328,10 +328,16 @@ export function otherCandidateLine(text: string) {
 }
 
 /** How the ask calls the person: the name the Worker linked ("Sam Lee" → "Sam",
- * "김민준" whole, `mailCallName`); "" when the text links no one. */
+ * "김민준" whole, `mailCallName`); "" when the text links no one. The label is Markdown, so
+ * escapes, emphasis, a leading mark such as ✅ and a "님" the Worker added come off first. */
 export function candidateCallName(text: string) {
   const label = otherCandidateLine(text).match(MARKDOWN_LINK)?.[1] ?? "";
-  return mailCallName(label.replace(/\\(.)/g, "$1"));
+  const name = label
+    .replace(/\\(.)/g, "$1")
+    .replace(/[*_~`]/g, "")
+    .replace(/^[^\p{L}]+|[^\p{L}.]+$/gu, "")
+    .replace(/\s*님$/u, "");
+  return mailCallName(name);
 }
 
 /** "See all": the Role's 연결을 요청할 후보 list, the same inbox list the total counts, on
@@ -386,6 +392,7 @@ export function buildCandidateDigestEmail(args: {
   // The people whose links this mail shows. Only their links are stored, and each
   // stored link records an email presentation for its person (company_presentations).
   const actionCandidateIds: string[] = [];
+  const actionUrls: string[] = [];
   const blocks: string[] = [greeting(locale, args.recipientName)];
   const replyBlocks: string[] = [...blocks];
   const counts: Record<CandidateDigestKind, number> = {
@@ -405,6 +412,7 @@ export function buildCandidateDigestEmail(args: {
     blocks.push(text, ask.markdown);
     replyBlocks.push(text, ask.reply);
     actionCandidateIds.push(candidateId);
+    actionUrls.push(...links.map((link) => link.url));
   };
 
   // ✅ first: the Worker's text for people who already said yes, each with its links.
@@ -480,6 +488,13 @@ export function buildCandidateDigestEmail(args: {
   );
   let html = rendered.html;
   let text = rendered.text;
+  // Every one-time link must come out as a link. Worker text can break the Markdown (an
+  // unclosed code fence), and the mail would then show and record links nobody can click.
+  const hrefs = new Set(
+    [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]!.replace(/&(?:amp|#x26);/g, "&"))
+  );
+  if (actionUrls.some((url) => !hrefs.has(url)))
+    throw new Error("Candidate mail action links could not be placed");
   if (blocks.includes(SECTION_SPACER_MARKER)) {
     // A table spacer is reliable in email clients and leaves shared heading styles alone.
     html = html.replace(

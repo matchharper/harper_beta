@@ -15,11 +15,21 @@ test("Hangul and other scripts stay whole", () => {
   assert.equal(mailCallName("김하늘 Dana"), "김하늘 Dana");
 });
 
-test("nobody is called by a surname, a title or an initial", () => {
+test("a name that starts with a known surname, a title or an initial stays whole", () => {
   assert.equal(mailCallName("Kim Minji"), "Kim Minji");
   assert.equal(mailCallName("LEE Minho"), "LEE Minho");
+  assert.equal(mailCallName("Rhee Minho"), "Rhee Minho");
+  assert.equal(mailCallName("Zhang Wei"), "Zhang Wei");
+  assert.equal(mailCallName("Nguyen Van An"), "Nguyen Van An");
   assert.equal(mailCallName("Dr. Jane Doe"), "Dr. Jane Doe");
   assert.equal(mailCallName("J. Smith"), "J. Smith");
+});
+
+test("a given name written as two syllables before the surname goes by both", () => {
+  assert.equal(mailCallName("Tae Ho Kim"), "Tae Ho");
+  assert.equal(mailCallName("seo yun park"), "seo yun park"); // Starts with a surname spelling.
+  assert.equal(mailCallName("Jason Min Kim"), "Jason");
+  assert.equal(mailCallName("Tae Ho Smith"), "Tae");
 });
 
 test("no name gives an empty string", () => {
