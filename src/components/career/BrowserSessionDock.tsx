@@ -197,6 +197,21 @@ export function useBrowserSessionDevPreview() {
   return { open: dock?.preview ?? false, setOpen: dock?.setPreview };
 }
 
+/**
+ * Opens a browser of this conversation from elsewhere (the application progress panel), the same way the timeline's
+ * browser link does. null when there is no dock, or the browser is closed or not on screen.
+ */
+export function useBrowserSessionOpener(sessionId: string | null) {
+  const dock = useContext(BrowserDockContext);
+  if (!dock || !sessionId) return null;
+  const session = dock.summaries.get(sessionId);
+  if (session?.status === "closed" || session?.browserAvailability === "stopped" || !dock.anchors.has(sessionId)) return null;
+  return () => {
+    dock.anchors.get(sessionId)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    dock.select(sessionId);
+  };
+}
+
 export function BrowserSessionLink({ sessionId }: { sessionId: string }) {
   const dock = useContext(BrowserDockContext);
   const t = useCareerT();

@@ -62,7 +62,7 @@ import { useChatComposerTokens } from "@/hooks/chat/useChatComposerTokens";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import type { ChatComposerToken } from "@/lib/chat/composerTokens";
 import { CareerQueuedMessageList } from "./CareerQueuedMessageList";
-import { CareerWaitingApplications } from "./CareerWaitingApplications";
+import { CareerApplicationProgressPanel } from "./CareerApplicationProgressPanel";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import {
   toCareerPendingActionReference,
@@ -1277,7 +1277,7 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       <div className="career-composer-width relative mx-auto w-full">
         <BrowserSessionDock />
         <CareerDailyExternalStatus />
-        <CareerWaitingApplications conversationId={conversationId} busy={chatPending} />
+        <CareerApplicationProgressPanel conversationId={conversationId} />
         <InternalCallAnswersSlot>
           {initialOpportunitySearchStatus ? (
             <CareerInitialOpportunitySearchStatus
