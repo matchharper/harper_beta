@@ -225,6 +225,27 @@ export const UPDATE_METRICS = {
     label: "메일 받고 돌아옴",
     unit: "percent",
   },
+  applyConfirmed: {
+    better: null,
+    detail:
+      "talent가 Harper에게 실행을 승인한 대신 지원 수입니다. 승인한 날로 셉니다. /ops/metrics ‘대신지원 성공률’의 최종 컨펌과 같습니다.",
+    label: "최종 컨펌",
+    unit: "count",
+  },
+  applySubmitted: {
+    better: "up",
+    detail:
+      "승인한 대신 지원 중 Gmail 발송이 성공했거나, 회사 사이트 실행 보고의 첫 문장이 제출 완료를 말하는 지원 수입니다. 승인한 날로 셉니다.",
+    label: "제출 완료",
+    unit: "count",
+  },
+  applySuccessRate: {
+    better: "up",
+    detail:
+      "승인한 날이 같은 대신 지원 중 제출 완료의 비율(제출 완료 ÷ 최종 컨펌)입니다. 아직 진행 중인 지원은 제출 전으로 세므로 최근 값은 오를 수 있습니다.",
+    label: "대신지원 성공률",
+    unit: "percent",
+  },
 } as const satisfies Record<string, UpdateMetricDefinition>;
 
 export type UpdateMetricKey = keyof typeof UPDATE_METRICS;
@@ -267,7 +288,18 @@ export type OpsTrackedChange = UpdateMetricChart & {
 };
 
 const PR_436 = { label: "PR #436", url: "https://github.com/matchharper/harper_beta/pull/436" };
+const PR_433 = { label: "PR #433", url: "https://github.com/matchharper/harper_beta/pull/433" };
 const PR_400 = { label: "PR #400", url: "https://github.com/matchharper/harper_beta/pull/400" };
+const PR_363 = { label: "PR #363", url: "https://github.com/matchharper/harper_beta/pull/363" };
+
+/** 대신 지원 changes all read the same chart: confirmations, submissions among them, and the share submitted. */
+const applySuccessChart = (): Pick<OpsTrackedChange, "bars" | "lines" | "primary" | "talentCharts"> => ({
+  // Submitted is a part of confirmed, so stacking would count it twice; the bars stand side by side.
+  bars: ["applyConfirmed", "applySubmitted"],
+  lines: ["applySuccessRate"],
+  primary: "applySuccessRate",
+  talentCharts: ["applySuccess"],
+});
 
 /** The one metric many changes move at once: signups, and how many of them talk to Harper within 3 days. */
 export const OPS_HEADLINE_CHART: UpdateMetricChart & { primary: UpdateMetricKey } = {
@@ -281,6 +313,16 @@ export const OPS_HEADLINE_CHART: UpdateMetricChart & { primary: UpdateMetricKey 
  * (ops_tracked_changes); the definition stays here.
  */
 export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
+  {
+    ...applySuccessChart(),
+    // Placeholder: set the real KST deploy day and the PR link when this branch reaches main.
+    deployedOn: "2026-11-27",
+    detail:
+      "시작 확인 폼 한 장에서 공고, 맡길 범위, 공통 사실, 공고별 이력서, 로그인 유지를 한 번에 묻고, 새로 물을 것이 없으면 다시 검토하지 않고 제출합니다. 마감된 공고는 브라우저를 열기 전에 거르고, 채팅 입력창 위 패널에 지원마다 제출까지의 단계를 실시간으로 보여 줍니다.",
+    key: "2026-11-27-apply-confirm-progress",
+    links: [],
+    title: "지원 확인폼·패널",
+  },
   {
     bars: ["signups"],
     deployedOn: "2026-11-24",
@@ -317,6 +359,16 @@ export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
     stackBars: true,
     talentCharts: ["messages", "activeTalents", "dau"],
     title: "메일 선택지 버튼",
+  },
+  {
+    ...applySuccessChart(),
+    // main merge of PR #433: 2026-11-23 22:36 KST.
+    deployedOn: "2026-11-23",
+    detail:
+      "여러 지원을 먼저 모두 준비한 뒤 한 번에 승인하고, 서로 다른 지원의 준비는 동시에 돌립니다. 확인 폼은 필수 칸을 표시하고 아는 내용은 미리 채우며, 제출 안 됨으로 끝난 지원은 다시 제출할 수 있고, 준비를 기다리는 동안 절반의 사람에게(A/B) Gmail 연결 카드를 보여 줍니다.",
+    key: "2026-11-23-apply-batch",
+    links: [PR_433],
+    title: "지원 한번에 승인",
   },
   {
     bars: ["landingVisitors"],
@@ -395,6 +447,16 @@ export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
     talentCharts: [],
     title: "1인당 비용·LLM 시간",
   },
+  {
+    ...applySuccessChart(),
+    // main merge of PR #363: 2026-11-18 18:15 KST.
+    deployedOn: "2026-11-18",
+    detail:
+      "사이트가 보내는 인증 코드를 Harper가 직접 받아 같은 브라우저에 넣고, 로그인은 Harper 브라우저에서 맞는 로그인 입구까지 가서 합니다. 사람이 동의하면 사이트 로그인을 저장해 다음 지원부터 다시 로그인하지 않습니다.",
+    key: "2026-11-18-apply-login-code",
+    links: [PR_363],
+    title: "지원 코드·로그인",
+  },
 ];
 
 export const OPS_TRACKED_CHANGE_KEYS = new Set(OPS_TRACKED_CHANGES.map((change) => change.key));
@@ -463,6 +525,13 @@ export type UpdateMetricsUnseenReplyRow = {
   day: string;
   emailed: number;
   reviewed: number;
+};
+
+/** 대신 지원 confirmed on a KST day, and how many of them were submitted. */
+export type UpdateMetricsApplicationRow = {
+  confirmed: number;
+  day: string;
+  submitted: number;
 };
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -606,6 +675,7 @@ export function trackedChangeComparison(response: OpsUpdateMetricsResponse, chan
 }
 
 export function buildOpsUpdateMetrics(args: {
+  applications: UpdateMetricsApplicationRow[];
   emails: UpdateMetricsEmailRow[];
   /** KST dates [from, to] the rows were read for. */
   from: string;
@@ -691,6 +761,16 @@ export function buildOpsUpdateMetrics(args: {
     )
   );
 
+  const applications = byDay(args.applications, (row) => row.day).map((rows) =>
+    rows.reduce(
+      (sum, row) => ({
+        confirmed: sum.confirmed + row.confirmed,
+        submitted: sum.submitted + row.submitted,
+      }),
+      { confirmed: 0, submitted: 0 }
+    )
+  );
+
   const metrics: Record<UpdateMetricKey, UpdateMetricValue[]> = {
     signups: count(signups.map((rows) => rows.length)),
     chatRate24h: signups.map((rows) => share(rows, (row) => chattedWithin(row, 1))),
@@ -724,6 +804,9 @@ export function buildOpsUpdateMetrics(args: {
     unseenReviewed: count(unseen.map((item) => item.reviewed)),
     unseenEmailed: count(unseen.map((item) => item.emailed)),
     unseenEmailActionRate: unseen.map((item) => rate(item.acted, item.emailed)),
+    applyConfirmed: count(applications.map((item) => item.confirmed)),
+    applySubmitted: count(applications.map((item) => item.submitted)),
+    applySuccessRate: applications.map((item) => rate(item.submitted, item.confirmed)),
   };
 
   return { days, generatedAt: new Date(args.nowMs).toISOString(), metrics };

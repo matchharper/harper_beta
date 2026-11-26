@@ -63,6 +63,9 @@ function pointDays(point: PointDates, interval: ChangeContextValue["interval"]) 
 
 const shortDay = (day: string) => `${Number(day.slice(5, 7))}.${Number(day.slice(8, 10))}`;
 
+/** Today's KST date. A change dated later is not deployed yet, so it marks no chart even inside the running week. */
+const todayKst = () => new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10);
+
 /** Changes that move this chart and were deployed inside this point. */
 function useChangesAt(chart: OpsChangeChart | undefined, point: PointDates) {
   const context = useContext(ChangeContext);
@@ -72,7 +75,10 @@ function useChangesAt(chart: OpsChangeChart | undefined, point: PointDates) {
   return {
     changes: context.changes.filter(
       (change) =>
-        changeMovesChart(change, chart) && change.deployedOn >= days.start && change.deployedOn <= days.end
+        changeMovesChart(change, chart) &&
+        change.deployedOn >= days.start &&
+        change.deployedOn <= days.end &&
+        change.deployedOn <= todayKst()
     ),
     spansDays: days.start !== days.end,
   };
@@ -191,7 +197,7 @@ export function useOpsChangeMarks(chart: OpsChangeChart | undefined, points: Poi
   if (!context || !chart) return [];
   const marks = new Map<string, OpsTrackedChange[]>();
   for (const change of context.changes) {
-    if (!changeMovesChart(change, chart)) continue;
+    if (!changeMovesChart(change, chart) || change.deployedOn > todayKst()) continue;
     const point = points.find((item) => {
       const days = pointDays(item, context.interval);
       return days && days.start <= change.deployedOn && change.deployedOn <= days.end;
