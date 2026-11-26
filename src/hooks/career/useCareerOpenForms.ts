@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCareerApi } from "./useCareerApi";
 import type { CareerForm } from "@/lib/career/forms/schema";
 import type { CareerWorkActivity } from "@/lib/career/work/activity";
+import type { CareerApplicationProgress } from "@/lib/career/applicationProgress/types";
 
 export type CareerOpenFormsSnapshot = {
   completionCursor: string | null;
@@ -17,6 +18,8 @@ export type CareerOpenFormsSnapshot = {
   activities?: CareerWorkActivity[];
   activeInvocationIds?: string[];
   turns?: CareerMessage[];
+  /** Delegated applications of this conversation and the step each is at (applicationProgress/build.ts). */
+  applications?: CareerApplicationProgress[];
 };
 
 /** Read-only snapshots for isolated local component previews. */

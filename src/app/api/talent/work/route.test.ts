@@ -7,6 +7,8 @@ import { z } from "zod";
 import { projectCareerWorkActivity } from "@/lib/career/work/activity";
 import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { parseCareerForm } from "@/lib/career/forms/schema";
+import { readCareerApplicationProgress } from "@/lib/career/applicationProgress/read.server";
+import type { CareerApplicationProgress } from "@/lib/career/applicationProgress/types";
 
 const conversationId = "00000000-0000-4000-8000-000000000001";
 function harness({
@@ -17,7 +19,10 @@ function harness({
   deliveredEventIds = [] as string[],
   waitingForReply = false,
   idleWithForm = false,
+  progress = "ok" as "ok" | "fail",
+  turnCreatedAt = undefined as string | undefined,
 } = {}) {
+  const progressCalls: Array<{ userId: string; conversationId: string; openForms: unknown; turnStartedAt: unknown }> = [];
   const calls: Array<{
     table: string;
     columns?: string;
@@ -28,7 +33,7 @@ function harness({
       assert.equal(name, "read_open_career_forms");
       assert.equal(args.p_user_id, "owner");
       assert.equal(args.p_conversation_id, conversationId);
-      return { data: idleWithForm ? [{ payload: { formId: 99, revision: 1, kind: "form", state: "open", title: "검토",
+      return { data: idleWithForm ? [{ created_at: "2026-11-04T00:00:00Z", payload: { formId: 99, revision: 1, kind: "form", state: "open", title: "검토",
         items: [{ id: "answer", label: "답변", type: "text", content: "" }] } }] : [], error: null };
     },
     from(table: string) {
@@ -65,7 +70,8 @@ function harness({
           count: 3,
           data: [
             { id: "active", input_message_ids: [40, 41, 42], delivered_input_message_ids: deliveredIds,
-              delivered_event_ids: deliveredEventIds, activity: { logs: ["프로필 확인 중"], waitingForReply } },
+              delivered_event_ids: deliveredEventIds, activity: { logs: ["프로필 확인 중"], waitingForReply },
+              ...(turnCreatedAt ? { created_at: turnCreatedAt } : {}) },
             { id: "waiting", activity: { waitingForReply: true } },
             { id: "cleanup", cleanup: true },
           ],
@@ -149,11 +155,20 @@ function harness({
         return { toTalentMessageResponse };
       if (name === "@/lib/career/forms/schema")
         return { parseCareerForm };
+      if (name === "@/lib/career/applicationProgress/read.server")
+        return {
+          readCareerApplicationProgress: async (args: { userId: string; conversationId: string; openForms: PromiseLike<unknown>; turnStartedAt: PromiseLike<unknown> }) => {
+            progressCalls.push({ userId: args.userId, conversationId: args.conversationId, openForms: await args.openForms, turnStartedAt: await args.turnStartedAt });
+            if (progress === "fail") throw new Error("progress read failed");
+            return [{ id: "role-1", status: "running" }];
+          },
+        };
       throw new Error(`Unexpected import ${name}`);
     },
   });
   return {
     calls,
+    progressCalls,
     get: () =>
       compiledModule.exports.GET({
         nextUrl: new URL(
@@ -210,4 +225,100 @@ test("initial startup and waiting for the user do not present inputs as blocked"
   const running = await harness({ deliveredIds: [], deliveredEventIds: ["browser-return"] }).get();
   assert.equal(running.body.hasActiveInputTurn, true);
   assert.deepEqual(Array.from(running.body.pendingInputMessageIds), [40, 41, 42]);
+});
+
+test("application progress comes with each poll, and a failed progress read leaves only that list empty", async () => {
+  const ok = harness({ idleWithForm: true });
+  const result = await ok.get();
+  assert.equal(result.status, 200);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.body.applications)), [{ id: "role-1", status: "running" }]);
+  // The open forms are read once and handed over parsed, with their row time.
+  assert.equal(ok.progressCalls.length, 1);
+  assert.equal(ok.progressCalls[0].userId, "owner");
+  assert.equal(ok.progressCalls[0].conversationId, conversationId);
+  const [open] = ok.progressCalls[0].openForms as { formId: number; createdAt: string }[];
+  assert.equal(open.formId, 99);
+  assert.equal(open.createdAt, "2026-11-04T00:00:00Z");
+
+  const failed = harness({ progress: "fail" });
+  const degraded = await failed.get();
+  assert.equal(degraded.status, 200);
+  assert.deepEqual(Array.from(degraded.body.applications), []);
+  assert.equal(degraded.body.pending, 3);
+  assert.equal(degraded.body.completionCursor, "finished:2026-11-04T00:00:00Z");
+});
+
+test("only a working turn holds a stopped run back from failing", async () => {
+  const working = harness({ turnCreatedAt: "2026-11-04T00:00:00Z" });
+  await working.get();
+  assert.equal(working.progressCalls[0].turnStartedAt, "2026-11-04T00:00:00Z");
+  const waiting = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", waitingForReply: true });
+  await waiting.get();
+  assert.equal(waiting.progressCalls[0].turnStartedAt, null);
+});
+
+test("progress reads three narrow queries: this conversation, the last 7 days, selected JSON paths only", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleId = "00000000-0000-4000-8000-0000000000a1";
+  const now = new Date("2026-11-26T10:00:00Z");
+  const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
+  const data: Record<string, unknown[]> = {
+    talent_messages: [
+      { messageType: "career_form", createdAt: "2026-11-26T09:00:00Z", formId: 7, revision: 1, kind: "form", relatedRefs: [{ type: "role", id: roleId }] },
+      { messageType: "career_form_response", createdAt: "2026-11-26T09:01:00Z", formId: 7, revision: 1, submitScope: "submit" },
+    ],
+    talent_external_operations: [
+      { id: "00000000-0000-4000-8000-0000000000c1", kind: "browser_session", status: "running", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:02:00Z", roleRefs: [roleId] },
+      { id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", parentId: "00000000-0000-4000-8000-0000000000c1", status: "running", mode: "prepare",
+        createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:02:00Z", roleRefs: [roleId] },
+    ],
+    company_roles: [{ role_id: roleId, name: " 백엔드 엔지니어 ", status: "active", is_expired: false, company_workspace: { company_name: "A사" } }],
+  };
+  let failTable: string | undefined;
+  const admin = {
+    from(table: string) {
+      const call = { table, columns: "", filters: {} as Record<string, unknown>, limit: undefined as number | undefined };
+      calls.push(call);
+      const query: any = {
+        select(columns: string) { call.columns = columns; return query; },
+        eq(column: string, value: unknown) { call.filters[column] = value; return query; },
+        in(column: string, values: unknown[]) { call.filters[`${column}:in`] = values; return query; },
+        gte(column: string, value: unknown) { call.filters[`${column}:gte`] = value; return query; },
+        not(column: string, operator: string, value: unknown) { call.filters[`${column}:not`] = `${operator}.${value}`; return query; },
+        order() { return query; },
+        limit(value: number) { call.limit = value; return query; },
+        then(resolve: (value: unknown) => unknown) {
+          return Promise.resolve(resolve(failTable === table ? { data: null, error: { message: "offline" } } : { data: data[table], error: null }));
+        },
+      };
+      return query;
+    },
+  };
+  const read = () => readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
+    turnStartedAt: Promise.resolve(null), now });
+  const list: CareerApplicationProgress[] = await read();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].companyName, "A사");
+  assert.equal(list[0].title, "백엔드 엔지니어");
+  assert.equal(list[0].status, "running");
+  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations", "company_roles"]);
+  for (const call of calls.slice(0, 2)) {
+    assert.equal(call.filters.user_id, userId);
+    assert.equal(call.filters.conversation_id, conversationId);
+    assert.equal(call.filters["created_at:gte"], "2026-11-19T10:00:00.000Z");
+    assert.ok(call.limit && call.limit <= 400);
+    // Form items and run reports can be hundreds of KB; only paths are selected, never whole JSON columns.
+    assert.ok(!call.columns.split(",").some((column) => ["payload", "request", "result", "provider_refs", "*"].includes(column)), call.columns);
+  }
+  assert.deepEqual(calls[1].filters["kind:in"], ["browser_session", "browser_run", "email_send"]);
+  assert.deepEqual(calls[2].filters["role_id:in"], [roleId]);
+
+  // No application, no role lookup; a failed read rejects so the route can leave the list empty.
+  calls.length = 0;
+  data.talent_messages = [];
+  data.talent_external_operations = [];
+  assert.deepEqual(await read(), []);
+  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations"]);
+  failTable = "talent_external_operations";
+  await assert.rejects(read(), /Application operations unavailable/);
 });

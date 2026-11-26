@@ -5,6 +5,7 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import { z } from "zod";
 import { parseCareerForm } from "@/lib/career/forms/schema";
 import { projectCareerWorkActivity } from "@/lib/career/work/activity";
+import { readCareerApplicationProgress } from "@/lib/career/applicationProgress/read.server";
 
 /** Small conversation projection; private execution transcripts never leave the server. */
 export async function GET(req: NextRequest) {
@@ -47,20 +48,23 @@ export async function GET(req: NextRequest) {
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const [forms, pending, work, completed, dependencies] = await Promise.all([
-    (admin.rpc as any)("read_open_career_forms", {
-      p_user_id: user.id,
-      p_conversation_id: conversationId.data,
-    }),
-    (admin.from as any)("talent_external_operations")
-      .select(
-        "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
-        { count: "exact" }
-      )
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId.data)
-      .eq("kind", "career_invocation")
-      .neq("status", "completed"),
+  // The open forms and the running turns are read once and also feed the application progress.
+  const openForms = Promise.resolve((admin.rpc as any)("read_open_career_forms", {
+    p_user_id: user.id,
+    p_conversation_id: conversationId.data,
+  }));
+  const invocations = Promise.resolve((admin.from as any)("talent_external_operations")
+    .select(
+      "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
+      { count: "exact" }
+    )
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId.data)
+    .eq("kind", "career_invocation")
+    .neq("status", "completed"));
+  const [forms, pending, work, completed, dependencies, applications] = await Promise.all([
+    openForms,
+    invocations,
     (admin.from as any)("talent_external_operations")
       .select("id,request->>origin_reply_id", { count: "exact" })
       .eq("user_id", user.id)
@@ -82,6 +86,25 @@ export async function GET(req: NextRequest) {
     (admin.from as any)("talent_external_operations").select("id", { count: "exact", head: true })
       .eq("user_id", user.id).eq("conversation_id", conversationId.data)
       .or("and(kind.eq.career_dependency,status.eq.reserved),and(kind.eq.browser_session,status.eq.human)"),
+    // The progress panel is an addition: a failed read leaves it empty and never fails the work status.
+    readCareerApplicationProgress({
+      admin,
+      userId: user.id,
+      conversationId: conversationId.data,
+      openForms: openForms.then((result: { data?: { payload: unknown; created_at?: string }[] | null; error?: unknown }) =>
+        result.error ? [] : (result.data ?? []).flatMap((row) => {
+          const form = parseCareerForm(row.payload);
+          return form ? [{ ...form, createdAt: row.created_at ?? null }] : [];
+        })),
+      // A turn that is working (not cleanup, not waiting for the person) may still follow up a stopped run.
+      turnStartedAt: invocations.then((result: { data?: { created_at?: string; cleanup?: boolean; cleanup_browser_session?: string;
+        activity?: { waitingForReply?: boolean } | null }[] | null }) =>
+        (result.data ?? []).filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
+          .map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
+    }).catch((error: unknown) => {
+      console.error("[career-work] Application progress unavailable", error instanceof Error ? error.message : String(error));
+      return [];
+    }),
   ]);
   if (
     dependencies.error ||
@@ -164,5 +187,6 @@ export async function GET(req: NextRequest) {
     retrying: (pending.data ?? []).some((row: { last_error?: string }) =>
       Boolean(row.last_error)
     ),
+    applications,
   });
 }
