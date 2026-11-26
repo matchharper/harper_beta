@@ -254,9 +254,9 @@ Updating an existing schedule requires its revision. Never create duplicate sche
 
   // 사용자 설정 관련
   // src/lib/talentOnboarding/tools.ts
-  update_setting: `Update Harper subscription scope from an explicit latest user request. stop_external stops good-fit external/public postings but keeps direct-connection opportunities; stop_all stops all Harper matching contact; resume restarts recommendations/contact.
+  update_setting: `Update Harper subscription scope from an explicit latest user request. stop_external stops good-fit external/public postings but keeps direct-connection opportunities; stop_all stops all Harper email and matching contact, the same as pausing all Harper contact in account settings; resume restarts recommendations/contact.
 
-For generic stop/unsubscribe, ask one scope clarifier instead of calling. Not for batch size, cadence, profile facts, matching memory, or searches.`,
+A request to stop Harper email or contact in general (unsubscribe, no more emails, stop contacting me) is stop_all: call it without asking about scope first, then offer to keep direct-connection opportunities (resume, then stop_external). Use stop_external only when the user limits the request to external/public postings. A stop about the company, opportunity, schedule or question being discussed is not an account-wide request. Not for batch size, cadence, profile facts, matching memory, or searches.`,
 
   // src/lib/talentOnboarding/languageSettingTool.ts
   update_language_setting: `Permanently change the user's saved Harper language, which chat, email and notifications all use. Call only for a clear request to use a language from now on, such as '앞으로 영어로 해줘'.

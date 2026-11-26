@@ -5,6 +5,7 @@ import { normalizeCareerPromptLocale } from "@/lib/career/promptLocale";
 import { careerOpportunityUrl } from "@/lib/career/opportunityLinks";
 import { readPendingInternalProposals } from "@/lib/career/internalSelections";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
+import { resolveAccountSubscriptionUpdate } from "@/lib/career/accountSubscriptions";
 import { assertCareerTurnActive, careerTurnIsStopped, cancelCareerTurnWork } from "@/lib/career/turnCancellation.server";
 import { formatOpportunityDecisionReceipt } from "@/lib/career/opportunityFeedbackEvent";
 import { CAREER_GENERAL_TOOLS, CAREER_AGENTIC_TOOLS } from "@/lib/career/generalTools";
@@ -73,6 +74,7 @@ import {
   readTalentContextsForAgent,
   refreshTalentContextEmbeddings,
   refreshTalentPreferredLocale,
+  sanitizeTalentProfileVisibility,
   TALENT_CONTEXT_READ_TOOL_PARAMETERS,
   TALENT_CONTEXT_WRITE_TOOL_PARAMETERS,
   upsertTalentSetting,
@@ -3895,7 +3897,7 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
           type: "string",
           enum: ["stop_external", "stop_all", "resume"],
           description:
-            "stop_external disables good-fit external/public postings. stop_all sets profile visibility to dont_share. resume sets profile visibility to exceptional_only and enables external/public postings.",
+            "stop_external disables good-fit external/public postings. stop_all turns off both good-fit external/public postings and profile sharing (dont_share), the same as pausing all Harper contact in account settings. resume sets profile visibility to exceptional_only and enables external/public postings.",
         },
         reasonText: {
           type: "string",
@@ -3943,19 +3945,44 @@ const TALENT_TOOL_REGISTRY: Record<string, TalentToolDefinition> = {
         }
         summary = `사용자가 ${interactionLabel}에서 외부 공개 포지션 추천 중단을 요청했습니다.`;
       } else if (action === "stop_all") {
-        const nextProfileVisibility = "dont_share";
-        updatePayload.profileVisibility = nextProfileVisibility;
-        updatedSettingFields.push("profileVisibility");
+        // Same values as pausing all Harper contact in account settings:
+        // external/public postings and profile sharing both stop.
+        const next = resolveAccountSubscriptionUpdate({
+          currentGetExternalRecommendation:
+            existingSetting?.get_external_recommendation !== false,
+          currentProfileVisibility: sanitizeTalentProfileVisibility(
+            existingSetting?.profile_visibility ?? "exceptional_only",
+          ),
+          harperEnabled: false,
+        });
+        updatePayload.getExternalRecommendation = next.getExternalRecommendation;
+        updatePayload.profileVisibility = next.profileVisibility;
+        updatedSettingFields.push(
+          "getExternalRecommendation",
+          "profileVisibility",
+        );
+        if (
+          !isSameActivityValue(
+            existingSetting?.get_external_recommendation ?? true,
+            next.getExternalRecommendation,
+          )
+        ) {
+          settingActivityChanges.push({
+            field: "getExternalRecommendation",
+            from: existingSetting?.get_external_recommendation ?? true,
+            to: next.getExternalRecommendation,
+          });
+        }
         if (
           !isSameActivityValue(
             existingSetting?.profile_visibility ?? "exceptional_only",
-            nextProfileVisibility,
+            next.profileVisibility,
           )
         ) {
           settingActivityChanges.push({
             field: "profileVisibility",
             from: existingSetting?.profile_visibility ?? "exceptional_only",
-            to: nextProfileVisibility,
+            to: next.profileVisibility,
           });
         }
         summary = `사용자가 ${interactionLabel}에서 모든 Harper 매칭 연락 중단을 요청했습니다.`;
