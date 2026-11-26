@@ -51,23 +51,31 @@ test("warm intro prompt supports warm, evidence-grounded introductions in both l
     source,
     /사람을 "후보자", "담당자"라고 부르거나 설명하지 마세요/
   );
-  assert.match(source, /두 사람을 연결하게 된 기쁨이 느껴지도록/);
-  assert.match(source, /회사와 포지션을 한 문장으로 짧게 설명/);
-  assert.match(source, /긍정적인 경험이나 강점을 한 문장으로 짧게 설명/);
-  assert.match(source, /왜 이 연결이 기대되는지 한 문장으로 설명/);
+  assert.match(source, /두 분 다 만나보고 싶다고 하셔서 연결한다는 확인된 사실/);
+  assert.match(source, /직접 만들었거나 맡은 일을 씁니다/);
+  assert.match(source, /일정은 이 메일에서 두 분이 바로 잡으시면 된다고/);
+  // With a booking link below the body, the hand-off points to it instead of the thread.
+  assert.match(source, /bookingLink가 true면 메일 바로 아래에 시간 고르는 링크가 붙으니/);
+  assert.match(source, /When bookingLink is true, a time-picking link is added right below the email/);
+  assert.match(serverSource, /bookingLink: Boolean\(args\.bookingLink\)/);
+  // The same-name rule, and the title shape the 담당자 safety check accepts.
+  assert.match(source, /회사 사람의 직함을 쓸 때는 "<회사>의 <직함> <이름>님" 모양으로 씁니다/);
+  assert.match(source, /두 사람 이름이 같으면 회사 사람은 이 모양/);
+  assert.match(source, /If both people have the same name, keep them apart/);
+  assert.match(source, /"Harper 드림"으로 맺습니다/);
+  // No words from the person being introduced reach the model, so no interest or joining claims.
+  assert.match(source, /관심이 얼마나 큰지, 왜 옮기려는지, 조건, 합류 가능 시기는 쓰지 마세요/);
+  assert.match(source, /do not describe how interested they are, why they want to move, their conditions, or when they could join/);
+  assert.match(source, /"대표님" 같은 직함 호칭 대신 이름에 "님"을 붙여/);
+  assert.match(source, /not wording to copy/);
   assert.match(source, /companySummary/);
   assert.match(source, /roleSummary/);
   assert.match(source, /connectionEvidence/);
-  assert.match(
-    source,
-    /Do not turn the email into a pitch deck or resume summary/
-  );
+  assert.match(source, /Do not turn the email into a pitch deck or resume summary/);
   assert.match(source, /Do not emphasize location/);
   assert.match(source, /현재 쉬는 중, 미재직, 경력 공백/);
-  assert.match(source, /이 포지션에 관심을 보였다는 확인된 사실/);
   assert.match(source, /companyUserRole/);
   assert.match(source, /테스트, 검증 과정, 테스트 케이스, Slack, Gmail/);
-  assert.match(source, /현재 이메일에서 대화를 이어가면 된다는 점/);
   assert.doesNotMatch(source, /must start exactly|must include exactly/i);
   assert.doesNotMatch(source, /반드시 정확히/);
   assert.doesNotMatch(
@@ -120,6 +128,19 @@ test("intro source preserves shared achievements and does not infer employment f
     "Backend Engineer · Previous Co\n시작: 2023-01-01; 종료: 2025-12-01"
   );
   assert.equal(buildOrgIntroCandidateProfessionalSummary([]), null);
+});
+
+test("the prompts' example mails pass the output guard, so following their shape never blocks a send", () => {
+  const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
+  const examples = [
+    ["en", /not wording to copy: "([^"]+)"/],
+    ["ko", /그대로 쓰라는 뜻은 아닙니다: "([^"]+)"/],
+  ] as const;
+  for (const [locale, pattern] of examples) {
+    const body = source.match(pattern)?.[1];
+    assert.ok(body, `${locale} example`);
+    assert.deepEqual(getOrgIntroDraftSafetyIssues({ body, locale, subject: "" }), [], body);
+  }
 });
 
 test("warm intro output guard detects company-process history in English and Korean", () => {
