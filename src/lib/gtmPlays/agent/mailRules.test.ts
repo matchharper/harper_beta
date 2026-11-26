@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  NEAR_ADDRESS_CHARS, SHARED_PLATFORM_DOMAINS, addressIsPersons, agentMailableAddress, agentSenderProblem, isPlatformRoot,
-  mailPersonName, mailPlainText, ownDomainAddress, personalAddressesOnPage, profileHandles, withoutLinks,
+  NEAR_ADDRESS_CHARS, SHARED_PLATFORM_DOMAINS, addressCheckFailure, addressIsPersons, agentMailableAddress, agentSenderProblem,
+  isPlatformRoot, mailPersonName, mailPlainText, onlyPersonalMailbox, ownDomainAddress, personalAddressesOnPage, profileHandles,
+  withoutLinks,
 } from "./mailRules";
 import { AGENT_SIGNAL_SOURCES } from "./signals";
 
@@ -151,6 +152,32 @@ test("on the person's own page an address that carries their handle or name coun
   assert.equal(addressIsPersons({ email: "me@janedoe.dev", text: page, names: ["Jane Doe"], handles: ["janedoe"], ownPage: true }), true);
   assert.equal(addressIsPersons({ email: "jane.doe@gmail.com", text: page, names: ["Jane Doe"], handles: [], ownPage: true }), true);
   assert.equal(addressIsPersons({ email: "jane.doe@gmail.com", text: page, names: ["Jane Doe"], handles: [], ownPage: false }), false);
+});
+
+test("on the person's own page the only personal mailbox holding a piece of their name is theirs, however far", () => {
+  // Their own post: the name at the top, the address in an "Email:" line ~2,000 characters below (11/26 case).
+  const body = "I spent six years building payment systems and data pipelines for retail teams. ".repeat(25);
+  const post = `Maya Torres's Post. Maya Torres · Backend Engineer. ${body} Email: mayacreativeworks@gmail.com`;
+  const failure = (email: string, text = post, extra: Partial<Parameters<typeof addressCheckFailure>[0]> = {}) =>
+    addressCheckFailure({ email, text, names: ["Maya Torres"], handles: ["maya-torres-9z"], ownPage: true, ...extra });
+  assert.ok(post.indexOf("mayacreativeworks") - post.lastIndexOf("Maya Torres") > NEAR_ADDRESS_CHARS);
+  assert.equal(failure("mayacreativeworks@gmail.com"), null);
+  // Not their own page: the distance still counts.
+  assert.equal(failure("mayacreativeworks@gmail.com", post, { ownPage: false }), "not_near");
+  // An address without a piece of their name (another person's, a marketer's) on their own post.
+  const marketer = post.replace("mayacreativeworks@gmail.com", "creativeworks84417@gmail.com");
+  assert.equal(failure("creativeworks84417@gmail.com", marketer), "not_near");
+  // A piece shorter than 4 letters is not enough (a common short name).
+  assert.equal(addressCheckFailure({
+    email: "liworks@gmail.com", text: post.replace("mayacreativeworks@gmail.com", "liworks@gmail.com"), names: ["Li Wu"], handles: [], ownPage: true,
+  }), "not_near");
+  // A second personal mailbox on the page (a commenter's) makes it unsure; a commenter's work address does not.
+  assert.equal(failure("mayacreativeworks@gmail.com", `${post} Ken Ito 1d Interested! ken.ito@gmail.com`), "not_near");
+  assert.equal(failure("mayacreativeworks@gmail.com", `${post} Ken Ito 1d Please apply: ken.ito@bigcorp.example`), null);
+  // Another known person's name right next to the address still fails.
+  assert.equal(failure("mayacreativeworks@gmail.com", `${post} — Ken Ito`, { others: ["Ken Ito"] }), "not_near");
+  assert.equal(onlyPersonalMailbox(`${post} hr@bigcorp.example`, "mayacreativeworks@gmail.com"), true);
+  assert.equal(onlyPersonalMailbox(`${post} ken.ito@naver.com`, "MayaCreativeWorks@gmail.com "), false);
 });
 
 test("a site named after the person's handle, and a Latin name a handle spells", async () => {

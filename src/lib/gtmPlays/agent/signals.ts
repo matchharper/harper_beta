@@ -32,7 +32,7 @@ import {
   MIN_DEMAND_COMPANIES, ROLE_FAMILIES, demandAllocation, demandBlock, isRoleFamily, roleFamiliesOf, thinFamilies,
   type DemandSummary, type RoleFamily,
 } from "./demand";
-import { addressIsPersons, mailPersonName, ownDomainAddress, pageForm, profileHandles } from "./mailRules";
+import { addressIsPersons, mailPersonName, onlyPersonalMailbox, ownDomainAddress, pageForm, profileHandles } from "./mailRules";
 import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys, type ProfileUrlOptions } from "./people";
 import type { SignalTuning } from "./tuning";
 import type { AgentGiverKind } from "./types";
@@ -1793,9 +1793,9 @@ export function linkFollowsName(
  *
  * The email counts only when it is written on the page near the person's name or handle, no other person on the
  * same page (`others`: a comment thread, a post's author and commenters) is named in that stretch, and the page lists
- * no other person's address unless it is the person's own (their profile page, or the address is on the page's own
- * domain): mailRules.ts addressIsPersons. The name is kept as a mail may use it (mailPersonName: plain words, at most
- * 60 characters).
+ * no other person's address unless it is the person's own (their profile page, their LinkedIn post, or the address is
+ * on the page's own domain): mailRules.ts addressIsPersons. The name is kept as a mail may use it (mailPersonName:
+ * plain words, at most 60 characters).
  */
 export function identifyPerson(args: {
   url: string; text: string; email: string | null | undefined; contactUrl: string | null | undefined;
@@ -1815,8 +1815,12 @@ export function identifyPerson(args: {
   const candidate = cleanEmail(args.email);
   const email = candidate && emailWrittenOn(candidate, args.text) && addressIsPersons({
     email: candidate, text: args.text, names: [args.name], handles: profileHandles([author, contactUrl]),
-    // Their own page: a profile on a known site (whose it is is in the URL), or an address on the page's own domain.
-    ownPage: (!shared && page.kind === "profile" && Boolean(page.author)) || (!commenter && ownDomainAddress(candidate, [args.url])),
+    // Their own page: a profile on a known site (whose it is is in the URL), a LinkedIn post they wrote with no other
+    // personal mailbox on it (a commenter's), or an address on the page's own domain.
+    ownPage: (!shared && page.kind === "profile" && Boolean(page.author))
+      || (!shared && page.source === "linkedin" && page.kind === "post" && Boolean(page.author)
+        && onlyPersonalMailbox(args.text, candidate))
+      || (!commenter && ownDomainAddress(candidate, [args.url])),
     others: args.others ?? [],
   }) ? candidate : null;
   const pageItself = !shared && page.kind !== "other" ? args.url.trim().replace(/#.*$/, "") : null;
