@@ -438,9 +438,14 @@ export async function executeSuggestForm(
   }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
-  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts).
-  const { withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
-  const guarded = withProfileLinkBox(input.form);
+  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts), asked once when a
+  // start form for the same roles already offered it.
+  const { looksLikeWebApplicationReview, withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
+  const reviewRoles = looksLikeWebApplicationReview(input.form)
+    ? (input.form.relatedRefs ?? []).filter(ref => ref.type === "role").map(ref => String(ref.id)) : [];
+  const startFormOffersLink = reviewRoles.length > 0
+    && await (await import("@/lib/shareLinks/approvedLink.server")).startFormOffersProfileLink(args, reviewRoles);
+  const guarded = withProfileLinkBox(input.form, { startFormOffersLink });
   input.form = guarded.form;
   const row = await writeForm(args, {
     p_action: input.action,

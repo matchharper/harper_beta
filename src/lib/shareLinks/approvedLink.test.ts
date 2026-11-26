@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { approvedProfileLinkChoice, profileLinkItem, roleProfileLink } from "./approvedLink.server";
+import { approvedProfileLinkChoice, profileLinkItem, roleProfileLink, startFormOffersProfileLink } from "./approvedLink.server";
 
 const role = "00000000-0000-4000-8000-000000000010";
 const form = (formId: number, value: boolean, roleId = role) => ({
@@ -75,4 +75,22 @@ test("a start form over several roles decides the link for each role's delegated
   assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [other], authorization: [answer] }), { include: true, roleId: other });
   const off = { payload: response(start as ReturnType<typeof form>, false) };
   assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [role], authorization: [off] }), { include: false, roleId: role });
+});
+
+test("a review form asking only new questions leaves the link to the start form", async () => {
+  const start = { ...form(81, true), title: "지원 시작", items: [...form(81, true).items,
+    { id: "submit_scope", label: "맡기는 범위", type: "select", content: { options: ["제출까지 맡기기"] } }] };
+  const review = { ...form(82, true), items: [{ id: "q", label: "새 질문", type: "text", content: "" }] };
+  const reviewAnswer = { formId: 82, revision: 1, requestId: "r", actionId: "submit", formSnapshot: review, values: { q: "답" } };
+  const rows = (startLink: boolean) => [
+    { message_type: "career_form", payload: start },
+    { message_type: "career_form_response", payload: response(start as ReturnType<typeof form>, startLink) },
+    { message_type: "career_form", payload: review },
+  ];
+  assert.deepEqual(await approvedProfileLinkChoice(scope(rows(true)), { roleRefs: [role], authorization: [{ payload: reviewAnswer }] }),
+    { include: true, roleId: role }, "checked on the start form: the link goes in");
+  assert.deepEqual(await approvedProfileLinkChoice(scope(rows(false)), { roleRefs: [role], authorization: [{ payload: reviewAnswer }] }),
+    { include: false, roleId: role }, "unchecked on the start form stays unchecked");
+  assert.equal(await startFormOffersProfileLink(scope(rows(true)), [role]), true);
+  assert.equal(await startFormOffersProfileLink(scope([{ message_type: "career_form", payload: review }]), [role]), false);
 });
