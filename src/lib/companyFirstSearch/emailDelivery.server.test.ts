@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { claimRun, digestDependencies, mailCriteriaByCandidate, markEmailRowFailedFinal } from "./emailDelivery.server";
+import { claimRun, digestDependencies, mailCriteriaByCandidate, mailProfileFacts, markEmailRowFailedFinal } from "./emailDelivery.server";
 import type { EmailOutboxRow } from "./emailDelivery";
 
 // A Supabase stand-in that records every chained call; reads return the given row.
@@ -100,4 +100,21 @@ test("after the team edits a criterion, the mail shows the ratings the web card 
   });
   assert.deepEqual((await mailCriteriaByCandidate(before, [intro], "workspace")).get("intro"),
     [{ name: "ML 실무", fitness: "excellent" }, { name: "모델 서빙", fitness: "good" }]);
+});
+
+test("the subject's title, company and end date come from the same latest experience", async () => {
+  // Rows arrive newest start first, as the query orders them.
+  const admin = tableAdmin({ talent_experiences: [
+    { talent_id: "talent", role: "Growth Lead", company_name: "Company B", start_date: "2021-03-01", end_date: "2024-02-01" },
+    { talent_id: "talent", role: "Marketer", company_name: "Company C", start_date: "2016-01-01", end_date: "2021-02-01" },
+  ] });
+  const facts = (await mailProfileFacts(admin, [{ id: "intro", talent_id: "talent" }])).get("intro");
+  assert.equal(facts?.title, "Growth Lead");
+  assert.equal(facts?.company, "Company B");
+  assert.equal(facts?.ended, true);
+  assert.ok((facts?.years ?? 0) >= 10);
+  const current = tableAdmin({ talent_experiences: [
+    { talent_id: "talent", role: "Growth Lead", company_name: "Company B", start_date: "2021-03-01", end_date: null },
+  ] });
+  assert.equal((await mailProfileFacts(current, [{ id: "intro", talent_id: "talent" }])).get("intro")?.ended, false);
 });

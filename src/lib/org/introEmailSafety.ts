@@ -1,3 +1,5 @@
+import { mailCallName } from "@/lib/email/callName";
+
 const PROCESS_HISTORY_PATTERNS = [
   /\bdeclin(?:e|ed|ing)\b/i,
   /\breject(?:ed|ion|ing)?\b/i,
@@ -53,12 +55,17 @@ export function getOrgIntroDraftSafetyIssues(args: {
 }) {
   const combined = `${args.subject}\n${args.body}`;
   const issues: string[] = [];
+  // The company person may be called by the whole name or, for a name in Latin letters, by
+  // the first word ("Dana Lee" → "Dana님"), as the prompt asks (`mailCallName`).
+  const companyUserNames = args.companyUserName
+    ? [...new Set([args.companyUserName, mailCallName(args.companyUserName)])].filter(Boolean)
+    : [];
   const koreanCompanyPersonPatternSource =
     args.locale === "ko" &&
     args.companyUserRole &&
     args.companyName &&
-    args.companyUserName
-      ? `${escapeOrgIntroRegex(args.companyName)}의\\s+[^,\\n]{1,160}?\\s+${escapeOrgIntroRegex(args.companyUserName)}님`
+    companyUserNames.length
+      ? `${escapeOrgIntroRegex(args.companyName)}의\\s+[^,\\n]{1,160}?\\s+(?:${companyUserNames.map(escapeOrgIntroRegex).join("|")})님`
       : null;
 
   if (containsOrgIntroProcessHistory(combined)) {

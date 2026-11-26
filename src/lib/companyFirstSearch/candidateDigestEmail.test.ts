@@ -2,22 +2,26 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildCandidateDigestEmail,
-  candidateDigestActionRowHtml,
-  candidateDigestActionRowText,
+  candidateCallName,
   candidateDigestSubject,
+  englishArticle,
+  leadCandidateText,
+  otherCandidateLine,
 } from "./candidateDigestEmail";
 
 const web = (id: string) =>
-  `https://matchharper.com/org/role?talentId=${id}&source=email`;
-const candidate = (id: string) => ({
+  `https://matchharper.com/org/role?orgId=w1&roleId=r1&tab=pipeline&talentId=${id}&detailRoleId=r1&detailWorkspaceId=w1&source=email`;
+const candidate = (id: string, extra: Record<string, unknown> = {}) => ({
   id,
   webUrl: web(id),
+  roleName: "ML Engineer",
   actionUrls: {
     request_intro: `https://matchharper.com/email-action/${id}-request`,
     pass: `https://matchharper.com/email-action/${id}-pass`,
     accept_connection: `https://matchharper.com/email-action/${id}-accept`,
     reject_connection: `https://matchharper.com/email-action/${id}-reject`,
   },
+  ...extra,
 });
 const accepted = {
   kind: "accepted_connection" as const,
@@ -29,24 +33,22 @@ const accepted = {
     },
   ],
 };
+// The Worker's mail text: line 1 names and links the person, then the full description.
+const person = (id: string, name: string, line: string, rest: string) => ({
+  candidateId: id,
+  text: `[${name}](${web(id)}): ${line}\n\n${rest}`,
+});
 const companyFirst = {
   kind: "company_first" as const,
   parts: [
     { candidateId: null, text: "먼저 연락해 볼 수 있는 후보예요." },
-    {
-      candidateId: "c2",
-      text: `☘️ [김민준](${web("c2")}) — **ML** 모델을 운영했어요.`,
-    },
-    {
-      candidateId: "c3",
-      text: `☘️ [박지훈](${web("c3")}) — 추천 시스템 경험.`,
-    },
-    {
-      candidateId: null,
-      text: "아래 버튼으로 정하거나 이 메일에 답장해 주세요.",
-    },
+    person("c2", "김민준", "추천 모델 서빙", "김민준님은 토스에서 **ML** 서빙 플랫폼을 직접 만든 분이에요. 다만 출근 가능 여부는 확인해 봐야 해요."),
+    person("c3", "박지훈", "추천 시스템 경험", "박지훈님은 당근에서 추천 시스템을 만든 분이에요."),
+    person("c4", "최유나", "검색 랭킹", "최유나님은 네이버에서 검색 랭킹을 맡은 분이에요."),
+    person("c5", "정다은", "데이터 파이프라인", "정다은님은 데이터 파이프라인을 만든 분이에요."),
   ],
 };
+const ids = ["c1", "c2", "c3", "c4", "c5"];
 const build = (
   overrides: Partial<Parameters<typeof buildCandidateDigestEmail>[0]> = {}
 ) =>
@@ -55,155 +57,248 @@ const build = (
     recipientName: "김지수",
     roleNames: ["ML Engineer"],
     // The Worker's row order must not decide the mail order.
-    sections: [companyFirst, accepted],
-    candidates: ["c1", "c2", "c3"].map(candidate),
-    workspaceId: "00000000-0000-4000-8000-000000000001",
+    sections: [companyFirst],
+    candidates: ids.map((id) => candidate(id)),
+    workspaceId: "w1",
     ...overrides,
   });
 
-test("subjects use the fixed templates for each candidate mix and multiple roles", () => {
-  const subject = (
-    acceptedCount: number,
-    companyFirstCount: number,
-    roleNames = ["ML Engineer"],
-    locale: "ko" | "en" = "ko"
-  ) =>
-    candidateDigestSubject({
-      locale,
-      roleNames,
-      acceptedCount,
-      companyFirstCount,
-    });
-  // The subject counts only the people this mail brings: 「새로 온 … N명」 for each list.
-  assert.equal(subject(1, 0), "ML Engineer: 새로 온 연결을 기다리는 후보 1명");
-  assert.equal(subject(0, 2), "ML Engineer: 새로 온 연결을 요청할 후보 2명");
+test("subjects name the role and the lead's facts, never an internal list name", () => {
+  const lead = candidate("c2", { company: "토스", years: 6.4, title: "ML Engineer" });
+  const subject = (args: Partial<Parameters<typeof candidateDigestSubject>[0]>) =>
+    candidateDigestSubject({ locale: "ko", roleNames: ["ML Engineer"], acceptedCount: 0, companyFirstCount: 3, lead, ...args });
+  // No 현: a missing end date does not establish current employment. 전 only with an end date.
+  assert.equal(subject({}), "ML Engineer에 딱 맞는 분 한 분 찾았어요 (토스, 경력 6년)");
+  assert.equal(subject({ lead: { ...lead, ended: true } }), "ML Engineer에 딱 맞는 분 한 분 찾았어요 (전 토스, 경력 6년)");
+  assert.equal(subject({ companyFirstCount: 1 }), "ML Engineer에 딱 맞는 분을 찾았어요 (토스, 경력 6년)");
+  assert.equal(subject({ lead: { ...lead, company: null, years: 0.5 } }), "ML Engineer에 딱 맞는 분 한 분 찾았어요");
+  assert.equal(subject({ acceptedCount: 2 }), "ML Engineer: 만나보겠다고 한 분이 2명 있어요");
+  // People who already said yes are named under their own Roles, not the new lead's.
   assert.equal(
-    subject(1, 2),
-    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
+    subject({ acceptedCount: 1, acceptedRoleNames: ["Backend Engineer"] }),
+    "Backend Engineer: 만나보겠다고 한 분이 1명 있어요"
   );
   assert.equal(
-    subject(1, 2, ["ML Engineer", "Data Engineer", "PM"]),
-    "ML Engineer 외 2개 역할: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
+    subject({ locale: "en", acceptedCount: 2, acceptedRoleNames: ["Backend Engineer", "Data Engineer"] }),
+    "Backend Engineer and 1 more role: 2 people said yes to talking"
   );
-  assert.equal(
-    subject(1, 2, ["ML Engineer"], "en"),
-    "ML Engineer: 1 new in Waiting to connect · 2 new in Ready to reach out"
-  );
-  assert.equal(
-    subject(0, 1, ["ML Engineer", "PM"], "en"),
-    "ML Engineer and 1 more role: 1 new in Ready to reach out"
-  );
+  // English: "[Name], a [hook]. Worth a look?", with an article so the title stays on the lead.
+  const en = (extra: Record<string, unknown>, recipientName = "Dana Park") =>
+    subject({ locale: "en", recipientName, lead: { ...lead, company: "Company B", ...extra } });
+  assert.equal(en({ title: "AI Engineer" }), "Dana, an AI Engineer at Company B. Worth a look?");
+  assert.equal(en({ title: "Senior Engineer", ended: true }), "Dana, a former Senior Engineer at Company B. Worth a look?");
+  assert.equal(en({ title: null }), "Dana, someone from Company B. Worth a look?");
+  assert.equal(en({ title: null, company: null }), "Dana, someone new for your ML Engineer role. Worth a look?");
+  assert.equal(en({ title: "Product Designer" }, ""), "A Product Designer at Company B. Worth a look?");
+  // A romanized name that starts with a Korean surname stays whole: never "Kim, an AI Engineer…".
+  assert.equal(en({ title: "AI Engineer" }, "Kim Minji"), "Kim Minji, an AI Engineer at Company B. Worth a look?");
+  assert.equal(subject({ locale: "en", acceptedCount: 1 }), "ML Engineer: 1 person said yes to talking");
+  for (const value of [subject({}), subject({ locale: "en" })])
+    assert.doesNotMatch(value, /Ready to reach out|연결을 요청할 후보|new in/);
 });
 
-test("mail greets the recipient, puts Ready to connect first and keeps the Worker prose", () => {
-  const email = build();
-  assert.equal(
-    email.subject,
-    "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명"
-  );
-  assert.match(email.text, /^김지수님, Harper가 찾은 후보예요\./);
-  const acceptedAt = email.text.indexOf(
-    "✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요"
-  );
-  const companyFirstAt = email.text.indexOf("연결을 요청할 후보\n");
-  assert.ok(acceptedAt > 0 && companyFirstAt > acceptedAt);
-  assert.ok(email.text.indexOf("이서연") < email.text.indexOf("김민준"));
+test("the greeting calls a Latin name by its first word and a Hangul name whole", () => {
+  assert.match(build({ recipientName: "Dana Park" }).text, /^Dana님 안녕하세요, Harper입니다\./);
+  assert.match(build({ recipientName: "김지수" }).text, /^김지수님 안녕하세요, Harper입니다\./);
+  assert.match(build({ locale: "en", recipientName: "Dana Park" }).text, /^Hi Dana,/);
+  assert.match(build({ locale: "en", recipientName: "Kim Minji" }).text, /^Hi Kim Minji,/);
+  assert.match(build({ recipientName: "Kim Minji" }).text, /^Kim Minji님 안녕하세요/);
+});
+
+test("the mail greets by name, opens with one person in full, two in one line, then see all", () => {
+  const email = build({ totals: { company_first: 30 } });
+  assert.match(email.text, /^김지수님 안녕하세요, Harper입니다\./);
+  assert.match(email.text, /ML Engineer에 새로 4분 찾았는데, 이 분부터 보시면 좋겠어요\./);
+  // Lead = the Worker's first person when nobody is rated: description with the linked name.
+  assert.match(email.html, /<a [^>]*href="[^"]*talentId=c2[^"]*"[^>]*>김민준<\/a>님은 토스에서/);
   assert.match(email.html, /<strong>ML<\/strong>/);
+  assert.doesNotMatch(email.text, /추천 모델 서빙/);
+  // Two more in one line, the fourth only behind "see all".
+  assert.match(email.text, /다른 두 분도 있어요\./);
+  assert.ok(email.text.includes("추천 시스템 경험") && email.text.includes("검색 랭킹"));
+  assert.ok(!email.text.includes("정다은") && !email.text.includes("당근에서"));
+  assert.match(email.html, />전체 30명 보기<\/a>/);
+  // "See all" opens the Role's 연결을 요청할 후보 list, the list the total counts.
+  const seeAll = new URL(email.html.match(/href="([^"]*)"[^>]*>전체 30명 보기/)![1]!.replace(/&(?:amp|#x26);/g, "&"));
+  assert.equal(seeAll.pathname, "/org/role");
+  assert.deepEqual(Object.fromEntries(seeAll.searchParams), {
+    orgId: "w1", roleId: "r1", tab: "inbox", inboxStage: "company_intro", source: "email",
+  });
+  assert.match(email.text, /만나보고 싶은 분이 있으면 제가 먼저 관심을 확인하고 연결해 드릴게요\.\n\nHarper 드림$/);
+  // The Worker's intro gives way to the fixed opening line.
+  assert.doesNotMatch(email.text, /먼저 연락해 볼 수 있는 후보예요/);
+});
+
+test("only the lead carries the two links; the others link to their web card", () => {
+  const email = build();
+  assert.deepEqual(
+    [...email.html.matchAll(/email-action\/(c\d-\w+)/g)].map((m) => m[1]),
+    ["c2-request", "c2-pass"]
+  );
+  // Only the people with links are reported, so only their links are stored as shown.
+  assert.deepEqual(email.actionCandidateIds, ["c2"]);
+  assert.deepEqual(build({ sections: [companyFirst, accepted] }).actionCandidateIds, ["c1", "c2"]);
+  assert.match(email.html, /href="[^"]*talentId=c3[^"]*"[^>]*>박지훈<\/a>/);
+  assert.ok(!email.html.includes("HARPERDIGEST") && !email.text.includes("HARPERDIGEST"));
+});
+
+test("the mail reads like one a person wrote: plain paragraphs and text links, no box or button", () => {
+  const email = build();
+  // Under the lead's paragraph: ask by name, say a reply works, then the two links.
   assert.match(
     email.html,
-    /href="https:\/\/matchharper.com\/org\/role\?talentId=c2&#x26;source=email"|href="https:\/\/matchharper.com\/org\/role\?talentId=c2&amp;source=email"/
-  );
-});
-
-test("each candidate gets the local action labels right under its description", () => {
-  const email = build();
-  assert.equal(
-    (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
-      .length,
-    6
-  );
-  const acceptRow = email.html.indexOf("c1-accept");
-  assert.ok(
-    acceptRow > email.html.indexOf("이서연") &&
-      acceptRow < email.html.indexOf("김민준")
-  );
-  assert.match(email.html, /background:#111827[^>]*>연결하기<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>이번엔 넘길게요<\/a>/);
-  assert.match(email.html, /background:#111827[^>]*>연결 요청<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>이번엔 넘길게요<\/a>/);
-  assert.doesNotMatch(email.html, />웹에서 자세히 보기<\/a>/);
-  assert.doesNotMatch(email.html + email.text, /HARPERDIGESTACTIONS/);
-});
-
-test("text part keeps the local two-action layout and profile links in the candidate text", () => {
-  const email = build();
-  assert.match(
-    email.text,
-    /연결하기: https:\/\/matchharper.com\/email-action\/c1-accept\n이번엔 넘길게요: https:\/\/matchharper.com\/email-action\/c1-reject/
+    /<p[^>]*>김민준님을 만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: <a href="https:\/\/matchharper\.com\/email-action\/c2-request"[^>]*>연결 요청<\/a> \/ <a href="https:\/\/matchharper\.com\/email-action\/c2-pass"[^>]*>이번엔 넘길게요<\/a><\/p>/
   );
   assert.match(
     email.text,
-    /연결 요청: https:\/\/matchharper.com\/email-action\/c3-request/
+    /다만 출근 가능 여부는 확인해 봐야 해요\.\n\n김민준님을 만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결 요청 \(https:\/\/matchharper\.com\/email-action\/c2-request\) \/ 이번엔 넘길게요 \(https:\/\/matchharper\.com\/email-action\/c2-pass\)\n\n다른 두 분도 있어요\./
   );
-  assert.doesNotMatch(email.text, /버튼은 7일 동안/);
-  assert.ok(email.text.includes(web("c1")));
-  assert.doesNotMatch(email.html, /버튼은 7일 동안/);
+  // No card, fill, rounded border, button or table: only the two shared body wrappers.
+  assert.equal((email.html.match(/<div/g) ?? []).length, 2);
+  assert.doesNotMatch(email.html, /<table|background|border-radius|────/);
+  assert.doesNotMatch(email.text, /────/);
 });
 
-test("each list says how many are on it now, under its heading", () => {
-  const email = build({ totals: { accepted_connection: 4, company_first: 12 } });
-  const waitingAt = email.text.indexOf("✅ 연결을 기다리는 후보");
-  const waitingTotal = email.text.indexOf("지금 모두 4명");
-  const requestAt = email.text.indexOf("연결을 요청할 후보\n");
-  const requestTotal = email.text.indexOf("지금 모두 12명");
-  assert.ok(waitingAt < waitingTotal && waitingTotal < email.text.indexOf("이서연"));
-  assert.ok(requestAt < requestTotal && requestTotal < email.text.indexOf("김민준"));
-  assert.match(email.replyContext, /지금 모두 12명/);
-  // The subject still counts only the new ones; no line when unknown.
-  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 기다리는 후보 1명 · 새로 온 연결을 요청할 후보 2명");
-  assert.doesNotMatch(build().text, /지금 모두/);
-  assert.match(build({ locale: "en", totals: { company_first: 3 } }).text, /3 in total now/);
+test("the ask calls the person the way the greeting calls people", () => {
+  const url = web("c2");
+  assert.equal(candidateCallName(`[Sam Lee](${url}): Built a ledger\n\nSam built it.`), "Sam");
+  assert.equal(candidateCallName(`[김민준](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[Kim Minji](${url}): 서빙`), "Kim Minji");
+  assert.equal(candidateCallName(`✅ [Mary\\-Jane O'Neil](${url}) — 결제 시스템을 만들었어요.`), "Mary-Jane");
+  // The label is Markdown: emphasis, a ✅ inside it and a "님" the Worker added come off.
+  assert.equal(candidateCallName(`[**Sam Lee**](${url}): Built a ledger`), "Sam");
+  assert.equal(candidateCallName(`[**김민준**](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[김민준님](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[✅ 김민준](${url}) — 서빙`), "김민준");
+  assert.equal(candidateCallName("김민준님은 토스에서 일했어요."), "");
+  // Text that links no one: the ask goes without a name.
+  const email = build({ sections: [{ kind: "company_first", parts: [{ candidateId: "c2", text: "김민준님은 토스에서 일했어요." }] }] });
+  assert.match(email.text, /\n\n만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결 요청 /);
 });
 
-test("reply context keeps the prose but never the one-time button links", () => {
-  const email = build();
-  assert.match(email.replyContext, /김민준/);
-  assert.doesNotMatch(email.replyContext, /email-action/);
+test("the lead is the person with the strongest ratings, and ratings are not printed", () => {
+  const email = build({
+    candidates: ids.map((id) =>
+      id === "c4"
+        ? candidate(id, { criteria: [{ name: "ML 실무 3년", fitness: "excellent" }, { name: "서빙", fitness: "good" }] })
+        : candidate(id, { criteria: [{ name: "ML 실무 3년", fitness: "good" }] })
+    ),
+  });
+  assert.match(email.html, />최유나<\/a>님은 네이버에서/);
+  assert.match(email.text, /추천 모델 서빙/);
+  assert.deepEqual([...email.html.matchAll(/email-action\/(c\d)-/g)].map((m) => m[1]), ["c4", "c4"]);
+  assert.doesNotMatch(email.html + email.text, /✓|ML 실무 3년|서빙 ·/);
 });
 
-test("a mail with one kind only has one heading and the matching buttons", () => {
-  const email = build({ sections: [companyFirst] });
-  assert.equal(email.subject, "ML Engineer: 새로 온 연결을 요청할 후보 2명");
-  assert.doesNotMatch(email.text, /연결을 기다리는 후보|연결하기/);
-  assert.equal(
-    (email.html.match(/href="https:\/\/matchharper.com\/email-action\//g) ?? [])
-      .length,
-    4
-  );
-});
-
-test("English workspaces get the same structure with English copy", () => {
-  const email = build({ locale: "en", recipientName: "Jisoo" });
-  assert.equal(
-    email.subject,
-    "ML Engineer: 1 new in Waiting to connect · 2 new in Ready to reach out"
-  );
-  assert.match(email.text, /^Jisoo, here are the candidates Harper found\./);
-  assert.ok(
-    email.text.indexOf("✅ Waiting to connect") <
-      email.text.indexOf("Ready to reach out")
-  );
+test("people who already said yes keep their text, get their own two links and come first", () => {
+  const email = build({ sections: [companyFirst, accepted] });
+  assert.equal(email.subject, "ML Engineer: 만나보겠다고 한 분이 1명 있어요");
+  const acceptedAt = email.text.indexOf("✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요");
+  assert.ok(acceptedAt > 0 && acceptedAt < email.text.indexOf("이 분부터 보시면"));
+  assert.match(email.text, /만나보겠다고 한 후보예요\./);
   assert.match(
     email.text,
-    /Connect: https:\/\/matchharper.com\/email-action\/c1-accept\nPass for now: /
+    /결제 시스템을 만들었어요\.\n\n이서연님과 연결해 드릴까요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결하기 \(https:\/\/matchharper\.com\/email-action\/c1-accept\) \/ 이번엔 넘길게요 \(.*c1-reject\)/
   );
-  assert.match(email.text, /Request intro: .*\nPass for now: .*/);
-  assert.doesNotMatch(email.text, /The buttons work for 7 days/);
+  // The mail says once that a reply works; the lead after the ✅ list only asks.
+  assert.equal((email.text.match(/답장만 주셔도/g) ?? []).length, 1);
+  assert.match(email.text, /\n\n김민준님을 만나보시겠어요\? 연결 요청 \(.*c2-request\) \/ 이번엔 넘길게요 \(.*c2-pass\)\n\n/);
+  assert.equal((email.html.match(/<div/g) ?? []).length, 2);
+  assert.doesNotMatch(email.html, /background|border-radius/);
+  assert.equal((email.text.match(/Harper 드림/g) ?? []).length, 1);
+  // Only the ✅ list: no opening line, no "see all", no request closing.
+  const onlyAccepted = build({ sections: [accepted], totals: { accepted_connection: 4 } });
+  assert.match(onlyAccepted.text, /지금 모두 4명/);
+  assert.doesNotMatch(onlyAccepted.text, /이 분부터|전체 .*명 보기|먼저 관심을 확인하고/);
 });
 
-test("missing button links or candidates are rejected instead of sending a partial mail", () => {
+test("a closing the Worker wrote (a first result's question) stays before Harper's closing", () => {
+  const email = build({
+    sections: [{ ...companyFirst, parts: [...companyFirst.parts, { candidateId: null, text: "보상 범위를 알려 주시면 다음 탐색에 반영할게요." }] }],
+  });
+  const asked = email.text.indexOf("보상 범위를 알려 주시면");
+  assert.ok(asked > email.text.indexOf("전체 4명 보기") && asked < email.text.indexOf("만나보고 싶은 분이"));
+});
+
+test("English mail follows the same layout in English", () => {
+  const email = build({
+    locale: "en",
+    recipientName: "Dana Park",
+    sections: [{
+      kind: "company_first",
+      parts: [
+        { candidateId: "c2", text: `[Sam Lee](${web("c2")}): Founder-turned-IC\n\nSam Lee, Lead Architect at Company C. Shipped multi-agent systems. I'd still check IC fit.` },
+        { candidateId: "c3", text: `[Alex Kim](${web("c3")}): Conversational agents for credit` },
+      ],
+    }],
+  });
+  assert.match(email.text, /^Hi Dana,\n\n2 new people for your ML Engineer role\. The one I'd start with:/);
+  assert.match(email.text, /One more in your list:/);
+  assert.match(email.html, />See all 2<\/a>/);
+  assert.match(
+    email.text,
+    /I'd still check IC fit\.\n\nWant to meet Sam\? Just reply to this email, or use these links: Request intro \(.*c2-request\) \/ Pass for now \(.*c2-pass\)\n\nOne more in your list:/
+  );
+  assert.match(email.text, /If you'd like to meet anyone, I'll make sure they're interested before connecting you\.\n\nHarper$/);
+  assert.doesNotMatch(email.html + email.text, /[가-힣]/);
+});
+
+test("one new person: no 'start with' line and no 'others' line", () => {
+  const email = build({ sections: [{ kind: "company_first", parts: [companyFirst.parts[1]!] }] });
+  assert.match(email.text, /ML Engineer에 맞을 만한 분을 새로 찾았어요\./);
+  assert.doesNotMatch(email.text, /다른 .* 있어요|이 분부터/);
+  assert.match(email.html, />전체 1명 보기<\/a>/);
+});
+
+test("older Worker text without a description keeps the whole text for the lead", () => {
+  const old = `☘️ [김민준](${web("c2")}) — AI Engineer\n\n• 서빙 플랫폼을 만들었어요.`;
+  assert.equal(leadCandidateText(old), old);
+  assert.equal(otherCandidateLine(old), `☘️ [김민준](${web("c2")}) — AI Engineer`);
+  const single = `[김민준](${web("c2")}) — 한 줄`;
+  assert.equal(leadCandidateText(single), single);
+});
+
+test("a one-line person shows the line that links them, even after a note", () => {
+  const url = web("c3");
+  assert.equal(
+    otherCandidateLine(`최근에 Harper 가입: 2026-11-20\n[박지훈](${url}): 추천 시스템 경험\n\n박지훈님은 당근에서 일했어요.`),
+    `[박지훈](${url}): 추천 시스템 경험`
+  );
+});
+
+test("English titles take the article of their first sound", () => {
+  const cases: Record<string, "a" | "an"> = {
+    "AI Engineer": "an", "ML Engineer": "an", "MLOps Engineer": "an", "SRE": "an", "R&D Lead": "an",
+    "UX Designer": "a", "CTO": "a", "SaaS Account Executive": "a", "Engineering Manager": "an",
+    "iOS Engineer": "an", "User Researcher": "a", "Unity Developer": "a", "Undergraduate Researcher": "an",
+    "European Sales Lead": "a", "Head of Growth": "a", "Honorary Fellow": "an", "Founding Engineer": "a",
+  };
+  for (const [title, article] of Object.entries(cases)) assert.equal(englishArticle(title), article, title);
+});
+
+test("the lead's link goes on the name as a whole word, never inside another word", () => {
+  const url = web("c2");
+  assert.equal(
+    leadCandidateText(`[Lee](${url}): Ledger owner\n\nAt Leeds, Lee built the ledger.`),
+    `At Leeds, [Lee](${url}) built the ledger.`
+  );
+  assert.equal(
+    leadCandidateText(`[Lee](${url}): Ledger owner\n\nLeeds Bank hired Lee in 2020.`),
+    `Leeds Bank hired [Lee](${url}) in 2020.`
+  );
+  // A Korean particle may follow the name directly.
+  assert.equal(
+    leadCandidateText(`[김민준](${url}): 서빙\n\n김민준님은 토스에서 일했어요.`),
+    `[김민준](${url})님은 토스에서 일했어요.`
+  );
+  // Only inside a longer word: the whole text stays.
+  const inside = `[Lee](${url}): Ledger owner\n\nAt Leeds, the ledger shipped.`;
+  assert.equal(leadCandidateText(inside), inside);
+});
+
+test("missing action links or candidates are rejected instead of sending a partial mail", () => {
   assert.throws(
-    () => build({ candidates: ["c1", "c2"].map(candidate) }),
+    () => build({ candidates: ["c3", "c4"].map((id) => candidate(id)) }),
     /action links are missing/
   );
   assert.throws(
@@ -215,6 +310,17 @@ test("missing button links or candidates are rejected instead of sending a parti
       }),
     /at least one candidate/
   );
+  // Worker text that breaks the Markdown (an unclosed code fence) would swallow the links.
+  assert.throws(
+    () =>
+      build({
+        sections: [{
+          kind: "company_first",
+          parts: [{ candidateId: "c2", text: `[김민준](${web("c2")}): 서빙\n\n김민준님은 모델 서빙을 맡았어요.\n\n\`\`\`` }],
+        }],
+      }),
+    /action links could not be placed/
+  );
 });
 
 test("recipient names cannot inject Markdown", () => {
@@ -222,145 +328,34 @@ test("recipient names cannot inject Markdown", () => {
   assert.doesNotMatch(email.html, /evil\.example"/);
 });
 
-test("criterion ratings sit under the candidate as mark + name with accessible labels, evidence stays on the web", () => {
-  const rated = {
-    ...candidate("c2"),
-    criteria: [
-      { name: "ML 실무 3년", fitness: "excellent" as const },
-      { name: "모델 서빙", fitness: "uncertain" as const },
-      { name: "논문", fitness: "bad" as const },
-    ],
-  };
-  const mail = build({ candidates: [candidate("c1"), rated, candidate("c3")] });
-  // HTML: the ratings come right before c2's buttons, with the web icon colors and no images.
-  const c2Buttons = mail.html.indexOf("c2-request");
-  const ratings = mail.html.indexOf(">ML 실무 3년</td>");
-  assert.ok(ratings > mail.html.indexOf("김민준") && ratings < c2Buttons);
-  assert.ok(
-    mail.html.includes('color:#009B35">✓✓</span>') &&
-      mail.html.includes('color:#F59E0B">?</span>') &&
-      mail.html.includes('color:#A92011">✗</span>')
-  );
-  assert.ok(
-    mail.html.includes(">모델 서빙</td>") && mail.html.includes(">논문</td>")
-  );
-  assert.ok(
-    mail.html.includes('aria-label="확인 필요"') &&
-      mail.html.includes('aria-label="맞지 않음"')
-  );
-  assert.doesNotMatch(mail.html, / · (아주 잘 맞음|확인 필요|맞지 않음)/);
-  assert.ok(!/<img/i.test(mail.html));
-  // Text: mark lines before the button links, only for the rated candidate.
-  assert.match(
-    mail.text,
-    /✓✓ ML 실무 3년 · 아주 잘 맞음\n\? 모델 서빙 · 확인 필요\n✗ 논문 · 맞지 않음\n\n연결 요청: https:\/\/matchharper.com\/email-action\/c2-request/
-  );
-  assert.equal((mail.text.match(/✓/g) ?? []).length, 2);
-  // Harper's reply context has the ratings, still without button links.
-  assert.ok(
-    mail.replyContext.includes("? 모델 서빙 · 확인 필요") &&
-      !mail.replyContext.includes("email-action")
-  );
+test("reply context keeps the prose and the asks but never the one-time links", () => {
+  const email = build({ sections: [companyFirst, accepted] });
+  assert.match(email.replyContext, /김민준/);
+  // The person's web link stays, so a reply can name the exact candidate and Role.
+  assert.match(email.replyContext, /\[김민준\]\([^)]*talentId=c2[^)]*roleId=r1|\[김민준\]\([^)]*roleId=r1[^)]*talentId=c2/);
+  assert.match(email.replyContext, /이서연님과 연결해 드릴까요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결하기 \/ 이번엔 넘길게요/);
+  assert.match(email.replyContext, /김민준님을 만나보시겠어요\? 연결 요청 \/ 이번엔 넘길게요/);
+  assert.doesNotMatch(email.replyContext, /email-action/);
 });
 
-test("candidates without ratings get no rating lines and the mail is otherwise unchanged", () => {
-  const plain = build();
-  const empty = build({
-    candidates: ["c1", "c2", "c3"].map((id) => ({
-      ...candidate(id),
-      criteria: [],
-    })),
+test("new people across several Roles: the opening says so and see all opens Home's Roles", () => {
+  const other = (id: string) => ({
+    ...candidate(id, { roleName: "Data Engineer" }),
+    webUrl: web(id).replace("roleId=r1", "roleId=r2").replace("detailRoleId=r1", "detailRoleId=r2"),
   });
-  assert.equal(empty.html, plain.html);
-  assert.equal(empty.text, plain.text);
-  assert.equal(empty.replyContext, plain.replyContext);
-});
-
-test("English mails keep rating labels accessible and in the plain-text fallback", () => {
-  const mail = build({
+  const email = build({ candidates: ids.map((id) => (id === "c4" ? other(id) : candidate(id))) });
+  assert.match(email.text, /ML Engineer 외 1개 역할에 새로 4분 찾았는데, 이 분부터 보시면 좋겠어요\./);
+  const seeAll = new URL(email.html.match(/href="([^"]*)"[^>]*>전체 4명 보기/)![1]!.replace(/&(?:amp|#x26);/g, "&"));
+  assert.equal(seeAll.pathname, "/org/home");
+  // Home's 역할 tab (Home opens 소식 without it).
+  assert.deepEqual(Object.fromEntries(seeAll.searchParams), { orgId: "w1", tab: "roles", source: "email" });
+  const english = build({ locale: "en", recipientName: "Jisoo", candidates: ids.map((id) => (id === "c4" ? other(id) : candidate(id))) });
+  assert.match(english.text, /4 new people for your ML Engineer role and 1 more role\. The one I'd start with:/);
+  // A Role name that already ends in "Role" is not doubled.
+  const named = build({
     locale: "en",
-    candidates: [
-      candidate("c1"),
-      {
-        ...candidate("c2"),
-        criteria: [{ name: "Serving", fitness: "good" as const }],
-      },
-      candidate("c3"),
-    ],
+    recipientName: "Jisoo",
+    candidates: ids.map((id) => (id === "c4" ? other(id) : candidate(id, { roleName: "Product Role" }))),
   });
-  assert.ok(
-    mail.html.includes(">Serving</td>") &&
-      mail.html.includes('aria-label="Good"')
-  );
-  assert.ok(
-    !mail.html.includes("Serving · Good") &&
-      mail.text.includes("✓ Serving · Good")
-  );
-});
-
-test("each candidate is one borderless card holding its text, ratings and buttons; headings stay outside", () => {
-  const mail = build({
-    candidates: [
-      candidate("c1"),
-      {
-        ...candidate("c2"),
-        criteria: [{ name: "ML 실무", fitness: "good" as const }],
-      },
-      candidate("c3"),
-    ],
-  });
-  const opens = [
-    ...mail.html.matchAll(/<div style="border-radius:10px;background:#f9fafb/g),
-  ].map((m) => m.index!);
-  assert.equal(opens.length, 3);
-  // Every card closes right after its button row and credit caption, so cards never nest or overlap.
-  assert.equal((mail.html.match(/<\/table><p [^>]*>[^<]*<\/p><\/div>/g) ?? []).length, 3);
-  const [c1, c2, c3] = ["c1", "c2", "c3"].map((id) =>
-    mail.html.indexOf(`${id}-`)
-  );
-  assert.ok(
-    opens[0] < c1 &&
-      c1 < opens[1] &&
-      opens[1] < c2 &&
-      c2 < opens[2] &&
-      opens[2] < c3
-  );
-  const ratings = mail.html.indexOf(">ML 실무</td>");
-  assert.ok(opens[1] < ratings && ratings < c2);
-  // Group headings and intro lines sit outside the cards.
-  const suggested = mail.html.indexOf("연결을 요청할 후보");
-  assert.ok(opens[0] < suggested && suggested < opens[1]);
-  assert.ok(mail.html.indexOf("만나보겠다고 한 후보예요.") < opens[0]);
-  assert.ok(!mail.html.includes("HARPERDIGEST"));
-  // Text: one divider line before each candidate.
-  assert.equal((mail.text.match(/^────────────────────$/gm) ?? []).length, 3);
-  assert.ok(
-    mail.text.indexOf("────────────────────") < mail.text.indexOf("이서연")
-  );
-  assert.ok(
-    !mail.text.includes("HARPERDIGEST") &&
-      !mail.replyContext.includes("HARPERDIGEST")
-  );
-});
-
-test("the action row displays both buttons without a credit caption", () => {
-  const row = {
-    criteria: [],
-    primary: { label: "연결 요청", url: "https://matchharper.com/email-action/c2-request" },
-    secondary: { label: "이번엔 넘길게요", url: "https://matchharper.com/email-action/c2-pass" },
-  };
-  const html = candidateDigestActionRowHtml(row);
-  assert.match(html, /margin:0 0 16px"><tr>/);
-  assert.match(html, /c2-request.*c2-pass.*<\/table>$/);
-  assert.equal(
-    candidateDigestActionRowText(row),
-    "연결 요청: https://matchharper.com/email-action/c2-request\n이번엔 넘길게요: https://matchharper.com/email-action/c2-pass"
-  );
-});
-
-test("candidate emails omit credit captions in both languages", () => {
-  const email = build();
-  assert.doesNotMatch(email.html + email.text, /연결 1회/);
-  const english = build({ locale: "en", recipientName: "Jisoo" });
-  assert.doesNotMatch(english.html + english.text, /Uses 1 intro/i);
+  assert.match(named.text, /4 new people for your Product Role and 1 more role\./);
 });

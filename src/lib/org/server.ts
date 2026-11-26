@@ -4735,6 +4735,8 @@ async function sendOrgIntroEmail(args: {
             normalizeText(args.role.description).slice(0, 1_600) || null,
           roleTitle: args.role.name,
           senderName: "Harper",
+          // The hand-off line points to the link added below the body.
+          bookingLink: Boolean(args.bookingLink),
         });
   // The link goes in the body only; a link field put in the subject is dropped.
   const subject = (storedSubject || generatedDraft?.subject || "")
