@@ -2,6 +2,14 @@
 
 기존 AGENTS.md에 있던 날짜별 기록을 원문 그대로 옮겼다. 각 항목은 작성 당시의 관측·로컬 변경·DB 적용·배포 범위를 뜻하며 현재 운영 상태를 자동으로 보증하지 않는다. 기존 후속 기록의 우선순위와 재적용·재발송 금지는 유지한다. 배포·migration·관련 정책 작업에서 해당 항목과 현재 코드·운영 근거를 대조한다. 기록 안의 상대 경로는 출처 AGENTS.md가 있던 디렉토리 기준이다.
 
+## 2026-11-26 회사 메일 새 말투: 후보 메일·소개 메일 (#462, worker#78) (Worker·웹)
+
+사용자 승인(11/26 17:45 KST)으로 이 작업의 변경만 내보냈다. 운영 DB 변경은 없다.
+
+- **Worker.** [harper_worker#78](https://github.com/matchharper/harper_worker/pull/78)을 머지하고 `8bf95fbc`로 release를 만들었다. 18:13 KST에 `harper-company-first-worker`의 `release.conf`만 바꾸고(이전 파일 `release.conf.bak-20261126`) 재시작했다. 이 서비스는 `dfda792f`에 있어서 #75·#76·#77도 함께 들어갔다. 세 PR은 다른 서비스에 이미 나가 있었고, 바뀐 파일은 company-first worker가 불러오지 않는다. 직전 진행 중인 company-first run과 Slack outbox는 0건이었다. company-first scheduler는 실행을 대기열에 넣기만 하고 메일 글은 worker가 쓰므로 그대로 두었고, external-sourcing·found-items-expiry 등 나머지도 바뀐 모듈을 쓰지 않아 그대로 두었다. 서버 기록은 `/home/ec2-user/deployment-records/20261126/company-first-worker-8bf95fbc.md`, [사건 #1 댓글](https://github.com/matchharper/harper_incidents/issues/1#issuecomment-7187709033)에 있다.
+- **웹.** #462를 `dev`에 머지(`f524fa30`)하고, `dev`의 그 커밋까지만 담은 #469로 `main`에 올렸다(머지 커밋 `9955c0e5`, 18:39 KST). 그 사이 `main`에 먼저 들어간 #470과 합친 코드로 테스트와 `tsc`를 다시 돌렸다. #462 뒤에 `dev`에 올라온 평가 자료(`a1a1a894`)와 #467은 이번 범위가 아니어서 넣지 않았다. treg 하루 제한 변경(#466)은 #470으로 먼저 `main`에 들어가 있었다. 운영은 18:50 KST부터 이 커밋으로 돈다. gtm agent 실행 기록의 `code_version`(`9955c0e5c144`)으로 확인했다.
+- **바뀐 동작.** 회사 후보 메일은 한 사람을 내세운 제목, 이름 인사, 한 명 자세히 + 두 명 한 줄 + "전체 N명 보기", 박스·버튼 없는 텍스트 링크와 답장 안내로 바뀌었다. Harper가 쓰는 소개 메일 초안은 소개받는 사람 이름으로 시작하는 제목과 다섯 줄 안팎이며, 줄마다 한 문단이다. 메일에서 부르는 이름은 `mailCallName`을 따른다. 이미 만든 메일의 재시도는 저장된 내용 그대로 보낸다.
+
 ## 2026-11-25 CRM 단체 메일마다 보내는 사람 정하기, 웹 발송에 수신거부 추가 (운영 DB·Worker·웹)
 
 사용자 승인으로 이 세션의 변경만 내보냈다. 같은 checkout의 다른 세션 변경은 넣지 않았다.
