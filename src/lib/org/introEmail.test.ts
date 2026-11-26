@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { orgIntroModelInput } from "./introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "./introEmailProfessionalSummary";
 import {
   appendOrgIntroCaptureDisclosure,
@@ -132,14 +133,31 @@ test("intro source preserves shared achievements and does not infer employment f
 
 test("the subject calls the person being introduced by name, as in the mail-tone review", () => {
   const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
-  assert.ok(source.includes('"<first name>, meet <company person\'s name> at <company>"'));
-  assert.ok(source.includes('"<소개받는 사람 이름>님, <회사명> <회사 사람 이름>님 소개해 드려요"'));
+  assert.ok(source.includes('"<candidateCallName>, meet <company person\'s name> at <company>"'));
+  assert.ok(source.includes('"<candidateCallName>님, <회사명> <companyUserCallName>님 소개해 드려요"'));
 });
 
-test("a name in Latin letters is called by the first word, and the guard accepts it with a title", () => {
+test("code decides how the mail calls each person, and the guard accepts it with a title", () => {
   const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
-  assert.ok(source.includes("영어로 된 이름은 이름(첫 단어)만 부르고(Dana Lee → Dana님)"));
-  assert.ok(source.includes('starts with the family name (such as "Kim Minji"), use the whole name'));
+  // Asked in the prompt alone, the model dropped a Hangul family name, so the
+  // model gets the call names and is told to use them as given.
+  const context = {
+    candidateName: "김하늘", candidateProfessionalSummary: null, companyName: "Company B",
+    companyUserName: "Dana Lee", companyUserRole: null, locale: "ko" as const,
+    roleTitle: "ML Engineer", senderName: "Harper",
+  };
+  const called = (candidateName: string, companyUserName: string) => {
+    const input = orgIntroModelInput({ ...context, candidateName, companyUserName });
+    return [input.candidateCallName, input.companyUserCallName];
+  };
+  assert.deepEqual(called("김하늘", "Dana Lee"), ["김하늘", "Dana"]);
+  assert.deepEqual(called("Kim Minji", "이지훈"), ["Kim Minji", "이지훈"]);
+  assert.deepEqual(called("Sam Park", "Alex Kim"), ["Sam", "Alex"]);
+  assert.equal(orgIntroModelInput(context).candidateName, "김하늘");
+  assert.match(source, /JSON\.stringify\(\s*orgIntroModelInput\(context\)\s*\)/);
+  assert.ok(source.includes("부르는 이름은 candidateCallName과 companyUserCallName을 받은 그대로 쓰고"));
+  assert.ok(source.includes("use them exactly as given, never shortened or changed"));
+  assert.doesNotMatch(source, /Greet both people by first name/);
   const base = {
     companyName: "Company B",
     companyUserName: "Dana Lee",

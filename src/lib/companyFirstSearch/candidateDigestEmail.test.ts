@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildCandidateDigestEmail,
-  candidateDigestActionRowHtml,
-  candidateDigestActionRowText,
+  candidateCallName,
   candidateDigestSubject,
   englishArticle,
   leadCandidateText,
@@ -130,20 +129,46 @@ test("the mail greets by name, opens with one person in full, two in one line, t
   assert.doesNotMatch(email.text, /먼저 연락해 볼 수 있는 후보예요/);
 });
 
-test("only the lead carries buttons; the others link to their web card", () => {
+test("only the lead carries the two links; the others link to their web card", () => {
   const email = build();
   assert.deepEqual(
     [...email.html.matchAll(/email-action\/(c\d-\w+)/g)].map((m) => m[1]),
     ["c2-request", "c2-pass"]
   );
-  // Only the people with buttons are reported, so only their links are stored as shown.
+  // Only the people with links are reported, so only their links are stored as shown.
   assert.deepEqual(email.actionCandidateIds, ["c2"]);
   assert.deepEqual(build({ sections: [companyFirst, accepted] }).actionCandidateIds, ["c1", "c2"]);
-  assert.match(email.html, /background:#111827[^>]*>연결 요청<\/a>/);
-  assert.match(email.html, /background:#ffffff[^>]*>이번엔 넘길게요<\/a>/);
   assert.match(email.html, /href="[^"]*talentId=c3[^"]*"[^>]*>박지훈<\/a>/);
-  assert.match(email.text, /연결 요청: https:\/\/matchharper.com\/email-action\/c2-request\n이번엔 넘길게요: /);
   assert.ok(!email.html.includes("HARPERDIGEST") && !email.text.includes("HARPERDIGEST"));
+});
+
+test("the mail reads like one a person wrote: plain paragraphs and text links, no box or button", () => {
+  const email = build();
+  // Under the lead's paragraph: ask by name, say a reply works, then the two links.
+  assert.match(
+    email.html,
+    /<p[^>]*>김민준님을 만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: <a href="https:\/\/matchharper\.com\/email-action\/c2-request"[^>]*>연결 요청<\/a> \/ <a href="https:\/\/matchharper\.com\/email-action\/c2-pass"[^>]*>이번엔 넘길게요<\/a><\/p>/
+  );
+  assert.match(
+    email.text,
+    /다만 출근 가능 여부는 확인해 봐야 해요\.\n\n김민준님을 만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결 요청 \(https:\/\/matchharper\.com\/email-action\/c2-request\) \/ 이번엔 넘길게요 \(https:\/\/matchharper\.com\/email-action\/c2-pass\)\n\n다른 두 분도 있어요\./
+  );
+  // No card, fill, rounded border, button or table: only the two shared body wrappers.
+  assert.equal((email.html.match(/<div/g) ?? []).length, 2);
+  assert.doesNotMatch(email.html, /<table|background|border-radius|────/);
+  assert.doesNotMatch(email.text, /────/);
+});
+
+test("the ask calls the person the way the greeting calls people", () => {
+  const url = web("c2");
+  assert.equal(candidateCallName(`[Sam Lee](${url}): Built a ledger\n\nSam built it.`), "Sam");
+  assert.equal(candidateCallName(`[김민준](${url}): 서빙`), "김민준");
+  assert.equal(candidateCallName(`[Kim Minji](${url}): 서빙`), "Kim Minji");
+  assert.equal(candidateCallName(`✅ [Mary\\-Jane O'Neil](${url}) — 결제 시스템을 만들었어요.`), "Mary-Jane");
+  assert.equal(candidateCallName("김민준님은 토스에서 일했어요."), "");
+  // Text that links no one: the ask goes without a name.
+  const email = build({ sections: [{ kind: "company_first", parts: [{ candidateId: "c2", text: "김민준님은 토스에서 일했어요." }] }] });
+  assert.match(email.text, /\n\n만나보시겠어요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결 요청 /);
 });
 
 test("the lead is the person with the strongest ratings, and ratings are not printed", () => {
@@ -160,13 +185,21 @@ test("the lead is the person with the strongest ratings, and ratings are not pri
   assert.doesNotMatch(email.html + email.text, /✓|ML 실무 3년|서빙 ·/);
 });
 
-test("people who already said yes keep their text and buttons and come first", () => {
+test("people who already said yes keep their text, get their own two links and come first", () => {
   const email = build({ sections: [companyFirst, accepted] });
   assert.equal(email.subject, "ML Engineer: 만나보겠다고 한 분이 1명 있어요");
   const acceptedAt = email.text.indexOf("✅ 연결을 기다리는 후보 · 후보가 이미 만나보겠다고 했어요");
   assert.ok(acceptedAt > 0 && acceptedAt < email.text.indexOf("이 분부터 보시면"));
   assert.match(email.text, /만나보겠다고 한 후보예요\./);
-  assert.match(email.text, /연결하기: https:\/\/matchharper.com\/email-action\/c1-accept\n이번엔 넘길게요: .*c1-reject/);
+  assert.match(
+    email.text,
+    /결제 시스템을 만들었어요\.\n\n이서연님과 연결해 드릴까요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결하기 \(https:\/\/matchharper\.com\/email-action\/c1-accept\) \/ 이번엔 넘길게요 \(.*c1-reject\)/
+  );
+  // The mail says once that a reply works; the lead after the ✅ list only asks.
+  assert.equal((email.text.match(/답장만 주셔도/g) ?? []).length, 1);
+  assert.match(email.text, /\n\n김민준님을 만나보시겠어요\? 연결 요청 \(.*c2-request\) \/ 이번엔 넘길게요 \(.*c2-pass\)\n\n/);
+  assert.equal((email.html.match(/<div/g) ?? []).length, 2);
+  assert.doesNotMatch(email.html, /background|border-radius/);
   assert.equal((email.text.match(/Harper 드림/g) ?? []).length, 1);
   // Only the ✅ list: no opening line, no "see all", no request closing.
   const onlyAccepted = build({ sections: [accepted], totals: { accepted_connection: 4 } });
@@ -197,7 +230,10 @@ test("English mail follows the same layout in English", () => {
   assert.match(email.text, /^Hi Dana,\n\n2 new people for your ML Engineer role\. The one I'd start with:/);
   assert.match(email.text, /One more in your list:/);
   assert.match(email.html, />See all 2<\/a>/);
-  assert.match(email.text, /Request intro: .*c2-request\nPass for now: .*c2-pass/);
+  assert.match(
+    email.text,
+    /I'd still check IC fit\.\n\nWant to meet Sam\? Just reply to this email, or use these links: Request intro \(.*c2-request\) \/ Pass for now \(.*c2-pass\)\n\nOne more in your list:/
+  );
   assert.match(email.text, /If you'd like to meet anyone, I'll make sure they're interested before connecting you\.\n\nHarper$/);
   assert.doesNotMatch(email.html + email.text, /[가-힣]/);
 });
@@ -255,7 +291,7 @@ test("the lead's link goes on the name as a whole word, never inside another wor
   assert.equal(leadCandidateText(inside), inside);
 });
 
-test("missing button links or candidates are rejected instead of sending a partial mail", () => {
+test("missing action links or candidates are rejected instead of sending a partial mail", () => {
   assert.throws(
     () => build({ candidates: ["c3", "c4"].map((id) => candidate(id)) }),
     /action links are missing/
@@ -276,24 +312,14 @@ test("recipient names cannot inject Markdown", () => {
   assert.doesNotMatch(email.html, /evil\.example"/);
 });
 
-test("reply context keeps the prose but never the one-time button links", () => {
+test("reply context keeps the prose and the asks but never the one-time links", () => {
   const email = build({ sections: [companyFirst, accepted] });
   assert.match(email.replyContext, /김민준/);
+  // The person's web link stays, so a reply can name the exact candidate and Role.
+  assert.match(email.replyContext, /\[김민준\]\([^)]*talentId=c2[^)]*roleId=r1|\[김민준\]\([^)]*roleId=r1[^)]*talentId=c2/);
+  assert.match(email.replyContext, /이서연님과 연결해 드릴까요\? 이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요: 연결하기 \/ 이번엔 넘길게요/);
+  assert.match(email.replyContext, /김민준님을 만나보시겠어요\? 연결 요청 \/ 이번엔 넘길게요/);
   assert.doesNotMatch(email.replyContext, /email-action/);
-});
-
-test("the action row displays both buttons without a credit caption", () => {
-  const row = {
-    primary: { label: "연결 요청", url: "https://matchharper.com/email-action/c2-request" },
-    secondary: { label: "이번엔 넘길게요", url: "https://matchharper.com/email-action/c2-pass" },
-  };
-  const html = candidateDigestActionRowHtml(row);
-  assert.match(html, /margin:0 0 16px"><tr>/);
-  assert.match(html, /c2-request.*c2-pass.*<\/table>$/);
-  assert.equal(
-    candidateDigestActionRowText(row),
-    "연결 요청: https://matchharper.com/email-action/c2-request\n이번엔 넘길게요: https://matchharper.com/email-action/c2-pass"
-  );
 });
 
 test("new people across several Roles: the opening says so and see all opens Home's Roles", () => {

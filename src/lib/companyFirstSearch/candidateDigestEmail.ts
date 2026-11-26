@@ -6,7 +6,7 @@ import { COMPANY_TERMS } from "@/lib/org/terms";
 import { buildOrgHref, orgJobsHomeRedirect } from "@/lib/org/routes";
 
 /** Candidate mail for one role-matching run: fixed subject, greeting and closing,
- * the Worker's email-surface prose for each person, and per-recipient action buttons. */
+ * the Worker's email-surface prose for each person, and per-recipient action links. */
 export type CandidateDigestKind = "accepted_connection" | "company_first";
 export type CandidateDigestAction =
   | "request_intro"
@@ -48,7 +48,7 @@ export const CANDIDATE_DIGEST_ACTIONS: Record<
   company_first: ["request_intro", "pass"],
 };
 
-// Labels for candidate email actions: the same button names as the web and Slack.
+// Labels for candidate email actions: the same names as the web and Slack buttons.
 export const CANDIDATE_DIGEST_ACTION_LABELS: Record<
   CandidateDigestAction,
   [string, string]
@@ -70,9 +70,12 @@ const COPY = {
 } as const;
 
 /** Mail for the people this run brings (mail-tone review, 2026-11-25): one lead
- * candidate in full with the buttons, two more in one line each, the rest behind
+ * candidate in full with two text links, two more in one line each, the rest behind
  * "see all". No internal list names, no criteria marks, the recipient's name, and
- * Harper's sign-off. The ✅ list (candidates already said yes) keeps its own text. */
+ * Harper's sign-off. The ✅ list (candidates already said yes) keeps its own text.
+ * It reads like a mail a person wrote in Gmail (2026-11-26): no box, background or
+ * button, because those read as an automated newsletter, which gets fewer replies and
+ * can land in a promotions tab or break in some mail apps. */
 export const DIGEST_OTHERS_SHOWN = 2;
 
 function clip(value: string | null | undefined, max: number) {
@@ -174,15 +177,6 @@ function escapeMarkdownText(value: string) {
   return value.replace(/[\\`*_[\]<>#|~]/g, "\\$&");
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 /** "Hi Dana," / "Dana님 안녕하세요": a Latin name by its first word, a Hangul name whole (`mailCallName`). */
 function greeting(locale: OrgLocale, recipientName: string) {
   const name = escapeMarkdownText(mailCallName(recipientName));
@@ -228,37 +222,42 @@ function totalLine(locale: OrgLocale, total: number) {
   return locale === "ko" ? `지금 모두 ${total}명` : `${total} in total now`;
 }
 
-const ACTION_ROW_MARKER = (index: number) => `HARPERDIGESTACTIONS${index}X`;
-const CARD_START_MARKER = (index: number) => `HARPERDIGESTCARD${index}X`;
 const SECTION_SPACER_MARKER = "HARPERDIGESTSECTIONSPACERX";
-// One card per candidate with a light fill, no border or shadow.
-export const CARD_OPEN =
-  '<div style="border-radius:10px;background:#f9fafb;padding:16px 16px 4px;margin:0 0 12px">';
-const CARD_DIVIDER = "────────────────────";
 
-type ActionRow = {
-  primary: { label: string; url: string };
-  secondary: { label: string; url: string };
+type DigestLink = { label: string; url: string };
+
+const ASK: Record<CandidateDigestKind, { ko: (name: string) => string; en: (name: string) => string }> = {
+  company_first: {
+    ko: (name) => (name ? `${name}님을 만나보시겠어요?` : "만나보시겠어요?"),
+    en: (name) => (name ? `Want to meet ${name}?` : "Want an intro?"),
+  },
+  accepted_connection: {
+    ko: (name) => (name ? `${name}님과 연결해 드릴까요?` : "연결해 드릴까요?"),
+    en: (name) => (name ? `Want me to connect you with ${name}?` : "Want me to connect you?"),
+  },
 };
+const REPLY_HINT: readonly [string, string] = [
+  "이 메일에 답장만 주셔도 되고, 링크로 바로 정하셔도 돼요:",
+  "Just reply to this email, or use these links:",
+];
 
-/** Table and inline styles keep the buttons intact across mail clients. */
-export function candidateDigestActionRowHtml(row: ActionRow) {
-  const button = (item: { label: string; url: string }, filled: boolean) =>
-    `<td style="padding:0 8px 8px 0"><a href="${escapeHtml(item.url)}" style="display:inline-block;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:500;line-height:1.2;text-decoration:none;${
-      filled
-        ? "background:#111827;border:1px solid #111827;color:#ffffff"
-        : "background:#ffffff;border:1px solid #d1d5db;color:#111827"
-    }">${escapeHtml(item.label)}</a></td>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 16px"><tr>${button(
-    row.primary,
-    true
-  )}${button(row.secondary, false)}</tr></table>`;
-}
-
-export function candidateDigestActionRowText(row: ActionRow) {
-  return [row.primary, row.secondary]
-    .map((item) => `${item.label}: ${item.url}`)
-    .join("\n");
+/** "Want to meet Dana? Just reply to this email, or use these links: Request intro / Pass
+ * for now": the two actions as plain text links under the person. A reply reaches Harper
+ * with this mail as its context (companyReply.ts), so only the mail's first ask says so. */
+function askLine(
+  locale: OrgLocale,
+  kind: CandidateDigestKind,
+  name: string,
+  links: DigestLink[],
+  mentionReply: boolean
+) {
+  const question = ASK[kind][locale === "ko" ? "ko" : "en"](escapeMarkdownText(name));
+  const ask = mentionReply ? `${question} ${pick(locale, REPLY_HINT)}` : question;
+  return {
+    markdown: `${ask} ${links.map((link) => `[${escapeMarkdownText(link.label)}](${link.url})`).join(" / ")}`,
+    // Reply context for Harper: the same sentence without the one-time URLs.
+    reply: `${ask} ${links.map((link) => link.label).join(" / ")}`,
+  };
 }
 
 const CRITERION_WEIGHT: Record<OrgCompanyCriterionFitness, number> = {
@@ -328,6 +327,13 @@ export function otherCandidateLine(text: string) {
   return lines.find((line) => MARKDOWN_LINK.test(line)) ?? lines[0] ?? "";
 }
 
+/** How the ask calls the person: the name the Worker linked ("Sam Lee" → "Sam",
+ * "김민준" whole, `mailCallName`); "" when the text links no one. */
+export function candidateCallName(text: string) {
+  const label = otherCandidateLine(text).match(MARKDOWN_LINK)?.[1] ?? "";
+  return mailCallName(label.replace(/\\(.)/g, "$1"));
+}
+
 /** "See all": the Role's 연결을 요청할 후보 list, the same inbox list the total counts, on
  * the candidate links' site; Home's 역할 when the new people span several Roles. */
 function seeAllUrl(people: CandidateDigestCandidate[], orgId: string) {
@@ -377,8 +383,7 @@ export function buildCandidateDigestEmail(args: {
   if (!hasCandidate(acceptedParts) && !hasCandidate(companyFirstParts))
     throw new Error("Candidate mail requires at least one candidate");
 
-  const rows: ActionRow[] = [];
-  // The people whose buttons this mail shows. Only their links are stored, and each
+  // The people whose links this mail shows. Only their links are stored, and each
   // stored link records an email presentation for its person (company_presentations).
   const actionCandidateIds: string[] = [];
   const blocks: string[] = [greeting(locale, args.recipientName)];
@@ -387,23 +392,22 @@ export function buildCandidateDigestEmail(args: {
     accepted_connection: 0,
     company_first: 0,
   };
-  const pushCard = (kind: CandidateDigestKind, candidateId: string, text: string) => {
+  // A person with links: their text as a plain paragraph, then the ask with the two links.
+  const pushPerson = (kind: CandidateDigestKind, candidateId: string, text: string, name: string) => {
     const candidate = byId.get(candidateId);
-    const [primary, secondary] = CANDIDATE_DIGEST_ACTIONS[kind];
-    const primaryUrl = candidate?.actionUrls[primary];
-    const secondaryUrl = candidate?.actionUrls[secondary];
-    if (!candidate || !primaryUrl || !secondaryUrl)
+    const links = CANDIDATE_DIGEST_ACTIONS[kind].map((action) => ({
+      label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[action]),
+      url: candidate?.actionUrls[action] ?? "",
+    }));
+    if (!candidate || links.some((link) => !link.url))
       throw new Error("Candidate mail action links are missing");
-    blocks.push(CARD_START_MARKER(rows.length), text, ACTION_ROW_MARKER(rows.length));
-    replyBlocks.push(text);
+    const ask = askLine(locale, kind, name, links, actionCandidateIds.length === 0);
+    blocks.push(text, ask.markdown);
+    replyBlocks.push(text, ask.reply);
     actionCandidateIds.push(candidateId);
-    rows.push({
-      primary: { label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[primary]), url: primaryUrl },
-      secondary: { label: pick(locale, CANDIDATE_DIGEST_ACTION_LABELS[secondary]), url: secondaryUrl },
-    });
   };
 
-  // ✅ first: the Worker's text for people who already said yes, each with its buttons.
+  // ✅ first: the Worker's text for people who already said yes, each with its links.
   if (hasCandidate(acceptedParts)) {
     const heading = `### ${pick(locale, COPY.acceptedHeading)}`;
     blocks.push(heading);
@@ -420,7 +424,7 @@ export function buildCandidateDigestEmail(args: {
         continue;
       }
       counts.accepted_connection++;
-      pushCard("accepted_connection", part.candidateId, part.text.trim());
+      pushPerson("accepted_connection", part.candidateId, part.text.trim(), candidateCallName(part.text));
     }
   }
 
@@ -451,7 +455,7 @@ export function buildCandidateDigestEmail(args: {
     const opening = openingLine(locale, leadRole, Math.max(0, roles.size - 1), people.length);
     blocks.push(opening);
     replyBlocks.push(opening);
-    pushCard("company_first", leadPart.candidateId, leadCandidateText(leadPart.text));
+    pushPerson("company_first", leadPart.candidateId, leadCandidateText(leadPart.text), candidateCallName(leadPart.text));
     if (others.length) {
       const list = [othersLine(locale, others.length),
         others.map((part) => `- ${otherCandidateLine(part.text)}`).join("\n")];
@@ -484,27 +488,6 @@ export function buildCandidateDigestEmail(args: {
     );
     text = text.replace(`${SECTION_SPACER_MARKER}\n\n`, "");
   }
-  rows.forEach((row, index) => {
-    const marker = ACTION_ROW_MARKER(index);
-    const cardMarker = CARD_START_MARKER(index);
-    const htmlPattern = new RegExp(`<p[^>]*>${marker}</p>`);
-    const cardPattern = new RegExp(`<p[^>]*>${cardMarker}</p>`);
-    if (
-      !htmlPattern.test(html) ||
-      !text.includes(marker) ||
-      !cardPattern.test(html) ||
-      !text.includes(cardMarker)
-    )
-      throw new Error("Candidate mail action row could not be placed");
-    // The card opens before the candidate's text and closes after its buttons.
-    html = html.replace(cardPattern, () => CARD_OPEN);
-    html = html.replace(
-      htmlPattern,
-      () => `${candidateDigestActionRowHtml(row)}</div>`
-    );
-    text = text.replace(cardMarker, () => CARD_DIVIDER);
-    text = text.replace(marker, () => candidateDigestActionRowText(row));
-  });
   return {
     subject: candidateDigestSubject({
       locale,
@@ -518,7 +501,7 @@ export function buildCandidateDigestEmail(args: {
       ),
     }),
     actionCandidateIds,
-    // Reply context for Harper: the visible prose without one-time button URLs.
+    // Reply context for Harper: the visible prose without the one-time action URLs.
     replyContext: replyBlocks.join("\n\n"),
     html,
     text,
