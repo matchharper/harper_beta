@@ -5,6 +5,7 @@ import {
   lookupOrgNames, lookupRunCostUsd, lookupSourceProblem, lookupTimedOut, needsEmailLookup, noEmailReason, parseLookupOutput,
   settleEmailLookup, verifyLookup, type EmailLookupDone,
 } from "./emailLookup";
+import { workAddressRule } from "./mailRules";
 import type { AgentEmailLookup } from "./types";
 
 const person = {
@@ -47,6 +48,9 @@ test("who gets a lookup: none yet, a page to start from, no address the agent ma
   // from (11/18 evaluation); another domain is an employer's.
   assert.equal(needsEmailLookup({ ...base, email: "me@janedoe.dev", emailSource: "lookup" }), false);
   assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "lookup" }), true);
+  // 회사 주소 쓰기 on: an address on their current company's domain (Acme) needs no lookup; the file's work address still does.
+  assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "post" }, true), false);
+  assert.equal(needsEmailLookup({ ...base, email: "jane@acme.example", emailSource: "import" }, true), true);
   // A company's own applicant list: only the address the company gave, never a paid lookup.
   assert.equal(needsEmailLookup({ ...base, source: "applicants-acme", email: "jane@acme.example", emailSource: "import" }), false);
 });
@@ -202,6 +206,11 @@ test("a finished lookup: the address is used only when verified and mailable; th
   assert.equal(work.email, null);
   assert.equal(work.emailLookup.reason, "work_address");
   assert.equal(work.emailLookup.used, false);
+  // With 회사 주소 쓰기 on: their current company's address is used; an old employer's still is not.
+  const rule = workAddressRule({ currentCompany: "Acme" }, true);
+  assert.equal(settleEmailLookup(lookup, done({ email: "jane@acme.example", emailKind: "work" }), now, [], rule).email, "jane@acme.example");
+  assert.equal(settleEmailLookup(lookup, done({ email: "jane@oldjob.example", emailKind: "work" }), now, [], rule).email, null);
+  assert.equal(settleEmailLookup(lookup, done({ email: "jane@acme.example", emailKind: "work" }), now, [], { ...rule, layoff: true }).email, null);
   const unverified = settleEmailLookup(lookup, done({ verified: false, reason: "other_person" }), now);
   assert.equal(unverified.email, null);
   assert.equal(unverified.note, "이메일 못 찾음 · 그 페이지가 같은 사람인지 확인되지 않아요");
