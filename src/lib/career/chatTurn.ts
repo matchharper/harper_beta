@@ -1591,6 +1591,16 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
   } else {
     safeAssistantText = stripOpportunityRunMarkers(safeAssistantText);
   }
+  // A review form saved for this reply reaches the chat even when the reply
+  // did not place it; otherwise it waits unseen on the opportunity page.
+  if (!args.adapter) {
+    const { readUnshownReviewFormIds, withFormMarkers } = await import("./forms/replyFormMarkers");
+    safeAssistantText = withFormMarkers(safeAssistantText,
+      await readUnshownReviewFormIds(admin, { userId, conversationId }).catch(error => {
+        console.warn("[career] Could not check unshown review forms", conversationId, error);
+        return [];
+      }));
+  }
   if (args.transformAssistantTextBeforeInsert) {
     safeAssistantText = stripPostgresUnsafeChars(
       args.transformAssistantTextBeforeInsert(safeAssistantText)
