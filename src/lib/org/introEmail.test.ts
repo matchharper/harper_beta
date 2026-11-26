@@ -136,6 +136,26 @@ test("the subject calls the person being introduced by name, as in the mail-tone
   assert.ok(source.includes('"<소개받는 사람 이름>님, <회사명> <회사 사람 이름>님 소개해 드려요"'));
 });
 
+test("a name in Latin letters is called by the first word, and the guard accepts it with a title", () => {
+  const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
+  assert.ok(source.includes("영어로 된 이름은 이름(첫 단어)만 부르고(Dana Lee → Dana님)"));
+  assert.ok(source.includes('starts with the family name (such as "Kim Minji"), use the whole name'));
+  const base = {
+    companyName: "Company B",
+    companyUserName: "Dana Lee",
+    companyUserRole: "채용 담당자",
+    locale: "ko" as const,
+    subject: "김하늘님, Company B Dana님 소개해 드려요",
+  };
+  const body = "김하늘님, Company B의 채용 담당자 Dana님 안녕하세요, Harper입니다.\n두 분 다 만나보고 싶다고 하셔서 연결해 드려요.\nHarper 드림";
+  assert.deepEqual(getOrgIntroDraftSafetyIssues({ ...base, body }), []);
+  assert.deepEqual(getOrgIntroDraftSafetyIssues({ ...base, body: body.replace("Dana님", "Dana Lee님") }), []);
+  assert.deepEqual(
+    getOrgIntroDraftSafetyIssues({ ...base, body: body.replace("Company B의 채용 담당자 Dana님", "채용 담당자 Dana님") }),
+    ["recipient_role_label"]
+  );
+});
+
 test("the prompts' example mails pass the output guard, so following their shape never blocks a send", () => {
   const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
   const examples = [

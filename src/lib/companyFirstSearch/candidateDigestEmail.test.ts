@@ -91,9 +91,19 @@ test("subjects name the role and the lead's facts, never an internal list name",
   assert.equal(en({ title: null }), "Dana, someone from Company B. Worth a look?");
   assert.equal(en({ title: null, company: null }), "Dana, someone new for your ML Engineer role. Worth a look?");
   assert.equal(en({ title: "Product Designer" }, ""), "A Product Designer at Company B. Worth a look?");
+  // A romanized name that starts with a Korean surname stays whole: never "Kim, an AI Engineer…".
+  assert.equal(en({ title: "AI Engineer" }, "Kim Minji"), "Kim Minji, an AI Engineer at Company B. Worth a look?");
   assert.equal(subject({ locale: "en", acceptedCount: 1 }), "ML Engineer: 1 person said yes to talking");
   for (const value of [subject({}), subject({ locale: "en" })])
     assert.doesNotMatch(value, /Ready to reach out|연결을 요청할 후보|new in/);
+});
+
+test("the greeting calls a Latin name by its first word and a Hangul name whole", () => {
+  assert.match(build({ recipientName: "Dana Park" }).text, /^Dana님 안녕하세요, Harper입니다\./);
+  assert.match(build({ recipientName: "김지수" }).text, /^김지수님 안녕하세요, Harper입니다\./);
+  assert.match(build({ locale: "en", recipientName: "Dana Park" }).text, /^Hi Dana,/);
+  assert.match(build({ locale: "en", recipientName: "Kim Minji" }).text, /^Hi Kim Minji,/);
+  assert.match(build({ recipientName: "Kim Minji" }).text, /^Kim Minji님 안녕하세요/);
 });
 
 test("the mail greets by name, opens with one person in full, two in one line, then see all", () => {

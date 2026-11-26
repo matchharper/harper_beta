@@ -1,4 +1,5 @@
 import type { OrgLocale } from "@/i18n/org/locale";
+import { mailCallName } from "@/lib/email/callName";
 import { renderCompanyReplyEmail } from "@/lib/email/runtime/format";
 import type { OrgCompanyCriterionFitness } from "@/lib/org/companyCriteriaEvaluations";
 import { COMPANY_TERMS } from "@/lib/org/terms";
@@ -86,12 +87,6 @@ function careerYears(locale: OrgLocale, years: number | null | undefined) {
   return locale === "ko" ? `경력 ${whole}년` : `${whole} ${whole === 1 ? "year" : "years"}`;
 }
 
-function firstName(locale: OrgLocale, recipientName: string) {
-  const name = recipientName.trim();
-  // English mail says "Hi Dana,"; Korean mail keeps the full name with 님.
-  return locale === "ko" ? name : name.split(/\s+/)[0] ?? "";
-}
-
 function uniqueRoles(roleNames: string[]) {
   return [...new Set(roleNames.map((name) => name.trim()).filter(Boolean))];
 }
@@ -164,7 +159,7 @@ export function candidateDigestSubject(args: {
   }
   // "[Name], a [hook about the lead]. Worth a look?": the article keeps the title on the
   // lead, so the recipient's name is not read as the person with that title.
-  const name = firstName(locale, args.recipientName ?? "");
+  const name = mailCallName(args.recipientName);
   const title = clip(lead?.title, 50);
   const hook = /^[A-Za-z0-9]/.test(title)
     ? `${lead?.ended ? "a former" : englishArticle(title)} ${title}${company ? ` at ${company}` : ""}`
@@ -188,8 +183,9 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+/** "Hi Dana," / "Dana님 안녕하세요": a Latin name by its first word, a Hangul name whole (`mailCallName`). */
 function greeting(locale: OrgLocale, recipientName: string) {
-  const name = escapeMarkdownText(firstName(locale, recipientName));
+  const name = escapeMarkdownText(mailCallName(recipientName));
   if (locale === "ko")
     return name ? `${name}님 안녕하세요, Harper입니다.` : "안녕하세요, Harper입니다.";
   return name ? `Hi ${name},` : "Hi,";
