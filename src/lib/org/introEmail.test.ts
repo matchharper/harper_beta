@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { orgIntroModelInput } from "./introEmail";
+import { renderEmailBodyHtml } from "../email/bodyFormat";
+import { orgIntroModelInput, orgIntroParagraphs } from "./introEmail";
 import { buildOrgIntroCandidateProfessionalSummary } from "./introEmailProfessionalSummary";
 import {
   appendOrgIntroCaptureDisclosure,
@@ -185,6 +186,24 @@ test("the prompts' example mails pass the output guard, so following their shape
     assert.ok(body, `${locale} example`);
     assert.deepEqual(getOrgIntroDraftSafetyIssues({ body, locale, subject: "" }), [], body);
   }
+});
+
+test("each line of the intro is its own paragraph, so the mail shows space between them", () => {
+  // The model mostly writes single line breaks, and the renderer keeps adjacent lines in one
+  // paragraph with no space between them (the team's review of the samples).
+  const single =
+    "김지수님, 이민호님 안녕하세요, Harper입니다.\n두 분 다 만나보고 싶다고 하셔서 연결해 드려요.\n일정은 이 메일에서 두 분이 바로 잡으시면 돼요.\nHarper 드림";
+  assert.equal(renderEmailBodyHtml(single).match(/<p /g)?.length, 1);
+  assert.equal(renderEmailBodyHtml(orgIntroParagraphs(single)).match(/<p /g)?.length, 4);
+  const messy = "Hi Dana and Min, Harper here.\r\n  You both wanted to meet, so I'm connecting you.\n\n\nMin built Nova's payment ledger.\nHarper\n";
+  const body = orgIntroParagraphs(messy);
+  assert.equal(
+    body,
+    "Hi Dana and Min, Harper here.\n\nYou both wanted to meet, so I'm connecting you.\n\nMin built Nova's payment ledger.\n\nHarper"
+  );
+  assert.equal(orgIntroParagraphs(body), body);
+  const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
+  assert.match(source, /orgIntroParagraphs\(String\(parsed\.body/);
 });
 
 test("warm intro output guard detects company-process history in English and Korean", () => {

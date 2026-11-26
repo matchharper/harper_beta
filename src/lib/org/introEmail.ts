@@ -117,6 +117,20 @@ function getCompletionText(response: any) {
     .trim();
 }
 
+/**
+ * Each line of the short intro is one part of it: greeting, why, who, schedule, sign-off.
+ * The model mostly writes single line breaks, and the mail renderer keeps adjacent lines in
+ * one paragraph with no space between them, so every line becomes its own paragraph.
+ */
+export function orgIntroParagraphs(text: string) {
+  return text
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function parseDraft(raw: string) {
   const withoutFence = raw
     .replace(/^```(?:json)?\s*/i, "")
@@ -144,9 +158,7 @@ function parseDraft(raw: string) {
       : "";
   const body =
     parsed && typeof parsed === "object" && "body" in parsed
-      ? String(parsed.body ?? "")
-          .replace(/\r/g, "")
-          .trim()
+      ? orgIntroParagraphs(String(parsed.body ?? ""))
       : "";
 
   if (!subject || !body) {
