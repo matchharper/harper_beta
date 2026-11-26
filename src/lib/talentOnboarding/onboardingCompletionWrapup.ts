@@ -214,7 +214,7 @@ function buildWrapupInstruction(preferredLocale?: string | null) {
     "",
     "First, inspect the onboarding conversation and current profile state.",
     "- If the user disclosed a clear recommendation/contact subscription action, you may call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
-    "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; leave the clarification for the normal assistant message.",
+    "- A request to stop Harper email or contact in general (unsubscribe, no more emails) is stop_all unless the user limited it to external/public postings; call `update_setting` before writing the wrap-up.",
     "- If the user disclosed a clear recommendation batch-size change, use `update_talent_profile.recommendationBatchSize`, not `update_setting`.",
     "- If the user disclosed clear durable context that is missing from current state, use `write_talent_context` before writing the wrap-up. Put current user-visible search criteria in Brief and other context worth remembering in Memory.",
     "- Use `update_talent_profile` only for structured profile rows or recommendation batch size.",

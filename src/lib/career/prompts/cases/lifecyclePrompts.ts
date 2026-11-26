@@ -162,7 +162,7 @@ export function buildCareerCallWrapupTurnInstruction(args: {
     "Important tool instruction:",
     "- Persistent tools may already have been used during the live call. Compare the user's statements below with current state and never repeat a write that is already reflected.",
     "- If the user disclosed a clear recommendation/contact subscription action, call `update_setting` before writing the wrap-up: stop_external for external/public postings only, stop_all for all Harper matching contact, or resume for recommendation/contact restart.",
-    "- If the user's wording is a generic stop/unsubscribe that could mean either external postings only or all Harper matching contact, do not call `update_setting`; ask one clarifying question only if it fits the short follow-up.",
+    "- A request to stop Harper email or contact in general (unsubscribe, no more emails) is stop_all unless the user limited it to external/public postings; call `update_setting` before writing the wrap-up.",
     "- Use current schedules and the user’s actual request for future timing. Do not write a fixed recommendation quota into the profile.",
     "- If the user disclosed clear new durable context that is missing from current state, call `write_talent_context` before writing the wrap-up. Use `update_talent_profile` only for structured profile-row details or recommendation batch size.",
     ...(isCareerCoaching
