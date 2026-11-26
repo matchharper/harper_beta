@@ -32,6 +32,7 @@ import { listBrowserSessions } from "./sessionIndex";
 import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 import { enableSavedLogin, forgetSavedLogin, readSavedLogin, savedLoginProfileId } from "./savedLogin";
+import { closedPostingBeforePreparation } from "./postingCheck";
 
 // Allows a human to finish login/input before the provider releases the page.
 export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
@@ -73,7 +74,8 @@ export const USE_BROWSER_TOOL = {
       task: { type: "string" },
       role_refs: { type: "array", items: { type: "string" }, description: "Known role IDs for this application. For run, links the browser to its opportunity. For list, filters sessions created with all these role IDs." },
       profile_link: BROWSER_PROFILE_LINK_PARAMETER,
-      save_login: { type: "boolean", description: "For run without session_id: true turns on the user's saved login (requires the user's agreement message) so this and later new browsers keep the sites the user signs into. Omit once it is on." },
+      save_login: { type: "boolean", description: "For run without session_id: true turns on the user's saved login (requires the user's agreement message; a form answer counts only when it checks a consent item with id save_login) so this and later new browsers keep the sites the user signs into. Omit once it is on." },
+      ignore_closed: { type: "boolean", description: "For a new prepare run: true starts the browser even though the posting check found the posting closed. Only when the user asks to try anyway." },
       documents: {
         type: "array",
         description:
@@ -115,6 +117,7 @@ export const browserInputSchema = z.object({
   // instruction, which overrides the box.
   profile_link: z.union([browserProfileLinkSchema, z.boolean()]).optional(),
   save_login: z.boolean().optional(),
+  ignore_closed: z.boolean().optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
 });
@@ -167,6 +170,14 @@ const outputSchema = z.object({
   // Where an open code screen's code went (email/phone/none), kept as given; browserRunAwaitsEmailCode reads it.
   verificationCode: z.string().optional(),
 });
+/** Value maps of a career form answer (one form, or several answered together); undefined for a chat message. */
+function formAnswerValues(payload: unknown): Record<string, unknown>[] | undefined {
+  const record = (value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  const root = record(payload);
+  const answers = Array.isArray(root?.responses) ? root.responses : root && "formId" in root ? [root] : undefined;
+  return answers?.map(answer => record(record(answer)?.values) ?? {});
+}
 const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
     ? (operation.provider_refs[key] as string)
@@ -746,6 +757,11 @@ export async function executeUseBrowser(
   // (a 11/5 preparation run submitted one with the resume it was given).
   if (input.mode === "prepare" && input.documents?.length)
     throw new Error("Prepare mode transfers no documents: it only inspects the form. Attach documents in execute mode after the user approves the review.");
+  // A new preparation for a closed posting opens no browser: the check takes seconds, a browser run minutes.
+  if (input.mode === "prepare" && !input.session_id && input.role_refs?.length && !input.ignore_closed) {
+    const closed = await closedPostingBeforePreparation(context, input);
+    if (closed) return { ok: false, status: "posting_closed", modelOutput: closed };
+  }
   if (input.session_id) {
     let current = await ownedSession(context, input.session_id);
     // A browser keeps the login setting it started with; switching it mid-session would discard the open page.
@@ -771,7 +787,13 @@ export async function executeUseBrowser(
     );
   if (input.save_login) {
     if (!authorization.length) throw new Error("Saving login requires the user's agreement message reference");
-    await enableSavedLogin(context);
+    // A form answer agrees only when the user checked its save_login consent: an unchecked box is not consent.
+    // A chat message stays the model's reading of the user's own words.
+    const agreed = authorization.find(message => formAnswerValues(message.payload)?.some(values => values.save_login === true));
+    const chat = authorization.find(message => !formAnswerValues(message.payload));
+    if (!agreed && !chat)
+      throw new Error("Saving login requires the user's check of the save_login consent in their form answer; nothing was started");
+    await enableSavedLogin(context, { messageId: (agreed ?? chat)!.id });
   }
   let session: ExternalOperation;
   if (input.session_id) session = await ownedSession(context, input.session_id);
