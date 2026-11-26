@@ -9,7 +9,7 @@
  */
 import {
   addressCheckFailure, agentMailableAddress, handleCore, handleDomainAddress, handleLatinName, isPlatformRoot, nameOnPage, onPage,
-  onlyPersonalMailbox, ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle,
+  onlyPersonalMailbox, ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle, type WorkAddressRule,
 } from "./mailRules";
 import { applicantListCompany } from "./applicantList";
 import { cleanEmail } from "./people";
@@ -113,12 +113,15 @@ export function emailLookupQuery(person: EmailLookupPerson): string {
  * the posting pick.
  */
 export function needsEmailLookup(
-  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource" | "signalUrl" | "source">,
+  person: Pick<AgentPerson, "emailLookup" | "profileUrl" | "contactUrl" | "email" | "emailSource" | "signalUrl" | "source">
+    & Partial<Pick<AgentPerson, "currentCompany" | "method">>,
+  /** 회사 주소 쓰기 (settings.signals.workAddresses): an address on their current company's domain needs no lookup. */
+  workAddresses = false,
 ): boolean {
   if (person.emailLookup) return false;
   if (applicantListCompany(person.source)) return false;
   if (!person.profileUrl?.trim() && !person.contactUrl?.trim()) return false;
-  return !personMailable(person);
+  return !personMailable(person, workAddresses);
 }
 
 /** The run's structured output, cleaned; anything missing or malformed reads as "no address". */
@@ -216,6 +219,17 @@ function ownLinkedInPost(sourceUrl: string, person: Pick<AgentPerson, "profileUr
 }
 
 /**
+ * The person's name as a page in English writes it. A name the agent knows only in Korean (or not at all) is written in
+ * Latin letters on an English page: the one their handle spells (linkedin.com/in/haneul-kim-1a2b → "haneul kim") counts
+ * as their name too. A Latin name stays the only one (a handle never overrides it).
+ */
+export function personNames(person: Pick<AgentPerson, "name" | "profileUrl" | "contactUrl">): string[] {
+  const name = realName(person.name);
+  const latin = /[a-z]/i.test(name ?? "") ? [] : profileHandles([person.profileUrl, person.contactUrl]).map(handleLatinName);
+  return [...new Set([name, ...latin].filter((item): item is string => Boolean(item)))];
+}
+
+/**
  * What the agent itself could confirm about the returned address: it is on the source page near the person's name or
  * handle (mailRules.ts addressIsPersons), the page lists no other person's address unless it is the person's own (under
  * their profile or a link they wrote, or the address is on the page's own domain), and the page (without the address)
@@ -253,16 +267,11 @@ export function verifyLookup(
   if (single && addressSpellsHandle(email, profileOwn)) return { verified: true, reason: null, sourceHost, failedCheck: null };
   // A person known only by a handle ("@jane": profile.ts) is checked by it like their pages' handles; an own site's
   // name counts as one of their handles there.
-  const name = realName(person.name);
   const handles = [...new Set([
     ...profileOwn, ...(own ? sourceSites.filter((site) => siteNameIsHandle(site, profileOwn)) : []),
     ...[nameHandle(person.name)].filter((item): item is string => Boolean(item)),
   ])];
-  // A name the agent knows only in Korean (or not at all) is written in Latin letters on an English page: the one their
-  // handle spells (linkedin.com/in/haneul-kim-1a2b → "haneul kim") counts as their name too. A Latin name stays
-  // the only one (a handle never overrides it).
-  const latin = /[a-z]/i.test(name ?? "") ? [] : profileOwn.map(handleLatinName);
-  const names = [...new Set([name, ...latin].filter((item): item is string => Boolean(item)))];
+  const names = personNames(person);
   // Near the person's name or handle, and no other person's address on a page that is not theirs (a team or speakers
   // page, a comment thread): the address is someone else's otherwise.
   const failure = addressCheckFailure({
@@ -328,7 +337,7 @@ export const LOOKUP_REASON_LABEL: Record<AgentEmailLookupReason, string> = {
   page_unreadable: "주소가 나온 페이지를 읽지 못했어요",
   not_on_page: "그 페이지에 주소가 없어요",
   other_person: "그 페이지가 같은 사람인지 확인되지 않아요",
-  work_address: "개인 메일(gmail 등)이 아닌 주소만 찾았어요",
+  work_address: "개인 메일(gmail 등)도, 지금 회사 주소도 아닌 주소만 찾았어요",
   timeout: "15분 안에 끝나지 않았어요",
   failed: "찾기가 실패했어요",
   start_failed: "찾기를 시작하지 못했어요",
@@ -353,8 +362,10 @@ export function settleEmailLookup(
   now: Date,
   /** The person's handles (their profile and own links): an address on a domain named after one is theirs. */
   ownHandles: readonly string[] = [],
+  /** Whether and for whom a work address may be used (mailRules.ts workAddressRule); none: never. */
+  work?: WorkAddressRule,
 ): { emailLookup: AgentEmailLookup; email: string | null; note: string } {
-  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup", [], ownHandles) ? done.email : null;
+  const email = done.verified && done.email && agentMailableAddress(done.email, "lookup", [], ownHandles, work) ? done.email : null;
   const reason: AgentEmailLookupReason | null = email ? null : done.verified ? "work_address" : (done.reason ?? "not_found");
   const host = lookupSourceHost(done.sourceUrl);
   const failedCheck = reason === "other_person" ? done.failedCheck ?? null : null;

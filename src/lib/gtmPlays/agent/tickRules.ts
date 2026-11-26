@@ -267,7 +267,8 @@ export function runErrorAfterTick(problems: readonly string[]): { error: string 
  *   lookup        matched (2+ fits), no address yet, a page to start from: start the paid lookup (the person stays
  *                 matched while it runs: 처리 중 · "맞는 공고가 있어 이메일을 찾는 중")
  *   wait          a lookup is running (looked at on later ticks)
- *   lookup_ended  matched, the lookup ended (or never started) without an address: excluded with why
+ *   lookup_ended  matched, the lookup ended (or never started) without an address: one treg call when it ended
+ *                 (run.server.ts tryVendorLookup), then excluded with why when that gives none either
  */
 export type PersonStep = "profile" | "no_address" | "pick" | "write" | "lookup" | "wait" | "lookup_ended";
 

@@ -275,7 +275,7 @@ export default function AgentThread({ personId, onClose }: { personId: string; o
               {sourceLabel(person.source)} · {METHOD_LABEL[person.method] ?? person.method}
               {!person.configId && person.settingsVersion ? ` · 설정 v${person.settingsVersion}` : ""}
             </span>
-            {person.email ? <span className="text-neutral-muted">· {person.email}{person.emailSource === "lookup" ? " (찾은 주소)" : ""}</span> : null}
+            {person.email ? <span className="text-neutral-muted">· {person.email}{person.emailSource === "lookup" ? " (찾은 주소)" : person.emailSource === "vendor" ? " (treg로 찾은 주소)" : ""}</span> : null}
             <span className="text-neutral-muted">· 비용 {usd(person.costUsd)}</span>
           </div>
           {person.mailConfigId && person.mailConfigId !== person.configId ? (

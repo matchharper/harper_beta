@@ -66,6 +66,9 @@ test("anything that changes what the agent does gives a new id: a setting, the �
     snapshotOf(settingsWith({}, { blockedDomains: ["spam.example"] })),
     snapshotOf(settingsWith(), { rules: { ...RULES, minFits: 3 } }),
     snapshotOf(settingsWith(), { prompts: { ...PROMPTS, judge: "bbbb2223" } }),
+    snapshotOf(settingsWith({}, { vendorLookup: false })),
+    snapshotOf(settingsWith({}, { workAddresses: false })),
+    snapshotOf(settingsWith(), { rules: { ...RULES, vendorDailyMax: 10 } }),
   ].map(agentConfigId);
   assert.equal(new Set([base, ...ids]).size, ids.length + 1);
 });
@@ -88,6 +91,12 @@ test("what it contained, in words and in the screen's order", () => {
   assert.equal(value("settings.dailyCostUsd"), "$100.00");
   assert.equal(value("rules.minFits"), "2곳");
   assert.equal(value("rules.graderDropsPoor"), "켜짐");
+  // The two address switches (11/26): on by default; a 설정 묶음 from before has neither ("—").
+  assert.equal(value("settings.vendorLookup"), "켜짐");
+  assert.equal(value("settings.workAddresses"), "켜짐");
+  const before = snapshotOf(settingsWith());
+  const { vendorLookup: _vendor, workAddresses: _work, ...olderSettings } = before.settings;
+  assert.equal(agentConfigEntries({ ...before, settings: olderSettings }).find((entry) => entry.key === "settings.vendorLookup")?.value, "—");
   assert.equal(value("prompts.judge"), "#bbbb22");
   // Instructions it does not have are not listed (a 설정 묶음 from before an instruction was kept).
   assert.equal(entries.some((entry) => entry.key === "prompts.grader"), false);

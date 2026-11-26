@@ -1,8 +1,8 @@
 /**
  * #5 설정 묶음 (owner 11/18: every search, log line and number must be traceable to the exact configuration it ran
  * with, to evaluate and compare later). A 설정 묶음 is everything that decides what the agent does on a tick:
- *   settings   places on/off, blocked domains, sender, caps, send days and hours, follow-up rules (no budget split:
- *              the agent splits each day's search budget, budget.ts)
+ *   settings   places on/off, blocked domains, sender, caps, send days and hours, follow-up rules, treg 쓰기 and 회사
+ *              주소 쓰기 (no budget split: the agent splits each day's search budget, budget.ts)
  *   search     the one 찾는 기준 (tuning.ts SignalTuning)
  *   rules      fixed rules in code (2 fitting companies, the lookup's score bar, the grader's gate, search budgets …)
  *   prompts    a short hash of each instruction text the model gets (the text for fixed sample inputs, so a wording
@@ -50,6 +50,8 @@ export type AgentConfigRules = {
   /** The automatic brake (tickRules.ts): this share of hard bounces, or this many spam complaints, turns the agent off. */
   brakeBounceRate: number;
   brakeComplaints: number;
+  /** Addresses from treg used a Korea-time day at most (vendorEmail.ts VENDOR_DAILY_MAX), 11/26. */
+  vendorDailyMax?: number;
 };
 
 /** The instruction texts whose hash a 설정 묶음 keeps (config.server.ts agentPromptVersions). */
@@ -77,6 +79,9 @@ export type AgentConfigSettings = {
   sendWeekdays: number[];
   followupDays: number;
   quietDaysAfterEnd: number;
+  /** treg 쓰기 and 회사 주소 쓰기 (tuning.ts SignalSettings, 11/26); a 설정 묶음 from before has neither. */
+  vendorLookup?: boolean;
+  workAddresses?: boolean;
 };
 
 export type AgentConfigSnapshot = {
@@ -121,6 +126,8 @@ export function buildAgentConfigSnapshot(args: {
       sendWeekdays: [...new Set(settings.sendWeekdays.map(Number))].sort((a, b) => a - b),
       followupDays: Number(settings.followupDays),
       quietDaysAfterEnd: Number(settings.quietDaysAfterEnd),
+      vendorLookup: Boolean(signals.vendorLookup),
+      workAddresses: Boolean(signals.workAddresses),
     },
     search: Object.fromEntries(SIGNAL_TUNING_FIELDS.map((field) => [field, signals.tuning[field]])) as SignalTuning,
     rules: { ...args.rules },
@@ -249,6 +256,7 @@ const RULE_LABEL: Record<keyof AgentConfigRules, string> = {
   followupMaxLateDays: "후속 메일이 이만큼 늦으면 보내지 않기",
   brakeBounceRate: "반송이 이 비율을 넘으면 자동으로 끄기",
   brakeComplaints: "스팸 신고가 이만큼이면 자동으로 끄기",
+  vendorDailyMax: "treg로 찾은 주소를 쓰는 사람(하루 최대)",
 };
 
 const onOff = (value: unknown) => (value ? "켜짐" : "꺼짐");
@@ -263,7 +271,7 @@ const RULE_FORMAT: Record<keyof AgentConfigRules, (value: unknown) => string> = 
   searchSplitByAgent: onOff, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
   readSearchedPages: onOff, recentMemoryDays: unit("일"), recentContactDays: unit("일"), draftMaxAgeDays: unit("일"),
   queueDays: unit("일치"), followupReserveUsd: money, followupMaxLateDays: unit("일"), brakeBounceRate: percent,
-  brakeComplaints: unit("건"),
+  brakeComplaints: unit("건"), vendorDailyMax: unit("명"),
 };
 
 const SEARCH_FORMAT: Record<keyof SignalTuning, (value: unknown) => string> = {
@@ -317,6 +325,8 @@ export function agentConfigEntries(snapshot: AgentConfigSnapshot, words: ConfigW
     (value) => { const item = value as { days: number[]; start: number; end: number }; return `${weekdaysWord(item.days)} ${item.start}~${item.end}시`; });
   add("sending", "settings.followupDays", "후속 메시지", settings.followupDays, unit("일 뒤"));
   add("sending", "settings.quietDaysAfterEnd", "끝난 뒤 쉬는 기간", settings.quietDaysAfterEnd, unit("일"));
+  add("sending", "settings.vendorLookup", "treg로 이메일 찾기 (유료 찾기로 못 찾은 사람)", settings.vendorLookup, onOff);
+  add("sending", "settings.workAddresses", "지금 회사 메일 주소로도 보내기", settings.workAddresses, onOff);
   const rules = (snapshot.rules ?? {}) as Partial<AgentConfigRules>;
   for (const field of Object.keys(RULE_LABEL) as Array<keyof AgentConfigRules>) {
     add("rules", `rules.${field}`, RULE_LABEL[field], rules[field], RULE_FORMAT[field]);
