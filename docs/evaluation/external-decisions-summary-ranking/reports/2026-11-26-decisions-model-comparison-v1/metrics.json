@@ -1,0 +1,77 @@
+{
+  "pairs": 2338,
+  "batches": 428,
+  "arms": {
+    "luna": {
+      "model": "gpt-6-luna",
+      "receipts": 428,
+      "failedCalls": 0,
+      "retriedCalls": 0,
+      "roleErrors": 0,
+      "scoredRoles": 2023,
+      "missingPairs": 0,
+      "tiedPairs": 0,
+      "pairAccuracy": 0.6103507271171942,
+      "latencyMs": {
+        "p50": 339,
+        "p95": 804,
+        "mean": 401
+      },
+      "inputTokens": 3784882,
+      "listPriceUsd": 0.37848820000000005,
+      "providerReportedCostUsd": null
+    },
+    "liquid_d12": {
+      "model": "liquid/d1.2",
+      "receipts": 428,
+      "failedCalls": 0,
+      "retriedCalls": 0,
+      "roleErrors": 0,
+      "scoredRoles": 2023,
+      "missingPairs": 0,
+      "tiedPairs": 0,
+      "pairAccuracy": 0.5624465355004277,
+      "latencyMs": {
+        "p50": 695,
+        "p95": 889,
+        "mean": 713
+      },
+      "inputTokens": 3240298,
+      "listPriceUsd": 0.06480596000000001,
+      "providerReportedCostUsd": 0.06480595999999995,
+      "deltaVsLuna": {
+        "point": -0.04790419161676651,
+        "ci95": [
+          -0.09029968454258674,
+          -0.005159474671669793
+        ]
+      }
+    },
+    "pplx_v13": {
+      "model": "perplexity/pplx-decider-v1.3:free",
+      "receipts": 428,
+      "failedCalls": 0,
+      "retriedCalls": 0,
+      "roleErrors": 0,
+      "scoredRoles": 2023,
+      "missingPairs": 0,
+      "tiedPairs": 0,
+      "pairAccuracy": 0.6137724550898204,
+      "latencyMs": {
+        "p50": 728,
+        "p95": 1571,
+        "mean": 878
+      },
+      "inputTokens": 3153745,
+      "listPriceUsd": 0,
+      "providerReportedCostUsd": null,
+      "deltaVsLuna": {
+        "point": 0.0034217279726261873,
+        "ci95": [
+          -0.034448327508736894,
+          0.04206241519674356
+        ]
+      }
+    }
+  }
+}

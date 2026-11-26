@@ -1,0 +1,26 @@
+{
+  "datasetVersion": "career-agent-decisions-feedback-v1",
+  "cutoff": "2026-11-26 09:03:19.567086+00",
+  "capturedAt": "2026-11-26T09:03:31.098Z",
+  "selection": "talent_opportunity_recommendation kind=career_agent, external_jd, feedback like/dislike; test accounts and staff emails excluded; evaluation = latest talent_external_evaluations row for (talent, role) at or before the recommendation (+5 min)",
+  "labelRule": "harper_eval pairs-v1: feedback within 7 days of the recommendation; 👍 marked already-applied and 👎 with only expired/applied options are not labels",
+  "caseRule": "one talent and one KST day; a role counted once (first recommendation); pairs inside a case",
+  "cases": 65,
+  "talents": 55,
+  "roles": 360,
+  "pairs": 554,
+  "days": [
+    "2026-11-04",
+    "2026-11-25"
+  ],
+  "evaluators": {
+    "external-fit-questions-v9-summary-four-metrics:openai:gpt-6-luna": 232,
+    "external-fit-questions-v11-company-itself:openai:gpt-6-luna": 113,
+    "external-fit-questions-v6-strong-constraints:openai:gpt-6-luna": 15
+  },
+  "files": {
+    "cases.jsonl": "3f3a3e56b13ee0a7d227b0c2cb0c0068b518701eb00b65ed58655dc35d1083f8",
+    "pairs.jsonl": "f7b06f4f587de9a3e0ba1e85985c614248ccc726ce1e2d6a47516efcbb8a006b"
+  },
+  "note": "Aggregate only; raw cases/pairs are in ignored private/frozen-v1 with these hashes."
+}
