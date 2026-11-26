@@ -99,16 +99,60 @@ export async function mailCriteriaByCandidate(admin: Admin, intros: Array<{ id: 
 }
 
 /**
- * 「지금 모두 M명」 per list for the mail's Roles, by the inbox rule, read as
- * the workspace owner. Optional: the mail goes out without it on failure.
+ * The subject's facts for each candidate, from the profile: the latest experience (its
+ * role, company and whether it ended, all from that one row) and years since the earliest
+ * experience start (the GTM company mail's count). Optional: the subject drops a fact it
+ * does not have.
  */
-async function readDigestTotals(admin: Admin, workspaceId: string, roleIds: string[]) {
+export async function mailProfileFacts(admin: Admin, intros: Array<{ id: string; talent_id: string }>) {
+  const facts = new Map<string, {
+    title: string | null; company: string | null; ended: boolean; years: number | null;
+  }>();
+  if (!intros.length) return facts;
+  const { data, error } = await (admin.from("talent_experiences" as any) as any)
+    .select("talent_id, role, company_name, start_date, end_date")
+    .in("talent_id", [...new Set(intros.map((intro) => intro.talent_id))])
+    .order("start_date", { ascending: false, nullsFirst: false });
+  if (error) {
+    console.warn("[company-first/email] profile facts unavailable", { error });
+    return facts;
+  }
+  type Experience = {
+    talent_id: string; role: string | null; company_name: string | null;
+    start_date: string | null; end_date: string | null;
+  };
+  const byTalent = new Map<string, Experience[]>();
+  for (const row of (data ?? []) as Experience[]) byTalent.set(row.talent_id, [...(byTalent.get(row.talent_id) ?? []), row]);
+  for (const intro of intros) {
+    const rows = byTalent.get(intro.talent_id) ?? [];
+    const latest = rows[0];
+    const starts = rows.map((row) => Date.parse(row.start_date ?? "")).filter(Number.isFinite);
+    facts.set(intro.id, {
+      title: latest?.role?.trim() || null,
+      company: latest?.company_name?.trim() || null,
+      ended: Boolean(latest?.end_date),
+      years: starts.length ? (Date.now() - Math.min(...starts)) / 31_557_600_000 : null,
+    });
+  }
+  return facts;
+}
+
+/**
+ * 「지금 모두 M명」 per list, by the inbox rule, read as the workspace owner. Each list
+ * counts only the Roles of its own people in the mail, so "see all N" matches the list
+ * it opens. Optional: the mail goes out without it on failure.
+ */
+async function readDigestTotals(admin: Admin, workspaceId: string,
+  roleIdsByKind: Record<CandidateDigestKind, string[]>) {
   try {
     const { readOrgDecisionCounts } = await import("@/lib/org/decisionCounts.server");
-    const reads = [...(await readOrgDecisionCounts({ admin, user: null, workspaceId, roleIds })).values()];
+    const roleIds = [...new Set(Object.values(roleIdsByKind).flat())];
+    const reads = await readOrgDecisionCounts({ admin, user: null, workspaceId, roleIds });
+    const sum = (kind: CandidateDigestKind, list: "pending_connection" | "company_intro") =>
+      roleIdsByKind[kind].reduce((total, roleId) => total + (reads.get(roleId)?.counts[list] ?? 0), 0);
     return {
-      accepted_connection: reads.reduce((sum, read) => sum + read.counts.pending_connection, 0),
-      company_first: reads.reduce((sum, read) => sum + read.counts.company_intro, 0),
+      accepted_connection: sum("accepted_connection", "pending_connection"),
+      company_first: sum("company_first", "company_intro"),
     } satisfies Record<CandidateDigestKind, number>;
   } catch (error) {
     console.warn("[company-first/email] totals unavailable", { workspaceId, error });
@@ -129,16 +173,24 @@ export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allo
     Number(right.delivery_kind === "accepted_connection") - Number(left.delivery_kind === "accepted_connection"));
   const roleIds = [...new Set(ordered.flatMap((row) => row.role_ids))];
   const candidateIds = [...new Set(ordered.flatMap((row) => row.candidate_ids))];
+  const kindRoleIds = (kind: CandidateDigestKind) =>
+    [...new Set(ordered.filter((row) => row.delivery_kind === kind).flatMap((row) => row.role_ids))];
   const [locale, cards, roleResult, totals] = await Promise.all([
     getOrgWorkspaceLocale(workspaceId, admin),
     loadSlackCandidateCards({ candidateIds, workspaceId }),
     (admin.from("company_roles" as any) as any).select("role_id, name")
       .eq("company_workspace_id", workspaceId).in("role_id", roleIds),
-    readDigestTotals(admin, workspaceId, roleIds),
+    readDigestTotals(admin, workspaceId, {
+      accepted_connection: kindRoleIds("accepted_connection"),
+      company_first: kindRoleIds("company_first"),
+    }),
   ]);
   if (roleResult.error) throw roleResult.error;
-  const criteriaById = await mailCriteriaByCandidate(admin, (intros ?? []).filter((intro: {id: string}) => candidateIds.includes(intro.id)),
-    workspaceId);
+  const mailIntros = (intros ?? []).filter((intro: {id: string}) => candidateIds.includes(intro.id));
+  const [criteriaById, profileById] = await Promise.all([
+    mailCriteriaByCandidate(admin, mailIntros, workspaceId),
+    mailProfileFacts(admin, mailIntros),
+  ]);
   const names = new Map<string, string>((roleResult.data ?? []).map((role: { role_id: string; name: string | null }) => [role.role_id, role.name ?? ""]));
   const sections = ordered.map((row) => {
     const rowCards = cards.filter((card) => row.candidate_ids.includes(card.id));
@@ -155,7 +207,17 @@ export async function loadMailContext(admin: Admin, rows: EmailOutboxRow[], allo
     cards: cards.map((card) => {
       const url = new URL(card.profileUrl);
       url.searchParams.set("source", "email");
-      return { id: card.id, webUrl: url.toString(), criteria: criteriaById.get(card.id) ?? [] };
+      // Title, company and "ended" come from one experience row, so the subject never
+      // pairs one job's title with another job's company. No headline: it is free text.
+      const profile = profileById.get(card.id);
+      return {
+        id: card.id, webUrl: url.toString(), criteria: criteriaById.get(card.id) ?? [],
+        roleName: card.roleName,
+        title: profile ? profile.title : card.latestExperience?.role ?? null,
+        company: profile ? profile.company : card.latestExperience?.companyName ?? null,
+        ended: profile?.ended ?? false,
+        years: profile?.years ?? null,
+      };
     }),
   };
 }
@@ -207,7 +269,12 @@ export function digestDependencies(admin: Admin, loadContext: () => Promise<Awai
         ...route, from: getDefaultResendFromEmail(), subject: email.subject,
         text: email.text, html: email.html, idempotencyKey: `company-notice/${job.id}`,
       };
-      return { delivery, links };
+      // Store only the buttons the mail shows (the lead's). Each stored link records an
+      // email presentation for its person (company_presentations); the two one-line people
+      // and those behind "see all" get none; what they decide in the web attaches to their
+      // inbox card.
+      const shown = new Set(email.actionCandidateIds);
+      return { delivery, links: links.filter((link) => shown.has(link.introCandidateId)) };
     },
     prepare: (job: CandidateDigestJob, owner: string, delivery: CandidateDigestDelivery, links: CandidateDigestLink[]) =>
       rpc<CandidateDigestJob | null>(admin, "prepare_company_candidate_digest_send_v1", {
