@@ -73,6 +73,17 @@ test("anything that changes what the agent does gives a new id: a setting, the �
   assert.equal(new Set([base, ...ids]).size, ids.length + 1);
 });
 
+test("treg's daily max reads 제한 없음 when there is none (11/26), a number of people when there is one", () => {
+  const withMax = (vendorDailyMax: number | null | undefined) => snapshotOf(settingsWith(), { rules: { ...RULES, vendorDailyMax } });
+  const value = (vendorDailyMax: number | null | undefined) =>
+    agentConfigEntries(withMax(vendorDailyMax)).find((entry) => entry.key === "rules.vendorDailyMax")?.value;
+  assert.equal(value(null), "제한 없음");
+  assert.equal(value(5), "5명");
+  // 설정 묶음 from before 11/26 have no such rule.
+  assert.equal(value(undefined), "—");
+  assert.notEqual(agentConfigId(withMax(null)), agentConfigId(withMax(5)));
+});
+
 test("what it contained, in words and in the screen's order", () => {
   const entries = agentConfigEntries(snapshotOf(settingsWith({ dailyCostUsd: 100 }, { blockedDomains: ["spam.example"] })), {
     source: (id) => (id === "linkedin" ? "링크드인" : id), weekdays: (days) => (days.length === 5 ? "평일" : days.join(",")),

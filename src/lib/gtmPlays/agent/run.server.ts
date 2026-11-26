@@ -58,8 +58,8 @@ import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { COST_CAP_EARLY_BEFORE_HOUR } from "./alerts";
 import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
-import { VENDOR_DAILY_MAX, VENDOR_MAX_USD, settleVendorLookup, vendorAsks, vendorSkip } from "./vendorEmail";
-import { askVendor, vendorAddressesToday, vendorToken } from "./vendorEmail.server";
+import { VENDOR_MAX_USD, settleVendorLookup, vendorAsks, vendorSkip } from "./vendorEmail";
+import { askVendor, vendorToken } from "./vendorEmail.server";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
   BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, DRAFT_REDO_NOTE, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, QUEUE_DAYS,
@@ -501,25 +501,25 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
     lookup = { runId: null, reason: "start_failed" };
   }
   let current = person;
-  let vendorNote: string | null = null;
   if (step === "lookup_ended") {
     const vendor = await tryVendorLookup(person, tick);
     if (vendor.kind === "wait") return { outcome: vendor.outcome };
-    if (vendor.kind === "skip") vendorNote = vendor.note;
-    else if (!vendor.person) return { outcome: "moved" };
-    // treg's address: the mail is written on the next tick, after the exclusion rules look at it (the write step).
-    else if (vendor.used) return { outcome: "vendor_found" };
-    else current = vendor.person;
+    if (vendor.kind === "asked") {
+      if (!vendor.person) return { outcome: "moved" };
+      // treg's address: the mail is written on the next tick, after the exclusion rules look at it (the write step).
+      if (vendor.used) return { outcome: "vendor_found" };
+      current = vendor.person;
+    }
   }
   const reason = noEmailReason(current, lookup);
-  const note = [noEmailNote(current, reason, lookup), vendorNote].filter(Boolean).join(" · ");
+  const note = noEmailNote(current, reason, lookup);
   await updateAgentPerson(current.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note }, ["matched"]);
   return { outcome: `excluded_${reason}` };
 }
 
 type VendorStep =
-  /** Not asked, excluded as before; `note` when the reason is worth a line (today's max). */
-  | { kind: "skip"; note: string | null }
+  /** Not asked: excluded as before. */
+  | { kind: "skip" }
   /** The person waits, matched: today's money is used up, or the tick has no time left for an ask. */
   | { kind: "wait"; outcome: "cost_cap" | "lookup_deferred" }
   /** Asked: the person as it is now with treg's record (null: the row moved on), and whether its address is used. */
@@ -528,19 +528,16 @@ type VendorStep =
 /**
  * 수정 4 (11/26): one treg call (agent/vendorEmail.ts) for a matched person whose paid lookup ended without an address
  * the agent may mail, right before they would be excluded for it. Not for: treg 쓰기 off, no key, the applicant file /
- * purchased DB / job-page requests, someone asked already, no LinkedIn profile, past today's VENDOR_DAILY_MAX used
- * addresses. An ask without an answer yet is tried again later (handlePeople) with the same Idempotency-Key: treg hands
- * back what it answered at no cost, with the first charge. So the person is written first and the cost logged after
- * (step lookup, source treg): a failed write logs nothing, and the next try logs it once. On the person's last try a
- * missing answer counts as treg failing, and they are excluded as before.
+ * purchased DB / job-page requests, someone asked already, no LinkedIn profile. No daily max (Shaun 11/26): the day's
+ * cost cap bounds it (mayAgentSpend below). An ask without an answer yet is tried again later (handlePeople) with the
+ * same Idempotency-Key: treg hands back what it answered at no cost, with the first charge. So the person is written
+ * first and the cost logged after (step lookup, source treg): a failed write logs nothing, and the next try logs it
+ * once. On the person's last try a missing answer counts as treg failing, and they are excluded as before.
  */
 async function tryVendorLookup(person: AgentPerson, tick: Tick): Promise<VendorStep> {
   const { signals } = tick.settings;
   const token = vendorToken();
-  if (!person.emailLookup || vendorSkip(person, signals.vendorLookup) || !token) return { kind: "skip", note: null };
-  if ((await vendorAddressesToday(tick.now)) >= VENDOR_DAILY_MAX) {
-    return { kind: "skip", note: `treg는 오늘 쓸 수 있는 ${VENDOR_DAILY_MAX}명을 다 써서 묻지 않았어요` };
-  }
+  if (!person.emailLookup || vendorSkip(person, signals.vendorLookup) || !token) return { kind: "skip" };
   const planned = vendorAsks(person, signals.workAddresses);
   const ceiling = planned.reduce((sum, ask) => sum + VENDOR_MAX_USD[ask], 0);
   if (!(await mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd), ceiling))) return { kind: "wait", outcome: "cost_cap" };
