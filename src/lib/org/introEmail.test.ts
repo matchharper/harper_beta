@@ -130,6 +130,12 @@ test("intro source preserves shared achievements and does not infer employment f
   assert.equal(buildOrgIntroCandidateProfessionalSummary([]), null);
 });
 
+test("the subject calls the person being introduced by name, as in the mail-tone review", () => {
+  const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
+  assert.ok(source.includes('"<first name>, meet <company person\'s name> at <company>"'));
+  assert.ok(source.includes('"<소개받는 사람 이름>님, <회사명> <회사 사람 이름>님 소개해 드려요"'));
+});
+
 test("the prompts' example mails pass the output guard, so following their shape never blocks a send", () => {
   const source = readFileSync(new URL("./introEmail.ts", import.meta.url), "utf8");
   const examples = [
