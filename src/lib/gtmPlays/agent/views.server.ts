@@ -121,7 +121,7 @@ export async function agentFunnelRows(sql: GtmReadSql, where: ReturnType<GtmRead
     with gtm_signups as materialized ${gtmSignupsCte(sql)}
     select p.id::text as person_id, p.run_id::text as run_id, p.updated_at,
       to_char((p.created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as found_day,
-      (p.email_lookup is not null) as lookup_tried, (p.email_source = 'lookup') as lookup_found,
+      (p.email_lookup is not null) as lookup_tried, (p.email_source in ('lookup', 'vendor')) as lookup_found,
       p.method, p.search_query, (p.email is not null) as has_email, p.intent, p.found_as, p.giver_kind, (jsonb_typeof(p.postings) = 'array' and jsonb_array_length(p.postings) >= 1 and p.status <> 'no_fit') as has_fit,
       (select coalesce(array_agg(distinct r.value->>'kind'), '{}') from jsonb_array_elements(
         case when jsonb_typeof(p.events) = 'array' then p.events else '[]'::jsonb end) r(value)) as event_kinds, p.source, p.status, p.exclude_reason, p.channel, p.sent_at, p.signal_at, p.replied_at,

@@ -29,9 +29,10 @@ export const AGENT_METHODS: readonly AgentMethod[] = ["applicant", "db", "reques
 
 /**
  * Where the address came from: import (the applicant file or the DB), post (their own page), lookup (the paid email
- * lookup), self (they typed it themselves on Harper's job page: a request).
+ * lookup), vendor (treg, after a paid lookup gave none: agent/vendorEmail.ts, 11/26), self (they typed it themselves on
+ * Harper's job page: a request).
  */
-export type AgentEmailSource = "import" | "post" | "lookup" | "self";
+export type AgentEmailSource = "import" | "post" | "lookup" | "vendor" | "self";
 
 /**
  * A request from Harper's job page (gtm_agent_people.request, method 'request'): the posting they looked at (the
@@ -253,6 +254,37 @@ export type AgentEmailLookup = {
   failedCheck?: AgentEmailLookupCheck | null;
   /** What the spend log got when the lookup started (its estimate); the rest is logged when it ends (agent/spend.ts). */
   reservedUsd?: number;
+  /** The one treg call after this lookup gave no address the agent may mail (agent/vendorEmail.ts); none: not asked. */
+  vendor?: AgentVendorLookup;
+};
+
+/** Why treg's answer was not used (agent/vendorEmail.ts VENDOR_REASON_LABEL). */
+export type AgentVendorReason = "not_found" | "not_verified" | "no_name" | "not_mailable" | "failed";
+
+/**
+ * treg for one person (gtm_agent_people.email_lookup.vendor): each ask, what treg's mailbox check said and what it
+ * cost. The address itself is kept only when it is used (then it is the person's email).
+ */
+export type AgentVendorLookup = {
+  at: string;
+  /**
+   * In order: their personal mailbox, then their work address when 회사 주소 쓰기 is on (not for the layoff search's
+   * people). reason null: that ask's address was used.
+   */
+  asks: Array<{
+    ask: "personal" | "work";
+    /** treg's check of the address it gave (valid, invalid, accept_all, unknown …); null when it gave none. */
+    verdict: string | null;
+    /** The vendor that answered (treg's X-Treg-Served-By). */
+    servedBy: string | null;
+    costUsd: number;
+    reason: AgentVendorReason | null;
+    /** treg turned the ask away (401 a bad key, 402 no balance, 403 …): reason is then "failed". */
+    httpStatus?: number;
+  }>;
+  used: boolean;
+  kind: "personal" | "work" | null;
+  costUsd: number;
 };
 
 /** gtm_agent_settings, as the code and /ops #5 read it. */
