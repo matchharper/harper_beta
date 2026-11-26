@@ -66,3 +66,13 @@ test("the link names the role's company and posting", async () => {
     { company_name: "Example", posting_title: "Backend Engineer", posting_url: "https://jobs.example.test/1" });
   assert.equal(await roleProfileLink({ admin: admin([], null) }, role), null);
 });
+
+test("a start form over several roles decides the link for each role's delegated submission", async () => {
+  const other = "00000000-0000-4000-8000-000000000011";
+  const start = { ...form(71, true), title: "지원 시작",
+    relatedRefs: [{ type: "role", id: role }, { type: "role", id: other }] };
+  const answer = { payload: response(start as ReturnType<typeof form>, true) };
+  assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [other], authorization: [answer] }), { include: true, roleId: other });
+  const off = { payload: response(start as ReturnType<typeof form>, false) };
+  assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [role], authorization: [off] }), { include: false, roleId: role });
+});
