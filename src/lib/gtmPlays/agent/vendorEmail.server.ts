@@ -1,7 +1,5 @@
 import "server-only";
 
-import { gtmRead } from "../db.server";
-import { kstDayWindow } from "../sendLimit";
 import { agentAlert } from "./alerts.server";
 import type { AgentPerson } from "./types";
 import {
@@ -98,18 +96,6 @@ async function askTreg(ask: VendorAsk, linkedinUrl: string, token: string, perso
     // 402 route_max_cost is the ceiling (VENDOR_MAX_USD), not the balance.
     keyProblem: stopForToday || ((httpStatus === 401 || httpStatus === 402 || httpStatus === 403) && !text.includes("route_max_cost")),
   };
-}
-
-/** Addresses from treg used today (Korea time), test rows left out: the daily max is checked against it. */
-export async function vendorAddressesToday(now = new Date()): Promise<number> {
-  const day = kstDayWindow(now);
-  const [row] = await gtmRead((sql) => sql<Array<{ n: number }>>`
-    select count(*)::int as n from public.gtm_agent_people
-    where email_source = 'vendor' and not is_test
-      and (email_lookup -> 'vendor' ->> 'at')::timestamptz >= ${day.start}::timestamptz
-      and (email_lookup -> 'vendor' ->> 'at')::timestamptz < ${day.end}::timestamptz
-  `);
-  return Number(row?.n ?? 0);
 }
 
 /** What asking treg about one person came to (askVendor). */

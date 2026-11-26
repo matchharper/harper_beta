@@ -50,8 +50,11 @@ export type AgentConfigRules = {
   /** The automatic brake (tickRules.ts): this share of hard bounces, or this many spam complaints, turns the agent off. */
   brakeBounceRate: number;
   brakeComplaints: number;
-  /** Addresses from treg used a Korea-time day at most (vendorEmail.ts VENDOR_DAILY_MAX), 11/26. */
-  vendorDailyMax?: number;
+  /**
+   * Addresses from treg used a Korea-time day at most: 5 from 11/26 17:10, none since (null, Shaun 11/26 "한도 없이").
+   * Snapshots before 11/26 do not have it.
+   */
+  vendorDailyMax?: number | null;
 };
 
 /** The instruction texts whose hash a 설정 묶음 keeps (config.server.ts agentPromptVersions). */
@@ -271,7 +274,7 @@ const RULE_FORMAT: Record<keyof AgentConfigRules, (value: unknown) => string> = 
   searchSplitByAgent: onOff, searchBudgetShare: percent, searchBudgetMaxUsd: money, searchMaxPeople: unit("명"),
   readSearchedPages: onOff, recentMemoryDays: unit("일"), recentContactDays: unit("일"), draftMaxAgeDays: unit("일"),
   queueDays: unit("일치"), followupReserveUsd: money, followupMaxLateDays: unit("일"), brakeBounceRate: percent,
-  brakeComplaints: unit("건"), vendorDailyMax: unit("명"),
+  brakeComplaints: unit("건"), vendorDailyMax: (value) => (value === null ? "제한 없음" : `${value}명`),
 };
 
 const SEARCH_FORMAT: Record<keyof SignalTuning, (value: unknown) => string> = {

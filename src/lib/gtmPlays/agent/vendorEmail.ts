@@ -12,8 +12,8 @@
  *   (mailRules.ts addressHoldsNamePiece: a vendor's address has no page to check it on) and the address rule allows it
  *   (mailRules.ts agentMailableAddress, source 'vendor': a work address only on their current company's domain, never a
  *   team's address).
- * - Never for the applicant file, the purchased DB or a job-page request (only the addresses they came with), and at
- *   most VENDOR_DAILY_MAX used addresses a Korea-time day to start with.
+ * - Never for the applicant file, the purchased DB or a job-page request (only the addresses they came with). No daily
+ *   max (Shaun 11/26, after the past-data test found 9 of 9 at $0.08 each): the day's cost cap bounds it.
  * Pure, so the run and the tests agree; the call itself is vendorEmail.server.ts.
  */
 import { applicantListCompany } from "./applicantList";
@@ -32,9 +32,6 @@ export type VendorAsk = keyof typeof VENDOR_TOOLS;
  * Sixtyfour ($0.60 and about a minute a call). Work: the vendors that take a LinkedIn profile ask $0.001-$0.02.
  */
 export const VENDOR_MAX_USD: Record<VendorAsk, number> = { personal: 0.3, work: 0.05 };
-
-/** Addresses from treg used a Korea-time day (the design's "처음엔 하루 5명"); past it a person is excluded as before. */
-export const VENDOR_DAILY_MAX = 5;
 
 /** treg's mailbox check words for "this mailbox takes mail"; anything else (invalid, accept_all, unknown …) is not used. */
 const TAKES_MAIL = new Set(["valid", "deliverable", "ok"]);

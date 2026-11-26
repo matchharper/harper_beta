@@ -49,7 +49,7 @@ const HINTS = {
   fillChannels: "채널마다 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
   requestChannels: "공고 페이지에서 '비슷한 공고 추천받기'를 누른 분에게 바로 보내는 메일이에요. 하루 최대만큼만 받고 보내요(후속 메일 포함, 0~100통). 끄면 공고 페이지에서 버튼이 사라져요.",
   companyChannels: "채용 글을 올린 회사의 대표·리더에게 보내는 회사 메일이에요. 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
-  addresses: "treg로 이메일 찾기: 유료 찾기로 쓸 주소를 못 찾은 사람에게 treg에 한 번 더 물어요. 한 사람에 최대 $0.35이고, treg로 찾은 주소는 하루 5명까지 써요. 지금 회사 메일 주소로도 보내기: LinkedIn에 적힌 지금 회사의 도메인 주소에도 보내요. 구조조정 검색으로 찾은 사람과 info@, jobs@ 같은 공용 주소에는 보내지 않아요. 둘 다 끄면 개인 메일과 본인 도메인 주소에만 보내요.",
+  addresses: "treg로 이메일 찾기: 유료 찾기로 쓸 주소를 못 찾은 사람에게 treg에 한 번 더 물어요. 한 사람에 최대 $0.35예요. 지금 회사 메일 주소로도 보내기: LinkedIn에 적힌 지금 회사의 도메인 주소에도 보내요. 구조조정 검색으로 찾은 사람과 info@, jobs@ 같은 공용 주소에는 보내지 않아요. 둘 다 끄면 개인 메일과 본인 도메인 주소에만 보내요.",
 } as const;
 
 /** 채널's groups, in the queue's order (agent/channels.ts): the existing channels, the new ones, the job-page requests, then the company side. */
