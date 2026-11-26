@@ -67,10 +67,12 @@ test("the link names the role's company and posting", async () => {
   assert.equal(await roleProfileLink({ admin: admin([], null) }, role), null);
 });
 
-test("a submission delegated with no form for the role keeps the box's default: the link goes in", async () => {
-  // Nothing was left to ask, so no review form was ever made for this role.
-  assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [role], authorization: [{ payload: {} }] }), { include: true, roleId: role });
-  // A form for the role without the box still decides nothing.
-  const plain = { ...form(81, true), items: [{ id: "answer", label: "지원 동기", type: "textarea", content: "" }] };
-  assert.equal(await approvedProfileLinkChoice(scope([{ message_type: "career_form", payload: plain }]), { roleRefs: [role], authorization: [] }), null);
+test("a start form over several roles decides the link for each role's delegated submission", async () => {
+  const other = "00000000-0000-4000-8000-000000000011";
+  const start = { ...form(71, true), title: "지원 시작",
+    relatedRefs: [{ type: "role", id: role }, { type: "role", id: other }] };
+  const answer = { payload: response(start as ReturnType<typeof form>, true) };
+  assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [other], authorization: [answer] }), { include: true, roleId: other });
+  const off = { payload: response(start as ReturnType<typeof form>, false) };
+  assert.deepEqual(await approvedProfileLinkChoice(scope([]), { roleRefs: [role], authorization: [off] }), { include: false, roleId: role });
 });

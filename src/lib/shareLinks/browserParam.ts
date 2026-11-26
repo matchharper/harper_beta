@@ -11,7 +11,7 @@ export const browserProfileLinkSchema = z.object({
 }).strict();
 
 export const BROWSER_PROFILE_LINK_PARAMETER = {
-  description: "Only with mode=execute for a web application to a posting. Omit it: code follows the reviewed form's 'Harper 후보 요약 링크 넣기' box for the role (checked, or left as it was when the user approved in chat → the link is added; a submission delegated with no form for the role adds it too), on every run of that application including retries. Pass false only when the user said in chat to leave the link out, or the object when they asked for it although the box is unchecked. Code makes the link and adds the placement rules to the task; never write Harper links into the task yourself.",
+  description: "Only with mode=execute for a web application to a posting. Omit it: code follows the reviewed form's 'Harper 후보 요약 링크 넣기' box for the role (checked, or left as it was when the user approved in chat → the link is added), on every run of that application including retries. Pass false only when the user said in chat to leave the link out, or the object when they asked for it although the box is unchecked. Code makes the link and adds the placement rules to the task; never write Harper links into the task yourself.",
   anyOf: [
     {
       type: "object",

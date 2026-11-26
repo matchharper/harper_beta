@@ -556,9 +556,8 @@ export async function earlierPagesOfThisBrowser(context: Pick<ExternalToolContex
 
 /**
  * The candidate summary link for an approved web application, decided by the box the person left on the reviewed
- * form rather than by Harper remembering it (a chat approval used to be read as "box unchecked"). A submission
- * delegated with no form for the role keeps the box's default (link in). Read before the dispatch; a failed read only
- * leaves the link out.
+ * form rather than by Harper remembering it (a chat approval used to be read as "box unchecked"). Read before the
+ * dispatch; a failed read only leaves the link out.
  */
 async function approvedSiteProfileLink(context: ExternalToolContext, roleRefs: string[], authorization: { payload: unknown }[]) {
   try {
