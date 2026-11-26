@@ -161,6 +161,21 @@ test("submitting with nothing new to ask skips the review", () => {
   assert.equal(direct.steps[0].at, at(11));
 });
 
+test("a posting the person took out of the start form's list leaves the panel", () => {
+  const start = form(1, 0, [ROLE_A, ROLE_B]);
+  const kept = answer(1, 5, { submitScope: "submit", postings: [ROLE_A] });
+  const list = build([start, kept], [session(SESSION, "running"), run("prepare", "running", 6, 6)]);
+  assert.deepEqual(list.map((app) => app.id), [ROLE_A]);
+  // Before the answer, both postings wait for the person.
+  assert.equal(build([start], [], [openForm(1, START_ITEMS, [ROLE_A, ROLE_B])]).length, 2);
+  // Taken out, then asked for again in chat: its own records bring it back.
+  const later = { ...run("prepare", "running", 20, 20), roleRefs: [ROLE_B], parentId: SESSION_2 };
+  assert.deepEqual(build([start, kept], [session(SESSION, "running"), session(SESSION_2, "running", { roleRefs: [ROLE_B] }), later])
+    .map((app) => app.id).sort(), [ROLE_A, ROLE_B]);
+  // No list in the answer (an older form): every role of the form stays.
+  assert.equal(build([start, answer(1, 5, { submitScope: "submit" })], []).length, 2);
+});
+
 test("a mail verification code holds the submission until the next run uses it", () => {
   const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
   const base = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
@@ -168,8 +183,15 @@ test("a mail verification code holds the submission until the next run uses it",
   const waiting = only(build(messages, [...base, codeRun]));
   assert.equal(states(waiting), "confirm:done fill:done review:skipped submit:current");
   assert.deepEqual(sub(waiting, "verification_code"), { key: "verification_code", state: "current", site: "Greenhouse", at: at(14), step: "submit" });
-  assert.equal(waiting.status, "waiting", "Harper reads the code from mail or asks in chat");
+  assert.equal(waiting.status, "needs_you", "the turn ended with the code still missing: Harper asked for it in chat");
+  assert.equal(waiting.action, undefined, "the code goes in the composer, not a form or a browser");
   assert.equal(waiting.failure, undefined);
+  const reading = only(build(messages, [...base, codeRun], [], { turnStartedAt: at(11) }));
+  assert.equal(reading.status, "waiting", "while the turn runs, Harper reads the code from mail or is about to ask");
+  // A code screen handed to the person is entered in that browser.
+  const handed = only(build(messages, [session(SESSION, "human", { requestedAction: "verification_code" }), base[1],
+    { ...codeRun, needsUser: true }]));
+  assert.equal(handed.status, "needs_you");
 
   const unclear = only(build(messages, [...base, { ...codeRun, submitted: "unclear" }]));
   assert.equal(sub(unclear, "verification_code")?.state, "current");
@@ -179,6 +201,17 @@ test("a mail verification code holds the submission until the next run uses it",
   assert.equal(sub(entered, "verification_code")?.state, "done");
   assert.equal(entered.status, "running");
   assert.equal(sub(entered, "retry"), undefined, "a code is not a retry");
+});
+
+test("a mail's review form written before its send is not a second start form", () => {
+  const start = form(1, 0, [ROLE_A, ROLE_B]);
+  const mail = form(2, 6, [ROLE_A], { relatedRefs: [{ type: "role", id: ROLE_A }, { type: "opportunity", id: OPPORTUNITY }] });
+  const messages = [start, answer(1, 5, { submitScope: "submit" }), mail];
+  const asking = build(messages, [], [openForm(2, REVIEW_ITEMS)]).find((app) => app.id === ROLE_A)!;
+  assert.equal(asking.steps[0].state, "done", "지원 확인 stays done");
+  assert.equal(asking.steps[0].at, at(5), "with the start form's answer time");
+  assert.equal(asking.steps[2].state, "current");
+  assert.equal(asking.status, "needs_you");
 });
 
 test("a submission that did not go through fails with its reason", () => {

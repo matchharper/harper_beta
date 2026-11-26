@@ -140,7 +140,7 @@ test("expanded, each application is a row with its status line; a row opens its 
     const rows = [...view.document.querySelectorAll("[data-career-application-progress] ul > li")];
     assert.equal(rows.length, 3);
     assert.match(rows[0].textContent ?? "", /^A사 · 백엔드 엔지니어제출 완료 · \S/);
-    assert.match(rows[1].textContent ?? "", /B사 · 데이터 엔지니어질문 2개에 답해 주세요/);
+    assert.match(rows[1].textContent ?? "", /B사 · 데이터 엔지니어내 답을 확인해 주세요/);
     assert.match(rows[2].textContent ?? "", /C사 · ML 엔지니어회사 양식 채우는 중 · 2분째/);
 
     const rowButton = view.row("B사")!.querySelector("button")!;
@@ -154,7 +154,7 @@ test("expanded, each application is a row with its status line; a row opens its 
     const steps = [...box.querySelectorAll(":scope ol > li")];
     const lines = steps.map(item => item.querySelector("div")?.textContent ?? "");
     assert.match(lines[0], /^지원 확인 \(완료\).+ 답함$/);
-    assert.deepEqual(lines.slice(1), ["회사 양식 채우기 (완료)", "내 답 확인 (답 필요)질문 2개에 답해 주세요", "제출"]);
+    assert.deepEqual(lines.slice(1), ["회사 양식 채우기 (완료)", "내 답 확인 (답 필요)내 답을 확인해 주세요", "제출"]);
     assert.equal(steps[2].getAttribute("aria-current"), "step");
     // A site login is a smaller line under the main step it happened in.
     const login = steps[1].querySelector("ul > li");

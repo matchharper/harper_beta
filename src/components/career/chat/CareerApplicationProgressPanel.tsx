@@ -98,7 +98,6 @@ function subStepLabel(sub: CareerApplicationSubStep, t: T) {
 function askLine(step: CareerApplicationStep | undefined, sub: CareerApplicationSubStep | undefined, t: T) {
   if (sub?.key === "login") return t("career.applicationProgress.ask.login", "{site} 로그인이 필요해요", { values: { site: siteName(sub, t) } });
   if (sub?.key === "verification_code") return t("career.applicationProgress.ask.code", "메일 인증 코드가 필요해요");
-  if (step?.questions) return t("career.applicationProgress.ask.questions", "질문 {count}개에 답해 주세요", { values: { count: step.questions } });
   if (sub?.key === "new_question") return t("career.applicationProgress.ask.new_question", "새 질문에 답해 주세요");
   if (step?.key === "confirm") return t("career.applicationProgress.ask.confirm", "지원 확인 폼에 답해 주세요");
   if (step?.key === "review") return t("career.applicationProgress.ask.review", "내 답을 확인해 주세요");
@@ -216,7 +215,9 @@ function subDetail(sub: CareerApplicationSubStep, step: CareerApplicationStep, a
   if (app.status === "running") return elapsed(sub.at, now, t);
   if (app.status !== "needs_you") return null;
   if (sub.key === "login") return t("career.applicationProgress.sub.login_hint", "로그인하면 이어서 채워요");
-  if (sub.key === "verification_code") return t("career.applicationProgress.sub.code_hint", "메일로 받은 코드를 넣어 주세요");
+  if (sub.key === "verification_code") return app.action?.kind === "open_browser"
+    ? t("career.applicationProgress.sub.code_hint", "메일로 받은 코드를 넣어 주세요")
+    : t("career.applicationProgress.sub.code_chat_hint", "메일로 받은 코드를 채팅으로 보내 주세요");
   if (sub.key === "new_question") return askLine(step, sub, t);
   return null;
 }

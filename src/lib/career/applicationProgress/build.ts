@@ -34,6 +34,8 @@ export type ApplicationMessageRow = {
   /** career_form_response only: the values given for the start form's own items, absent on other forms. */
   submitScope?: unknown;
   saveLogin?: unknown;
+  /** The role ids left selected in the start form's postings list (apply_postings). */
+  postings?: unknown;
 };
 
 /** One talent_external_operations row (browser_session, browser_run or email_send) with only the paths read. */
@@ -86,7 +88,7 @@ const ACTIVE_SEND = new Set(["reserved", "preparing", "dispatching"]);
 /** The item types a person fills in (getCareerFormInitialValues); markdown and unknown types only display. */
 const INPUT_TYPES = new Set(["text", "textarea", "change", "select", "multiselect", "checkbox", "consent", "document"]);
 /** Items of the start form of delegated applications (handbooks/application.ts, shareLinks/formGuard.ts). */
-const START_ITEMS = new Set(["submit_scope", "save_login"]);
+const START_ITEMS = new Set(["submit_scope", "save_login", "apply_postings"]);
 
 const time = (value?: string | null) => (value ? Date.parse(value) : Number.NaN);
 const iso = (value: string) => {
@@ -234,11 +236,14 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       createdAt: row.createdAt,
       open: Boolean(items),
       questions: (items ?? []).filter((item) => INPUT_TYPES.has(item.type)).length,
-      knownStart: Boolean(items?.some((item) => START_ITEMS.has(item.id)) || (answer && (present(answer.submitScope) || present(answer.saveLogin)))),
+      knownStart: Boolean(items?.some((item) => START_ITEMS.has(item.id))
+        || (answer && (present(answer.submitScope) || present(answer.saveLogin) || present(answer.postings)))),
       ...(answer ? { answer: { at: answer.createdAt, negative: Boolean(answer.actionId && answer.actionId === answer.negativeActionId) } } : {}),
       ...(resolution ? { resolvedAt: resolution.createdAt } : {}),
     };
-    for (const id of ids) app(id, kind).forms.push(view);
+    // A posting the person took out of the start form's list is not applied to: that form does not track it.
+    const kept = answer && !view.answer?.negative && Array.isArray(answer.postings) ? new Set(answer.postings) : undefined;
+    for (const id of ids) if (!kept || kept.has(id)) app(id, kind).forms.push(view);
   }
 
   // Browser runs, under the roles of their browser when the run names none.
@@ -360,8 +365,10 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const firstWork = earliestTime(works.map((work) => work.createdAt));
   const lastWork = latestTime(works.map((work) => work.updatedAt));
   // A form created before any browser run or send is the start (confirm) form, otherwise a review form. Creation
-  // times never change, so a form never moves to another step between polls.
-  const isStart = (form: FormView) => form.knownStart || !works.some((work) => time(work.createdAt) <= time(form.createdAt));
+  // times never change, so a form never moves to another step between polls. Once a form is known to be the start
+  // form (its own items or answer), only such forms are: a mail's review form is written before its send exists.
+  const knownStart = app.forms.some((form) => form.knownStart);
+  const isStart = (form: FormView) => form.knownStart || (!knownStart && !works.some((work) => time(work.createdAt) <= time(form.createdAt)));
   const startForms = app.forms.filter(isStart);
   const reviewForms = app.forms.filter((form) => !isStart(form));
   const preReview = reviewForms.filter((form) => !submitStart || time(form.createdAt) < time(submitStart));
@@ -433,6 +440,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // submit
   let submit: CareerApplicationStep;
   let submittedAt: string | undefined;
+  let codeInChat = false;
   if (!attempts.length) submit = step("submit", "todo");
   else {
     const subSteps: CareerApplicationSubStep[] = [];
@@ -456,8 +464,9 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
       else {
         codeWaits = true;
         subSteps.push(subStep("verification_code", "current", lastCode.updatedAt, lastCode.site));
-        // A code screen handed to the person is entered in that browser.
+        // A code screen handed to the person is entered in that browser; otherwise Harper asks for it in chat.
         if (awaitingPerson(lastCode)) pending.push(...openBrowser(lastCode));
+        else codeInChat = true;
       }
     }
     // A code screen left with the person is the code sub-step, not a login.
@@ -494,7 +503,8 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     steps[1] = step("fill", "failed");
     failure = { reason: "closed" };
   } else if (submit.state === "failed" || fill.state === "failed") status = "failed";
-  else if (action) status = "needs_you";
+  // A code Harper asked for in chat (no browser handed over, no turn running): the person sends it in the composer.
+  else if (action || (codeInChat && !turnStartedAt)) status = "needs_you";
   else if (app.runs.some(runActive) || app.sends.some((send) => ACTIVE_SEND.has(send.status))) status = "running";
   else status = "waiting";
 
