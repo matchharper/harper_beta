@@ -8,7 +8,7 @@ import {
   type ApplicationOperationRow,
   type ApplicationRoleRow,
 } from "./build";
-import { careerApplicationPercent, type CareerApplicationProgress } from "./types";
+import { careerApplicationCounts, careerApplicationPercent, type CareerApplicationProgress } from "./types";
 
 const ROLE_A = "00000000-0000-4000-8000-0000000000a1";
 const ROLE_B = "00000000-0000-4000-8000-0000000000a2";
@@ -291,12 +291,14 @@ test("applications are ordered needs-you, running, waiting, then finished newest
   ]);
   assert.equal(list[2].companyName, null, "an unnamed role keeps the progress");
 
-  // At most ten, keeping the ones that need the person.
+  // More than ten (one 16-posting batch): every application stays, so the summary counts the submitted ones too.
   const many = Array.from({ length: 14 }, (_, index) => run("prepare", "running", 40 + index, 40 + index, { parentId: null, roleRefs: [C_PLUS(10 + index)] }));
-  const capped = build(messages, [...operations, ...many], [openForm(1, START_ITEMS, [ROLE_A])]);
-  assert.equal(capped.length, 10);
-  assert.equal(capped[0].id, ROLE_A);
-  assert.equal(capped[1].id, C_PLUS(23), "newest first within a status");
+  const all = build(messages, [...operations, ...many], [openForm(1, START_ITEMS, [ROLE_A])]);
+  assert.equal(all.length, list.length + 14);
+  assert.equal(all[0].id, ROLE_A);
+  assert.equal(all[1].id, C_PLUS(23), "newest first within a status");
+  assert.ok(all.some((item) => item.id === C_PLUS(1) && item.status === "submitted"), "a submitted one is not pushed out");
+  assert.equal(careerApplicationCounts(all).submitted, 1);
   assert.deepEqual(careerApplicationRoleIds({ now: NOW, messages, operations, openForms: [] }).sort(),
     [ROLE_A, ROLE_B, ROLE_C, C_PLUS(1), C_PLUS(2)].sort(), "names are read only inside the 7-day window");
 });

@@ -80,7 +80,9 @@ export type CareerApplicationProgressInput = {
 
 export const CAREER_APPLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const FINISHED_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const CAREER_APPLICATION_LIMIT = 10;
+// A safety bound only: the panel's counts and rows must cover every application one batch can start (16 in the
+// 11/26 real run), so the bound sits well above that.
+export const CAREER_APPLICATION_LIMIT = 50;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ACTIVE_RUN = new Set(["reserved", "preparing", "dispatching", "running", "capacity_wait", "cancelling"]);
@@ -525,7 +527,7 @@ const STATUS_ORDER: Record<CareerApplicationStatus, number> = { needs_you: 0, ru
 
 /**
  * Applications of this conversation whose newest record is within 7 days, leaving out those finished more than 24
- * hours ago. Needs-you first, then running, waiting and finished, each newest first; at most 10.
+ * hours ago. Needs-you first, then running, waiting and finished, each newest first; at most CAREER_APPLICATION_LIMIT.
  */
 export function buildCareerApplicationProgress(input: CareerApplicationProgressInput): CareerApplicationProgress[] {
   const now = input.now.getTime();
