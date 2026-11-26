@@ -9,11 +9,12 @@
  */
 import {
   addressCheckFailure, agentMailableAddress, handleCore, handleDomainAddress, handleLatinName, isPlatformRoot, nameOnPage, onPage,
-  ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle,
+  onlyPersonalMailbox, ownDomainAddress, pageForm, personMailable, profileHandles, siteNameIsHandle,
 } from "./mailRules";
 import { applicantListCompany } from "./applicantList";
 import { cleanEmail } from "./people";
 import { nameHandle, realName } from "./profile";
+import { readPage } from "./signals";
 import type {
   AgentEmailLookup, AgentEmailLookupCheck, AgentEmailLookupReason, AgentExcludeReason, AgentPerson, AgentSettings,
 } from "./types";
@@ -203,6 +204,18 @@ function ownPage(sourceUrl: string, person: Pick<AgentPerson, "profileUrl" | "co
 }
 
 /**
+ * The source page is a LinkedIn post the person wrote: its address names their profile as the author
+ * (linkedin.com/posts/<their handle>_…, signals.ts readPage), so it is theirs like the profile itself (11/26: 19 of
+ * 22 people's own LinkedIn posts opened had their own personal address on them).
+ */
+function ownLinkedInPost(sourceUrl: string, person: Pick<AgentPerson, "profileUrl" | "contactUrl">): boolean {
+  const page = readPage(sourceUrl);
+  if (page.source !== "linkedin" || page.kind !== "post" || !page.author) return false;
+  const author = urlKey(page.author);
+  return [person.profileUrl, person.contactUrl].some((url) => urlKey(url) === author);
+}
+
+/**
  * What the agent itself could confirm about the returned address: it is on the source page near the person's name or
  * handle (mailRules.ts addressIsPersons), the page lists no other person's address unless it is the person's own (under
  * their profile or a link they wrote, or the address is on the page's own domain), and the page (without the address)
@@ -230,8 +243,10 @@ export function verifyLookup(
   const sourceSites = profileHandles([sourceUrl]);
   const single = distinctAddresses(page) <= 1;
   const linksBack = single && profileOwn.some((handle) => handle.length >= 4 && profileLinkOnPage(page, handle));
+  // A LinkedIn post they wrote is theirs as long as no other personal mailbox is on it (others comment there).
+  const ownPost = ownLinkedInPost(sourceUrl, person) && onlyPersonalMailbox(page, email);
   // An address on a domain named after their handle (i_am@janedoe.dev) makes the page theirs too.
-  const own = ownPage(sourceUrl, person) || sourceSites.some((site) => siteNameIsHandle(site, profileOwn)) || linksBack
+  const own = ownPage(sourceUrl, person) || ownPost || sourceSites.some((site) => siteNameIsHandle(site, profileOwn)) || linksBack
     || handleDomainAddress(email, profileOwn);
   // The only address on the page, spelled as their handle (janedoe9@gmail.com for linkedin.com/in/janedoe9-dev): theirs,
   // whatever name the page shows (an HN comment under another user name).

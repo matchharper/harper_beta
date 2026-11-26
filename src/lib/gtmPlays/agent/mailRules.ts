@@ -326,7 +326,7 @@ export type AddressCheck = {
   /** The person's name as the page writes it, and the handles of their pages (profileHandles). */
   names: ReadonlyArray<string | null | undefined>;
   handles: readonly string[];
-  /** The page is the person's own: their profile, under a link they wrote, or their own domain. */
+  /** The page is the person's own: their profile, their LinkedIn post, under a link they wrote, or their own domain. */
   ownPage: boolean;
   /**
    * Other people's names on the same page (a comment thread): an address near one of them is never this person's.
@@ -339,7 +339,8 @@ export type AddressCheck = {
  * handle (within NEAR_ADDRESS_CHARS either side, the address itself not counting, and on a thread page within the same
  * comment), no other known person's name is in that stretch, and — unless the page is the person's own — it is the
  * only address on the page that looks like one person's. On the person's own page an address that carries their handle
- * or name (jane.doe@…, me@janedoe.dev) also counts as near.
+ * or name (jane.doe@…, me@janedoe.dev) also counts as near, and so does the only personal mailbox there when it holds a
+ * piece of their name (ownMailboxHoldsName).
  */
 export function addressIsPersons(check: AddressCheck): boolean {
   return addressCheckFailure(check) === null;
@@ -366,12 +367,16 @@ export function addressCheckFailure(check: AddressCheck): AddressFailure | null 
     || check.handles.some((handle) => onPage(stretch, handle.toLowerCase()));
   const thread = (page.match(COMMENT_TIME) ?? []).length >= 2;
   let otherNear = false;
+  // Another known person's name next to the address, whether or not theirs is there too.
+  let rivalNear = false;
   const near = spots.some(({ start, end }) => {
     const before = page.slice(Math.max(0, start - NEAR_ADDRESS_CHARS), start);
     const after = page.slice(end, end + NEAR_ADDRESS_CHARS);
     const stretch = (thread ? sameCommentStretch(before, after) : `${before} ${after}`).split(email).join(" ");
+    const rival = others.some((name) => nameOnPage(name, stretch));
+    rivalNear ||= rival;
     if (!mentioned(stretch)) return false;
-    if (others.some((name) => nameOnPage(name, stretch))) { otherNear = true; return false; }
+    if (rival) { otherNear = true; return false; }
     return true;
   });
   if (near) return null;
@@ -383,7 +388,29 @@ export function addressCheckFailure(check: AddressCheck): AddressFailure | null 
       const parts = pageForm(name).split(/[\s,.]+/).filter((part) => part.length >= 3 && /^[a-z]+$/.test(part));
       return parts.length > 0 && parts.every((part) => onPage(address, part));
     });
-  return carriesThem ? null : failure;
+  if (carriesThem) return null;
+  // Only the distance gives way: another known person's name next to the address still fails.
+  return failure === "not_near" && !rivalNear && ownMailboxHoldsName(page, email, names) ? null : failure;
+}
+
+/** No free personal mailbox (gmail, outlook, naver …) on the page but this address: a commenter's would be. */
+export function onlyPersonalMailbox(text: string | null | undefined, email: string): boolean {
+  const own = email.trim().toLowerCase();
+  return personalAddressesOnPage(text).every((other) => other === own || !isPersonalMailAddress(other));
+}
+
+/**
+ * On the person's own page, an address far from their name is still theirs when it is the only personal mailbox
+ * there and its name part holds a piece of their name of 4 letters or more (11/26: 19 of 22 people's own LinkedIn
+ * posts opened had their own personal address in a contact line such as "Email: …", one 2,300 characters below the
+ * name, and all 19 had been dropped; this keeps 18). An address without a piece of their name (a marketer's) or a
+ * second personal mailbox (a commenter's) still fails; work addresses (a commenter's employer) do not count against it.
+ */
+function ownMailboxHoldsName(page: string, email: string, names: readonly string[]): boolean {
+  if (!onlyPersonalMailbox(page, email)) return false;
+  const local = email.slice(0, email.indexOf("@"));
+  return names.some((name) => pageForm(name).split(/[\s,.]+/)
+    .some((part) => part.length >= 4 && /^[a-z]+$/.test(part) && local.includes(part)));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

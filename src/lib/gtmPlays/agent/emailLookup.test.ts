@@ -149,6 +149,22 @@ test("an other_person address says which check failed", () => {
   assert.equal(check(person, "Jane Doe at Acme, write to hello@acme.example"), null);
 });
 
+test("the person's own LinkedIn post is their own page: an address far below the name, no employer named", () => {
+  const body = "Open to backend roles. Six years on payment systems and data pipelines for retail teams. ".repeat(25);
+  const post = `Jane Doe's Post. Jane Doe · Backend Engineer. ${body} Email: janedoecodes@gmail.com`;
+  const sourceUrl = "https://www.linkedin.com/posts/jane-doe-000_backend-activity-7390000000000000000-AbCd";
+  const lookup = (page: string, email = "janedoecodes@gmail.com", url = sourceUrl) => verifyLookup(person, { email, sourceUrl: url }, page);
+  assert.deepEqual(lookup(post), { verified: true, reason: null, sourceHost: "linkedin.com", failedCheck: null });
+  // Near the name with no employer or school on the post: theirs now (was no_org_not_own).
+  assert.equal(lookup("Jane Doe's Post. Open to backend roles, reach out at janedoe7781@gmail.com", "janedoe7781@gmail.com").verified, true);
+  // Someone else's post (another handle in the link): the distance still counts.
+  assert.equal(lookup(post, "janedoecodes@gmail.com", "https://www.linkedin.com/posts/john-roe-111_backend-activity-7390000000000000001-XyZw").failedCheck, "not_near");
+  // A commenter's personal mailbox on the post: not their own page then.
+  assert.equal(lookup(`${post} John Roe 1d Me too: john.roe@gmail.com`).failedCheck, "other_addresses");
+  // An address without a piece of their name on their own post (another person's, a marketer's).
+  assert.equal(lookup(post.replace("janedoecodes@", "creativeworks84417@"), "creativeworks84417@gmail.com").failedCheck, "not_near");
+});
+
 test("a person known only by a handle: their own page may show the handle instead of a name", () => {
   const handleOnly = { ...person, name: "@janedoe", currentCompany: null, headline: null, profileUrl: "https://velog.io/@janedoe", contactUrl: null };
   const about = "janedoe · Backend notes. I build payment systems. Contact: jd.writes@gmail.com (janedoe)";
