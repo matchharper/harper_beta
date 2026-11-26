@@ -1473,6 +1473,7 @@ export const en = {
     "career.forms.loading": "Loading questions…",
     "career.forms.navigation": "Choose a form",
     "career.forms.next": "Next",
+    "career.forms.waitingApplications": "Applications waiting for you · {count}",
     "career.forms.openCount": "Needs input · {count}",
     "career.forms.open_group": "View {count} forms",
     "career.forms.required": "Required",

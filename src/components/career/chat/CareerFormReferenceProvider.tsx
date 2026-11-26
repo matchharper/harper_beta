@@ -51,3 +51,12 @@ export function useCareerFormReference(formIds: number[], open: () => void) {
     reveal: (formId: number) => context?.latest.get(formId)?.reveal(formId),
   };
 }
+
+/** Opens a form where the conversation currently shows it; false when it is not on screen (e.g. history not loaded). */
+export function useCareerFormRevealer() {
+  const context = useContext(Context);
+  return {
+    canReveal: (formId: number) => Boolean(context?.latest.has(formId)),
+    reveal: (formId: number) => context?.latest.get(formId)?.reveal(formId),
+  };
+}

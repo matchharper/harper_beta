@@ -1491,6 +1491,7 @@ export const ko = {
     "career.forms.loading": "질문을 불러오는 중이에요.",
     "career.forms.navigation": "폼 이동",
     "career.forms.next": "다음",
+    "career.forms.waitingApplications": "답 기다리는 지원 {count}개",
     "career.forms.openCount": "답변 대기 {count}개",
     "career.forms.open_group": "질문 {count}개 보기",
     "career.forms.required": "필수",
