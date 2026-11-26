@@ -88,6 +88,16 @@ test("stop_all again for someone left with external postings on turns them off",
   assert.equal(result.settings.getExternalRecommendation, false);
 });
 
+// People who write "unsubscribe" or "no more emails" rarely answer a scope
+// question, so asking first left every Harper mail switched on for them.
+test("a plain unsubscribe is stop_all, not a scope question", async () => {
+  const { getEnabledTalentTools } = await toolsPromise;
+  const tool = getEnabledTalentTools("chat").find((entry) => entry.name === "update_setting");
+  assert.ok(tool);
+  assert.doesNotMatch(tool.description, /ask one scope clarifier instead of calling/i);
+  assert.match(tool.description, /unsubscribe[^.]*\) is stop_all/i);
+});
+
 test("resume still restarts both", async () => {
   const db = admin({ profile_visibility: "dont_share", get_external_recommendation: false });
   const result = await updateSetting(db, "resume");

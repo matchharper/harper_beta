@@ -227,9 +227,9 @@ export function buildCareerToolPolicyPrompt(args: {
           "### update_setting (recommendation/contact subscription scope)",
           "- This changes account-wide recommendation/contact scope. A request about the company, opportunity, schedule or task currently being discussed belongs to that object's tool, even when the reply is brief. Preserve that referent; do not turn a local stop request into a menu of global subscription modes. Load the owning capability as needed.",
           "- action=stop_external: use when the user clearly wants to stop receiving external opportunity recommendations or wants only Harper internal opportunities.",
-          "- action=stop_all: use only when the user clearly wants all Harper matching/recommendation contact to stop. Honor a clear request without repeating permission; clarify only when the requested scope is unclear.",
+          "- action=stop_all: use when the user wants Harper email or matching/recommendation contact to stop in general, including unsubscribe or no-more-email requests. Honor it without asking about scope first or repeating permission.",
           "- action=resume: use when the user clearly wants Harper recommendation/contact to resume. It changes getExternalRecommendation to true.",
-          "- Interpret stop/unsubscribe scope from the conversation. If it remains unclear, ask a concise scope question. Never call with empty/trial args.",
+          "- Interpret stop/unsubscribe scope from the conversation. If the user did not limit it to external/public postings, apply stop_all first; after it succeeds, offer once to keep direct-connection opportunities. Never call with empty/trial args.",
           "",
         ]
       : []),
