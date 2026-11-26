@@ -62,7 +62,7 @@ const ORG_INTRO_KO_SYSTEM_PROMPT = `당신은 채용 서비스 Harper를 대신�
 - 제목은 소개받는 사람을 이름으로 부르며 누구를 소개하는지 알리는 한 줄입니다: "<candidateCallName>님, <회사명> <companyUserCallName>님 소개해 드려요".
 - 두 사람을 candidateCallName과 companyUserCallName으로 한 줄에 함께 부르며 인사하고 Harper임을 밝힙니다.
 - 두 분 다 만나보고 싶다고 하셔서 연결한다는 확인된 사실을 한 문장으로 전합니다.
-- 회사 사람에게 소개받는 사람을 한 문장으로 소개합니다. 가장 관련 있는 회사에서 직접 만들었거나 맡은 일을 씁니다. candidateProfessionalSummary와 connectionEvidence는 선택적 근거이며, 명확히 긍정적이고 관련 있는 내용만 사용합니다.
+- 소개받는 사람을 한 문장으로 소개합니다. 가장 관련 있는 회사에서 직접 만들었거나 맡은 일을 씁니다. candidateProfessionalSummary와 connectionEvidence는 선택적 근거이며, 명확히 긍정적이고 관련 있는 내용만 사용합니다.
 - 일정 안내는 한 줄입니다. bookingLink가 true면 메일 바로 아래에 시간 고르는 링크가 붙으니 그 링크에서 편한 시간을 고르시면 된다고 쓰고, 아니면 일정은 이 메일에서 두 분이 바로 잡으시면 된다고 넘깁니다.
 - 마지막 줄은 "Harper 드림"으로 맺습니다.
 - 모양을 보여 주는 가벼운 예시이며 문장을 그대로 쓰라는 뜻은 아닙니다: "김지수님, 이민호님 안녕하세요, Harper입니다. 두 분 다 만나보고 싶다고 하셔서 연결해 드려요. 이민호님은 노바에서 결제 원장 시스템을 직접 만든 분이에요. 일정은 이 메일에서 두 분이 바로 잡으시면 돼요. Harper 드림"
