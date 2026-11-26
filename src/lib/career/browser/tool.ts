@@ -67,7 +67,7 @@ export const USE_BROWSER_TOOL = {
         description:
           "Existing execution_id returned by use_browser. Use with action=read to inspect that run.",
       },
-      mode: { type: "string", enum: ["prepare", "execute"], description: "For application review, prepare inspects the form without entering applicant data, attaching files or requesting verification. After review, execute carries out the approved action using the reviewed answers and attachments." },
+      mode: { type: "string", enum: ["prepare", "execute"], description: "For an application, prepare fills the form with the facts given in the task through to its last page, without attaching files, checking consents, requesting verification or submitting. Execute carries out the approved action using the reviewed answers and attachments." },
       ...effectReferenceProperties,
       effect_key: { type: "string", description: "Stable purpose + target effect identity in this conversation or delegated work, required for execute. Reuse across source messages, revisions and web/email route changes." },
       url: { type: "string" },
@@ -76,6 +76,22 @@ export const USE_BROWSER_TOOL = {
       profile_link: BROWSER_PROFILE_LINK_PARAMETER,
       save_login: { type: "boolean", description: "For run without session_id: true turns on the user's saved login (requires the user's agreement message; a form answer counts only when it checks a consent item with id save_login) so this and later new browsers keep the sites the user signs into. Omit once it is on." },
       ignore_closed: { type: "boolean", description: "For a new prepare run: true starts the browser even though the posting check found the posting closed. Only when the user asks to try anyway." },
+      runs: {
+        type: "array",
+        maxItems: 10,
+        description: "For action=run in prepare mode: one preparation per application, each in its own new browser, all started together (at most 5 at once; the rest start as those finish). Each item has its own task, url, role_refs and ignore_closed. Use it to prepare several applications in one call, and then omit the top-level task, url and role_refs. Not with session_id, documents, save_login or execute.",
+        items: {
+          type: "object",
+          properties: {
+            task: { type: "string" },
+            url: { type: "string" },
+            role_refs: { type: "array", items: { type: "string" } },
+            ignore_closed: { type: "boolean" },
+          },
+          required: ["task"],
+          additionalProperties: false,
+        },
+      },
       documents: {
         type: "array",
         description:
@@ -118,6 +134,12 @@ export const browserInputSchema = z.object({
   profile_link: z.union([browserProfileLinkSchema, z.boolean()]).optional(),
   save_login: z.boolean().optional(),
   ignore_closed: z.boolean().optional(),
+  runs: z.array(z.object({
+    task: z.string().min(1),
+    url: z.string().url().optional(),
+    role_refs: z.array(z.string()).optional(),
+    ignore_closed: z.boolean().optional(),
+  }).strict()).min(1).max(10).optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
 });
@@ -264,6 +286,8 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
             : `Browser agent report: ${op.result.summary}`
           : "",
         typeof op.result.failure === "string" ? `Execution failure: ${op.result.failure}` : "",
+        op.kind === "browser_run" && op.request.mode === "prepare" && ["yes", "unclear"].includes(browserRunSubmission(op.result) ?? "")
+          ? "This was a preparation run, which must not submit, yet it reports a submission. Tell the user plainly what happened, do not submit this application again, and check the receipt before anything else." : "",
         op.kind === "browser_run" && browserRunSubmission(op.result)
           ? `Submission receipt from the browser agent: ${browserRunSubmission(op.result)}${browserRunSubmission(op.result) === "yes" && Array.isArray(op.request.role_refs) && op.request.role_refs.length ? " (a saved or unstaged linked opportunity moves to 지원함)" : ""}`
           : "",
@@ -611,12 +635,101 @@ async function overlappingBrowserRun(
   return null;
 }
 
+/**
+ * #2: a preparation fills the form with the facts the task gives, through to its last page, so that questions shown
+ * only after an answer or on a later page are known before the review (11/12~25: 13 of 50 stopped submissions met a
+ * field first seen while submitting). Files, consents, verification and the final submit stay with execute: without
+ * them most forms cannot be sent by mistake (a 11/5 preparation submitted one with the resume it was given).
+ */
+export const PREPARATION_RULE = "This run is preparation only. Do not submit an application or perform final send/accept actions. For an application, fill the form with the facts the task supplies and continue through every page up to the final review or submit page, so that questions which appear only after an answer or on a later page become visible. Do not upload files, check consent boxes, request or enter verification codes, or press the final submit or send button. Leave a field empty when the task does not supply its answer; do not guess. Report each field's label, required marker and choices in the page's wording, the value entered, the fields left empty, the questions that appeared only after an answer or on a later page, and what remains on the last page (attachments, consents, the submit button). Report the consent text and links shown at the form. Identify anything behind a login.";
+
+const STILL_RUNNING = ["running", "cancelling"];
+type CareerBrowserContinuation = { kind: "browser_run" | "external_capacity"; id: string };
+
+/** What a reply waits for after one use_browser result: a run still working, or the capacity retry it recorded. */
+export function browserContinuation(result: object): CareerBrowserContinuation | undefined {
+  const value = result as { operation?: ExternalOperation; operations?: ExternalOperation[]; careerContinuation?: CareerBrowserContinuation };
+  const pending = value.operation && STILL_RUNNING.includes(value.operation.status) ? value.operation
+    : value.operations?.find(op => op.kind === "browser_run" && STILL_RUNNING.includes(op.status));
+  return pending ? { kind: "browser_run", id: pending.id } : value.careerContinuation;
+}
+
+/** At most this many browsers of one preparation list run at once (#4: 11/24~26 the model started 1 of 358 together). */
+export const PREPARATION_LIST_CONCURRENCY = 5;
+
+/**
+ * Several preparations in one call: each item is an ordinary new prepare run in its own browser, with its own
+ * request identity, so a resumed reply finds each run again. Settled one by one: a started run is never left unread
+ * because another item failed.
+ */
+export async function executePreparationList(
+  raw: unknown,
+  context: ExternalToolContext,
+  onMessage?: (message: ReturnType<typeof toTalentMessageResponse>) => void | Promise<void>,
+  runOne: (raw: unknown, context: ExternalToolContext) => Promise<object> =
+    (raw, runContext) => executeUseBrowser(raw, runContext, onMessage)
+): Promise<{ ok: true; operations: ExternalOperation[]; careerContinuations: CareerBrowserContinuation[]; modelOutput: string }> {
+  const input = browserInputSchema.parse(raw);
+  if (!input.runs) throw new Error("A preparation list needs runs");
+  if (input.action !== "run" || input.mode !== "prepare")
+    throw new Error("runs is only for action=run in prepare mode; nothing was started");
+  if (input.session_id || input.documents !== undefined || input.save_login || input.task || input.url || input.role_refs?.length)
+    throw new Error("runs starts new preparation browsers: omit session_id, documents, save_login and the top-level task, url and role_refs; nothing was started");
+  const runs = input.runs;
+  // One role is prepared once at a time, as for separate calls in one step (concurrentPreparation.ts).
+  const roles = runs.flatMap(run => run.role_refs ?? []);
+  const repeated = roles.find((role, index) => roles.indexOf(role) !== index);
+  if (repeated) throw new Error(`runs names role ${repeated} more than once; prepare each application once. Nothing was started`);
+  if (new Set(runs.map(run => JSON.stringify(run))).size !== runs.length)
+    throw new Error("runs repeats the same preparation; list each application once. Nothing was started");
+  const outcomes: Array<{ value: object } | { error: unknown } | { waiting: true }> = new Array(runs.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < runs.length) {
+      // A run that returned at the host deadline is still working in its browser, so its slot is not free:
+      // the rest wait for the resumed reply instead of going over the limit.
+      if (context.signal?.aborted || (context.deadlineAt !== undefined && Date.now() >= context.deadlineAt)) break;
+      const index = next++;
+      outcomes[index] = await runOne(
+        { action: "run", mode: "prepare", ...(input.work_id ? { work_id: input.work_id } : {}), ...runs[index] },
+        { ...context, requestId: `${context.requestId}:run:${index}` }
+      ).then(value => ({ value }), error => ({ error }));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(PREPARATION_LIST_CONCURRENCY, runs.length) }, worker));
+  for (let index = next; index < runs.length; index++) outcomes[index] = { waiting: true };
+  const failed = outcomes.filter((outcome): outcome is { error: unknown } => "error" in outcome);
+  if (context.signal?.aborted || failed.length === runs.length) throw failed[0]?.error ?? new Error("Preparation list stopped");
+  const values = outcomes.flatMap(outcome => "value" in outcome ? [outcome.value] : []);
+  return {
+    ok: true,
+    operations: values.flatMap(value => [
+      ...("session" in value && value.session ? [value.session as ExternalOperation] : []),
+      ...("operation" in value && value.operation ? [value.operation as ExternalOperation] : []),
+    ]),
+    // The reply resumes when every started preparation has ended (careerCheckpointIsReady waits for all of them).
+    careerContinuations: values.flatMap(value => {
+      const pending = browserContinuation(value);
+      return pending ? [pending] : [];
+    }),
+    modelOutput: outcomes.map((outcome, index) => {
+      const run = runs[index];
+      const head = `Preparation ${index + 1} of ${runs.length}${run.role_refs?.length ? ` (role ${run.role_refs.join(", ")})` : ""}${run.url ? `: ${run.url}` : ""}`;
+      if ("value" in outcome) return `${head}\n${String((outcome.value as { modelOutput?: unknown }).modelOutput ?? "")}`;
+      if ("waiting" in outcome) return `${head}\nNot started yet: at most ${PREPARATION_LIST_CONCURRENCY} browsers run at once and the others are still working. When they end, call use_browser again with this same runs list: items already run return their receipts without starting again, and this one starts then.`;
+      return `${head}\nFailed: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}. Read use_browser list for its state before starting it again.`;
+    }).join("\n\n"),
+  };
+}
+
 export async function executeUseBrowser(
   raw: unknown,
   context: ExternalToolContext,
   onMessage?: (message: ReturnType<typeof toTalentMessageResponse>) => void | Promise<void>
 ) {
   const input = browserInputSchema.parse(raw);
+  // The use_browser tool sends a preparation list to executePreparationList, which runs each item through here.
+  if (input.runs) throw new Error("runs is a preparation list for the use_browser tool; nothing was started");
   if (input.action === "list") {
     return { ...await listBrowserSessions(context, input) };
   }
@@ -753,10 +866,10 @@ export async function executeUseBrowser(
     return { session, modelOutput: formatBrowserToolResult([session]) };
   }
   if (!input.task?.trim()) throw new Error("run requires a task");
-  // Preparation inspects the form only. Without files a preparation run cannot complete an application by mistake
-  // (a 11/5 preparation run submitted one with the resume it was given).
+  // Preparation fills fields but attaches nothing. Without files a preparation run cannot complete most applications
+  // by mistake (a 11/5 preparation run submitted one with the resume it was given).
   if (input.mode === "prepare" && input.documents?.length)
-    throw new Error("Prepare mode transfers no documents: it only inspects the form. Attach documents in execute mode after the user approves the review.");
+    throw new Error("Prepare mode transfers no documents. Attach documents in execute mode, on the prepared session while it is open.");
   // A new preparation for a closed posting opens no browser: the check takes seconds, a browser run minutes.
   if (input.mode === "prepare" && !input.session_id && input.role_refs?.length && !input.ignore_closed) {
     const closed = await closedPostingBeforePreparation(context, input);
@@ -896,7 +1009,7 @@ export async function executeUseBrowser(
       : null;
     const task = [
       // The mode rule comes first so the task text written for this run cannot override it.
-      input.mode === "prepare" ? "This run is preparation only. Do not submit an application or perform final send/accept actions. For an application review, inspect the form without filling fields, uploading files, selecting consents or triggering verification. Report the visible field labels, required markers, attachment requirements and access limits. Inspect the available choices, including opening menus without choosing an answer. Report the consent text and links shown at the form. Identify anything hidden behind an answer or login."
+      input.mode === "prepare" ? PREPARATION_RULE
         : "Execute only the authorized effect using the supplied prepared content and attachments. If the target, account, required facts or sharing conditions differ, report the change before acting.",
       input.task,
       profileLink?.instruction ?? "",
