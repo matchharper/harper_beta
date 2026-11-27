@@ -133,3 +133,28 @@ test("suggest_form create fills a web review from this conversation's confirmed 
   assert.match(result.modelOutput, /^Filled from earlier answers: Salary expectation ← form 2; Willing to relocate\? \* ← form 2\./m);
   assert.match(result.modelOutput, /salary \| Salary expectation \| text\n {2}value: \$120,000/);
 });
+
+test("an update is saved as written, so a filled answer the writer cleared stays cleared", async () => {
+  const approved: CareerForm = { formId: 2, revision: 1, kind: "form", title: "Review your A application", items: [
+    { id: "salary", type: "text", label: "Salary expectation", content: {} },
+  ], positive: { id: "apply", label: "Apply", message: "Apply." } };
+  const rows = [
+    { id: 10, created_at: "2026-11-27T01:00:00Z", payload: { formId: 2, revision: 1, requestId: "r2", formSnapshot: approved, actionId: "apply", values: { salary: "$120,000" } } },
+  ];
+  const query: any = new Proxy({}, { get: (_target, prop) => {
+    if (prop === "then") return (resolve: (value: unknown) => void) => resolve({ data: rows, error: null });
+    if (prop === "maybeSingle") return async () => ({ data: { id: "conversation" }, error: null });
+    return () => query;
+  } });
+  const writes: any[] = [];
+  const admin = { from: () => query, rpc: async (_name: string, input: any) => {
+    writes.push(input);
+    return { data: { id: 12, role: "assistant", message_type: "career_form", content: "", payload: { ...input.p_payload, formId: 12, revision: 2 } }, error: null };
+  } };
+  const result = await executeSuggestForm({ admin: admin as never, userId: "user", conversationId: "conversation", input: {
+    action: "update", formId: 12, expectedRevision: 1, form: {
+      kind: "form", title: "Review your C application", relatedRefs: [{ type: "browser_session", id: "s3" }, { type: "role", id: "role-c" }],
+      items: [{ id: "salary", type: "text", label: "Salary expectation", content: { value: "" } }] } } });
+  assert.equal(value(writes[0].p_payload as CareerFormDraft, "salary"), "");
+  assert.doesNotMatch(result.modelOutput, /Filled from earlier answers/);
+});

@@ -448,8 +448,11 @@ export async function executeSuggestForm(
     && await (await import("@/lib/shareLinks/approvedLink.server")).startFormOffersProfileLink(args, reviewRoles);
   const guarded = withProfileLinkBox(input.form, { startFormOffersLink });
   input.form = guarded.form;
-  // #13·#25 같은 질문 반복: an application's form starts with the user's earlier answers to the same questions (forms/prefill.ts).
-  const prefill = await (await import("./prefill")).prefillFromEarlierAnswers(input.form, { answers: () => readCareerFormAnswers(args), questionKey });
+  // #13·#25 같은 질문 반복: a new application form starts with the user's earlier answers to the same questions
+  // (forms/prefill.ts). An update is saved as the writer sent it, so an answer it cleared stays cleared.
+  const prefill = input.action === "create"
+    ? await (await import("./prefill")).prefillFromEarlierAnswers(input.form, { answers: () => readCareerFormAnswers(args), questionKey })
+    : { form: input.form, note: "" };
   input.form = prefill.form;
   const row = await writeForm(args, {
     p_action: input.action,
