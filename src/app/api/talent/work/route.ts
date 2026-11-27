@@ -68,15 +68,18 @@ export async function GET(req: NextRequest) {
   // A Harper turn (not a cleanup), and one that is working (not on hold).
   const turn = (row: TurnRow) => !row.cleanup && !row.cleanup_browser_session;
   const working = (row: TurnRow) => turn(row) && !row.activity?.waitingForReply;
+  // Live delegated works: a change to one (manage_work update) adds the person's message to its source_refs, and its
+  // next turn starts from its first source, so the work itself holds that message.
+  const liveWork = Promise.resolve((admin.from as any)("talent_external_operations")
+    .select("id,request->>origin_reply_id,source_refs:request->source_refs", { count: "exact" })
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId.data)
+    .eq("kind", "delegated_work")
+    .not("status", "in", "(completed,cancelled)"));
   const [forms, pending, work, completed, dependencies, applications] = await Promise.all([
     openForms,
     invocations,
-    (admin.from as any)("talent_external_operations")
-      .select("id,request->>origin_reply_id", { count: "exact" })
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId.data)
-      .eq("kind", "delegated_work")
-      .not("status", "in", "(completed,cancelled)"),
+    liveWork,
     (admin.from as any)("talent_external_operations")
       .select("id,updated_at")
       .eq("user_id", user.id)
@@ -104,12 +107,16 @@ export async function GET(req: NextRequest) {
         })),
       // A working turn may still follow up a stopped run.
       turnStartedAt: turnRows.then((rows) => rows.filter(working).map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
-      // The person's messages a Harper turn here still holds: the ones it was queued with or received, and the one it
-      // started from (the same ids a Stop ends). A message that came while a turn finished is handed to the next turn, so
-      // it is held all along, though that turn started after it. A turn on hold resumes by itself, so it holds them too.
-      turnMessageIds: turnRows.then((rows) => [...new Set(rows.filter(turn).flatMap((row) => [
-        ...(Array.isArray(row.input_message_ids) ? row.input_message_ids : []), ...(row.source_message_id ? [row.source_message_id] : [])])
-        .map(String))]),
+      // The person's messages Harper here still holds, the same ids a Stop ends: each turn's queued or received input and
+      // the message it started from, and each live delegated work's sources. A message that came while a turn finished is
+      // handed to the next turn, so it is held all along, though that turn started after it. A turn on hold resumes by
+      // itself, so it holds them too.
+      turnMessageIds: Promise.all([turnRows, liveWork.then((result: { data?: { source_refs?: unknown }[] | null }) => result.data ?? [])])
+        .then(([rows, works]) => [...new Set([
+          ...rows.filter(turn).flatMap((row) => [
+            ...(Array.isArray(row.input_message_ids) ? row.input_message_ids : []), ...(row.source_message_id ? [row.source_message_id] : [])]),
+          ...works.flatMap((row) => Array.isArray(row.source_refs) ? row.source_refs : []),
+        ].map(String))]),
       // A turn on hold (activity.ts: its checkpoint waits for a newer request handled first, or for browser_control,
       // which no tool creates today): a paused application then points to the chat instead of asking Harper again. The
       // hold names no application, so it is the whole conversation's.

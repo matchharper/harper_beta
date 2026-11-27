@@ -23,6 +23,7 @@ function harness({
   turnCreatedAt = undefined as string | undefined,
   parkedTurn = true,
   closingSessions = [] as string[],
+  liveWorks = [] as Array<{ id: string; source_refs?: unknown }>,
 } = {}) {
   const progressCalls: Array<{ userId: string; conversationId: string; openForms: unknown; turnStartedAt: unknown;
     waitingForReply: unknown; closingBrowserSessionIds: unknown; turnMessageIds: unknown }> = [];
@@ -60,7 +61,7 @@ function harness({
             error: completionError ? { message: "offline" } : null,
           };
         if (call.filters.kind === "delegated_work")
-          return { count: 0, error: null };
+          return { count: liveWorks.length, data: liveWorks, error: null };
         if (idleWithForm) return { count: 0, data: [], error: null };
         assert.ok(call.columns.includes("result->activity"));
         assert.ok(
@@ -277,6 +278,17 @@ test("the person's messages a Harper turn still holds reach the progress read: o
   assert.deepEqual(Array.from(onlyWorking.progressCalls[0].turnMessageIds as string[]), ["40", "41", "42"]);
 });
 
+test("a live delegated work's sources are held with the turns' messages, as a Stop ends them", async () => {
+  // Review 11/27: "이어서 하기" for an application whose work still waited (its login browser closed in the viewer) was
+  // handled by updating that work: manage_work update adds the message to its source_refs, and the work's next turn
+  // starts from its first source, so only the work holds 345 once the chat turn ends.
+  const resumed = harness({ parkedTurn: false, liveWorks: [{ id: "work-1", source_refs: [300, 345] }, { id: "work-2" }] });
+  await resumed.get();
+  assert.deepEqual(Array.from(resumed.progressCalls[0].turnMessageIds as string[]), ["40", "41", "42", "300", "345"]);
+  const columns = resumed.calls.find((call) => call.filters.kind === "delegated_work")?.columns ?? "";
+  assert.ok(columns.split(",").includes("source_refs:request->source_refs"), "only the sources, not the work's request");
+});
+
 test("a turn on hold in the chat and a Stop's queued browser cleanups reach the progress read", async () => {
   // A turn on hold behind a newer request: a paused application points to the chat.
   const parked = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", waitingForReply: true });
@@ -481,6 +493,57 @@ test("a login browser Harper closed itself is not the person's Stop; one the per
   assert.deepEqual((await read("user")).find((item) => item.id === roleId)?.failure, { reason: "stopped" });
   // Who asked for the close is read with the other selected paths.
   assert.ok(columns.some((value) => value.split(",").includes("controlSource:result->>control_source")));
+});
+
+test("a login browser a Stop's cleanup closed stays the person's Stop once that cleanup is done", async () => {
+  // Review 11/27: the person pressed Done on A's login browser (it went idle), Harper's turn ended without a new run,
+  // and then the person pressed Stop. Its record names that run only when the browser waited on the person, and the
+  // cleanup it queued closed the browser as Harper.
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleId = "00000000-0000-4000-8000-0000000000a1";
+  const sessionId = "00000000-0000-4000-8000-0000000000c1";
+  const asked: Array<{ within: Record<string, unknown>; like?: unknown[] }> = [];
+  const read = (cleanupDone: boolean) => {
+    const operations = [
+      { id: sessionId, kind: "browser_session", status: "closed", createdAt: "2026-11-26T09:00:00Z", updatedAt: "2026-11-26T09:20:00Z",
+        roleRefs: [roleId], requestedAction: "close", controlSource: "assistant" },
+      { id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", parentId: sessionId, status: "completed", mode: "prepare",
+        createdAt: "2026-11-26T09:01:00Z", updatedAt: "2026-11-26T09:05:00Z", roleRefs: [roleId], needsUser: true, submitted: "no",
+        verificationCode: "none", sourceMessageId: "301" },
+    ];
+    const admin = {
+      from(table: string) {
+        const filters: Record<string, unknown> = {};
+        const call: { within: Record<string, unknown>; like?: unknown[] } = { within: {} };
+        const query: any = {
+          select() { return query; },
+          eq(column: string, value: unknown) { filters[column] = value; return query; },
+          in(column: string, values: unknown) { call.within[column] = values; return query; },
+          like(...args: unknown[]) { call.like = args; return query; },
+          gte() { return query; }, gt() { return query; }, not() { return query; }, order() { return query; }, limit() { return query; },
+          then(resolve: (value: unknown) => unknown) {
+            if (filters.kind === "career_invocation") asked.push(call);
+            const data = table === "company_roles" ? []
+              : table === "talent_messages" ? (filters.message_type === "career_turn_stop"
+                ? [{ createdAt: "2026-11-26T09:19:00Z", sourceMessageIds: [399] }] : [])
+              : filters.kind === "career_invocation" ? (cleanupDone ? [{ sessionId }] : [])
+              : operations;
+            return Promise.resolve(resolve({ data, error: null }));
+          },
+        };
+        return query;
+      },
+    };
+    return readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
+      turnStartedAt: Promise.resolve(null), now: new Date("2026-11-26T10:00:00Z") });
+  };
+  const stopped = (await read(true)).find((item) => item.id === roleId);
+  assert.deepEqual(stopped?.failure, { reason: "stopped" });
+  assert.deepEqual(stopped?.action, { kind: "continue" });
+  // Only the cleanups a Stop queued, for the browsers closed as Harper.
+  assert.deepEqual(asked.at(-1), { within: { "request->>cleanup_browser_session": [sessionId] }, like: ["idempotency_key", "stop-browser-cleanup:%"] });
+  // No Stop queued it: Harper closed that browser itself.
+  assert.notDeepEqual((await read(false)).find((item) => item.id === roleId)?.failure, { reason: "stopped" });
 });
 
 test("while an application is stopped, the person's messages naming it during the running turn pick it up, unless a Stop ended them", async () => {

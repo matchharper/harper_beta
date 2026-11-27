@@ -463,6 +463,24 @@ test("a later Stop that closed only the newest form counts from then, though an 
   assert.equal(only(build([...messages, form(4, 45)], ops, [openForm(4, REVIEW_ITEMS)], { now: new Date(at(60)) })).failure, undefined);
 });
 
+test("a later Stop that ended only the turn of the newest answer counts from then", () => {
+  // Review 11/27: Stop 1 at 00:20 cut off the submission. The person asked to go on; Harper asked a question (form 2),
+  // the person answered at 00:28, and Stop 2 at 00:29 ended the turn that answer started before it recorded anything.
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" }), form(2, 26)];
+  const ops = [session(SESSION, "closed", { updatedAt: at(21) }), run("prepare", "completed", 6, 10),
+    { ...run("execute", "failed", 11, 14), stopped: true, stoppedAt: at(20) }];
+  for (const minutes of [30, 60]) {
+    const stopped = only(build([...messages, answer(2, 28, { stoppedAt: at(29) })], ops, [], { now: new Date(at(minutes)) }));
+    assert.deepEqual(stopped.failure, { reason: "stopped" }, `${minutes} minutes in: the answer's own turn was stopped`);
+    assert.deepEqual(stopped.action, { kind: "continue" });
+  }
+  // The same answer without a Stop goes on (Harper's next step is under way); so does one whose turn began a run.
+  assert.equal(only(build([...messages, answer(2, 28)], ops, [], { now: new Date(at(30)) })).failure, undefined);
+  const began = only(build([...messages, answer(2, 28, { stoppedAt: at(29) })], [...ops, run("execute", "running", 28.5, 28.5)], [],
+    { now: new Date(at(30)) }));
+  assert.equal(began.failure, undefined, "the run the answer's turn began is not stopped");
+});
+
 test("a question found while submitting that was closed unanswered is not shown as answered", () => {
   const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" }), form(3, 15)];
   const base = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];

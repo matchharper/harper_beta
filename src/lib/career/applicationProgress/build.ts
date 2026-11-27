@@ -20,8 +20,12 @@ import type {
 
 /** One talent_messages row of a form, its answer or its resolution, with only the JSON paths the builder reads. */
 export type ApplicationMessageRow = {
+  /** The message's id: an answer starts the turn that acts on it (or joins one), so a Stop of that turn lists it. */
+  id?: number | string | null;
   messageType: string;
   createdAt: string;
+  /** career_form_response only: when the person's Stop ended the turn this answer started (from the Stop's record). */
+  stoppedAt?: string;
   formId?: number | null;
   revision?: number | null;
   /** career_form only. */
@@ -98,7 +102,10 @@ export type CareerApplicationProgressInput = {
    * first. Either way it names no application and is not a question Harper asked, so it is the conversation's.
    */
   waitingForReply?: boolean;
-  /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */
+  /**
+   * Browsers a Stop queued to close: they count as closed already while the cleanup runs, and once it is done they
+   * read closed by the person's Stop, though the cleanup closed them as Harper (control_source "assistant").
+   */
   closingBrowserSessionIds?: readonly string[];
   /**
    * The person's messages after a Stop that name an application and that a Harper turn here still holds (the turn they
@@ -199,14 +206,15 @@ type FormView = {
   open: boolean;
   questions: number;
   knownStart: boolean;
-  answer?: { at: string; negative: boolean };
+  /** stoppedAt: a Stop ended the turn this answer started. */
+  answer?: { at: string; negative: boolean; stoppedAt?: string };
   resolvedAt?: string;
   /** The person's Stop closed it before anyone answered: what it asked is still to do. */
   closedByStop?: boolean;
 };
 
 /**
- * closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. updatedAt: its row's last
+ * closing: a Stop queued this browser's cleanup, so it closes (or closed) without waiting for anyone. updatedAt: its row's last
  * change, for a closed browser when it closed. controlSource: who asked for requestedAction ("user": in the viewer).
  */
 type SessionView = { status: string; requestedAction?: string | null; controlSource?: string | null; browserAvailability?: string | null;
@@ -306,7 +314,8 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       questions: (items ?? []).filter((item) => INPUT_TYPES.has(item.type)).length,
       knownStart: Boolean(items?.some((item) => START_ITEMS.has(item.id))
         || (answer && (present(answer.submitScope) || present(answer.saveLogin) || present(answer.postings)))),
-      ...(answer ? { answer: { at: answer.createdAt, negative: Boolean(answer.actionId && answer.actionId === answer.negativeActionId) } } : {}),
+      ...(answer ? { answer: { at: answer.createdAt, negative: Boolean(answer.actionId && answer.actionId === answer.negativeActionId),
+        ...(answer.stoppedAt ? { stoppedAt: answer.stoppedAt } : {}) } } : {}),
       ...(resolution ? { resolvedAt: resolution.createdAt } : {}),
       ...(resolution && !answer && resolution.reason === CAREER_STOP_REASON ? { closedByStop: true } : {}),
     };
@@ -650,15 +659,21 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // A Stop closed its open start or review form, and that is its newest record (no work of it was under way then).
   const closedForm = app.forms.filter((form) => form.closedByStop).sort((a, b) => time(a.resolvedAt) - time(b.resolvedAt)).at(-1);
   const formStop = closedForm && time(closedForm.resolvedAt) >= time(updatedAt) ? closedForm.resolvedAt : undefined;
+  // A Stop ended the turn the person's newest answer started before that turn began anything for it (no run, send or
+  // form after the answer): the Stop's record names only the answer.
+  const lastAnswer = app.forms.flatMap((form) => form.answer ? [form.answer] : []).sort((a, b) => time(a.at) - time(b.at)).at(-1);
+  const answerStop = lastAnswer?.stoppedAt && !works.some((work) => time(work.createdAt) > time(lastAnswer.at))
+    && !app.forms.some((form) => time(form.createdAt) > time(lastAnswer.at)) ? lastAnswer.stoppedAt : undefined;
   // Stopped by the person: a Stop ended the request of the newest work, the person closed the login browser it waited on
-  // in the viewer (from when it closed, not when its run ended) or a Stop's cleanup is closing it, or a Stop closed its
-  // open form. Once that cleanup is done, the Stop's own record names the run that handed the browser over, so its
-  // request reads as stopped. Harper closing the browser itself (use_browser close, a manage_work cancel) is no Stop.
-  // From the latest of these: a later Stop that closed only a newer form counts from then, so an answer between the two
-  // Stops does not undo it. It holds until something follows for this application (movedSince).
+  // in the viewer (from when it closed, not when its run ended) or a Stop's cleanup closes or closed it, a Stop closed
+  // its open form, or a Stop ended the turn its newest answer started. A Stop's cleanup closes the browser as Harper, so
+  // the browsers a Stop queued to close are read as such (closing), done or not. Harper closing the browser itself
+  // (use_browser close, a manage_work cancel) is no Stop. From the latest of these: a later Stop that closed only a newer
+  // form, or ended only a newer answer's turn, counts from then, so an answer between the two Stops does not undo it. It
+  // holds until something follows for this application (movedSince).
   const closedByPerson = lost && (lost.run.session?.closing || (lost.run.session?.controlSource === "user" && !browserExpired(lost.run.session)));
   const lostStop = closedByPerson ? latestTime([lost.run.updatedAt, lost.run.session?.updatedAt]) : undefined;
-  const stopFrom = latestTime([newestWork?.stoppedAt ?? lostStop, formStop]);
+  const stopFrom = latestTime([newestWork?.stoppedAt ?? lostStop, formStop, answerStop]);
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;

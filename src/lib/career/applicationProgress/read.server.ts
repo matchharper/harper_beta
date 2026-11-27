@@ -28,6 +28,8 @@ const STOP_LIMIT = 100;
  */
 const REQUEST_LIMIT = 50;
 const MENTION_MARKER = "HARPER_OPPORTUNITY_MENTIONS_V1";
+/** The key stop_career_conversation gives the cleanup it queues for each open browser (account deletion uses another). */
+const STOP_BROWSER_CLEANUP_KEY = "stop-browser-cleanup:";
 
 /** Role statuses that mean the posting takes no applications (the same set as browser/postingCheck.ts). */
 const ENDED_ROLE_STATUSES = new Set(["archived", "closed", "deleted", "ended", "expired", "inactive"]);
@@ -48,11 +50,13 @@ const rows = <T>(result: Result, what: string): T[] => {
  * paths the builder reads (form items and run reports can be hundreds of KB). Then, together, names the roles and
  * reads whether the person's Stop cancelled the delegated work behind each application's newest run or send. A run or
  * send is stopped when a Stop of the person's ended its request (the Stop's own record lists that message) or cancelled
- * its work (the Stop's note on it). The careerTurnStopped flag on the message is not read, nor is any cancelled work
- * taken as a Stop: Harper's own cancellations (of a pending request, or of a work with manage_work) leave them too.
+ * its work (the Stop's note on it); a form answer is when the Stop's record lists it (the turn it started). The
+ * careerTurnStopped flag on the message is not read, nor is any cancelled work taken as a Stop: Harper's own
+ * cancellations (of a pending request, or of a work with manage_work) leave them too. A browser a Stop's cleanup closed
+ * reads closed by Harper, so for the closed browsers not closed in the viewer it also reads which a Stop queued to close.
  * Only while an application is stopped and a Harper turn holds some of the person's messages, last, reads those that
- * name one since the Stop: asking about it picks it up while the turn that took the message holds it. At most six small
- * queries; throws on a failed read so the caller can leave the list empty.
+ * name one since the Stop: asking about it picks it up while the turn that took the message holds it. At most seven
+ * small queries; throws on a failed read so the caller can leave the list empty.
  */
 export async function readCareerApplicationProgress(args: {
   admin: Pick<TalentAdminClient, "from">;
@@ -72,7 +76,7 @@ export async function readCareerApplicationProgress(args: {
    * asks nothing), from the same read.
    */
   waitingForReply?: PromiseLike<boolean>;
-  /** Browsers a Stop queued to close (pending cleanup invocations), from the same read. */
+  /** Browsers a Stop queued to close (pending cleanup invocations), from the same read; this read adds the done ones. */
   closingBrowserSessionIds?: PromiseLike<readonly string[]>;
   now?: Date;
 }): Promise<CareerApplicationProgress[]> {
@@ -83,7 +87,7 @@ export async function readCareerApplicationProgress(args: {
   const [messages, operations, stops, openForms, turnStartedAt, waitingForReply, closingBrowserSessionIds, turnMessageIds]:
     [Result, Result, Result, ApplicationOpenForm[], string | null, boolean, readonly string[], readonly (string | number)[]] = await Promise.all([
     db.from("talent_messages")
-      .select("messageType:message_type,createdAt:created_at,formId:payload->formId,revision:payload->revision,kind:payload->>kind,hidden:payload->hidden,relatedRefs:payload->relatedRefs,itemId:payload->>itemId,actionId:payload->>actionId,negativeActionId:payload->formSnapshot->negative->>id,submitScope:payload->values->submit_scope,saveLogin:payload->values->save_login,postings:payload->values->apply_postings,reason:payload->>reason")
+      .select("id,messageType:message_type,createdAt:created_at,formId:payload->formId,revision:payload->revision,kind:payload->>kind,hidden:payload->hidden,relatedRefs:payload->relatedRefs,itemId:payload->>itemId,actionId:payload->>actionId,negativeActionId:payload->formSnapshot->negative->>id,submitScope:payload->values->submit_scope,saveLogin:payload->values->save_login,postings:payload->values->apply_postings,reason:payload->>reason")
       .eq("user_id", args.userId)
       .eq("conversation_id", args.conversationId)
       .in("message_type", ["career_form", "career_form_response", "career_form_resolution"])
@@ -127,8 +131,12 @@ export async function readCareerApplicationProgress(args: {
   };
   const roleIds = careerApplicationRoleIds(input);
   const { workIds } = careerApplicationStopRefs(input);
+  // A Stop's cleanup closes a browser as Harper (control_source "assistant"), and the Stop's record names that browser's
+  // run only when it waited on the person then; the cleanup the Stop queued for it still names it, done or not.
+  const closedByHarper = [...new Set(input.operations.filter((row) => row.kind === "browser_session" && row.status === "closed"
+    && row.controlSource !== "user").map((row) => row.id))];
   const none: Result = { data: [], error: null };
-  const [roleRows, workRows] = await Promise.all([
+  const [roleRows, workRows, cleanupRows] = await Promise.all([
     roleIds.length
       ? db.from("company_roles")
         .select("role_id,name,status,is_expired,company_workspace:company_workspace_id(company_name)")
@@ -143,6 +151,17 @@ export async function readCareerApplicationProgress(args: {
         .eq("kind", "delegated_work")
         .in("id", workIds)
         .limit(workIds.length)
+      : none,
+    closedByHarper.length
+      ? db.from("talent_external_operations")
+        .select("sessionId:request->>cleanup_browser_session")
+        .eq("user_id", args.userId)
+        .eq("conversation_id", args.conversationId)
+        .eq("kind", "career_invocation")
+        .like("idempotency_key", `${STOP_BROWSER_CLEANUP_KEY}%`)
+        .in("request->>cleanup_browser_session", closedByHarper)
+        .gte("created_at", since)
+        .limit(OPERATION_LIMIT)
       : none,
   ]);
   const roles: ApplicationRoleRow[] = rows<{ role_id: string; name: string | null; status: string | null; is_expired: boolean | null; company_workspace?: { company_name?: string | null } | null }>(
@@ -168,7 +187,15 @@ export async function readCareerApplicationProgress(args: {
     const stoppedAt = latest(bySource ? stoppedSources.get(row.sourceMessageId!) : undefined, byWork ? cancelledWorks.get(row.workId!) : undefined);
     return { ...row, stopped: true, ...(stoppedAt ? { stoppedAt } : {}) };
   });
-  const built = { ...input, operations: operationsWithStops, roles };
+  // An answer whose turn a Stop ended, with that Stop's time.
+  const messagesWithStops = input.messages.map((row) => {
+    const at = row.messageType === "career_form_response" && row.id != null ? stoppedSources.get(String(row.id)) : undefined;
+    return at ? { ...row, stoppedAt: at } : row;
+  });
+  const stopClosed = rows<{ sessionId?: string | null }>(cleanupRows, "Application stop cleanups")
+    .flatMap((row) => row.sessionId ? [row.sessionId] : []);
+  const built = { ...input, messages: messagesWithStops, operations: operationsWithStops, roles,
+    closingBrowserSessionIds: [...new Set([...closingBrowserSessionIds, ...stopClosed])] };
   const stoppedSince = careerApplicationStoppedSince(built);
   // A request counts only while the turn that took it holds it (CareerApplicationProgressInput.requests).
   const held = [...new Set(turnMessageIds.map(String))].filter((id) => /^[0-9]+$/.test(id));
