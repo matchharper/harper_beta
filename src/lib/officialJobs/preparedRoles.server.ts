@@ -141,6 +141,8 @@ export type PreparedRolesPostingResult = {
   ok: boolean;
   harperRoles: Array<{ roleId: string; reason: string }>;
   publicPostings: number;
+  /** The public postings kept, best first (for a dry run's review). */
+  publicRoleIds: string[];
   roleTitles: string[];
   error?: string;
 };
@@ -173,12 +175,14 @@ export async function buildOfficialJobPreparedRoles(args: {
         if (!args.dryRun) await sources.write(admin, posting.id, rows, preparedAt);
         results[index] = {
           slug: posting.slug, ok: true, harperRoles: chosen.harperRoles,
-          publicPostings: rows.filter((row) => row.kind === "public").length, roleTitles: chosen.plan.roleTitles,
+          publicPostings: rows.filter((row) => row.kind === "public").length,
+          publicRoleIds: rows.filter((row) => row.kind === "public").map((row) => row.role_id),
+          roleTitles: chosen.plan.roleTitles,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error("[official-jobs:prepared-roles] posting failed", { slug: posting.slug, error: message });
-        results[index] = { slug: posting.slug, ok: false, harperRoles: [], publicPostings: 0, roleTitles: [], error: message.slice(0, 300) };
+        results[index] = { slug: posting.slug, ok: false, harperRoles: [], publicPostings: 0, publicRoleIds: [], roleTitles: [], error: message.slice(0, 300) };
       }
     }
   };
