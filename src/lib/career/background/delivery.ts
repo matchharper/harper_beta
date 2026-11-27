@@ -6,6 +6,7 @@ import type { TalentToolDefinition } from "@/lib/talentOnboarding/tools";
 import { ensureReplyAlias } from "@/lib/email/runtime/store";
 import { renderReplyEmail } from "@/lib/email/runtime/format";
 import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
+import { opensReplyComposeFor } from "@/lib/email/replyComposeMx";
 import { getDefaultResendFromEmail, sendResendEmail } from "@/lib/email/send";
 import { normalizeEmailAddress } from "@/lib/email/parse";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
@@ -541,7 +542,10 @@ export const CAREER_DELIVERY_TOOLS: Record<string, TalentToolDefinition> = {
           subject: input.subject,
           ...renderReplyEmail(bodyMarkdown, {
             footer: true,
-            choiceHref: careerEmailChoiceHref({ talentId: context.userId, recipient: to, replyTo, subject: input.subject }),
+            choiceHref: careerEmailChoiceHref({
+              talentId: context.userId, recipient: to, replyTo, subject: input.subject,
+              opensCompose: await opensReplyComposeFor(to),
+            }),
           }),
           idempotencyKey: `career-agent/${invocation.runId}`,
         };

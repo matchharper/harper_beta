@@ -21,6 +21,7 @@ import {
 } from "@/lib/email/parse";
 import { getDefaultResendFromEmail, getResendEmail } from "@/lib/email/send";
 import { careerEmailChoiceHref } from "@/lib/email/choiceLinks";
+import { opensReplyComposeFor } from "@/lib/email/replyComposeMx";
 import { getCareerOnboardingChecklistCoverage } from "@/lib/talentOnboarding/calls";
 import { buildOnboardingRuntimeStateSection } from "@/lib/career/prompts/conversationSections";
 import { commitDeliveredProcessClosureNotices } from "@/lib/talentOnboarding/processClosureNotice";
@@ -406,7 +407,10 @@ export async function processEmailReply(
       to: replyTo,
       subject: buildReplySubject(subject),
       ...renderReplyEmail(assistant.content, {
-        choiceHref: careerEmailChoiceHref({ talentId: ctx.talentId, recipient: replyTo, replyTo: replyAlias, subject }),
+        choiceHref: careerEmailChoiceHref({
+          talentId: ctx.talentId, recipient: replyTo, replyTo: replyAlias, subject,
+          opensCompose: await opensReplyComposeFor(replyTo),
+        }),
       }),
       headers: await careerReplyHeaders(admin, {
         received,

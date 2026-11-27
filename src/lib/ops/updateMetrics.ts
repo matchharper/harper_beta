@@ -56,6 +56,12 @@ export type UpdateMetricDefinition = {
 };
 
 const SINCE_SO_FAR = "가입한 지 기간이 안 된 사람은 지금까지 한 것으로 셉니다.";
+/** What "지원" counts for the /jobs entry rows: the /ops/metrics 맡김 plus the person's own 직접 지원. */
+const APPLIED_7D =
+  "가입 후 7일 안에 지원한 사람의 비율입니다. 지원은 다음 중 하나라도 한 것입니다: ① 공고의 'Harper와 지원하기'를 누름 ② 하퍼 자리에 연결 요청을 보냄 ③ 대신 지원을 확정함(제출에 실패해도 셈) ④ Harper가 회사에 소개를 보냄 ⑤ 공고의 '직접 지원했어요'(채용 글이면 '직접 연락했어요')를 누름. ①~④는 /ops/metrics의 '맡김'과 같습니다. ⑤는 본인이 누른 표시라 실제로 냈는지는 확인하지 못합니다.";
+/** What "연결" counts: the /ops/metrics rule. */
+const CONNECTED_7D =
+  "가입 후 7일 안에 회사에 실제로 닿은 사람의 비율입니다. 연결은 /ops/metrics와 같이 대신 지원이 실제로 제출됨(메일 지원은 발송 성공, 사이트 지원은 실행이 끝나고 제출 확인 문구가 있음) 또는 Harper가 회사에 소개를 보낸 것입니다. 직접 지원은 제출을 확인할 수 없어 들어가지 않습니다.";
 
 /** Every metric the screen can draw. Keys are stable: tracked changes and stored snapshots refer to them. */
 export const UPDATE_METRICS = {
@@ -163,7 +169,7 @@ export const UPDATE_METRICS = {
   jobsWithoutRoleSignups: {
     better: null,
     detail:
-      "/jobs 공고로 가입했는데 그 공고에 연결된 내부 Role이 없는 사람 수입니다. 가입 경로는 /ops/metrics와 같은 규칙으로 정합니다.",
+      "하퍼 자리(내부 Role)가 없는 /jobs 공고(묶음 공고 등)로 가입한 사람 수입니다. 가입한 날로 셉니다. 어느 공고로 왔는지는 /ops/metrics 가입 경로와 같은 규칙으로 정합니다.",
     label: "미연결 공고로 가입",
     unit: "count",
   },
@@ -171,6 +177,37 @@ export const UPDATE_METRICS = {
     better: "up",
     detail: "미연결 /jobs 공고로 가입한 사람 중 가입 후 3일 안에 다른 추천을 받은 비율입니다.",
     label: "다른 추천을 받음",
+    unit: "percent",
+  },
+  jobsWithoutRoleApplied7d: {
+    better: "up",
+    detail: `${APPLIED_7D} 계산: 지원한 사람 ÷ 미연결 공고로 가입한 사람. 예: 10명 가입, 그중 3명이 지원 → 30%. ${SINCE_SO_FAR}`,
+    label: "미연결 공고 7일 안 지원",
+    unit: "percent",
+  },
+  jobsWithoutRoleConnected7d: {
+    better: "up",
+    detail: `${CONNECTED_7D} 계산: 연결된 사람 ÷ 미연결 공고로 가입한 사람. 예: 10명 가입, 그중 1명 연결 → 10%. ${SINCE_SO_FAR}`,
+    label: "미연결 공고 7일 안 연결",
+    unit: "percent",
+  },
+  jobsUnfinishedSignups: {
+    better: null,
+    detail:
+      "/jobs 공고(하퍼 자리 유무와 상관없이)로 가입하고 가입 후 3일 안에 가입 양식을 내지 않은 사람 수입니다. 가입한 날로 셉니다. 가입한 지 3일이 안 된 사람은 아직 양식을 안 냈으면 들어갑니다.",
+    label: "양식 미완료 공고 가입",
+    unit: "count",
+  },
+  jobsUnfinishedApplied7d: {
+    better: "up",
+    detail: `${APPLIED_7D} 양식을 안 낸 사람은 주로 Harper 메일에 답해서 맡깁니다. 계산: 지원한 사람 ÷ 양식 미완료 공고 가입자. ${SINCE_SO_FAR}`,
+    label: "양식 미완료 7일 안 지원",
+    unit: "percent",
+  },
+  jobsUnfinishedConnected7d: {
+    better: "up",
+    detail: `${CONNECTED_7D} 계산: 연결된 사람 ÷ 양식 미완료 공고 가입자. ${SINCE_SO_FAR}`,
+    label: "양식 미완료 7일 안 연결",
     unit: "percent",
   },
   choiceEmails: {
@@ -266,6 +303,7 @@ export type OpsTrackedChange = UpdateMetricChart & {
   title: string;
 };
 
+const PR_474 = { label: "PR #474", url: "https://github.com/matchharper/harper_beta/pull/474" };
 const PR_436 = { label: "PR #436", url: "https://github.com/matchharper/harper_beta/pull/436" };
 const PR_400 = { label: "PR #400", url: "https://github.com/matchharper/harper_beta/pull/400" };
 
@@ -281,6 +319,30 @@ export const OPS_HEADLINE_CHART: UpdateMetricChart & { primary: UpdateMetricKey 
  * (ops_tracked_changes); the definition stays here.
  */
 export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
+  {
+    bars: ["jobsWithoutRoleSignups"],
+    deployedOn: "2026-11-27",
+    detail:
+      "하퍼 자리가 없는 /jobs 공고로 가입한 사람에게, 첫 메시지부터 그 공고에 맞춰 매일 미리 골라 둔 하퍼 자리(추천받기)와 비슷한 공개 공고(대신 지원)를 제안합니다.",
+    key: "2026-11-27-jobs-entry-connection",
+    links: [PR_474],
+    lines: ["jobsWithoutRoleApplied7d", "jobsWithoutRoleConnected7d"],
+    primary: "jobsWithoutRoleApplied7d",
+    talentCharts: ["connections", "applyDelegation"],
+    title: "미연결 공고 첫 제안",
+  },
+  {
+    bars: ["jobsUnfinishedSignups"],
+    deployedOn: "2026-11-27",
+    detail:
+      "공고로 가입하고 가입 양식을 끝내지 않은 사람에게 가는 메일이 들어온 공고에서 시작합니다. 메일 속 공고 링크는 하퍼 화면에서 열리고, 메일 서버가 구글인 학교·회사 주소에서는 선택 버튼이 답장 창을 엽니다.",
+    key: "2026-11-27-jobs-unfinished-mail",
+    links: [PR_474],
+    lines: ["jobsUnfinishedApplied7d", "jobsUnfinishedConnected7d"],
+    primary: "jobsUnfinishedApplied7d",
+    talentCharts: ["connections", "applyDelegation"],
+    title: "양식 미완료 메일",
+  },
   {
     bars: ["signups"],
     deployedOn: "2026-11-24",
@@ -431,6 +493,10 @@ export type UpdateMetricsSignupRow = {
   liked3d: number;
   llmMs3d: number;
   onboardingSubmittedAt: Date | string | null;
+  /** First connection (a submitted 대신 지원 or a delivered introduction), at any time. */
+  connectedAt?: Date | string | null;
+  /** First application: a connection, a 맡김 (the /ops/metrics rule) or their own '직접 지원했어요', at any time. */
+  appliedAt?: Date | string | null;
   recommendations3d: number;
   signedUpAt: Date | string;
   userId: string;
@@ -611,6 +677,8 @@ export function buildOpsUpdateMetrics(args: {
   from: string;
   /** Signups attributed to a /jobs posting with no internal Role behind it. */
   jobsWithoutRoleUserIds: Set<string>;
+  /** Signups attributed to any /jobs posting. */
+  jobsUserIds?: Set<string>;
   landing: UpdateMetricsLandingRow[];
   nowMs: number;
   recommendations: UpdateMetricsRecommendationRow[];
@@ -650,6 +718,14 @@ export function buildOpsUpdateMetrics(args: {
   };
   const recipients = signups.map((rows) => rows.filter((row) => row.recommendations3d > 0));
   const jobsSignups = signups.map((rows) => rows.filter((row) => args.jobsWithoutRoleUserIds.has(row.userId)));
+  const connectedWithin7d = (row: UpdateMetricsSignupRow) => within(row.connectedAt ?? null, signedUpMs(row), 7);
+  const appliedWithin7d = (row: UpdateMetricsSignupRow) => within(row.appliedAt ?? null, signedUpMs(row), 7);
+  // Signed up from a posting and had not finished the signup form 3 days later.
+  const jobsUnfinished = signups.map((rows) =>
+    rows.filter((row) =>
+      args.jobsUserIds?.has(row.userId) && !within(row.onboardingSubmittedAt, signedUpMs(row), COHORT_DAYS)
+    )
+  );
 
   const recommendations = byDay(args.recommendations, (row) => row.day).map((rows) =>
     rows.reduce(
@@ -714,6 +790,11 @@ export function buildOpsUpdateMetrics(args: {
     landingConversion: landing.map((item) => rate(item.converted, item.visitors)),
     jobsWithoutRoleSignups: count(jobsSignups.map((rows) => rows.length)),
     jobsWithoutRoleRecommended: jobsSignups.map((rows) => share(rows, (row) => row.recommendations3d > 0)),
+    jobsWithoutRoleApplied7d: jobsSignups.map((rows) => share(rows, appliedWithin7d)),
+    jobsWithoutRoleConnected7d: jobsSignups.map((rows) => share(rows, connectedWithin7d)),
+    jobsUnfinishedSignups: count(jobsUnfinished.map((rows) => rows.length)),
+    jobsUnfinishedApplied7d: jobsUnfinished.map((rows) => share(rows, appliedWithin7d)),
+    jobsUnfinishedConnected7d: jobsUnfinished.map((rows) => share(rows, connectedWithin7d)),
     choiceEmails: count(emails.map((item) => item.choiceEmails)),
     plainEmails: count(emails.map((item) => item.plainEmails)),
     emailActionRate: emails.map((item) =>

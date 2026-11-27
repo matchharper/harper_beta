@@ -42,7 +42,9 @@ test_only_roles as materialized (
 // 대신 지원: each application the talent confirmed for Harper to carry out (a work_effect), with the send or browser
 // run it was bound to. It is submitted when the Gmail send succeeded, or the browser run's report opens by
 // confirming the submission. 외부 연결 = a submitted application.
-const APPLICATION_CTES = String.raw`
+// `submitted` and `notSubmitted` name the query parameters holding SUBMITTED_SENTENCE and NOT_SUBMITTED_SENTENCE.
+// Needs the included_users and test_only_roles CTEs before it.
+export const applicationCtes = (params: { submitted: string; notSubmitted: string }) => String.raw`
 confirmed_applications as materialized (
   select
     effect.id,
@@ -73,8 +75,8 @@ applications as materialized (
       or (
         application.bound_kind = 'browser_run'
         and application.bound_status = 'completed'
-        and coalesce(application.sentence, '') ~* $5
-        and coalesce(application.sentence, '') !~* $6
+        and coalesce(application.sentence, '') ~* ${params.submitted}
+        and coalesce(application.sentence, '') !~* ${params.notSubmitted}
       ) as submitted
   from confirmed_applications application
 ),
@@ -107,6 +109,7 @@ delegation_clicks as materialized (
   join included_users users on users.user_id = log.user_id
   where log.type = 'career_click_history_submit_internal_connection_acceptance'
 )`;
+const APPLICATION_CTES = applicationCtes({ submitted: "$5", notSubmitted: "$6" });
 
 /**
  * One row per talent who signed up in the period, the comparison period or the funnel's 7 days, with when they
