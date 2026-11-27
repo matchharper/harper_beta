@@ -6,6 +6,7 @@
 import { OPERATIONAL_OPPORTUNITY_FEEDBACK_REASON } from "@/lib/career/opportunityFeedbackSignals";
 import { CAREER_REPLY_UNSEEN_TRIGGER } from "@/lib/career/background/unseenReply";
 import { TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST } from "@/lib/talentOnboarding/onboarding";
+import { applicationCtes } from "@/lib/ops/talentMetricsOverview.sql";
 
 /** How long after an email an action still counts as a response to it. */
 export const EMAIL_ACTION_WINDOW_HOURS = 72;
@@ -241,6 +242,31 @@ order by visits.first_seen_at
 `;
 
 /** /jobs postings with no internal Role behind them (official_jobs.role_id is empty). */
+/**
+ * When each talent who signed up in [$1, $2) was first connected, by the /ops/metrics rule: a 대신 지원 that was
+ * really submitted, or an introduction delivered to the company. $4 / $5 are SUBMITTED_SENTENCE /
+ * NOT_SUBMITTED_SENTENCE (talentMetricsOverview.server.ts). Talents never connected have no row.
+ */
+export const UPDATE_METRICS_CONNECTIONS_SQL = String.raw`
+with ${BASE_CTES},
+${applicationCtes({ submitted: "$4", notSubmitted: "$5" })},
+signups as materialized (
+  select users.user_id
+  from included_users users
+  where users.created_at >= $1::timestamptz
+    and users.created_at < $2::timestamptz
+),
+connections as (
+  select user_id, connected_at from external_connections
+  union all
+  select user_id, connected_at from internal_connections
+)
+select signups.user_id::text as "userId", min(connections.connected_at) as "connectedAt"
+from signups
+join connections on connections.user_id = signups.user_id
+group by signups.user_id
+`;
+
 export const UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL = String.raw`
 select slug
 from public.official_jobs
