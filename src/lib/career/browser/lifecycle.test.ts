@@ -230,6 +230,27 @@ test("a sign-in for an existing account goes through a sign-in method, not an ac
   assert.match(sent, /entries that find or recover an account \(find account or ID, reset password\), sign up or are for business accounts are not its sign-in entry/);
 });
 
+test("a verification mail counts as already requested only when this browser requested it", async (t) => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs.workspace_id = remoteSession;
+  let sent = "";
+  t.mock.method(console, "error", () => {});
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (task: string) => {
+    sent = task;
+    throw new Error("Provider response unavailable in this instruction test");
+  });
+  await executeUseBrowser({ action: "run", session_id: sessionId,
+    task: "An earlier attempt stopped at the site's email verification. Continue the application." }, context).catch(() => undefined);
+  // 11/27: an earlier attempt's mail (another browser, the day before) kept a new browser from asking for one, while
+  // Harper waited for that old link: nobody moved. Such a link verifies only the browser that asked for it.
+  assert.match(sent, /do not ask for another one while the task says this browser already asked for one/);
+  assert.match(sent, /A request made from another browser, such as an earlier attempt's, does not count: ask for one here\./);
+  const { TOOL_DESCRIPTIONS } = await import("@/lib/llm/toolDescriptions");
+  assert.match(TOOL_DESCRIPTIONS.use_browser, /while one this same open browser requested may still be valid\. A mail requested from another browser, such as an earlier attempt's, cannot verify this one/);
+});
+
 test("run delivers the browser card before waiting and returns the observation to the same tool call", async (t) => {
   const { rows, context } = fixture("reserved");
   rows[0].status = "idle";
