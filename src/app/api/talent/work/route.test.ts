@@ -425,22 +425,23 @@ test("only the person's own Stop reads as stopped: its Stop record or a work it 
   assert.equal(work?.limit, 3);
 });
 
-test("while an application is stopped, the person's messages naming it since then pick it up again, unless a Stop ended them", async () => {
+test("while an application is stopped, the person's messages naming it during the running turn pick it up, unless a Stop ended them", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
   const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
-  const now = new Date("2026-11-26T10:00:00Z");
+  const now = new Date("2026-11-26T09:11:00Z");
   const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
   const mention = (text: string, mentions: unknown[]) =>
     `${text}\n\n[[HARPER_OPPORTUNITY_MENTIONS_V1:${encodeURIComponent(JSON.stringify(mentions))}]]`;
-  // One Stop at 09:03 cut off all three submissions. The person then asked to go on with A (the panel's message names
-  // its role) and with B, but stopped that B request too (the 09:13 Stop lists it); C was named only as a company.
+  // One Stop at 09:03 cut off all three submissions. The person asked to go on with B at 09:05 and stopped that request
+  // too (the 09:06 Stop lists it). At 09:10 they asked to go on with A (the panel's message names its role), which
+  // started the turn now running, and named C only as a company during it.
   const operations = roleIds.map((roleId, index) => ({ id: `00000000-0000-4000-8000-0000000000d${index}`, kind: "browser_run",
     status: "failed", mode: "execute", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleId],
     sourceMessageId: String(301 + index) }));
-  const stops = [{ createdAt: "2026-11-26T09:13:00Z", sourceMessageIds: [311] }, { createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301, 302, 303] }];
+  const stops = [{ createdAt: "2026-11-26T09:06:00Z", sourceMessageIds: [311] }, { createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301, 302, 303] }];
   const requests = [
-    { id: 312, createdAt: "2026-11-26T09:14:00Z", content: mention("C 회사 어때?", [{ label: "C사", roleId: roleIds[2], targetKind: "company" }]) },
-    { id: 311, createdAt: "2026-11-26T09:12:00Z", content: mention("B사 · 디자이너 진행을 이어서 해 줘.", [{ label: "B사 · 디자이너", roleId: roleIds[1] }]) },
+    { id: 312, createdAt: "2026-11-26T09:10:30Z", content: mention("C 회사 어때?", [{ label: "C사", roleId: roleIds[2], targetKind: "company" }]) },
+    { id: 311, createdAt: "2026-11-26T09:05:00Z", content: mention("B사 · 디자이너 진행을 이어서 해 줘.", [{ label: "B사 · 디자이너", roleId: roleIds[1] }]) },
     { id: 310, createdAt: "2026-11-26T09:10:00Z", content: mention("A사 · 백엔드 진행을 이어서 해 줘.", [{ label: "A사 · 백엔드", roleId: roleIds[0] }]) },
   ];
   let stopped = true;
@@ -469,26 +470,30 @@ test("while an application is stopped, the person's messages naming it since the
       return query;
     },
   };
-  const read = () => readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
-    turnStartedAt: Promise.resolve(null), now });
-  const byRole = new Map((await read()).map((item) => [item.id, item]));
-  assert.equal(byRole.get(roleIds[0])?.failure, undefined, "asked to go on");
-  assert.equal(byRole.get(roleIds[0])?.status, "needs_you");
-  assert.deepEqual(byRole.get(roleIds[0])?.action, { kind: "continue" });
+  const read = (turnStartedAt: string | null) => readCareerApplicationProgress({ admin: admin as any, userId, conversationId,
+    openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt), now });
+  const byRole = new Map((await read("2026-11-26T09:10:00Z")).map((item) => [item.id, item]));
+  assert.equal(byRole.get(roleIds[0])?.failure, undefined, "asked to go on, and that turn runs");
+  assert.equal(byRole.get(roleIds[0])?.status, "waiting");
   assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "stopped" }, "that request was stopped too");
   assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "stopped" }, "a company mention is not this application");
 
-  // Read last, from the earliest Stop that still holds: only the person's messages carrying a mention, a few columns.
+  // Read last, from the earliest Stop that still holds and the running turn's start: only the person's messages
+  // carrying a mention, a few columns.
   const request = calls.find((call) => call.filters.role === "user");
   assert.equal(calls.at(-1), request);
   assert.equal(request?.columns, "id,createdAt:created_at,content");
   assert.deepEqual(request?.filters, { user_id: userId, conversation_id: conversationId, role: "user",
-    "created_at:gt": "2026-11-26T09:03:00Z", "content:like": "%HARPER_OPPORTUNITY_MENTIONS_V1%" });
+    "created_at:gt": "2026-11-26T09:03:00Z", "created_at:gte": "2026-11-26T09:10:00Z", "content:like": "%HARPER_OPPORTUNITY_MENTIONS_V1%" });
   assert.ok(request?.limit && request.limit <= 50);
 
+  // That turn ended with nothing recorded for A: the Stop holds again, and no turn means nothing more to read.
+  calls.length = 0;
+  assert.deepEqual(new Map((await read(null)).map((item) => [item.id, item])).get(roleIds[0])?.failure, { reason: "stopped" });
+  assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
   // Nothing stopped, nothing more to read.
   stopped = false;
   calls.length = 0;
-  assert.ok((await read()).every((item) => item.failure?.reason !== "stopped"));
+  assert.ok((await read("2026-11-26T09:10:00Z")).every((item) => item.failure?.reason !== "stopped"));
   assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
 });

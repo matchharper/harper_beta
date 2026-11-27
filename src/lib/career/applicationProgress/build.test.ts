@@ -316,7 +316,7 @@ test("a Stop reads as stopped, not as a question or a failure, until something n
     "submitted");
 });
 
-test("a Stop holds through Harper's turns on other things; asking about that application picks it up again", () => {
+test("a Stop holds through Harper's turns on other things; asking about that application picks it up while that turn runs", () => {
   const start = [form(1, 0, [ROLE_A, ROLE_B]), answer(1, 5, { submitScope: "submit" })];
   // One Stop cut off A's submission and B's preparation.
   const cut = [session(SESSION, "idle"), run("prepare", "completed", 6, 10), { ...run("execute", "failed", 20, 22), stopped: true },
@@ -339,19 +339,18 @@ test("a Stop holds through Harper's turns on other things; asking about that app
   assert.equal(running.get(ROLE_A)?.failure, undefined);
   assert.equal(running.get(ROLE_A)?.steps[3].state, "current");
   assert.deepEqual(running.get(ROLE_B)?.failure, { reason: "stopped" });
-  // A Harper turn here is on hold in the chat: A points there, not at another "이어서 하기".
-  const parked = byId(build(start, cut, [], { now: new Date(at(70)), waitingForReply: true, requests: goOn }));
-  assert.equal(parked.get(ROLE_A)?.status, "needs_you");
-  assert.deepEqual(parked.get(ROLE_A)?.action, { kind: "reply_in_chat" });
-  assert.equal(parked.get(ROLE_A)?.failure, undefined);
-  assert.deepEqual(parked.get(ROLE_B)?.failure, { reason: "stopped" });
-  // The turn ended and nothing followed: A paused (not stopped again), the person can ask once more.
-  const ended = byId(build(start, cut, [], { now: new Date(at(70)), requests: goOn }));
-  assert.equal(ended.get(ROLE_A)?.status, "needs_you");
-  assert.deepEqual(ended.get(ROLE_A)?.action, { kind: "continue" });
-  assert.equal(ended.get(ROLE_A)?.failure, undefined);
-  // Its percentage holds through all of it.
-  for (const list of [running, parked, ended]) assert.equal(careerApplicationPercent(list.get(ROLE_A)!), 75);
+  // That turn ended (or is on hold) with nothing recorded for A, or a later turn runs on something else: the request was
+  // only that turn's, so the Stop holds again and the person can ask once more.
+  for (const extra of [{}, { waitingForReply: true }, { turnStartedAt: at(66) }]) {
+    const after = build(start, cut, [], { now: new Date(at(70)), requests: goOn, ...extra });
+    assert.ok(stoppedAll(after), JSON.stringify(extra));
+    assert.equal(careerApplicationPercent(byId(after).get(ROLE_A)!), 75, "its percentage holds through all of it");
+  }
+  assert.equal(careerApplicationPercent(running.get(ROLE_A)!), 75);
+  // A question about A ("A사는 왜 멈췄어?") is no different: under way while its turn runs, stopped again after it.
+  const question = [{ createdAt: at(80), roleIds: [ROLE_A] }];
+  assert.equal(byId(build(start, cut, [], { now: new Date(at(81)), turnStartedAt: at(80), requests: question })).get(ROLE_A)?.status, "waiting");
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(120)), requests: question })));
 });
 
 test("a form the person's Stop closed unanswered stays to do, so the percentage never goes back", () => {

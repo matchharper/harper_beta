@@ -97,8 +97,11 @@ export type CareerApplicationProgressInput = {
   /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */
   closingBrowserSessionIds?: readonly string[];
   /**
-   * The person's messages after a Stop that name an application, leaving out those a Stop ended: asking about a
-   * stopped application (the panel's "이어서 하기" names it) picks it up again. Harper's turn alone does not.
+   * The person's messages after a Stop that name an application, leaving out those a Stop ended. One counts only while
+   * the Harper turn that took it runs (it started that turn or came during it: createdAt at or after turnStartedAt), so
+   * asking about a stopped application ("이어서 하기" in the panel, or a question about it) shows it under way for that
+   * turn, and the Stop holds again once the turn ends with nothing recorded for it. Harper's turn alone does not count.
+   * (A go-on cannot be told from a question by a structured mark: the mention marker is read raw by the model.)
    */
   requests?: readonly ApplicationRequestRow[];
 };
@@ -471,10 +474,12 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const works = [...app.runs, ...app.sends];
   const followedUp = (stoppedAt: string) => Boolean(turnStartedAt) && time(stoppedAt) >= time(turnStartedAt);
   // Something happened for this application after a Stop: a newer run or send (not stopped itself), a form, an answer,
-  // or the person's request about it. Harper's turn alone is not: it may be about anything else and leaves no trace here.
+  // or the person's request about it while the turn that took it runs. Harper's turn alone is not: it may be about
+  // anything else and leaves no trace here.
   const movedSince = (at: string) => works.some((work) => !work.stoppedAt && time(work.createdAt) > time(at))
     || app.forms.some((form) => form.open || (form.answer && time(form.answer.at) > time(at)))
-    || Boolean(context.requests?.some((request) => time(request.createdAt) > time(at) && request.roleIds.includes(app.id)));
+    || Boolean(turnStartedAt && context.requests?.some((request) => request.roleIds.includes(app.id)
+      && time(request.createdAt) > time(at) && time(request.createdAt) >= time(turnStartedAt)));
   // Work a Stop cut off failed by the person's choice: once something follows, Harper carries on with that step.
   const resumedAfterStop = (work: { stoppedAt?: string }) => Boolean(work.stoppedAt && movedSince(work.stoppedAt));
   const prep = app.runs.filter((run) => run.mode === "prepare");
@@ -689,7 +694,7 @@ function buildShown(input: CareerApplicationProgressInput): Built[] {
 
 /**
  * When the earliest application the person stopped was stopped, if one is: read.server.ts reads the person's requests
- * since then (CareerApplicationProgressInput.requests) only while this is set.
+ * since then (CareerApplicationProgressInput.requests) only while this is set and a Harper turn runs.
  */
 export function careerApplicationStoppedSince(input: CareerApplicationProgressInput): string | undefined {
   return earliestTime(buildShown(input).map((built) => built.stoppedSince));

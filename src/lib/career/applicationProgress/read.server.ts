@@ -22,7 +22,10 @@ const MESSAGE_LIMIT = 400;
 const OPERATION_LIMIT = 300;
 /** The person's Stops in one conversation's week: one row per press. */
 const STOP_LIMIT = 100;
-/** The person's messages naming an opportunity since a Stop, found by the chat's mention marker (opportunityMentionText.ts). */
+/**
+ * The person's messages naming an opportunity since a Stop, during the Harper turn now running, found by the chat's
+ * mention marker (opportunityMentionText.ts).
+ */
 const REQUEST_LIMIT = 50;
 const MENTION_MARKER = "HARPER_OPPORTUNITY_MENTIONS_V1";
 
@@ -46,9 +49,10 @@ const rows = <T>(result: Result, what: string): T[] => {
  * reads whether the person's Stop cancelled the delegated work behind each application's newest run or send. A run or
  * send is stopped when a Stop of the person's ended its request (the Stop's own record lists that message) or cancelled
  * its work (the Stop's note on it). The careerTurnStopped flag on the message is not read, nor is any cancelled work
- * taken as a Stop: Harper's own cancellations (of a pending request, or of a work with manage_work) leave them too. Only while an application is stopped, last, reads the person's messages since that name
- * one: asking about it picks it up again. At most six small queries; throws on a failed read so the caller can leave
- * the list empty.
+ * taken as a Stop: Harper's own cancellations (of a pending request, or of a work with manage_work) leave them too.
+ * Only while an application is stopped and a Harper turn runs, last, reads the person's messages that name one since
+ * the Stop and that turn's start: asking about it picks it up while that turn runs. At most six small queries; throws
+ * on a failed read so the caller can leave the list empty.
  */
 export async function readCareerApplicationProgress(args: {
   admin: Pick<TalentAdminClient, "from">;
@@ -157,8 +161,9 @@ export async function readCareerApplicationProgress(args: {
   });
   const built = { ...input, operations: operationsWithStops, roles };
   const stoppedSince = careerApplicationStoppedSince(built);
-  if (!stoppedSince) return buildCareerApplicationProgress(built);
-  // The person's messages since that name an opportunity; one a later Stop ended asked for nothing that went on.
+  // A request counts only while the turn that took it runs (CareerApplicationProgressInput.requests).
+  if (!stoppedSince || !turnStartedAt) return buildCareerApplicationProgress(built);
+  // The person's messages since then that name an opportunity; one a later Stop ended asked for nothing that went on.
   const requests: ApplicationRequestRow[] = rows<{ id: number | string; createdAt: string; content?: string | null }>(
     await db.from("talent_messages")
       .select("id,createdAt:created_at,content")
@@ -166,6 +171,7 @@ export async function readCareerApplicationProgress(args: {
       .eq("conversation_id", args.conversationId)
       .eq("role", "user")
       .gt("created_at", stoppedSince)
+      .gte("created_at", turnStartedAt)
       .like("content", `%${MENTION_MARKER}%`)
       .order("id", { ascending: false })
       .limit(REQUEST_LIMIT),
