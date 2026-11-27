@@ -653,8 +653,12 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const liveBrowser = newestRun?.session && !browserGone(newestRun.session) ? newestRun.sessionId : undefined;
   // The login browser the newest work stopped at closed before the person signed in.
   const lost = [submitLogin, fillLogin].find((login) => login?.sub.state === "failed" && login.run === newestWork);
-  // The provider closed it for idling: Harper can open it again when the person asks (not while a turn may do so).
-  if (lost?.run.sessionId && browserExpired(lost.run.session) && !turnStartedAt)
+  // The provider closed it for idling: Harper can open it again when the person asks. A turn that began once it had
+  // closed may be doing so itself, so nothing is asked then. A turn already under way when it closed (a batch busy with
+  // other postings) is not about to: the window is offered again at once, instead of reading as "preparing" for as long
+  // as that turn runs (11/27: a closed Workday login, for over 30 minutes). Its row's last change is when it closed.
+  const turnMayReopen = Boolean(turnStartedAt) && !(lost && time(turnStartedAt) < time(lost.run.session?.updatedAt));
+  if (lost?.run.sessionId && browserExpired(lost.run.session) && !turnMayReopen)
     actions.push({ action: { kind: "reopen_browser", sessionId: lost.run.sessionId }, at: lost.run.updatedAt });
   // A Stop closed its open start or review form, and that is its newest record (no work of it was under way then).
   const closedForm = app.forms.filter((form) => form.closedByStop).sort((a, b) => time(a.resolvedAt) - time(b.resolvedAt)).at(-1);

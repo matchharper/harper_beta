@@ -146,11 +146,20 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(sub(stopped, "login")?.state, "failed");
   assert.equal(stopped.failure, undefined);
   assert.equal(stopped.browserSessionId, undefined);
-  // While Harper's turn runs it may open one again itself: nothing is asked yet, and nothing failed (#5).
-  const reading = only(build(messages, [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun], [], { turnStartedAt: at(9) }));
+  // A Harper turn that began once the browser had stopped (its row's last change) may open one again itself: nothing is
+  // asked yet, and nothing failed (#5).
+  const closed = session(SESSION, "human", { browserAvailability: "stopped", updatedAt: at(38) });
+  const reading = only(build(messages, [closed, loginRun], [], { turnStartedAt: at(39) }));
   assert.equal(reading.status, "waiting");
   assert.equal(reading.action, undefined);
   assert.equal(reading.failure, undefined);
+  // A turn already under way when it stopped (one request for many postings, busy with the others) is not about to:
+  // the window is offered again at once, not left reading "preparing" while that turn runs (11/27 re-measure).
+  const busy = only(build(messages, [closed, loginRun], [], { turnStartedAt: at(1) }));
+  assert.equal(busy.status, "needs_you");
+  assert.deepEqual(busy.action, { kind: "reopen_browser", sessionId: SESSION });
+  assert.equal(sub(busy, "login")?.state, "failed");
+  assert.equal(busy.failure, undefined);
 
   // The same after Harper handed over a finished preparation (the run itself does not say it needs the person).
   const handoffStopped = only(build(messages, [session(SESSION, "human", { requestedAction: "handoff", browserAvailability: "stopped" }),
