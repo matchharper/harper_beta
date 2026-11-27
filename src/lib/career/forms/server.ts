@@ -28,6 +28,7 @@ import {
   formatCareerFormForModel,
   formatCareerFormResponseForModel,
 } from "./format";
+import { CareerFormError, selectedFileError } from "./responseError";
 
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 type Scope = { admin: Admin; userId: string; conversationId: string };
@@ -165,7 +166,7 @@ async function assertDocumentOwnership(scope: Scope, documentIds: string[]) {
     .eq("is_deleted", false)
     .in("id", ids);
   if (error) throw new Error(error.message);
-  if ((data?.length ?? 0) !== ids.length) throw new Error("Document not found");
+  if ((data?.length ?? 0) !== ids.length) throw new CareerFormError("file_unavailable", "Document not found");
   return data!;
 }
 
@@ -187,7 +188,7 @@ export async function readCareerForm(
     .maybeSingle();
   if (error) throw new Error(error.message);
   const form = parseCareerForm(data?.payload);
-  if (!data || !form || form.hidden) throw new Error("Form not found");
+  if (!data || !form || form.hidden) throw new CareerFormError("form_changed", "Form not found");
   const state = await (scope.admin.rpc as any)("read_career_form_status", {
     p_user_id: scope.userId, p_conversation_id: scope.conversationId,
     p_form_id: form.formId, p_revision: form.revision,
@@ -489,26 +490,26 @@ function validateResponse(
   }
 ) {
   if (input.itemId && !form.items.some((item) => item.id === input.itemId))
-    throw new Error("Form item not found");
+    throw new CareerFormError("invalid_answer", "Form item not found");
   if (input.actionId) {
     if (!findCareerFormAction(form, input.actionId, input.itemId))
-      throw new Error("Form action not found");
+      throw new CareerFormError("invalid_answer", "Form action not found");
   }
-  if (form.kind === "form" && input.itemId) throw new Error("Submit the whole form together");
+  if (form.kind === "form" && input.itemId) throw new CareerFormError("invalid_answer", "Submit the whole form together");
   for (const id of Object.keys(input.values)) {
     if (
       !form.items.some((item) => item.id === id) ||
       (input.itemId && id !== input.itemId)
     )
-      throw new Error("Form item not found");
+      throw new CareerFormError("invalid_answer", "Form item not found");
     const item = form.items.find(item => item.id === id)!;
     const value = input.values[id];
-    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
+    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new CareerFormError("invalid_answer", "Checkbox value must be boolean");
     if (["select", "multiselect"].includes(item.type)) {
       const options = getCareerFormContent(item).options;
       const ids = new Set((Array.isArray(options) ? options : []).map(option => typeof option === "string" ? option : option?.id));
-      if (item.type === "select" && (typeof value !== "string" || (value !== "" && !ids.has(value)))) throw new Error("Unknown selected option");
-      if (item.type === "multiselect" && (!Array.isArray(value) || value.some(selected => !ids.has(selected)))) throw new Error("Unknown selected option");
+      if (item.type === "select" && (typeof value !== "string" || (value !== "" && !ids.has(value)))) throw new CareerFormError("invalid_answer", "Unknown selected option");
+      if (item.type === "multiselect" && (!Array.isArray(value) || value.some(selected => !ids.has(selected)))) throw new CareerFormError("invalid_answer", "Unknown selected option");
     }
   }
 }
@@ -539,19 +540,19 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     formId: input.formId,
     revision: input.revision,
   });
-  if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
+  if (form.state !== "open") throw new CareerFormError("form_changed", "Form changed or closed; review the current form");
   if (isCareerActionChecklist(form)) {
     const answer = input.answers?.[0];
     const item = form.items.find(row => row.id === answer?.itemId);
     if (args.batch || input.answers?.length !== 1 || !answer || !item?.positive ||
       answer.actionId !== item.positive.id || answer.skipped || answer.message !== undefined ||
       Object.keys(answer.values).length)
-      throw new Error("Choose the action on one checklist item");
+      throw new CareerFormError("invalid_answer", "Choose the action on one checklist item");
   }
   let answers: CareerSuggestionAnswer[] | undefined;
   if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "At least one suggestion answer is required"
       );
     if (
@@ -561,30 +562,30 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
       input.skipped !== undefined ||
       Object.keys(input.values).length
     )
-      throw new Error("A suggestion batch cannot include a separate response");
+      throw new CareerFormError("invalid_answer", "A suggestion batch cannot include a separate response");
     const ids = new Set(input.answers.map((answer) => answer.itemId));
     // Partial answers wake only the linked work; duplicate or foreign IDs are invalid.
     if (
       ids.size !== input.answers.length ||
       input.answers.some(answer => !form.items.some(item => item.id === answer.itemId))
     )
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "Each submitted answer must identify a distinct current form item"
       );
     for (const answer of input.answers) {
-      if (!answer.actionId && answer.message === undefined && !answer.skipped && !Object.keys(answer.values).length) throw new Error("Answer content required");
+      if (!answer.actionId && answer.message === undefined && !answer.skipped && !Object.keys(answer.values).length) throw new CareerFormError("invalid_answer", "Answer content required");
       validateResponse(form, answer);
     }
     answers = input.answers;
   } else {
     if (input.answers)
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "Review forms use a saved action, not a suggestion batch"
       );
     validateResponse({ ...form, kind: "form" }, input);
   }
   const submitted = answers ?? [input];
-  await assertDocumentOwnership(
+  const documents = await assertDocumentOwnership(
     args,
     submitted.flatMap((answer) =>
       form.items.flatMap((item) =>
@@ -621,7 +622,9 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     const [file] = await prepareAttachments({ ...args, requestId: input.requestId }, [{ document_id: documentId,
       ...(documentId === content.documentId && typeof content.revision === "number" ? { revision: content.revision } : {}),
       ...(documentId === content.documentId && typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
-    }]);
+    }]).catch((cause: unknown) => {
+      throw selectedFileError(cause, { documentId, revision: documents.find(row => row.id === documentId)!.revision });
+    });
     if (!file.snapshotId) throw new Error("Selected file could not be pinned");
     selectedFiles.push({ itemId: item.id, documentId, revision: file.revision ?? null, snapshotId: file.snapshotId, fileName: file.name });
   }
