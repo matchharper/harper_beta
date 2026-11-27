@@ -40,11 +40,11 @@ async function setup({ measured = false } = {}) {
   const root = createRoot(dom.window.document.getElementById("root")!);
   const state = { selected: null as string | null };
   const render = (views: BrowserSessionViewData[], claimed: ReadonlySet<string>,
-    reopen?: (sessionId: string) => BrowserSessionReopen | null) => {
+    reopen?: (sessionId: string) => BrowserSessionReopen | null, anchors?: ReadonlyMap<string, HTMLElement>) => {
     const draw = () => root.render(
       <MessagesProvider locale="ko"><div data-career-chat-layout style={{ position: "relative" }}>
         <BrowserSessionDockView views={views} claimedSessionIds={claimed} selectedId={state.selected} reopen={reopen}
-          onSelect={id => { state.selected = id; draw(); }} />
+          anchors={anchors} onSelect={id => { state.selected = id; draw(); }} />
       </div></MessagesProvider>);
     return act(async () => draw());
   };
@@ -88,6 +88,7 @@ test("a browser the progress panel stands for floats only once opened from there
     await render(views, claimed);
     assert.equal(card("application")?.getAttribute("data-browser-placement"), "dock");
     assert.equal(card("application")?.classList.contains("invisible"), false);
+    assert.equal(card("application")?.style.visibility, "", "not left hidden from when it waited out of sight");
     state.selected = null;
     await render(views, claimed);
     assert.equal(card("application")?.getAttribute("data-browser-placement"), "claimed");
@@ -117,6 +118,64 @@ test("docked cards stack by their real heights, and one opened from a row goes o
     assert.equal(top("application"), 592, "above both, covering neither");
     assert.equal(top("other"), 728);
   } finally {
+    await cleanup();
+  }
+});
+
+test("a card the progress panel stands for appears in its conversation place without flying in from the dock", async () => {
+  const { dom, render, card, cleanup } = await setup();
+  const document = dom.window.document;
+  // The conversation: each browser's place in a reply, scrolled out of view above it to start with.
+  const timeline = document.createElement("div");
+  timeline.setAttribute("data-career-timeline", "");
+  const places = new Map(["application", "other"].map(id => [id, document.createElement("div")] as const));
+  timeline.append(...places.values());
+  document.body.append(timeline);
+  const top = new Map([["application", -400], ["other", -400]]);
+  const box = (left: number, y: number, width: number, height: number) =>
+    ({ left, top: y, width, height, right: left + width, bottom: y + height, x: left, y, toJSON() {} });
+  Object.defineProperty(dom.window.HTMLElement.prototype, "getBoundingClientRect", { configurable: true,
+    value(this: HTMLElement) {
+      const id = [...places].find(([, place]) => place === this)?.[0];
+      if (id) return box(100, top.get(id)!, 526, 52);
+      if (this.hasAttribute("data-career-timeline") || this.hasAttribute("data-career-chat-layout")) return box(0, 0, 1000, 700);
+      // A card, wherever it is placed; the dock is the layout's bottom right corner.
+      return this.hasAttribute("data-browser-placement") ? box(600, 600, 320, 56) : box(1000, 700, 0, 0);
+    } });
+  // Each placement move that is animated (a flight from where the card was to where it goes).
+  const flights: string[] = [];
+  Object.defineProperty(dom.window.HTMLElement.prototype, "animate", { configurable: true,
+    value(this: HTMLElement) {
+      flights.push(this.querySelector("[data-browser-session-id]")?.getAttribute("data-browser-session-id") ?? "?");
+      return { cancel() {} };
+    } });
+  const scroll = (id: string, to: number) => act(async () => {
+    top.set(id, to);
+    document.dispatchEvent(new dom.window.Event("scroll"));
+    await new Promise(resolve => setTimeout(resolve, 20));
+  });
+  try {
+    await render(["application", "other"].map(running), new Set(["application"]), undefined, places);
+    assert.equal(card("application")?.getAttribute("data-browser-placement"), "claimed");
+    assert.equal(card("other")?.getAttribute("data-browser-placement"), "dock");
+
+    // 11/27: scrolled back to its reply, the panel's browser flew in from the bottom right corner, where it had waited
+    // out of sight. It appears in place instead, and leaves the same way.
+    await scroll("application", 300);
+    assert.equal(card("application")?.getAttribute("data-browser-placement"), "inline");
+    assert.equal(card("application")?.style.visibility, "");
+    await scroll("application", -400);
+    assert.equal(card("application")?.getAttribute("data-browser-placement"), "claimed");
+    // Hidden the moment it is moved to the dock, not a frame later when it is marked hidden.
+    assert.equal(card("application")?.style.visibility, "hidden");
+    assert.deepEqual(flights, []);
+
+    // A browser that waits in sight in the dock still moves there and back visibly.
+    await scroll("other", 300);
+    assert.equal(card("other")?.getAttribute("data-browser-placement"), "inline");
+    assert.deepEqual(flights, ["other"]);
+  } finally {
+    timeline.remove();
     await cleanup();
   }
 });

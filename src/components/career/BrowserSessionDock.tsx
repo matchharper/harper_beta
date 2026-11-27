@@ -408,6 +408,7 @@ function BrowserSessionFloatingPanel({
     // arriving session must not cover the current conversation or another viewer.
     collapsed: human ? !fullScreen : !props.expanded,
     fullScreen,
+    hiddenWhenDocked: claimed && !props.expanded,
   });
   // Kept mounted (the live viewer must not reconnect), only out of sight and out of reach.
   const hidden = claimed && !props.expanded && !inline;

@@ -28,6 +28,7 @@ export function useBrowserSessionPlacement({
   depth,
   collapsed,
   fullScreen = false,
+  hiddenWhenDocked = false,
 }: {
   dock: HTMLElement;
   layout: HTMLElement;
@@ -36,6 +37,8 @@ export function useBrowserSessionPlacement({
   depth: number;
   collapsed: boolean | null;
   fullScreen?: boolean;
+  /** Out of sight while docked (another surface stands for it): it moves between its places without a flight. */
+  hiddenWhenDocked?: boolean;
 }) {
   const [placement, setPlacement] = useState({
     inline: Boolean(inlineAnchor),
@@ -44,10 +47,10 @@ export function useBrowserSessionPlacement({
   useLayoutEffect(() => {
     if (!content) return;
     return observePlacement(
-      { dock, layout, inlineAnchor, content, depth, collapsed, fullScreen },
+      { dock, layout, inlineAnchor, content, depth, collapsed, fullScreen, hiddenWhenDocked },
       setPlacement
     );
-  }, [dock, layout, inlineAnchor, content, depth, collapsed, fullScreen]);
+  }, [dock, layout, inlineAnchor, content, depth, collapsed, fullScreen, hiddenWhenDocked]);
   return {
     inline: placement.inline,
     collapsed: fullScreen ? false : collapsed ?? placement.mobile,
@@ -64,6 +67,7 @@ function observePlacement(
     depth,
     collapsed,
     fullScreen,
+    hiddenWhenDocked,
   }: {
     dock: HTMLElement;
     layout: HTMLElement;
@@ -72,6 +76,7 @@ function observePlacement(
     depth: number;
     collapsed: boolean | null;
     fullScreen: boolean;
+    hiddenWhenDocked: boolean;
   },
   setPlacement: React.Dispatch<
     React.SetStateAction<{ inline: boolean; mobile: boolean }>
@@ -150,9 +155,13 @@ function observePlacement(
       if (isCollapsed) content.dataset.browserFoldedHeight = String(content.offsetHeight);
     }
     if (!fullScreen) content.style.height = "";
+    // Hidden as it reaches the dock, before React marks it hidden, so it never shows there for a frame.
+    content.style.visibility = hiddenWhenDocked && !visible && !fullScreen ? "hidden" : "";
     // Animate only the change of placement. Native scrolling never trails the
     // pointer, and changing the slot cannot remount the live browser viewer.
-    if (!fullScreen && wasInline !== undefined && wasInline !== visible && before.width &&
+    // A card out of sight in the dock has no visible place to fly from or to: it appears in the conversation in place
+    // (11/27: the progress panel's browser flew in from the bottom right corner each time its reply scrolled back in).
+    if (!fullScreen && !hiddenWhenDocked && wasInline !== undefined && wasInline !== visible && before.width &&
         content.animate && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
       animation?.cancel();
       const after = content.getBoundingClientRect();
