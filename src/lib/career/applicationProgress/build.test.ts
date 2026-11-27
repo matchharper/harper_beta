@@ -339,7 +339,7 @@ test("a Stop holds through Harper's turns on other things; asking about that app
   assert.equal(running.get(ROLE_A)?.failure, undefined);
   assert.equal(running.get(ROLE_A)?.steps[3].state, "current");
   assert.deepEqual(running.get(ROLE_B)?.failure, { reason: "stopped" });
-  // Harper asked something in chat and waits for the reply: A points there, not at another "이어서 하기".
+  // A Harper turn here is on hold in the chat: A points there, not at another "이어서 하기".
   const parked = byId(build(start, cut, [], { now: new Date(at(70)), waitingForReply: true, requests: goOn }));
   assert.equal(parked.get(ROLE_A)?.status, "needs_you");
   assert.deepEqual(parked.get(ROLE_A)?.action, { kind: "reply_in_chat" });
