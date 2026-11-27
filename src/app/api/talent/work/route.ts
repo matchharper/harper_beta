@@ -62,6 +62,8 @@ export async function GET(req: NextRequest) {
     .eq("conversation_id", conversationId.data)
     .eq("kind", "career_invocation")
     .neq("status", "completed"));
+  const turnRows = invocations.then((result: { data?: { created_at?: string; cleanup?: boolean; cleanup_browser_session?: unknown;
+    activity?: { waitingForReply?: boolean } | null }[] | null }) => result.data ?? []);
   const [forms, pending, work, completed, dependencies, applications] = await Promise.all([
     openForms,
     invocations,
@@ -97,10 +99,15 @@ export async function GET(req: NextRequest) {
           return form ? [{ ...form, createdAt: row.created_at ?? null }] : [];
         })),
       // A turn that is working (not cleanup, not waiting for the person) may still follow up a stopped run.
-      turnStartedAt: invocations.then((result: { data?: { created_at?: string; cleanup?: boolean; cleanup_browser_session?: string;
-        activity?: { waitingForReply?: boolean } | null }[] | null }) =>
-        (result.data ?? []).filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
+      turnStartedAt: turnRows.then((rows) =>
+        rows.filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
           .map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
+      // A turn parked on the person's reply: a paused application then points to the chat instead of asking Harper again.
+      waitingForReply: turnRows.then((rows) =>
+        rows.some((row) => !row.cleanup && !row.cleanup_browser_session && row.activity?.waitingForReply === true)),
+      // A Stop queues one cleanup per open browser; until it runs, that browser is as good as closed.
+      closingBrowserSessionIds: turnRows.then((rows) => [...new Set(rows.flatMap((row) =>
+        typeof row.cleanup_browser_session === "string" ? [row.cleanup_browser_session] : []))]),
     }).catch((error: unknown) => {
       console.error("[career-work] Application progress unavailable", error instanceof Error ? error.message : String(error));
       return [];

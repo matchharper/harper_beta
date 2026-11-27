@@ -1,4 +1,5 @@
-import { browserRunSubmission } from "../browser/submissionReceipt";
+import { CAREER_BROWSER_KEEP_ALIVE_SECONDS } from "../browser/lifetime";
+import { browserRunAwaitsEmailLink, browserRunSubmission } from "../browser/submissionReceipt";
 import type { CareerForm } from "../forms/schema";
 import type {
   CareerApplicationAction,
@@ -56,6 +57,11 @@ export type ApplicationOperationRow = {
   url?: string | null;
   requestedAction?: string | null;
   browserAvailability?: string | null;
+  /** browser_run and email_send: the person's message, and the delegated work, it was started for. */
+  sourceMessageId?: string | null;
+  workId?: string | null;
+  /** Set by read.server.ts: a Stop ended the request of that message, or cancelled that work. */
+  stopped?: boolean | null;
 };
 
 /** An open form as read_open_career_forms returns it (its latest revision), with the row's time when known. */
@@ -76,6 +82,10 @@ export type CareerApplicationProgressInput = {
    * a failure yet: the same turn reads its receipt and retries or asks (else the panel flashes "failed" first).
    */
   turnStartedAt?: string | null;
+  /** Harper's turn here is parked until the person replies in chat (its checkpoint asked them something). */
+  waitingForReply?: boolean;
+  /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */
+  closingBrowserSessionIds?: readonly string[];
 };
 
 export const CAREER_APPLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -83,8 +93,12 @@ const FINISHED_WINDOW_MS = 24 * 60 * 60 * 1000;
 // A safety bound only: the panel's counts and rows must cover every application one batch can start (16 in the
 // 11/26 real run), so the bound sits well above that.
 export const CAREER_APPLICATION_LIMIT = 50;
+/** A record this recent may still be followed by Harper's next turn (queued, not started yet), so it is not a pause. */
+const PAUSE_GRACE_MS = 3 * 60 * 1000;
+const KEEP_ALIVE_MS = CAREER_BROWSER_KEEP_ALIVE_SECONDS * 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MESSAGE_ID = /^[1-9][0-9]{0,18}$/;
 const ACTIVE_RUN = new Set(["reserved", "preparing", "dispatching", "running", "capacity_wait", "cancelling"]);
 const ACTIVE_SEND = new Set(["reserved", "preparing", "dispatching"]);
 /** The item types a person fills in (getCareerFormInitialValues); markdown and unknown types only display. */
@@ -161,9 +175,11 @@ type FormView = {
   resolvedAt?: string;
 };
 
-type SessionView = { status: string; requestedAction?: string | null; browserAvailability?: string | null };
+/** closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. */
+type SessionView = { status: string; requestedAction?: string | null; browserAvailability?: string | null; closing: boolean };
 
 type RunView = {
+  id: string;
   sessionId?: string;
   mode: "prepare" | "execute";
   status: string;
@@ -172,12 +188,14 @@ type RunView = {
   needsUser: boolean;
   submitted: "yes" | "no" | "unclear" | null;
   awaitsCode: boolean;
+  awaitsLink: boolean;
+  stopped: boolean;
   site?: string;
   session?: SessionView;
   latestOnSession: boolean;
 };
 
-type SendView = { status: string; createdAt: string; updatedAt: string };
+type SendView = { id: string; status: string; createdAt: string; updatedAt: string; stopped: boolean };
 
 type ApplicationRecords = { id: string; kind: "role" | "opportunity"; forms: FormView[]; runs: RunView[]; sends: SendView[] };
 
@@ -186,10 +204,19 @@ const humanControl = (session?: SessionView) =>
   Boolean(session && (session.status === "human" || (session.status === "closing" && session.requestedAction === "handoff")));
 const runActive = (run: RunView) => ACTIVE_RUN.has(run.status);
 const runFailed = (run: RunView) => !runActive(run) && run.status !== "completed";
-/** Closed by Harper, or stopped by the provider (its idle timeout ends a browser nobody signed in to). */
-const browserGone = (session?: SessionView) => session?.status === "closed" || session?.browserAvailability === "stopped";
+/** Closed, closing after a Stop, or stopped by the provider (its idle timeout ends a browser nobody signed in to). */
+const browserGone = (session?: SessionView) =>
+  session?.status === "closed" || Boolean(session?.closing) || session?.browserAvailability === "stopped";
+/** Gone by the provider's idle timeout only: nobody closed it, so Harper can open it again when asked. */
+const browserExpired = (session?: SessionView) =>
+  session?.browserAvailability === "stopped" && session.status !== "closed" && !session.closing;
 /** The run left its browser with the person: that browser waits for them and nothing newer ran there. */
 const awaitingPerson = (run: RunView) => !runActive(run) && run.latestOnSession && humanControl(run.session) && !browserGone(run.session);
+/** About when a browser left waiting closes by itself: the provider stops it this long after its last run ended. */
+const closesAt = (run: RunView) => {
+  const ended = time(run.updatedAt);
+  return Number.isFinite(ended) ? new Date(ended + KEEP_ALIVE_MS).toISOString() : undefined;
+};
 
 /** Groups the rows by application (role id, or opportunity id when a form has no role). */
 function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<string, ApplicationRecords> {
@@ -253,6 +280,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
   // Browser runs, under the roles of their browser when the run names none.
   const sessions = new Map<string, ApplicationOperationRow>();
   for (const row of input.operations) if (row.kind === "browser_session") sessions.set(row.id, row);
+  const closing = new Set(input.closingBrowserSessionIds ?? []);
   const runs = input.operations.filter((row) => row.kind === "browser_run");
   const newestOnSession = new Map<string, ApplicationOperationRow>();
   for (const run of runs) {
@@ -267,7 +295,9 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
     const mode = row.mode === "execute" ? "execute" : "prepare";
     const submitted = browserRunSubmission({ submitted: row.submitted });
     const code = String(row.verificationCode ?? "").trim().toLowerCase();
+    const finishedExecute = mode === "execute" && row.status === "completed";
     const view: RunView = {
+      id: row.id,
       sessionId: row.parentId ?? undefined,
       mode,
       status: row.status,
@@ -276,9 +306,13 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       needsUser: row.needsUser === true,
       submitted,
       // Same reading as browserRunAwaitsEmailCode, also for a code sent by text: the person has to supply it.
-      awaitsCode: mode === "execute" && row.status === "completed" && (code === "email" || code === "phone") && submitted !== "yes",
+      awaitsCode: finishedExecute && (code === "email" || code === "phone") && submitted !== "yes",
+      // A link the site mailed, which the person opens; held like a code.
+      awaitsLink: finishedExecute && browserRunAwaitsEmailLink({ verificationCode: row.verificationCode, submitted: row.submitted }),
+      stopped: row.stopped === true,
       site: siteOf(row),
-      session: session && { status: session.status, requestedAction: session.requestedAction, browserAvailability: session.browserAvailability },
+      session: session && { status: session.status, requestedAction: session.requestedAction,
+        browserAvailability: session.browserAvailability, closing: closing.has(session.id) },
       latestOnSession: Boolean(row.parentId && newestOnSession.get(row.parentId)?.id === row.id),
     };
     for (const id of ids) app(id, "role").runs.push(view);
@@ -288,7 +322,8 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
   for (const row of input.operations) {
     if (row.kind !== "email_send" || !row.opportunityId) continue;
     const ids = opportunityRoles.get(row.opportunityId) ?? (apps.has(row.opportunityId) ? [row.opportunityId] : []);
-    for (const id of ids) apps.get(id)?.sends.push({ status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt });
+    for (const id of ids)
+      apps.get(id)?.sends.push({ id: row.id, status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt, stopped: row.stopped === true });
   }
   for (const entry of apps.values()) {
     entry.forms.sort(byCreated);
@@ -306,20 +341,40 @@ function updatedAtOf(app: ApplicationRecords) {
   ]);
 }
 
+const inWindow = (input: Omit<CareerApplicationProgressInput, "roles">) => {
+  const since = input.now.getTime() - CAREER_APPLICATION_WINDOW_MS;
+  return [...collect(input).values()].filter((app) => time(updatedAtOf(app)) >= since);
+};
+
 /** Role ids to name (company and posting) and check for an ended posting: applications inside the read window. */
 export function careerApplicationRoleIds(input: Omit<CareerApplicationProgressInput, "roles">): string[] {
-  const since = input.now.getTime() - CAREER_APPLICATION_WINDOW_MS;
-  return [...collect(input).values()].filter((app) => app.kind === "role" && time(updatedAtOf(app)) >= since).map((app) => app.id);
+  return inWindow(input).filter((app) => app.kind === "role").map((app) => app.id);
+}
+
+/**
+ * The person's message and the delegated work behind each application's newest run or send, inside the read window:
+ * read.server.ts reads whether a Stop ended them and marks those rows stopped.
+ */
+export function careerApplicationStopRefs(input: Omit<CareerApplicationProgressInput, "roles">) {
+  const newest = new Set(inWindow(input).flatMap((app) => [...app.runs, ...app.sends].sort(byCreated).slice(-1).map((work) => work.id)));
+  const rows = input.operations.filter((row) => (row.kind === "browser_run" || row.kind === "email_send") && newest.has(row.id));
+  const values = (pick: (row: ApplicationOperationRow) => string | null | undefined, pattern: RegExp) =>
+    [...new Set(rows.map(pick).filter((value): value is string => typeof value === "string" && pattern.test(value)))];
+  return { sourceMessageIds: values((row) => row.sourceMessageId, MESSAGE_ID), workIds: values((row) => row.workId, UUID) };
 }
 
 type Attempt = { run?: RunView; send?: SendView; createdAt: string; updatedAt: string };
 type Candidate = { action: CareerApplicationAction; at: string };
+type Login = { sub: CareerApplicationSubStep; run: RunView };
+type Verification = { sub: CareerApplicationSubStep; waits?: RunView; inChat?: boolean };
 
-const subStep = (key: CareerApplicationSubStep["key"], state: CareerApplicationSubStep["state"], at?: string, site?: string): CareerApplicationSubStep =>
-  ({ key, state, ...(site ? { site } : {}), ...(at ? { at: iso(at) } : {}) });
+const subStep = (key: CareerApplicationSubStep["key"], state: CareerApplicationSubStep["state"], at?: string, site?: string,
+  expiresAt?: string): CareerApplicationSubStep =>
+  ({ key, state, ...(site ? { site } : {}), ...(at ? { at: iso(at) } : {}), ...(expiresAt ? { expiresAt: iso(expiresAt) } : {}) });
 const step = (key: CareerApplicationStep["key"], state: CareerApplicationStep["state"],
-  extra: { at?: string; questions?: number; subSteps?: CareerApplicationSubStep[] } = {}): CareerApplicationStep => ({
-  key, state, ...(extra.at ? { at: iso(extra.at) } : {}), ...(extra.questions ? { questions: extra.questions } : {}),
+  extra: { at?: string; answeredAt?: string; questions?: number; subSteps?: CareerApplicationSubStep[] } = {}): CareerApplicationStep => ({
+  key, state, ...(extra.at ? { at: iso(extra.at) } : {}), ...(extra.answeredAt ? { answeredAt: iso(extra.answeredAt) } : {}),
+  ...(extra.questions ? { questions: extra.questions } : {}),
   // In the order they happened; one without a time last.
   ...(extra.subSteps?.length ? { subSteps: [...extra.subSteps].sort((a, b) => (a.at ? time(a.at) : Infinity) - (b.at ? time(b.at) : Infinity)) } : {}),
 });
@@ -333,31 +388,65 @@ const isSubmitted = (attempt: Attempt) =>
 const attemptActive = (attempt: Attempt) => attempt.run ? runActive(attempt.run) : ACTIVE_SEND.has(attempt.send!.status);
 
 /**
- * The login sub-step of one main step's runs. Current while the newest run left its browser with the person and
- * nothing came after it; done once something later started or the person returned the browser; failed when that
- * browser was closed first.
+ * The login of one main step's runs: its newest run that needed the person, or whose browser was handed to them. It is
+ * done only once a later run on the same browser or site ended without needing the person. Current while that browser
+ * waits for the person, while such a later run works, and after the person returned the browser until one starts.
+ * Left out when a later run needed the person again (that run's own step shows the login) or only failed. Failed when
+ * the browser closed first.
  */
-function loginSubStep(runs: RunView[], nextAfter: (at: string) => string | undefined, actions: Candidate[]) {
-  const latest = runs.at(-1);
-  if (latest && awaitingPerson(latest) && !nextAfter(latest.createdAt)) {
-    actions.push(...openBrowser(latest));
-    return subStep("login", "current", latest.updatedAt, latest.site);
-  }
-  const episode = runs.filter((run) => run.needsUser || (run.latestOnSession && (humanControl(run.session) || run.session?.requestedAction === "resume"))).at(-1);
+function loginSubStep(runs: RunView[], appRuns: RunView[], actions: Candidate[]): Login | undefined {
+  // A run still under way on a returned browser started after the return: it is a later run, not the one handed over.
+  const episode = runs.filter((run) => run.needsUser
+    || (run.latestOnSession && !runActive(run) && (humanControl(run.session) || run.session?.requestedAction === "resume"))).at(-1);
   if (!episode) return undefined;
-  const next = nextAfter(episode.createdAt);
-  if (next) return subStep("login", "done", next, episode.site);
-  if (browserGone(episode.session)) return subStep("login", "failed", episode.updatedAt, episode.site);
+  const later = appRuns.filter((run) => time(run.createdAt) > time(episode.createdAt)
+    && ((run.sessionId && run.sessionId === episode.sessionId) || (run.site && run.site === episode.site)));
+  for (const run of later) {
+    if ((run.status === "completed" && !run.needsUser) || run.submitted === "yes") return { sub: subStep("login", "done", run.createdAt, episode.site), run: episode };
+    if (run.needsUser) return undefined;
+  }
+  const working = later.find(runActive);
+  if (working) return { sub: subStep("login", "current", working.createdAt, episode.site), run: episode };
+  if (later.length) return undefined;
+  if (awaitingPerson(episode)) {
+    actions.push(...openBrowser(episode));
+    return { sub: subStep("login", "current", episode.updatedAt, episode.site, closesAt(episode)), run: episode };
+  }
+  if (browserGone(episode.session)) return { sub: subStep("login", "failed", episode.updatedAt, episode.site), run: episode };
   // Returned with Done in the viewer or an answer in chat: Harper continues from that page.
-  return humanControl(episode.session) ? undefined : subStep("login", "done", episode.updatedAt, episode.site);
+  return { sub: subStep("login", "current", episode.updatedAt, episode.site), run: episode };
 }
 
-function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined, turnStartedAt?: string | null): CareerApplicationProgress | undefined {
+/**
+ * The newest screen that waits for the person's code or mail link: done once a later attempt or the submission went
+ * on, failed when its browser closed first, else current. A screen handed to the person is used in that browser;
+ * otherwise Harper asks for it in chat.
+ */
+function verificationSubStep(key: "verification_code" | "email_link", last: RunView | undefined,
+  nextAttempt: (at: string) => string | undefined, done: Attempt | undefined, pending: Candidate[]): Verification | undefined {
+  if (!last) return undefined;
+  const next = nextAttempt(last.createdAt);
+  if (next || done) return { sub: subStep(key, "done", next ?? done!.updatedAt, last.site) };
+  if (browserGone(last.session)) return { sub: subStep(key, "failed", last.updatedAt, last.site) };
+  const handed = awaitingPerson(last);
+  if (handed) pending.push(...openBrowser(last));
+  return { sub: subStep(key, "current", last.updatedAt, last.site, closesAt(last)), waits: last, inChat: !handed };
+}
+
+type BuildContext = Pick<CareerApplicationProgressInput, "now" | "turnStartedAt" | "waitingForReply">;
+
+function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined, context: BuildContext): CareerApplicationProgress | undefined {
+  const { turnStartedAt } = context;
   const updatedAt = updatedAtOf(app);
   if (!updatedAt) return undefined;
   const actions: Candidate[] = [];
   let failure: CareerApplicationProgress["failure"];
   const followedUp = (stoppedAt: string) => Boolean(turnStartedAt) && time(stoppedAt) >= time(turnStartedAt);
+  // Something happened after a Stop: a form, an answer, or Harper's next turn (the person asked it to go on).
+  const movedSince = (at: string) => app.forms.some((form) => form.open || (form.answer && time(form.answer.at) > time(at)))
+    || (Boolean(turnStartedAt) && time(turnStartedAt) > time(at));
+  // Work a Stop cut off failed by the person's choice: once something follows, Harper carries on with that step.
+  const resumedAfterStop = (work: { stopped: boolean; updatedAt: string }) => work.stopped && movedSince(work.updatedAt);
   const prep = app.runs.filter((run) => run.mode === "prepare");
   const exec = app.runs.filter((run) => run.mode === "execute");
   const attempts: Attempt[] = [
@@ -366,6 +455,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   ].sort(byCreated);
   const submitStart = attempts[0]?.createdAt;
   const works = [...app.runs, ...app.sends];
+  const newestWork = [...works].sort(byCreated).at(-1);
   const firstWork = earliestTime(works.map((work) => work.createdAt));
   const lastWork = latestTime(works.map((work) => work.updatedAt));
   // A form created before any browser run or send is the start (confirm) form, otherwise a review form. Creation
@@ -386,23 +476,19 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const startForm = startForms.at(-1);
   if (firstWork) {
     const answered = startForms.filter((form) => form.answer && !form.answer.negative).at(-1);
-    confirm = step("confirm", "done", { at: answered?.answer?.at ?? firstWork });
+    confirm = step("confirm", "done", { at: answered?.answer?.at ?? firstWork, answeredAt: answered?.answer?.at });
   } else if (startForm?.open) confirm = step("confirm", "current", { at: startForm.createdAt, questions: startForm.questions });
   // Put off ("not now"): the person said no for now.
   else if (startForm?.answer?.negative) confirm = step("confirm", "current", { at: startForm.createdAt });
-  else confirm = step("confirm", "done", { at: startForm ? formDoneAt(startForm) : app.forms[0]?.createdAt });
+  else confirm = step("confirm", "done", { at: startForm ? formDoneAt(startForm) : app.forms[0]?.createdAt, answeredAt: startForm?.answer?.at });
 
   // fill
   const firstFinishedPrep = prep.find((run) => run.status === "completed" && !run.needsUser);
   const fillDoneAt = earliestTime([firstFinishedPrep?.updatedAt, reviewForms[0]?.createdAt, submitStart]);
-  const afterInFill = (at: string) => earliestTime([...prep.map((run) => run.createdAt), ...reviewForms.map((form) => form.createdAt),
-    ...attempts.map((attempt) => attempt.createdAt)].filter((value) => time(value) > time(at)));
   const fillSubSteps: CareerApplicationSubStep[] = [];
   // Only a later browser run shows the login was passed; Harper may draft the review form while the browser waits.
-  const runAfterInFill = (at: string) => earliestTime([...prep.map((run) => run.createdAt), ...attempts.map((attempt) => attempt.createdAt)]
-    .filter((value) => time(value) > time(at)));
-  const fillLogin = loginSubStep(prep, runAfterInFill, actions);
-  if (fillLogin) fillSubSteps.push(fillLogin);
+  const fillLogin = loginSubStep(prep, app.runs, actions);
+  if (fillLogin) fillSubSteps.push(fillLogin.sub);
   // A preparation that failed, or whose browser closed while it waited for a login, followed by another one.
   const prepRetry = prep.filter((run, index) => index > 0
     && (runFailed(prep[index - 1]) || (prep[index - 1].needsUser && browserGone(prep[index - 1].session)))).at(-1);
@@ -412,9 +498,10 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // Skipped: submitting started with no preparation and no answers drafted for review.
   if (fillDoneAt) fill = step("fill", prep.length || preReview.length ? "done" : "skipped", { at: fillDoneAt, subSteps: fillSubSteps });
   else if (!latestPrep) fill = step("fill", "todo");
-  else if (followedUp(latestPrep.updatedAt) || runActive(latestPrep) || (latestPrep.status === "completed" && fillLogin?.state !== "failed")
+  // A preparation that ended at a login is not a failure: its browser waits, or the person can have it opened again.
+  else if (followedUp(latestPrep.updatedAt) || runActive(latestPrep) || latestPrep.status === "completed" || resumedAfterStop(latestPrep)
     || (openStart && time(openStart.createdAt) > time(latestPrep.updatedAt)))
-    fill = step("fill", "current", { at: prep[0].createdAt, subSteps: fillSubSteps });
+    fill = step("fill", "current", { at: latestPrep.createdAt, subSteps: fillSubSteps });
   else {
     fill = step("fill", "failed", { at: latestPrep.updatedAt, subSteps: fillSubSteps });
     failure = { reason: "error" };
@@ -426,28 +513,30 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const approved = preReview.filter((form) => form.answer && !form.answer.negative)
     .sort((a, b) => time(a.answer!.at) - time(b.answer!.at)).at(-1);
   if (submitStart) {
+    const answeredAt = latestTime(preReview.map((form) => form.answer?.at).filter((at) => time(at) <= time(submitStart)));
     review = preReview.length
-      ? step("review", "done", { at: latestTime(preReview.map(formDoneAt).filter((at) => time(at) <= time(submitStart))) ?? submitStart })
+      ? step("review", "done", { at: latestTime(preReview.map(formDoneAt).filter((at) => time(at) <= time(submitStart))) ?? submitStart, answeredAt })
       : step("review", "skipped", { at: submitStart });
   } else if (!preReview.length) review = step("review", "todo");
   else if (openReview && approved && time(openReview.createdAt) > time(approved.answer!.at)) {
     // Another question after the person approved: the review stays done and the question is a sub-step.
-    review = step("review", "done", { at: approved.answer!.at, questions: openReview.questions,
+    review = step("review", "done", { at: approved.answer!.at, answeredAt: approved.answer!.at, questions: openReview.questions,
       subSteps: [subStep("new_question", "current", openReview.createdAt)] });
     actions.push(answerForm(openReview));
   } else if (openReview) {
     review = step("review", "current", { at: openReview.createdAt, questions: openReview.questions });
     actions.push(answerForm(openReview));
-  } else if (approved) review = step("review", "done", { at: approved.answer!.at });
+  } else if (approved) review = step("review", "done", { at: approved.answer!.at, answeredAt: approved.answer!.at });
   // Changes requested or put off: Harper revises the form, or waits.
   else if (preReview.some((form) => form.answer?.negative)) review = step("review", "current", { at: preReview.at(-1)!.createdAt });
-  // Resolved without a form answer (answered in chat).
+  // Resolved without a form answer (answered in chat, or closed by a Stop): done, but not answered here.
   else review = step("review", "done", { at: formDoneAt(preReview.at(-1)!) });
 
   // submit
   let submit: CareerApplicationStep;
   let submittedAt: string | undefined;
-  let codeInChat = false;
+  let asksInChat = false;
+  let submitLogin: Login | undefined;
   if (!attempts.length) submit = step("submit", "todo");
   else {
     const subSteps: CareerApplicationSubStep[] = [];
@@ -462,38 +551,31 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
       subSteps.push(subStep("new_question", "current", openQuestion.createdAt));
       pending.push(answerForm(openQuestion));
     } else if (postReview.length) subSteps.push(subStep("new_question", "done", latestTime(postReview.map(formDoneAt))));
-    const lastCode = exec.filter((run) => run.awaitsCode).at(-1);
-    let codeWaits = false;
-    if (lastCode) {
-      const next = nextAttempt(lastCode.createdAt);
-      if (next || done) subSteps.push(subStep("verification_code", "done", next ?? done!.updatedAt, lastCode.site));
-      else if (browserGone(lastCode.session)) subSteps.push(subStep("verification_code", "failed", lastCode.updatedAt, lastCode.site));
-      else {
-        codeWaits = true;
-        subSteps.push(subStep("verification_code", "current", lastCode.updatedAt, lastCode.site));
-        // A code screen handed to the person is entered in that browser; otherwise Harper asks for it in chat.
-        if (awaitingPerson(lastCode)) pending.push(...openBrowser(lastCode));
-        else codeInChat = true;
-      }
-    }
-    // A code screen left with the person is the code sub-step, not a login.
-    const login = loginSubStep(codeWaits ? exec.filter((run) => run !== lastCode) : exec, nextAttempt, pending);
-    if (login && (!done || login.state === "done")) subSteps.push(login);
-    // An attempt that stopped without submitting, for no code, login or new question, and was tried again.
+    const code = verificationSubStep("verification_code", exec.filter((run) => run.awaitsCode).at(-1), nextAttempt, done, pending);
+    const link = verificationSubStep("email_link", exec.filter((run) => run.awaitsLink).at(-1), nextAttempt, done, pending);
+    for (const item of [code, link]) if (item) subSteps.push(item.sub);
+    const verifying = Boolean(code?.waits || link?.waits);
+    asksInChat = Boolean(code?.inChat || link?.inChat);
+    // A code or link screen left with the person is that sub-step, not a login.
+    submitLogin = loginSubStep(exec.filter((run) => run !== code?.waits && run !== link?.waits), app.runs, pending);
+    if (submitLogin && (!done || submitLogin.sub.state === "done")) subSteps.push(submitLogin.sub);
+    // The newest attempt stopped at a login that is not through yet: that login holds the step.
+    const loginHolds = Boolean(submitLogin && submitLogin.sub.state !== "done" && submitLogin.run === last.run);
+    // An attempt that stopped without submitting, for no code, link, login or new question, and was tried again.
     const retry = attempts.filter((attempt, index) => {
       const prior = attempts[index - 1];
-      if (!prior || attemptActive(prior) || isSubmitted(prior) || prior.run?.awaitsCode || prior.run?.needsUser) return false;
+      if (!prior || attemptActive(prior) || isSubmitted(prior) || prior.run?.awaitsCode || prior.run?.awaitsLink || prior.run?.needsUser) return false;
       return !postReview.some((form) => time(form.createdAt) >= time(prior.createdAt) && time(form.createdAt) < time(attempt.createdAt));
     }).at(-1);
     if (retry) subSteps.push(subStep("retry", "done", retry.createdAt));
 
-    // The person returned the browser that needed them: Harper continues the submission.
-    const returned = Boolean(last.run?.needsUser && login?.state === "done");
     if (done) {
       submittedAt = iso(done.updatedAt);
       submit = step("submit", "done", { at: done.updatedAt, subSteps });
-    } else if (followedUp(last.updatedAt) || heldBy.length || codeWaits || login?.state === "current" || attemptActive(last) || returned) {
-      submit = step("submit", "current", { at: submitStart, questions: openQuestion?.questions, subSteps });
+    } else if (followedUp(last.updatedAt) || resumedAfterStop(last.run ?? last.send!) || heldBy.length || verifying
+      || submitLogin?.sub.state === "current" || loginHolds || attemptActive(last)) {
+      // Timed from the attempt now under way, not the first one (a retry can come a day later).
+      submit = step("submit", "current", { at: last.createdAt, questions: openQuestion?.questions, subSteps });
     } else {
       submit = step("submit", "failed", { at: last.updatedAt, subSteps });
       failure = { reason: last.send || runFailed(last.run!) ? "error" : "not_submitted" };
@@ -501,8 +583,19 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   }
 
   const steps = [confirm, fill, review, submit];
-  const liveBrowser = [...app.runs].reverse().find((run) => run.sessionId && run.session && !browserGone(run.session));
-  const action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
+  // The application's browser: its newest run's, while it is open.
+  const newestRun = [...app.runs].reverse().find((run) => run.sessionId);
+  const liveBrowser = newestRun?.session && !browserGone(newestRun.session) ? newestRun.sessionId : undefined;
+  // The login browser the newest work stopped at closed before the person signed in.
+  const lost = [submitLogin, fillLogin].find((login) => login?.sub.state === "failed" && login.run === newestWork);
+  // The provider closed it for idling: Harper can open it again when the person asks (not while a turn may do so).
+  if (lost?.run.sessionId && browserExpired(lost.run.session) && !turnStartedAt)
+    actions.push({ action: { kind: "reopen_browser", sessionId: lost.run.sessionId }, at: lost.run.updatedAt });
+  // Stopped by the person: a Stop ended the request of the newest work, or the login browser it waited on was closed
+  // (in the viewer, or by a Stop's cleanup). It holds until something newer: a form, an answer, or Harper's next turn.
+  const stopFrom = newestWork?.stopped ? newestWork.updatedAt : lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined;
+  const stopped = Boolean(stopFrom && !movedSince(stopFrom));
+  let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;
   if (submit.state === "done") status = "submitted";
   else if (role?.ended && !works.length && !app.forms.some((form) => form.open)) {
@@ -510,28 +603,35 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     status = "closed";
     steps[1] = step("fill", "failed");
     failure = { reason: "closed" };
-  } else if (submit.state === "failed" || fill.state === "failed") status = "failed";
-  // A code Harper asked for in chat (no browser handed over, no turn running): the person sends it in the composer.
-  else if (action || (codeInChat && !turnStartedAt)) status = "needs_you";
-  // A later preparation (a restart) whose login browser closed before the person signed in, with nothing after it.
-  else if (fillLogin?.state === "failed" && !attempts.length) {
+  } else if (stopped) {
     status = "failed";
-    failure = { reason: "not_submitted" };
-  }
+    failure = { reason: "stopped" };
+    action = { kind: "continue" };
+  } else if (submit.state === "failed" || fill.state === "failed") status = "failed";
+  // A code Harper asked for in chat, or a mail link (no browser handed over, no turn running): the person acts outside.
+  else if (action || (asksInChat && !turnStartedAt)) status = "needs_you";
   else if (app.runs.some(runActive) || app.sends.some((send) => ACTIVE_SEND.has(send.status))) status = "running";
-  else status = "waiting";
+  // Nothing runs and nothing is asked: Harper is between steps only while its turn runs or right after a record.
+  else if (turnStartedAt || time(updatedAt) > context.now.getTime() - PAUSE_GRACE_MS) status = "waiting";
+  else {
+    // Nothing moves it any more (11/27: shown as preparing for three hours). Harper parked its turn on a question in
+    // chat, or the person asks it to go on.
+    status = "needs_you";
+    action = { kind: context.waitingForReply ? "reply_in_chat" : "continue" };
+  }
 
   return {
     id: app.id,
+    kind: app.kind,
     companyName: role?.companyName ?? null,
     title: role?.title ?? null,
     status,
     steps,
-    ...(status === "needs_you" && action ? { action } : {}),
+    ...(action && (status === "needs_you" || failure?.reason === "stopped") ? { action } : {}),
     ...((status === "failed" || status === "closed") && failure ? { failure } : {}),
     updatedAt: iso(updatedAt),
     ...(submittedAt ? { submittedAt } : {}),
-    ...(liveBrowser?.sessionId ? { browserSessionId: liveBrowser.sessionId } : {}),
+    ...(liveBrowser ? { browserSessionId: liveBrowser } : {}),
   };
 }
 
@@ -546,7 +646,7 @@ export function buildCareerApplicationProgress(input: CareerApplicationProgressI
   const roles = new Map((input.roles ?? []).map((role) => [role.roleId, role]));
   return [...collect(input).values()]
     .flatMap((app) => {
-      const progress = buildOne(app, roles.get(app.id), input.turnStartedAt);
+      const progress = buildOne(app, roles.get(app.id), input);
       return progress ? [progress] : [];
     })
     .filter((progress) => {

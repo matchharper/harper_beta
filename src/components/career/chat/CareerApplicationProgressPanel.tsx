@@ -1,5 +1,6 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
+import TalentCareerModal from "@/components/common/TalentCareerModal";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerOpenForms, type CareerOpenFormsSnapshot } from "@/hooks/career/useCareerOpenForms";
 import { useCareerT } from "@/i18n/useCareerT";
@@ -11,18 +12,20 @@ import {
   type CareerApplicationStep,
   type CareerApplicationSubStep,
 } from "@/lib/career/applicationProgress/types";
+import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 // The timeline's own time format ("오늘 오후 4:52"), so the panel and the conversation read the same.
 import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { cn } from "@/lib/utils";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
-import { useCareerFormRevealer } from "./CareerFormReferenceProvider";
-import { BrowserSessionDock, useBrowserSessionOpener } from "../BrowserSessionDock";
+import { CareerFormReferenceProvider, useCareerFormRevealer } from "./CareerFormReferenceProvider";
+import { CareerInlineForms } from "./CareerInlineForms";
+import { BrowserSessionDock, useBrowserSessionOpener, type BrowserSessionReopen } from "../BrowserSessionDock";
 import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 
 type T = ReturnType<typeof useCareerT>;
 type Locale = "ko" | "en";
-/** you: waits on the person. working: Harper is on it (or between steps). */
-type Tone = "done" | "skipped" | "failed" | "you" | "working" | "todo";
+/** you: waits on the person. working: Harper is on it (or between steps). paused: the person stopped it. */
+type Tone = "done" | "skipped" | "failed" | "you" | "working" | "todo" | "paused";
 
 /** The work poll carries the list; a response without it (older server) means no applications. */
 export function careerApplicationsOf(snapshot: CareerOpenFormsSnapshot | undefined): CareerApplicationProgress[] {
@@ -31,18 +34,47 @@ export function careerApplicationsOf(snapshot: CareerOpenFormsSnapshot | undefin
 
 const currentStep = (app: CareerApplicationProgress) => app.steps.find(step => step.state === "current");
 const currentSub = (step: CareerApplicationStep | undefined) => step?.subSteps?.find(sub => sub.state === "current");
+const subStepsOf = (app: CareerApplicationProgress) => app.steps.flatMap(step => step.subSteps ?? []);
 const finishedSteps = (app: CareerApplicationProgress) =>
   app.steps.filter(step => step.state === "done" || step.state === "skipped").length;
+/** The step the application is on (the first one not finished), 1 to 4. */
+function stepNumber(app: CareerApplicationProgress) {
+  const index = app.steps.findIndex(step => step.state !== "done" && step.state !== "skipped");
+  return index < 0 ? app.steps.length : index + 1;
+}
+/** Stopped by the person (Stop, or closing the browser it waited on): said plainly, not as an error. */
+const stoppedByPerson = (app: CareerApplicationProgress) => app.status === "failed" && app.failure?.reason === "stopped";
+/** The sub-step under way: the current step's, else the newest current one (a login still open in a finished step). */
+const activeSub = (app: CareerApplicationProgress) =>
+  currentSub(currentStep(app)) ?? subStepsOf(app).filter(sub => sub.state === "current").at(-1);
 
-function mainTone(step: CareerApplicationStep, app: CareerApplicationProgress): Tone {
+/** The sub-step the person is asked about (a login, a code, a link or a new question), when the ask is one. */
+function askedSub(app: CareerApplicationProgress) {
+  if (app.status !== "needs_you") return undefined;
+  const subs = subStepsOf(app);
+  const current = (...keys: CareerApplicationSubStep["key"][]) =>
+    subs.filter(sub => sub.state === "current" && keys.includes(sub.key)).at(-1);
+  switch (app.action?.kind) {
+    case "answer_form": return current("new_question");
+    case "open_browser": return current("verification_code", "email_link") ?? current("login");
+    case "reopen_browser": return subs.filter(sub => sub.key === "login" && sub.state === "failed").at(-1);
+    // A code Harper asked for in chat, or a link in the person's mail.
+    case undefined: return current("verification_code", "email_link");
+    default: return undefined;
+  }
+}
+
+function mainTone(step: CareerApplicationStep, app: CareerApplicationProgress, asked: CareerApplicationSubStep | undefined): Tone {
+  if (stoppedByPerson(app) && (step.state === "current" || step.state === "failed")) return "paused";
   if (step.state !== "current") return step.state;
   // A sub-step that waits on the person carries the "you" mark; the main step stays in progress around it.
-  return app.status === "needs_you" && !currentSub(step) ? "you" : "working";
+  return app.status === "needs_you" && (!asked || asked.state === "failed") ? "you" : "working";
 }
-const subTone = (sub: CareerApplicationSubStep, app: CareerApplicationProgress): Tone =>
-  sub.state === "current" ? (app.status === "needs_you" ? "you" : "working") : sub.state;
+const subTone = (sub: CareerApplicationSubStep, app: CareerApplicationProgress, asked: CareerApplicationSubStep | undefined): Tone =>
+  stoppedByPerson(app) && sub.state !== "done" ? "paused"
+    : sub.state === "current" ? (sub === asked ? "you" : "working") : sub.state;
 
-/** Re-renders while something runs so "N분째" advances even when polls return the same data. */
+/** Re-renders while something runs or a browser waits, so "N분째" and "N분 남음" move between polls too. */
 function useNow(ticking: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -65,10 +97,25 @@ function elapsed(at: string | undefined, now: number, t: T) {
     : t("career.applicationProgress.elapsed_hours", "{count}시간째", { values: { count: Math.floor(minutes / 60) } });
 }
 
+/** Whole minutes until a waiting browser closes by itself (approximate); critical in the last 3. Nothing once past. */
+function remaining(expiresAt: string | undefined, now: number, t: T) {
+  const end = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  if (Number.isNaN(end) || end <= now) return null;
+  const minutes = Math.ceil((end - now) / 60_000);
+  return {
+    text: t("career.applicationProgress.remaining_minutes", "{count}분 남음", { values: { count: minutes } }),
+    critical: minutes <= 3,
+  };
+}
+
 function applicationName(app: CareerApplicationProgress, t: T) {
   const parts = [app.companyName, app.title].map(part => part?.trim()).filter(Boolean);
   return parts.length ? parts.join(" · ") : t("career.applicationProgress.untitled", "이름 없는 공고");
 }
+
+/** The chat mention that tells Harper which application a request is about. Only a role id can be mentioned. */
+const mentionOf = (app: CareerApplicationProgress, t: T): CareerOpportunityMention | null =>
+  app.kind === "opportunity" ? null : { label: applicationName(app, t), roleId: app.id };
 
 const siteName = (sub: CareerApplicationSubStep | undefined, t: T) =>
   sub?.site?.trim() || t("career.applicationProgress.sub.site", "사이트");
@@ -90,6 +137,7 @@ function subStepLabel(sub: CareerApplicationSubStep, t: T) {
   switch (sub.key) {
     case "login": return t("career.applicationProgress.sub.login", "{site} 로그인", { values: { site: siteName(sub, t) } });
     case "verification_code": return t("career.applicationProgress.sub.verification_code", "메일 인증 코드");
+    case "email_link": return t("career.applicationProgress.sub.email_link", "메일 인증 링크");
     case "new_question": return t("career.applicationProgress.sub.new_question", "새 질문");
     case "retry": return t("career.applicationProgress.sub.retry", "다시 시도");
   }
@@ -99,10 +147,24 @@ function subStepLabel(sub: CareerApplicationSubStep, t: T) {
 function askLine(step: CareerApplicationStep | undefined, sub: CareerApplicationSubStep | undefined, t: T) {
   if (sub?.key === "login") return t("career.applicationProgress.ask.login", "{site} 로그인이 필요해요", { values: { site: siteName(sub, t) } });
   if (sub?.key === "verification_code") return t("career.applicationProgress.ask.code", "메일 인증 코드가 필요해요");
+  if (sub?.key === "email_link") return t("career.applicationProgress.ask.email_link", "메일 인증 링크를 열어 주세요");
   if (sub?.key === "new_question") return t("career.applicationProgress.ask.new_question", "새 질문에 답해 주세요");
   if (step?.key === "confirm") return t("career.applicationProgress.ask.confirm", "지원 확인 폼에 답해 주세요");
   if (step?.key === "review") return t("career.applicationProgress.ask.review", "내 답을 확인해 주세요");
   return t("career.applicationProgress.ask.default", "확인이 필요해요");
+}
+
+const pausedLine = (t: T) => t("career.applicationProgress.paused", "진행이 멈췄어요");
+const replyLine = (t: T) => t("career.applicationProgress.reply_in_chat", "Harper가 채팅에서 답을 기다려요");
+
+/** A needs-you row's line: what its action asks. */
+function needsYouLine(app: CareerApplicationProgress, asked: CareerApplicationSubStep | undefined, t: T) {
+  switch (app.action?.kind) {
+    case "continue": return pausedLine(t);
+    case "reply_in_chat": return replyLine(t);
+    case "reopen_browser": return t("career.applicationProgress.ask.login_closed", "{site} 로그인 창이 닫혔어요", { values: { site: siteName(asked, t) } });
+    default: return askLine(currentStep(app), asked, t);
+  }
 }
 
 /** What Harper is doing now, in one line. */
@@ -110,6 +172,7 @@ function workingLine(step: CareerApplicationStep | undefined, sub: CareerApplica
   switch (sub?.key) {
     case "login": return t("career.applicationProgress.working.login", "{site} 로그인하는 중", { values: { site: siteName(sub, t) } });
     case "verification_code": return t("career.applicationProgress.working.code", "메일 인증 코드 확인하는 중");
+    case "email_link": return t("career.applicationProgress.working.email_link", "메일 인증 기다리는 중");
     case "new_question": return t("career.applicationProgress.working.new_question", "새 질문 살펴보는 중");
     case "retry": return t("career.applicationProgress.working.retry", "다시 시도하는 중");
   }
@@ -133,7 +196,9 @@ function submittedLine(app: CareerApplicationProgress, t: T, locale: Locale) {
 const stoppedLine = (app: CareerApplicationProgress, t: T) =>
   app.status === "closed" || app.failure?.reason === "closed"
     ? t("career.applicationProgress.closed", "마감된 공고예요")
-    : t("career.applicationProgress.failed", "제출하지 못했어요");
+    : stoppedByPerson(app)
+      ? t("career.applicationProgress.stopped", "중단했어요")
+      : t("career.applicationProgress.failed", "제출하지 못했어요");
 
 /** At most this many history pages (20 messages each) are loaded to reach a form from the panel. */
 const SEEK_PAGE_LIMIT = 25;
@@ -143,18 +208,24 @@ const waitingLine = (t: T) => t("career.applicationProgress.waiting", "Harper가
 /** The one status line under a row's name. */
 function statusLine(app: CareerApplicationProgress, now: number, t: T, locale: Locale): { text: string; critical?: boolean } {
   const step = currentStep(app);
-  const sub = currentSub(step);
+  const sub = activeSub(app);
   switch (app.status) {
     case "submitted": return { text: submittedLine(app, t, locale) };
     case "failed":
-    case "closed": return { text: stoppedLine(app, t), critical: true };
-    case "needs_you": return { text: askLine(step, sub, t) };
+    case "closed": return { text: stoppedLine(app, t), critical: !stoppedByPerson(app) };
+    case "needs_you": {
+      const asked = askedSub(app);
+      const line = needsYouLine(app, asked, t);
+      // A browser waiting for the person closes by itself: say how long it still waits.
+      const left = asked?.state === "current" ? remaining(asked.expiresAt, now, t) : null;
+      return left ? { text: `${line} · ${left.text}`, critical: left.critical } : { text: line };
+    }
     case "running": {
       const line = workingLine(step, sub, t);
       const time = elapsed((sub ?? step)?.at, now, t);
       return { text: time ? `${line} · ${time}` : line };
     }
-    default: return { text: waitingLine(t) };
+    default: return { text: sub ? workingLine(step, sub, t) : waitingLine(t) };
   }
 }
 
@@ -170,7 +241,8 @@ function StepDot({ tone, small = false }: { tone: Tone; small?: boolean }) {
         tone === "you" && "border-action bg-action",
         tone === "working" && "border-2 border-action",
         tone === "skipped" && "border-dashed border-neutral-primary/30",
-        tone === "todo" && "border-neutral-primary/15"
+        tone === "todo" && "border-neutral-primary/15",
+        tone === "paused" && "border-neutral-primary/30 bg-neutral-1000-a10"
       )}
     >
       {tone === "done" ? <Check className={small ? "size-2.5" : "size-3"} strokeWidth={3} /> : null}
@@ -187,7 +259,7 @@ function StepLine({ tone, label, detail, small, t }: {
   const spoken = tone === "done" ? t("career.applicationProgress.state.done", "완료")
     : tone === "you" ? t("career.applicationProgress.state.you", "답 필요")
     : tone === "working" ? t("career.applicationProgress.state.working", "진행 중")
-    : tone === "failed" ? t("career.applicationProgress.state.failed", "멈춤")
+    : tone === "failed" || tone === "paused" ? t("career.applicationProgress.state.failed", "멈춤")
     : null;
   return (
     <div className="flex items-start gap-2.5 text-[13px] leading-5">
@@ -203,42 +275,64 @@ function StepLine({ tone, label, detail, small, t }: {
 
 function mainDetail(step: CareerApplicationStep, app: CareerApplicationProgress, now: number, t: T, locale: Locale) {
   if (step.state === "skipped") return t("career.applicationProgress.step.skipped", "건너뜀 · 물을 게 없었어요");
-  if (step.state === "done" && step.at && (step.key === "confirm" || step.key === "review")) {
-    const time = formatChatDateDividerLabel(step.at, locale);
+  // Only an answer the person gave reads "답함": a form closed without one (a Stop, an answer in chat) does not.
+  if (step.state === "done" && step.answeredAt && (step.key === "confirm" || step.key === "review")) {
+    const time = formatChatDateDividerLabel(step.answeredAt, locale);
     return time ? t("career.applicationProgress.step.answered", "{time} 답함", { values: { time } }) : null;
   }
-  if (step.state !== "current" || currentSub(step)) return null;
-  if (app.status === "needs_you") return askLine(step, undefined, t);
+  // Nothing moves it any more: said once, at the step it is on (a step not started yet when the last one finished).
+  if (app.status === "needs_you" && (app.action?.kind === "continue" || app.action?.kind === "reply_in_chat")) {
+    if (step !== app.steps[stepNumber(app) - 1]) return null;
+    if (app.action.kind === "reply_in_chat") return replyLine(t);
+    const time = formatChatDateDividerLabel(app.updatedAt, locale);
+    return time
+      ? t("career.applicationProgress.paused_detail", "{time} 이후 진행된 일이 없어요. Harper가 채팅에서 물어본 게 있으면 채팅에서 답해 주세요.", { values: { time } })
+      : pausedLine(t);
+  }
+  if (step.state !== "current" || currentSub(step) || stoppedByPerson(app)) return null;
+  if (app.status === "needs_you") {
+    // The closed login below says it.
+    return app.action?.kind === "reopen_browser" ? null : askLine(step, undefined, t);
+  }
   if (app.status === "running") return elapsed(step.at, now, t);
   if (app.status === "waiting") return waitingLine(t);
   return null;
 }
 
-function subDetail(sub: CareerApplicationSubStep, step: CareerApplicationStep, app: CareerApplicationProgress, now: number, t: T) {
+function subDetail(sub: CareerApplicationSubStep, step: CareerApplicationStep, app: CareerApplicationProgress,
+  asked: CareerApplicationSubStep | undefined, reopenOffered: boolean, now: number, t: T) {
+  if (sub === asked && sub.state === "failed")
+    return reopenOffered ? t("career.applicationProgress.sub.login_closed_hint", "다시 열기를 누르면 Harper가 창을 다시 열어요") : null;
   if (sub.state !== "current") return null;
   if (app.status === "running") return elapsed(sub.at, now, t);
-  if (app.status !== "needs_you") return null;
-  if (sub.key === "login") return t("career.applicationProgress.sub.login_hint", "로그인하면 이어서 채워요");
-  if (sub.key === "verification_code") return app.action?.kind === "open_browser"
-    ? t("career.applicationProgress.sub.code_hint", "메일로 받은 코드를 넣어 주세요")
-    : t("career.applicationProgress.sub.code_chat_hint", "메일로 받은 코드를 채팅으로 보내 주세요");
-  if (sub.key === "new_question") return askLine(step, sub, t);
-  return null;
+  if (sub !== asked) return null;
+  const hint = sub.key === "login" ? t("career.applicationProgress.sub.login_hint", "로그인하면 이어서 채워요")
+    : sub.key === "verification_code" ? app.action?.kind === "open_browser"
+      ? t("career.applicationProgress.sub.code_hint", "메일로 받은 코드를 넣어 주세요")
+      : t("career.applicationProgress.sub.code_chat_hint", "메일로 받은 코드를 채팅으로 보내 주세요")
+    : sub.key === "email_link" ? t("career.applicationProgress.sub.email_link_hint", "사이트가 보낸 메일의 링크를 열어 주세요")
+    : sub.key === "new_question" ? askLine(step, sub, t)
+    : null;
+  const left = remaining(sub.expiresAt, now, t);
+  return hint && left ? `${hint} · ${left.text}` : hint;
 }
 
 /** One application's four steps, in the job page progress box's language (OneScreenProgressBox). */
-function ApplicationSteps({ app, now, t, locale }: { app: CareerApplicationProgress; now: number; t: T; locale: Locale }) {
+function ApplicationSteps({ app, reopenOffered, now, t, locale }: {
+  app: CareerApplicationProgress; reopenOffered: boolean; now: number; t: T; locale: Locale;
+}) {
   const titleId = useId();
   const finished = finishedSteps(app);
   const percent = careerApplicationPercent(app);
   const stopped = app.status === "failed" || app.status === "closed";
+  const asked = askedSub(app);
   return (
     <div className="rounded-md border border-stroke-subtle bg-bg-floating/80 p-4">
       <div className="flex items-center justify-between gap-3">
         <p id={titleId} className="text-[13px] font-medium leading-5 text-neutral-primary">
           {app.status === "submitted"
             ? submittedLine(app, t, locale)
-            : t("career.applicationProgress.box.title", "제출까지 4단계 중 {count}단계", { values: { count: finished } })}
+            : t("career.applicationProgress.box.title", "제출까지 4단계 중 {count}단계", { values: { count: stepNumber(app) } })}
         </p>
         <span className="text-[13px] tabular-nums text-neutral-primary/50" aria-hidden="true">{percent}%</span>
       </div>
@@ -257,7 +351,7 @@ function ApplicationSteps({ app, now, t, locale }: { app: CareerApplicationProgr
       </div>
       <ol className="mt-3 space-y-2">
         {app.steps.map(step => {
-          const tone = mainTone(step, app);
+          const tone = mainTone(step, app, asked);
           return (
             <li key={step.key} aria-current={step.state === "current" ? "step" : undefined}>
               <StepLine
@@ -270,8 +364,8 @@ function ApplicationSteps({ app, now, t, locale }: { app: CareerApplicationProgr
                 <ul className="mt-2 space-y-2 pl-[30px]">
                   {step.subSteps.map((sub, index) => (
                     <li key={`${sub.key}-${index}`}>
-                      <StepLine small t={t} tone={subTone(sub, app)} label={subStepLabel(sub, t)}
-                        detail={subDetail(sub, step, app, now, t)} />
+                      <StepLine small t={t} tone={subTone(sub, app, asked)} label={subStepLabel(sub, t)}
+                        detail={subDetail(sub, step, app, asked, reopenOffered, now, t)} />
                     </li>
                   ))}
                 </ul>
@@ -280,20 +374,26 @@ function ApplicationSteps({ app, now, t, locale }: { app: CareerApplicationProgr
           );
         })}
       </ol>
-      {stopped ? <p className="mt-3 text-[12px] leading-[18px] text-critical">{stoppedLine(app, t)}</p> : null}
+      {stopped ? (
+        <p className={cn("mt-3 text-[12px] leading-[18px]", stoppedByPerson(app) ? "text-neutral-muted" : "text-critical")}>
+          {stoppedLine(app, t)}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function Segments({ steps }: { steps: CareerApplicationStep[] }) {
+function Segments({ app }: { app: CareerApplicationProgress }) {
+  const paused = stoppedByPerson(app);
   return (
     <span aria-hidden="true" className="grid shrink-0 grid-cols-[repeat(4,14px)] gap-[3px]">
-      {steps.map(step => (
+      {app.steps.map(step => (
         <span
           key={step.key}
           className={cn(
             "h-1 rounded-full",
             step.state === "done" || step.state === "skipped" ? "bg-neutral-primary"
+              : paused && (step.state === "current" || step.state === "failed") ? "bg-neutral-primary/30"
               : step.state === "current" ? "bg-action"
               : step.state === "failed" ? "bg-critical"
               : "bg-neutral-1000-a10"
@@ -304,12 +404,59 @@ function Segments({ steps }: { steps: CareerApplicationStep[] }) {
   );
 }
 
-function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, locale }: {
+/**
+ * Sends the person's own chat message about one application, with its mention so Harper takes the right one (as
+ * "Harper와 지원하기" and the detail page's continue do). One at a time for the whole panel, also while its list is
+ * folded; the chat shows a failed send itself.
+ */
+function useApplicationRequest() {
+  const chat = useOptionalCareerChatPanelContext();
+  const lock = useRef(false);
+  const [sending, setSending] = useState(false);
+  const send = useCallback(async (text: string, mention: CareerOpportunityMention) => {
+    if (!chat || lock.current) return;
+    lock.current = true;
+    setSending(true);
+    try {
+      await chat.onSendChatMessage({ text, opportunityMentions: [mention] });
+    } catch {
+      // The shared chat handler shows the error and allows a retry.
+    } finally {
+      lock.current = false;
+      setSending(false);
+    }
+  }, [chat]);
+  return {
+    send,
+    available: Boolean(chat?.user && chat.conversationId),
+    disabled: !chat || sending || Boolean(chat.chatPending || chat.assistantTyping),
+  };
+}
+
+const reopenText = (name: string, t: T) =>
+  t("career.applicationProgress.reopen_message", "{name} 로그인 창을 다시 열어 줘.", { values: { name } });
+const continueText = (name: string, t: T) =>
+  t("career.applicationProgress.continue_message", "{name} 진행을 이어서 해 줘.", { values: { name } });
+
+/** Shows Harper's newest message, where a question it waits on is. */
+function scrollToHarperReply(scroller: HTMLElement | null | undefined) {
+  const replies = (scroller ?? document).querySelectorAll<HTMLElement>('[data-career-message-role="assistant"]');
+  const latest = replies[replies.length - 1];
+  if (latest) latest.scrollIntoView({ block: "start", behavior: "smooth" });
+  else scroller?.scrollTo?.({ top: scroller.scrollHeight, behavior: "smooth" });
+}
+
+const PRIMARY = "shrink-0 border-action bg-action text-on-inverse hover:border-action-strong hover:bg-action-strong active:border-action-strong active:bg-action-strong";
+
+type ApplicationRequest = ReturnType<typeof useApplicationRequest>;
+
+function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, request, now, t, locale }: {
   app: CareerApplicationProgress;
   open: boolean;
   onToggle: () => void;
-  onAnswer: (formId: number) => void;
+  onAnswer: (formId: number, name: string) => void;
   onAnswered: () => void;
+  request: ApplicationRequest;
   now: number;
   t: T;
   locale: Locale;
@@ -319,13 +466,21 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
   const chat = useOptionalCareerChatPanelContext();
   const name = applicationName(app, t);
   const line = statusLine(app, now, t, locale);
-  const answerFormId = app.action?.kind === "answer_form" ? app.action.formId : null;
-  // A form older than the loaded history is not on screen yet: the panel loads earlier messages until it is.
-  const formId = answerFormId !== null && (canReveal(answerFormId) || chat?.hasOlderMessages) ? answerFormId : null;
+  const mention = mentionOf(app, t);
+  const action = app.action;
+  const answerFormId = action?.kind === "answer_form" ? action.formId : null;
+  // A form not on screen is loaded from earlier history, or opened in a sheet: the button is always there with a chat.
+  const formId = answerFormId !== null && (canReveal(answerFormId) || chat) ? answerFormId : null;
   // A site login waits in Harper's browser: open it where the timeline shows it.
-  const openBrowser = useBrowserSessionOpener(app.action?.kind === "open_browser" ? app.action.sessionId : null);
+  const openBrowser = useBrowserSessionOpener(action?.kind === "open_browser" ? action.sessionId : null);
   // The row stands for the application's open browser (its card no longer floats), so it can still be watched.
   const viewBrowser = useBrowserSessionOpener(openBrowser ? null : app.browserSessionId ?? null);
+  // Asked in the person's own words in chat, like "Harper와 지원하기": no new mechanism behind the button.
+  const asks = Boolean(mention && request.available);
+  const reopen = asks && action?.kind === "reopen_browser";
+  const resume = asks && action?.kind === "continue";
+  const reply = Boolean(chat) && action?.kind === "reply_in_chat";
+  const send = (text: string) => { if (mention) { onAnswered(); void request.send(text, mention); } };
   return (
     <li className="border-t border-stroke-subtle first:border-t-0">
       <div className="flex items-center gap-2 py-2">
@@ -344,7 +499,7 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
             />
           </span>
           <span className="flex min-w-0 items-center gap-2">
-            <Segments steps={app.steps} />
+            <Segments app={app} />
             <span className={cn("truncate text-[12px] leading-[18px]", line.critical ? "text-critical" : "text-neutral-muted")}>
               {line.text}
             </span>
@@ -355,8 +510,8 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
             size="sm"
             variant="dark"
             aria-label={t("career.applicationProgress.answer_label", "{name} 답하기", { values: { name } })}
-            className="shrink-0 border-action bg-action text-on-inverse hover:border-action-strong hover:bg-action-strong active:border-action-strong active:bg-action-strong"
-            onClick={() => onAnswer(formId)}
+            className={PRIMARY}
+            onClick={() => onAnswer(formId, name)}
           >
             {t("career.applicationProgress.answer", "답하기")}
           </MuteButton>
@@ -365,10 +520,43 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
             size="sm"
             variant="dark"
             aria-label={t("career.applicationProgress.open_browser_label", "{name} 브라우저 열기", { values: { name } })}
-            className="shrink-0 border-action bg-action text-on-inverse hover:border-action-strong hover:bg-action-strong active:border-action-strong active:bg-action-strong"
+            className={PRIMARY}
             onClick={() => { openBrowser(); onAnswered(); }}
           >
             {t("career.applicationProgress.open_browser", "브라우저 열기")}
+          </MuteButton>
+        ) : reopen ? (
+          <MuteButton
+            size="sm"
+            variant="dark"
+            aria-label={t("career.applicationProgress.reopen_label", "{name} 로그인 창 다시 열기", { values: { name } })}
+            className={PRIMARY}
+            disabled={request.disabled}
+            onClick={() => send(reopenText(name, t))}
+          >
+            {t("career.applicationProgress.reopen", "다시 열기")}
+          </MuteButton>
+        ) : resume ? (
+          <MuteButton
+            size="sm"
+            // Stopped by the person: offered, not pressed on them.
+            variant={app.status === "needs_you" ? "dark" : "default"}
+            aria-label={t("career.applicationProgress.continue_label", "{name} 이어서 하기", { values: { name } })}
+            className={app.status === "needs_you" ? PRIMARY : "shrink-0"}
+            disabled={request.disabled}
+            onClick={() => send(continueText(name, t))}
+          >
+            {t("career.applicationProgress.continue", "이어서 하기")}
+          </MuteButton>
+        ) : reply ? (
+          <MuteButton
+            size="sm"
+            variant="dark"
+            aria-label={t("career.applicationProgress.reply_label", "{name} 채팅에서 답하기", { values: { name } })}
+            className={PRIMARY}
+            onClick={() => { onAnswered(); scrollToHarperReply(chat?.scrollRef?.current); }}
+          >
+            {t("career.applicationProgress.answer", "답하기")}
           </MuteButton>
         ) : viewBrowser ? (
           <MuteButton
@@ -384,7 +572,7 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
       </div>
       <CareerAnimatedRegion open={open}>
         <div id={stepsId} className="pb-2.5">
-          <ApplicationSteps app={app} now={now} t={t} locale={locale} />
+          <ApplicationSteps app={app} reopenOffered={reopen} now={now} t={t} locale={locale} />
         </div>
       </CareerAnimatedRegion>
     </li>
@@ -404,13 +592,40 @@ function Count({ children, emphasis = false }: { children: ReactNode; emphasis?:
 
 /**
  * The browser dock above the composer, minus the browsers the panel's rows stand for: an application's browser is
- * opened from its row ("브라우저 열기", "보기") instead of floating as one more card over the others.
+ * opened from its row ("브라우저 열기", "보기") instead of floating as one more card over the others. A login browser
+ * that closed while its viewer was open offers "다시 열기" there too.
  */
 export function CareerApplicationBrowserDock({ conversationId }: { conversationId?: string | null }) {
+  const t = useCareerT();
   const applications = careerApplicationsOf(useCareerOpenForms(conversationId).data);
   const key = applications.map(app => app.browserSessionId).filter(Boolean).join(" ");
   const claimed = useMemo(() => new Set(key ? key.split(" ") : []), [key]);
-  return <BrowserSessionDock claimedSessionIds={claimed} />;
+  const request = useApplicationRequest();
+  const reopen = (sessionId: string): BrowserSessionReopen | null => {
+    const app = applications.find(item => item.action?.kind === "reopen_browser" && item.action.sessionId === sessionId);
+    const mention = app && mentionOf(app, t);
+    if (!app || !mention || !request.available) return null;
+    return { disabled: request.disabled, onReopen: () => void request.send(reopenText(mention.label, t), mention) };
+  };
+  return <BrowserSessionDock claimedSessionIds={claimed} reopen={reopen} />;
+}
+
+/** A form the timeline does not show (no reply placed it, or it is beyond the history loaded): answered here instead. */
+function ApplicationFormSheet({ form, onClose, t }: { form: { formId: number; name: string }; onClose: () => void; t: T }) {
+  return (
+    <TalentCareerModal
+      open
+      onClose={onClose}
+      mobileBottomSheet
+      panelClassName="max-w-[560px]"
+      title={t("career.applicationProgress.answer_label", "{name} 답하기", { values: { name: form.name } })}
+    >
+      {/* Its own references, so the sheet neither takes the form from the timeline nor counts as on screen. */}
+      <CareerFormReferenceProvider>
+        <CareerInlineForms formIds={[form.formId]} />
+      </CareerFormReferenceProvider>
+    </TalentCareerModal>
+  );
 }
 
 /**
@@ -425,19 +640,26 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
   const [expanded, setExpanded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const listId = useId();
-  const now = useNow(applications.some(app => app.status === "running"));
+  const now = useNow(applications.some(app => app.status === "running"
+    || app.steps.some(step => step.subSteps?.some(sub => sub.state === "current" && sub.expiresAt))));
   const { canReveal, reveal } = useCareerFormRevealer();
   const chat = useOptionalCareerChatPanelContext();
+  const request = useApplicationRequest();
   // The form a "답하기" asked for that is older than the loaded history: earlier pages load until it is on screen.
-  const [seeking, setSeeking] = useState<number | null>(null);
+  const [seeking, setSeeking] = useState<{ formId: number; name: string } | null>(null);
+  // A form no loaded page shows: it opens in a sheet.
+  const [sheet, setSheet] = useState<{ formId: number; name: string } | null>(null);
   const pages = useRef(0);
-  const seekingOnScreen = seeking !== null && canReveal(seeking);
+  const seekingOnScreen = seeking !== null && canReveal(seeking.formId);
   useEffect(() => {
     if (seeking === null) return;
-    if (seekingOnScreen) reveal(seeking);
-    if (seekingOnScreen || !chat?.hasOlderMessages || pages.current >= SEEK_PAGE_LIMIT) {
-      // The search ends on what the timeline mounted: a form's location registers only after it renders.
+    if (seekingOnScreen) {
+      reveal(seeking.formId);
       setSeeking(null);
+    } else if (!chat?.hasOlderMessages || pages.current >= SEEK_PAGE_LIMIT) {
+      // A page's forms register only after it renders: look once more, then answer it in the sheet, never nothing.
+      const timer = window.setTimeout(() => { setSeeking(null); setSheet(seeking); }, 0);
+      return () => window.clearTimeout(timer);
     } else if (!chat.loadingOlderMessages) {
       pages.current += 1;
       void chat.onLoadOlderMessages();
@@ -445,11 +667,15 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
     // reveal and chat are new objects every render; the search moves only with these values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeking, seekingOnScreen, chat?.hasOlderMessages, chat?.loadingOlderMessages]);
-  const answer = (formId: number) => {
+  // Answered (or no longer asked): the sheet closes by itself.
+  const sheetAsked = sheet !== null && applications.some(app => app.action?.kind === "answer_form" && app.action.formId === sheet.formId);
+  useEffect(() => { if (sheet && !sheetAsked) setSheet(null); }, [sheet, sheetAsked]);
+  const answer = (formId: number, name: string) => {
     setExpanded(false);
     if (canReveal(formId)) return reveal(formId);
+    if (!chat?.hasOlderMessages) return setSheet({ formId, name });
     pages.current = 0;
-    setSeeking(formId);
+    setSeeking({ formId, name });
   };
   if (!applications.length) return null;
   const counts = careerApplicationCounts(applications);
@@ -492,6 +718,7 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
                 onToggle={() => setOpenId(current => (current === app.id ? null : app.id))}
                 onAnswer={answer}
                 onAnswered={() => setExpanded(false)}
+                request={request}
                 now={now}
                 t={t}
                 locale={locale}
@@ -500,6 +727,7 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
           </ul>
         </div>
       </CareerAnimatedRegion>
+      {sheet ? <ApplicationFormSheet form={sheet} onClose={() => setSheet(null)} t={t} /> : null}
     </section>
   );
 }

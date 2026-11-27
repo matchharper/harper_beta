@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildCareerApplicationProgress,
   careerApplicationRoleIds,
+  careerApplicationStopRefs,
   type ApplicationMessageRow,
   type ApplicationOpenForm,
   type ApplicationOperationRow,
@@ -16,6 +17,8 @@ const ROLE_C = "00000000-0000-4000-8000-0000000000a3";
 const OPPORTUNITY = "00000000-0000-4000-8000-0000000000b1";
 const SESSION = "00000000-0000-4000-8000-0000000000c1";
 const SESSION_2 = "00000000-0000-4000-8000-0000000000c2";
+const WORK = "00000000-0000-4000-8000-0000000000d1";
+const WORK_2 = "00000000-0000-4000-8000-0000000000d2";
 const at = (minute: number) => new Date(Date.UTC(2026, 10, 26, 0, 0) + minute * 60_000).toISOString();
 const NOW = new Date(at(600));
 const roles: ApplicationRoleRow[] = [
@@ -55,8 +58,9 @@ const run = (mode: "prepare" | "execute", status: string, created: number, updat
 });
 
 function build(messages: ApplicationMessageRow[], operations: ApplicationOperationRow[], openForms: ApplicationOpenForm[] = [],
-  extra: { roles?: ApplicationRoleRow[]; now?: Date; turnStartedAt?: string } = {}) {
-  return buildCareerApplicationProgress({ now: extra.now ?? NOW, messages, operations, openForms, roles: extra.roles ?? roles, turnStartedAt: extra.turnStartedAt });
+  extra: { roles?: ApplicationRoleRow[]; now?: Date; turnStartedAt?: string; waitingForReply?: boolean; closingBrowserSessionIds?: string[] } = {}) {
+  return buildCareerApplicationProgress({ now: extra.now ?? NOW, messages, operations, openForms, roles: extra.roles ?? roles,
+    turnStartedAt: extra.turnStartedAt, waitingForReply: extra.waitingForReply, closingBrowserSessionIds: extra.closingBrowserSessionIds });
 }
 const only = (list: CareerApplicationProgress[]) => {
   assert.equal(list.length, 1);
@@ -70,17 +74,19 @@ test("happy path without a login: each record moves one main step", () => {
   const start = form(1, 0);
   const prepare = run("prepare", "running", 6, 6);
   const review = form(2, 12);
+  // Harper's turn runs from the start answer on, so between steps the row waits for it.
+  const turn = { turnStartedAt: at(5) };
   const snapshots = [
     build([start], [], [openForm(1, START_ITEMS)]),
-    build([start, answer(1, 5, { submitScope: "review", saveLogin: false })], []),
-    build([start, answer(1, 5, { submitScope: "review" })], [session(SESSION, "running"), prepare]),
-    build([start, answer(1, 5, { submitScope: "review" })], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false, submitted: "no" }]),
-    build([start, answer(1, 5, { submitScope: "review" }), review], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false }], [openForm(2, REVIEW_ITEMS)]),
-    build([start, answer(1, 5, { submitScope: "review" }), review, answer(2, 15)], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false }]),
+    build([start, answer(1, 5, { submitScope: "review", saveLogin: false })], [], [], turn),
+    build([start, answer(1, 5, { submitScope: "review" })], [session(SESSION, "running"), prepare], [], turn),
+    build([start, answer(1, 5, { submitScope: "review" })], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false, submitted: "no" }], [], turn),
+    build([start, answer(1, 5, { submitScope: "review" }), review], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false }], [openForm(2, REVIEW_ITEMS)], turn),
+    build([start, answer(1, 5, { submitScope: "review" }), review, answer(2, 15)], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false }], [], turn),
     build([start, answer(1, 5, { submitScope: "review" }), review, answer(2, 15)], [session(SESSION, "running"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false },
-      run("execute", "running", 16, 16)]),
+      run("execute", "running", 16, 16)], [], turn),
     build([start, answer(1, 5, { submitScope: "review" }), review, answer(2, 15)], [session(SESSION, "idle"), { ...prepare, status: "completed", updatedAt: at(10), needsUser: false },
-      run("execute", "completed", 16, 20, { submitted: "yes" })]),
+      run("execute", "completed", 16, 20, { submitted: "yes" })], [], turn),
   ].map(only);
 
   const [asked, confirmed, preparing, prepared, reviewing, approved, submitting, submitted] = snapshots;
@@ -92,6 +98,7 @@ test("happy path without a login: each record moves one main step", () => {
   assert.equal(asked.title, "백엔드 엔지니어");
   assert.equal(confirmed.status, "waiting");
   assert.equal(confirmed.steps[0].at, at(5));
+  assert.equal(confirmed.steps[0].answeredAt, at(5));
   assert.equal(states(preparing), "confirm:done fill:current review:todo submit:todo");
   assert.equal(preparing.status, "running");
   assert.equal(states(prepared), "confirm:done fill:done review:todo submit:todo");
@@ -100,6 +107,7 @@ test("happy path without a login: each record moves one main step", () => {
   assert.deepEqual(reviewing.action, { kind: "answer_form", formId: 2 });
   assert.equal(reviewing.steps[2].questions, 2);
   assert.equal(states(approved), "confirm:done fill:done review:done submit:todo");
+  assert.equal(approved.steps[2].answeredAt, at(15));
   assert.equal(states(submitting), "confirm:done fill:done review:done submit:current");
   assert.equal(submitting.status, "running");
   assert.equal(submitted.status, "submitted");
@@ -116,44 +124,51 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(waiting.status, "needs_you");
   assert.deepEqual(waiting.action, { kind: "open_browser", sessionId: SESSION });
   assert.equal(states(waiting), "confirm:done fill:current review:todo submit:todo");
-  assert.deepEqual(sub(waiting, "login"), { key: "login", state: "current", site: "원티드", at: at(8), step: "fill" });
+  // The provider stops an idle browser 30 minutes after its run ended: the row can say how long it still waits.
+  assert.deepEqual(sub(waiting, "login"), { key: "login", state: "current", site: "원티드", at: at(8), expiresAt: at(38), step: "fill" });
   // The row stands for that open browser, so the composer does not float its card as well.
   assert.equal(waiting.browserSessionId, SESSION);
 
-  // The provider stopped that browser (its idle timeout, ~10 minutes): nothing to open and nothing running, so the
-  // application stopped like a closed browser instead of showing Harper as preparing.
+  // The provider stopped that browser (its idle timeout): nothing was submitted and nothing failed. The person can
+  // have the window opened again; the step it waited in stays where it was.
   const stopped = only(build(messages, [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun]));
-  assert.equal(stopped.action, undefined);
-  assert.equal(stopped.status, "failed");
+  assert.equal(stopped.status, "needs_you");
+  assert.deepEqual(stopped.action, { kind: "reopen_browser", sessionId: SESSION });
+  assert.equal(states(stopped), "confirm:done fill:current review:todo submit:todo");
   assert.equal(sub(stopped, "login")?.state, "failed");
-  assert.deepEqual(stopped.failure, { reason: "error" });
+  assert.equal(stopped.failure, undefined);
   assert.equal(stopped.browserSessionId, undefined);
+  // While Harper's turn runs it may open one again itself: nothing is asked yet, and nothing failed (#5).
+  const reading = only(build(messages, [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun], [], { turnStartedAt: at(9) }));
+  assert.equal(reading.status, "waiting");
+  assert.equal(reading.action, undefined);
+  assert.equal(reading.failure, undefined);
 
   // The same after Harper handed over a finished preparation (the run itself does not say it needs the person).
   const handoffStopped = only(build(messages, [session(SESSION, "human", { requestedAction: "handoff", browserAvailability: "stopped" }),
     run("prepare", "completed", 6, 8)]));
-  assert.equal(handoffStopped.status, "failed");
+  assert.equal(handoffStopped.status, "needs_you");
+  assert.equal(handoffStopped.action?.kind, "reopen_browser");
   assert.equal(sub(handoffStopped, "login")?.state, "failed");
 
-  // A restart after an earlier preparation finished: its login browser stopped, so the application stopped too.
+  // A restart after an earlier preparation finished: its login browser stopped, and that is the one to reopen.
   const restarted = only(build(messages, [session("s-old", "idle"), run("prepare", "completed", 6, 8, { parentId: "s-old" }),
     session(SESSION, "human", { browserAvailability: "stopped" }), run("prepare", "completed", 30, 32, { needsUser: true, url: "https://id.wanted.co.kr/login" })]));
   assert.equal(states(restarted), "confirm:done fill:done review:todo submit:todo");
   assert.equal(sub(restarted, "login")?.state, "failed");
-  assert.equal(restarted.status, "failed");
-  assert.deepEqual(restarted.failure, { reason: "not_submitted" });
-  // The newest browser stopped; the earlier one is still open, so it is the application's browser.
-  assert.equal(restarted.browserSessionId, "s-old");
+  assert.deepEqual(restarted.action, { kind: "reopen_browser", sessionId: SESSION });
+  // The application's browser is its newest run's, and that one stopped: the older one is no "보기".
+  assert.equal(restarted.browserSessionId, undefined);
 
   // Harper drafted the review form while the login browser waited: that form is not a sign-in.
   const drafted = only(build([...messages, form(2, 12), answer(2, 14)], [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun]));
   assert.equal(sub(drafted, "login")?.state, "failed");
-  assert.equal(drafted.status, "failed");
+  assert.equal(drafted.action?.kind, "reopen_browser");
 
+  // Returned with Done and the next run is still at it: signing in, not done until that run gets past it.
   const resumed = only(build(messages, [session(SESSION, "running", { requestedAction: "resume" }), loginRun, run("prepare", "running", 20, 20)]));
   assert.equal(resumed.status, "running");
-  assert.equal(sub(resumed, "login")?.state, "done");
-  assert.equal(sub(resumed, "login")?.at, at(20));
+  assert.deepEqual(sub(resumed, "login"), { key: "login", state: "current", site: "원티드", at: at(20), step: "fill" });
   assert.equal(sub(resumed, "retry"), undefined, "a login is not a retry");
   assert.equal(states(resumed), "confirm:done fill:current review:todo submit:todo");
 
@@ -164,11 +179,143 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(sub(handedOff, "login")?.site, "Greenhouse");
   assert.equal(handedOff.status, "needs_you");
 
-  // The browser was closed while it waited: the application stopped.
+  // The browser was closed while it waited (in the viewer, or by a Stop's cleanup): the person stopped it.
   const closed = only(build(messages, [session(SESSION, "closed", { requestedAction: "close" }), loginRun]));
   assert.equal(closed.status, "failed");
   assert.equal(sub(closed, "login")?.state, "failed");
-  assert.deepEqual(closed.failure, { reason: "error" });
+  assert.deepEqual(closed.failure, { reason: "stopped" });
+  assert.deepEqual(closed.action, { kind: "continue" });
+  assert.equal(states(closed), "confirm:done fill:current review:todo submit:todo");
+});
+
+test("a login is done only once a later run on that browser or site gets past it", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit", saveLogin: true })];
+  const loginRun = run("prepare", "completed", 6, 8, { needsUser: true, url: "https://id.wanted.co.kr/login", startUrl: "https://www.wanted.co.kr/wd/1" });
+  // Returned with Done, nothing ran since: as far as the records go, the sign-in is still under way.
+  const returned = only(build(messages, [session(SESSION, "idle", { requestedAction: "resume" }), loginRun], [], { turnStartedAt: at(9) }));
+  assert.deepEqual(sub(returned, "login"), { key: "login", state: "current", site: "원티드", at: at(8), step: "fill" });
+  assert.equal(returned.status, "waiting");
+  assert.equal(returned.action, undefined);
+
+  // The next run on that browser ended without needing the person: the login is done.
+  const passed = only(build(messages, [session(SESSION, "idle"), loginRun, run("prepare", "completed", 20, 25, { url: "https://www.wanted.co.kr/wd/1/apply" })]));
+  assert.deepEqual(sub(passed, "login"), { key: "login", state: "done", site: "원티드", at: at(20), step: "fill" });
+  // On another browser of the same site, too.
+  const elsewhere = only(build(messages, [session(SESSION, "closed"), session(SESSION_2, "idle"), loginRun,
+    run("prepare", "completed", 20, 25, { parentId: SESSION_2, url: "https://www.wanted.co.kr/wd/1/apply" })]));
+  assert.equal(sub(elsewhere, "login")?.state, "done");
+
+  // After the review was approved, the submission stopped at the same login: the fill step's login was never passed,
+  // so only the submit step shows it (not fill "done" and submit "current" at once).
+  const again = only(build([...messages, form(2, 12), answer(2, 14)], [session(SESSION, "human"), loginRun,
+    run("execute", "completed", 15, 17, { needsUser: true, url: "https://id.wanted.co.kr/login" })]));
+  assert.equal(again.steps[1].subSteps, undefined);
+  assert.deepEqual(sub(again, "login"), { key: "login", state: "current", site: "원티드", at: at(17), expiresAt: at(47), step: "submit" });
+  assert.equal(states(again), "confirm:done fill:done review:done submit:current");
+  assert.equal(again.status, "needs_you");
+  assert.deepEqual(again.action, { kind: "open_browser", sessionId: SESSION });
+  // The submission's browser closed before the person signed in: the submit step waits for a reopen, not "failed".
+  const lost = only(build([...messages, form(2, 12), answer(2, 14)], [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun,
+    run("execute", "completed", 15, 17, { needsUser: true, url: "https://id.wanted.co.kr/login" })]));
+  assert.equal(states(lost), "confirm:done fill:done review:done submit:current");
+  assert.deepEqual(lost.action, { kind: "reopen_browser", sessionId: SESSION });
+  assert.equal(lost.failure, undefined);
+});
+
+test("a current step is timed from the work now under way, not from its first try", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
+  const nextDay = 24 * 60 + 10;
+  // The first attempt stopped at 00:14; the one running now started a day later.
+  const retrying = only(build(messages, [session(SESSION, "running"), run("prepare", "completed", 6, 10),
+    run("execute", "completed", 11, 14, { submitted: "no" }), run("execute", "running", nextDay, nextDay)], [], { now: new Date(at(nextDay + 2)) }));
+  assert.equal(retrying.steps[3].state, "current");
+  assert.equal(retrying.steps[3].at, at(nextDay));
+  const refilling = only(build(messages, [session(SESSION, "running"), run("prepare", "failed", 6, 7), run("prepare", "running", 30, 30)],
+    [], { now: new Date(at(32)) }));
+  assert.equal(refilling.steps[1].state, "current");
+  assert.equal(refilling.steps[1].at, at(30));
+});
+
+test("nothing moving an application any more is a pause the person can continue", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "review" })];
+  const operations = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
+  // 11/27: a preparation finished with nothing after it, and the row read "preparing" for three hours.
+  const paused = only(build(messages, operations, [], { now: new Date(at(15)) }));
+  assert.equal(states(paused), "confirm:done fill:done review:todo submit:todo");
+  assert.equal(paused.status, "needs_you");
+  assert.deepEqual(paused.action, { kind: "continue" });
+  assert.equal(paused.kind, "role");
+  assert.equal(careerApplicationCounts([paused]).needsYou, 1);
+  // Harper's turn runs, or the record is new enough that its next turn may not have started: Harper is between steps.
+  assert.equal(only(build(messages, operations, [], { now: new Date(at(15)), turnStartedAt: at(14) })).status, "waiting");
+  assert.equal(only(build(messages, operations, [], { now: new Date(at(12)) })).status, "waiting");
+  // Harper's turn waits for an answer in chat: the row points there instead of asking Harper again.
+  const asked = only(build(messages, operations, [], { now: new Date(at(15)), waitingForReply: true }));
+  assert.equal(asked.status, "needs_you");
+  assert.deepEqual(asked.action, { kind: "reply_in_chat" });
+  // A form tied only to an opportunity has no role to name in chat; the panel reads its kind.
+  const opportunityForm = form(4, 0, [], { relatedRefs: [{ type: "opportunity", id: OPPORTUNITY }] });
+  assert.equal(only(build([opportunityForm, answer(4, 1)], [], [], { now: new Date(at(15)) })).kind, "opportunity");
+});
+
+test("a Stop reads as stopped, not as a question or a failure, until something newer happens", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "review", saveLogin: true })];
+  const loginRun = run("prepare", "completed", 6, 8, { needsUser: true, url: "https://id.wanted.co.kr/login", startUrl: "https://www.wanted.co.kr/wd/1" });
+  // The 11/26 Stop shape: the login browser waited and a review form was open. Stop resolved the form, flagged the
+  // request and queued the browser's cleanup; the session is still "human" until that runs.
+  const resolved: ApplicationMessageRow = { messageType: "career_form_resolution", createdAt: at(30), formId: 2, revision: 1 };
+  const stopping = only(build([...messages, form(2, 9), resolved], [session(SESSION, "human"), { ...loginRun, stopped: true }], [],
+    { closingBrowserSessionIds: [SESSION] }));
+  assert.equal(stopping.status, "failed");
+  assert.deepEqual(stopping.failure, { reason: "stopped" });
+  assert.deepEqual(stopping.action, { kind: "continue" });
+  assert.equal(sub(stopping, "login")?.state, "failed", "no browser to open: it is closing");
+  assert.equal(stopping.browserSessionId, undefined);
+  assert.equal(stopping.steps[2].state, "done");
+  assert.equal(stopping.steps[2].answeredAt, undefined, "closed by the Stop, never answered");
+  // The cleanup alone (the request's flag not read yet) already closes that login.
+  assert.deepEqual(only(build(messages, [session(SESSION, "human"), loginRun], [], { closingBrowserSessionIds: [SESSION] })).failure,
+    { reason: "stopped" });
+
+  // A submission the Stop cut off is stopped, not "couldn't submit".
+  const start = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
+  const cut = [session(SESSION, "idle"), run("prepare", "completed", 6, 10), { ...run("execute", "failed", 20, 22), stopped: true }];
+  const stopped = only(build(start, cut));
+  assert.equal(stopped.status, "failed");
+  assert.deepEqual(stopped.failure, { reason: "stopped" });
+  assert.deepEqual(stopped.action, { kind: "continue" });
+  // Anything newer clears it: another run, Harper's next turn, or a new question.
+  const resumed = only(build(start, [...cut, run("execute", "running", 40, 40)]));
+  assert.equal(resumed.status, "running");
+  assert.equal(resumed.failure, undefined);
+  // The person asked Harper to go on (its turn started after the Stop): it carries on with that step, nothing failed.
+  const continued = only(build(start, cut, [], { turnStartedAt: at(30) }));
+  assert.equal(continued.status, "waiting");
+  assert.equal(continued.failure, undefined);
+  assert.equal(states(continued), "confirm:done fill:done review:skipped submit:current");
+  // A preparation the Stop cut off reads the same way.
+  const cutPrep = [session(SESSION, "idle"), { ...run("prepare", "failed", 6, 8), stopped: true }];
+  const prepStopped = only(build(start, cutPrep));
+  assert.equal(prepStopped.status, "failed");
+  assert.deepEqual(prepStopped.failure, { reason: "stopped" });
+  const prepContinued = only(build(start, cutPrep, [], { turnStartedAt: at(30) }));
+  assert.equal(prepContinued.status, "waiting");
+  assert.equal(states(prepContinued), "confirm:done fill:current review:todo submit:todo");
+  const asked = only(build([...start, form(3, 35)], cut, [openForm(3, REVIEW_ITEMS)]));
+  assert.equal(asked.status, "needs_you");
+  assert.deepEqual(asked.action, { kind: "answer_form", formId: 3 });
+  // A Stop on a request that already submitted changes nothing.
+  assert.equal(only(build(start, [session(SESSION, "idle"), { ...run("execute", "completed", 20, 22, { submitted: "yes" }), stopped: true }])).status,
+    "submitted");
+});
+
+test("the Stop lookups name only each application's newest run or send", () => {
+  const older = run("prepare", "completed", 6, 10, { sourceMessageId: "101", workId: WORK });
+  const newer = run("execute", "completed", 11, 14, { sourceMessageId: "102", workId: WORK_2 });
+  const other = run("prepare", "running", 20, 20, { roleRefs: [ROLE_B], parentId: SESSION_2, sourceMessageId: "not-an-id", workId: "work" });
+  assert.deepEqual(careerApplicationStopRefs({ now: NOW, messages: [form(1, 0)], openForms: [],
+    operations: [session(SESSION, "idle"), session(SESSION_2, "running", { roleRefs: [ROLE_B] }), older, newer, other] }),
+  { sourceMessageIds: ["102"], workIds: [WORK_2] });
 });
 
 test("submitting with nothing new to ask skips the review", () => {
@@ -209,7 +356,7 @@ test("a mail verification code holds the submission until the next run uses it",
   const codeRun = run("execute", "completed", 11, 14, { verificationCode: "email", submitted: "no", url: "https://job-boards.greenhouse.io/a/jobs/1/verify" });
   const waiting = only(build(messages, [...base, codeRun]));
   assert.equal(states(waiting), "confirm:done fill:done review:skipped submit:current");
-  assert.deepEqual(sub(waiting, "verification_code"), { key: "verification_code", state: "current", site: "Greenhouse", at: at(14), step: "submit" });
+  assert.deepEqual(sub(waiting, "verification_code"), { key: "verification_code", state: "current", site: "Greenhouse", at: at(14), expiresAt: at(44), step: "submit" });
   assert.equal(waiting.status, "needs_you", "the turn ended with the code still missing: Harper asked for it in chat");
   assert.equal(waiting.action, undefined, "the code goes in the composer, not a form or a browser");
   assert.equal(waiting.failure, undefined);
@@ -228,6 +375,24 @@ test("a mail verification code holds the submission until the next run uses it",
   assert.equal(sub(entered, "verification_code")?.state, "done");
   assert.equal(entered.status, "running");
   assert.equal(sub(entered, "retry"), undefined, "a code is not a retry");
+});
+
+test("a mail link holds the submission like a code, read case-insensitively", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
+  const base = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
+  const linkRun = run("execute", "completed", 11, 14, { verificationCode: " Email_Link ", submitted: "no", url: "https://job-boards.greenhouse.io/a/jobs/1/verify" });
+  const waiting = only(build(messages, [...base, linkRun]));
+  assert.equal(states(waiting), "confirm:done fill:done review:skipped submit:current");
+  assert.deepEqual(sub(waiting, "email_link"), { key: "email_link", state: "current", site: "Greenhouse", at: at(14), expiresAt: at(44), step: "submit" });
+  assert.equal(sub(waiting, "verification_code"), undefined);
+  assert.equal(waiting.status, "needs_you", "the link is in the person's mail");
+  assert.equal(waiting.action, undefined);
+  assert.equal(waiting.failure, undefined);
+  assert.equal(only(build(messages, [...base, linkRun], [], { turnStartedAt: at(11) })).status, "waiting");
+  const opened = only(build(messages, [...base, linkRun, run("execute", "running", 30, 30)]));
+  assert.equal(sub(opened, "email_link")?.state, "done");
+  assert.equal(sub(opened, "retry"), undefined, "a link is not a retry");
+  assert.equal(only(build(messages, [...base, { ...linkRun, submitted: "yes" }])).status, "submitted");
 });
 
 test("a mail's review form written before its send is not a second start form", () => {
@@ -266,7 +431,8 @@ test("a submission that did not go through fails with its reason", () => {
   assert.equal(states(asked), "confirm:done fill:done review:skipped submit:current");
   assert.equal(sub(asked, "new_question")?.state, "current");
   assert.equal(asked.steps[3].questions, 2);
-  const answered = only(build([...messages, form(3, 15), answer(3, 17)], [...base, run("execute", "completed", 11, 14, { submitted: "no" })]));
+  const answered = only(build([...messages, form(3, 15), answer(3, 17)], [...base, run("execute", "completed", 11, 14, { submitted: "no" })], [],
+    { turnStartedAt: at(17) }));
   assert.equal(sub(answered, "new_question")?.state, "done");
   assert.equal(answered.status, "waiting");
   const resubmitted = only(build([...messages, form(3, 15), answer(3, 17)], [...base, run("execute", "completed", 11, 14, { submitted: "no" }),
@@ -299,7 +465,7 @@ test("applications are ordered needs-you, running, waiting, then finished newest
   const C_PLUS = (n: number) => `00000000-0000-4000-8000-0000000001${String(n).padStart(2, "0")}`;
   const messages = [
     form(1, 0, [ROLE_A]), // needs you: open start form
-    form(2, 0, [ROLE_C]), answer(2, 1, { submitScope: "submit" }), // waiting: confirmed, nothing runs yet
+    form(2, 0, [ROLE_C]), answer(2, 598, { submitScope: "submit" }), // waiting: confirmed two minutes ago, nothing runs yet
   ];
   const operations = [
     session(SESSION, "running", { roleRefs: [ROLE_B] }),

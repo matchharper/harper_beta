@@ -13,7 +13,8 @@ export type CareerApplicationStepKey = "confirm" | "fill" | "review" | "submit";
 /** skipped: the step was not needed (no review because nothing new to ask). It counts as done for the percentage. */
 export type CareerApplicationStepState = "done" | "current" | "todo" | "skipped" | "failed";
 
-export type CareerApplicationSubStepKey = "login" | "verification_code" | "new_question" | "retry";
+/** email_link: a link the site mailed, which the person opens (a code is verification_code). */
+export type CareerApplicationSubStepKey = "login" | "verification_code" | "email_link" | "new_question" | "retry";
 
 export type CareerApplicationSubStep = {
   key: CareerApplicationSubStepKey;
@@ -22,46 +23,67 @@ export type CareerApplicationSubStep = {
   site?: string;
   /** When it finished (done/failed) or started (current). ISO 8601. */
   at?: string;
+  /**
+   * While a browser waits for the person (a login, a code or a link): about when it closes by itself, its run's end
+   * plus the provider's idle time (CAREER_BROWSER_KEEP_ALIVE_SECONDS). Approximate. ISO 8601.
+   */
+  expiresAt?: string;
 };
 
 export type CareerApplicationStep = {
   key: CareerApplicationStepKey;
   state: CareerApplicationStepState;
-  /** When it finished (done/skipped/failed) or started (current). ISO 8601. */
+  /** When it finished (done/skipped/failed), or when the work now under way in it started (current). ISO 8601. */
   at?: string;
+  /** confirm and review: when the person answered its form, if they did (a form closed without an answer has none). */
+  answeredAt?: string;
   /** Number of questions on the form waiting for the person (confirm or review), when one is open. */
   questions?: number;
   subSteps?: CareerApplicationSubStep[];
 };
 
-/** What the person can do now. answer_form reveals that form in the chat; open_browser opens that browser session. */
+/**
+ * What the person can do now. answer_form reveals that form in the chat; open_browser opens that browser session;
+ * reopen_browser asks Harper in chat to open again the login browser that closed while it waited; continue asks Harper
+ * in chat to go on (nothing moves the application, or the person stopped it); reply_in_chat: Harper's turn waits for
+ * the person's reply in the chat.
+ */
 export type CareerApplicationAction =
   | { kind: "answer_form"; formId: number }
-  | { kind: "open_browser"; sessionId: string };
+  | { kind: "open_browser"; sessionId: string }
+  | { kind: "reopen_browser"; sessionId: string }
+  | { kind: "continue" }
+  | { kind: "reply_in_chat" };
 
 /**
- * needs_you: an action waits on the person. running: a browser run or send is active. waiting: nothing runs and
- * nothing is asked (Harper is between steps). submitted / failed / closed: finished.
+ * needs_you: an action waits on the person (also when nothing moves the application any more). running: a browser run
+ * or send is active. waiting: nothing runs and nothing is asked, while Harper's turn runs or right after a record
+ * (Harper is between steps). submitted / failed / closed: finished.
  */
 export type CareerApplicationStatus = "needs_you" | "running" | "waiting" | "submitted" | "failed" | "closed";
 
 export type CareerApplicationProgress = {
   /** The role id, or the opportunity id when there is no role. Stable across polls. */
   id: string;
+  /** role: id is a role id, which a chat mention can name; opportunity: an opportunity without a role. */
+  kind?: "role" | "opportunity";
   companyName: string | null;
   title: string | null;
   status: CareerApplicationStatus;
   /** Always four, in the order confirm, fill, review, submit. */
   steps: CareerApplicationStep[];
   action?: CareerApplicationAction;
-  /** Why it stopped: the posting closed, the run reported it did not submit, or the run failed. */
-  failure?: { reason: "closed" | "not_submitted" | "error" };
+  /**
+   * Why it stopped: the posting closed, the run reported it did not submit, the run failed, or the person stopped it
+   * (Stop, or closing the login browser it waited on).
+   */
+  failure?: { reason: "closed" | "not_submitted" | "error" | "stopped" };
   /** The newest record time for this application. ISO 8601. */
   updatedAt: string;
   submittedAt?: string;
   /**
-   * The application's browser that is still open (its newest run's, not closed or stopped by the provider). The
-   * panel row stands for it, so the composer does not float a second card for the same application.
+   * The application's browser that is still open (its newest run's, not closed, closing after a Stop, or stopped by
+   * the provider). The panel row stands for it, so the composer does not float a second card for the same application.
    */
   browserSessionId?: string;
 };

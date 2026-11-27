@@ -27,8 +27,11 @@ import type { CareerMessage } from "./types";
 import {
   BrowserSessionView,
   type BrowserSessionAction,
+  type BrowserSessionReopen,
   type BrowserSessionViewData,
 } from "./BrowserSessionCard";
+
+export type { BrowserSessionReopen } from "./BrowserSessionCard";
 
 type SessionSummary = BrowserSessionViewData["session"] & {
   browserAvailability?: BrowserSessionViewData["browserAvailability"];
@@ -36,6 +39,8 @@ type SessionSummary = BrowserSessionViewData["session"] & {
   observationFailed?: boolean;
 };
 const PREVIEW_SESSION_ID = "dev-browser-preview";
+const browserLive = (view: BrowserSessionViewData) =>
+  view.session.status !== "closed" && view.browserAvailability !== "stopped";
 const PREVIEW_VIEW: BrowserSessionViewData = {
   session: { id: PREVIEW_SESSION_ID, status: "running", revision: 0 },
   liveUrl: null,
@@ -149,12 +154,12 @@ export function BrowserSessionProvider({
     retry: false,
     gcTime: 0,
   });
+  // The selected browser stays even once closed: its open viewer then says so (and can offer a reopen) instead of
+  // vanishing under the person.
   if (
     selectedId &&
     selectedQuery.data &&
-    !views.some((view) => view.session.id === selectedId) &&
-    selectedQuery.data.session.status !== "closed" &&
-    selectedQuery.data.browserAvailability !== "stopped"
+    !views.some((view) => view.session.id === selectedId)
   )
     views.push(selectedQuery.data);
   const summaries = new Map((query.data?.summaries ?? query.data?.sessions ?? []).map(session => [session.id, session]));
@@ -280,8 +285,12 @@ export function BrowserSessionAnchor({ sessionId, source = "reference" }: {
 /**
  * claimedSessionIds: browsers another surface already stands for (the application progress panel's rows). Their
  * docked card is not floated until the person opens one from there; inline cards in the timeline stay.
+ * reopen: how a closed browser can be opened again, when it can (a login window of an application).
  */
-export function BrowserSessionDock({ claimedSessionIds }: { claimedSessionIds?: ReadonlySet<string> } = {}) {
+export function BrowserSessionDock({ claimedSessionIds, reopen }: {
+  claimedSessionIds?: ReadonlySet<string>;
+  reopen?: (sessionId: string) => BrowserSessionReopen | null;
+} = {}) {
   const dock = useContext(BrowserDockContext);
   if (!dock) return null;
   return (
@@ -293,6 +302,7 @@ export function BrowserSessionDock({ claimedSessionIds }: { claimedSessionIds?: 
       onChanged={dock.refresh}
       anchors={dock.anchors}
       claimedSessionIds={claimedSessionIds}
+      reopen={reopen}
     />
   );
 }
@@ -305,6 +315,7 @@ export function BrowserSessionDockView({
   anchors,
   preview = false,
   claimedSessionIds,
+  reopen,
 }: {
   views: BrowserSessionViewData[];
   selectedId: string | null;
@@ -313,33 +324,40 @@ export function BrowserSessionDockView({
   anchors?: ReadonlyMap<string, HTMLElement>;
   preview?: boolean;
   claimedSessionIds?: ReadonlySet<string>;
+  reopen?: (sessionId: string) => BrowserSessionReopen | null;
 }) {
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const layout =
     dock?.closest<HTMLElement>("[data-career-chat-layout]") ??
     dock?.parentElement;
-  const live = views.filter(view => view.session.status !== "closed" && view.browserAvailability !== "stopped");
+  const live = views.filter(browserLive);
   // Only cards that can float take a slot in the stack, so a claimed one leaves no gap.
   const floating = live.filter(view => !claimedSessionIds?.has(view.session.id));
+  // The selected one stays mounted once closed (same key, so an open viewer turns into its closed notice in place).
+  const shown = views.filter(view => browserLive(view) || view.session.id === selectedId);
 
   return (
     <>
       <div ref={setDock} className="absolute right-0 top-0 h-0 w-0" />
       {dock &&
         layout &&
-        live.map((view) => {
-          const inlineAnchor = anchors?.get(view.session.id) ?? null;
+        shown.map((view) => {
+          // A closed one docks: its timeline place shows the closed link instead.
+          const inlineAnchor = browserLive(view) ? anchors?.get(view.session.id) ?? null : null;
           const claimed = Boolean(claimedSessionIds?.has(view.session.id));
+          const slot = floating.indexOf(view);
           return createPortal(
             <BrowserSessionFloatingPanel
               view={view}
-              depth={claimed ? 0 : floating.indexOf(view)}
+              // One opened from a panel row (or kept after it closed) goes on top of the floating stack, not over it.
+              depth={slot < 0 ? floating.length : slot}
               count={views.length}
               claimed={claimed}
               expanded={selectedId === view.session.id}
               preview={preview}
               onExpand={(open) => onSelect(open ? view.session.id : null)}
               onChanged={onChanged}
+              reopen={browserLive(view) ? null : reopen?.(view.session.id) ?? null}
               dock={dock}
               layout={layout}
               inlineAnchor={inlineAnchor}
@@ -368,7 +386,8 @@ function BrowserSessionFloatingPanel({
   const t = useCareerT();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
   const [minimizedControlRevision, setMinimizedControlRevision] = useState<number | null>(null);
-  const human = props.view.session.status === "human";
+  // A stopped browser cannot be controlled: it shows as an ordinary card with its closed notice.
+  const human = props.view.session.status === "human" && browserLive(props.view);
   // A provider's login request must not cover a chat/form the user is reading.
   // Only an explicit open/handoff selects the full-screen interactive viewer.
   const fullScreen = human && props.expanded && minimizedControlRevision !== props.view.session.revision;
@@ -403,6 +422,7 @@ function BrowserSessionFloatingPanel({
         aria-describedby={undefined}
         popover={fullScreen ? "manual" : undefined}
         data-browser-placement={fullScreen ? "fullscreen" : inline ? "inline" : hidden ? "claimed" : "dock"}
+        data-browser-dock-depth={props.depth}
         aria-hidden={hidden || undefined}
         className={cn(
           "m-0 border-0 p-0 overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none",
@@ -434,6 +454,7 @@ function BrowserPopup({
   onToggleCollapsed,
   preview = false,
   fullScreen = false,
+  reopen = null,
 }: {
   view: BrowserSessionViewData;
   number?: number;
@@ -446,6 +467,7 @@ function BrowserPopup({
   expanded: boolean;
   onExpand: (open: boolean) => void;
   onChanged?: () => Promise<unknown>;
+  reopen?: BrowserSessionReopen | null;
 }) {
   const { fetchWithAuth } = useCareerApi();
   const t = useCareerT();
@@ -490,6 +512,8 @@ function BrowserPopup({
         preview={preview}
         number={number}
         fullScreen={fullScreen}
+        // Asked, the closed viewer folds away; Harper's new browser comes as its own card.
+        reopen={reopen && { ...reopen, onReopen: () => { reopen.onReopen(); onExpand(false); } }}
         error={
           failed
             ? t(

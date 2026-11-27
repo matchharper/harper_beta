@@ -23,6 +23,9 @@ export type BrowserSessionViewData = {
 
 export type BrowserSessionAction = "handoff" | "resume" | "close" | "save_login";
 
+/** A closed login browser that can be opened again: the person asks Harper in chat (the progress panel sends it). */
+export type BrowserSessionReopen = { onReopen: () => void; disabled?: boolean };
+
 export function BrowserSessionView({
   view,
   busy,
@@ -34,6 +37,7 @@ export function BrowserSessionView({
   collapsed = false,
   preview = false,
   fullScreen = false,
+  reopen = null,
 }: {
   view?: BrowserSessionViewData;
   busy?: boolean;
@@ -45,6 +49,8 @@ export function BrowserSessionView({
   collapsed?: boolean;
   preview?: boolean;
   fullScreen?: boolean;
+  /** Offered once this browser is closed or stopped. */
+  reopen?: BrowserSessionReopen | null;
 }) {
   const t = useCareerT();
   const [pendingAction, setPendingAction] = useState<
@@ -188,10 +194,21 @@ export function BrowserSessionView({
             {t("career.application.review.stop", "중단하기")}
           </MuteButton>
         ) : null}
-        {human ? (
+        {/* A stopped browser has nothing to finish: Done would hand Harper a page that is gone. */}
+        {human && !stopped ? (
           <BrowserPreviewAction type="button" disabled={busy || preview} onClick={() => void onAction("resume")}>
             {t("career.browser.done", "완료")}
           </BrowserPreviewAction>
+        ) : null}
+        {(closed || stopped) && reopen ? (
+          <>
+            <p className="text-sm text-neutral-muted">
+              {t("career.browser.closedNotice", "창이 닫혔어요. 다시 열기를 누르면 Harper에게 다시 열어 달라고 보내요.")}
+            </p>
+            <BrowserPreviewAction type="button" disabled={reopen.disabled} onClick={reopen.onReopen}>
+              {t("career.browser.reopen", "다시 열기")}
+            </BrowserPreviewAction>
+          </>
         ) : null}
         {!preview && previewFailed && !view?.liveUrl && !closed && !stopped && !error ? (
           <p role="alert" className="text-sm text-neutral-muted">

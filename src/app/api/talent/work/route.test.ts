@@ -21,8 +21,11 @@ function harness({
   idleWithForm = false,
   progress = "ok" as "ok" | "fail",
   turnCreatedAt = undefined as string | undefined,
+  parkedTurn = true,
+  closingSessions = [] as string[],
 } = {}) {
-  const progressCalls: Array<{ userId: string; conversationId: string; openForms: unknown; turnStartedAt: unknown }> = [];
+  const progressCalls: Array<{ userId: string; conversationId: string; openForms: unknown; turnStartedAt: unknown;
+    waitingForReply: unknown; closingBrowserSessionIds: unknown }> = [];
   const calls: Array<{
     table: string;
     columns?: string;
@@ -72,8 +75,11 @@ function harness({
             { id: "active", input_message_ids: [40, 41, 42], delivered_input_message_ids: deliveredIds,
               delivered_event_ids: deliveredEventIds, activity: { logs: ["프로필 확인 중"], waitingForReply },
               ...(turnCreatedAt ? { created_at: turnCreatedAt } : {}) },
-            { id: "waiting", activity: { waitingForReply: true } },
+            ...(parkedTurn ? [{ id: "waiting", activity: { waitingForReply: true } }] : []),
             { id: "cleanup", cleanup: true },
+            // A Stop's browser cleanups; one of them already waits on nothing and still names its browser.
+            ...closingSessions.map((session, index) => ({ id: `browser-cleanup-${index}`, cleanup_browser_session: session,
+              activity: { waitingForReply: true } })),
           ],
           error: null,
         };
@@ -157,8 +163,10 @@ function harness({
         return { parseCareerForm };
       if (name === "@/lib/career/applicationProgress/read.server")
         return {
-          readCareerApplicationProgress: async (args: { userId: string; conversationId: string; openForms: PromiseLike<unknown>; turnStartedAt: PromiseLike<unknown> }) => {
-            progressCalls.push({ userId: args.userId, conversationId: args.conversationId, openForms: await args.openForms, turnStartedAt: await args.turnStartedAt });
+          readCareerApplicationProgress: async (args: { userId: string; conversationId: string; openForms: PromiseLike<unknown>; turnStartedAt: PromiseLike<unknown>;
+            waitingForReply: PromiseLike<unknown>; closingBrowserSessionIds: PromiseLike<unknown> }) => {
+            progressCalls.push({ userId: args.userId, conversationId: args.conversationId, openForms: await args.openForms, turnStartedAt: await args.turnStartedAt,
+              waitingForReply: await args.waitingForReply, closingBrowserSessionIds: await args.closingBrowserSessionIds });
             if (progress === "fail") throw new Error("progress read failed");
             return [{ id: "role-1", status: "running" }];
           },
@@ -257,6 +265,25 @@ test("only a working turn holds a stopped run back from failing", async () => {
   assert.equal(waiting.progressCalls[0].turnStartedAt, null);
 });
 
+test("a turn parked on the person's reply and a Stop's queued browser cleanups reach the progress read", async () => {
+  // A turn waiting for the person's reply in chat: a paused application points there.
+  const parked = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", waitingForReply: true });
+  await parked.get();
+  assert.equal(parked.progressCalls[0].waitingForReply, true);
+  // Nothing parked: the working turn is not a wait, and cleanups never count as one.
+  const working = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", parkedTurn: false, closingSessions: ["session-1"] });
+  await working.get();
+  assert.equal(working.progressCalls[0].waitingForReply, false);
+  assert.equal(working.progressCalls[0].turnStartedAt, "2026-11-04T00:00:00Z");
+  // Each browser a Stop is closing, once; no cleanup, no ids.
+  const stopping = harness({ closingSessions: ["session-1", "session-2", "session-1"] });
+  await stopping.get();
+  assert.deepEqual(Array.from(stopping.progressCalls[0].closingBrowserSessionIds as string[]), ["session-1", "session-2"]);
+  const idle = harness();
+  await idle.get();
+  assert.deepEqual(Array.from(idle.progressCalls[0].closingBrowserSessionIds as string[]), []);
+});
+
 test("progress reads three narrow queries: this conversation, the last 7 days, selected JSON paths only", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
   const roleId = "00000000-0000-4000-8000-0000000000a1";
@@ -321,4 +348,58 @@ test("progress reads three narrow queries: this conversation, the last 7 days, s
   assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations"]);
   failTable = "talent_external_operations";
   await assert.rejects(read(), /Application operations unavailable/);
+});
+
+test("a Stop behind an application's newest run is read by id from its message flag or its cancelled work", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
+  const works = ["00000000-0000-4000-8000-0000000000e2", "00000000-0000-4000-8000-0000000000e3"];
+  const now = new Date("2026-11-26T10:00:00Z");
+  const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
+  // One failed submission per role: A's request message was flagged by a Stop, B's delegated work was cancelled, and
+  // C's request is still going (its work runs).
+  const run = (index: number, extra: Record<string, unknown>) => ({ id: `00000000-0000-4000-8000-0000000000d${index}`, kind: "browser_run",
+    status: "failed", mode: "execute", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleIds[index]], ...extra });
+  const operations = [run(0, { sourceMessageId: "301" }), run(1, { sourceMessageId: "302", workId: works[0] }), run(2, { sourceMessageId: "303", workId: works[1] })];
+  const admin = {
+    from(table: string) {
+      const call = { table, columns: "", filters: {} as Record<string, unknown>, limit: undefined as number | undefined };
+      calls.push(call);
+      const result = () => {
+        if (table === "company_roles") return [];
+        if (table === "talent_messages")
+          return call.columns.startsWith("id,") ? [{ id: 301, stopped: true }, { id: 302, stopped: null }, { id: 303, stopped: false }] : [];
+        if (call.filters.kind === "delegated_work") return [{ id: works[0], status: "cancelled" }, { id: works[1], status: "running" }];
+        return operations;
+      };
+      const query: any = {
+        select(columns: string) { call.columns = columns; return query; },
+        eq(column: string, value: unknown) { call.filters[column] = value; return query; },
+        in(column: string, values: unknown[]) { call.filters[`${column}:in`] = values; return query; },
+        gte() { return query; },
+        not() { return query; },
+        order() { return query; },
+        limit(value: number) { call.limit = value; return query; },
+        then(resolve: (value: unknown) => unknown) { return Promise.resolve(resolve({ data: result(), error: null })); },
+      };
+      return query;
+    },
+  };
+  const list = await readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
+    turnStartedAt: Promise.resolve(null), now });
+  const byRole = new Map(list.map((item) => [item.id, item]));
+  assert.deepEqual(byRole.get(roleIds[0])?.failure, { reason: "stopped" });
+  assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "stopped" });
+  assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "error" });
+
+  const [source, work] = calls.slice(3);
+  assert.deepEqual(calls.map((call) => call.table),
+    ["talent_messages", "talent_external_operations", "company_roles", "talent_messages", "talent_external_operations"]);
+  // Only the flag is selected, for this person's conversation and these ids.
+  assert.equal(source.columns, "id,stopped:payload->careerTurnStopped");
+  assert.deepEqual(source.filters, { user_id: userId, conversation_id: conversationId, "id:in": ["301", "302", "303"] });
+  assert.equal(source.limit, 3);
+  assert.equal(work.columns, "id,status");
+  assert.deepEqual(work.filters, { user_id: userId, conversation_id: conversationId, kind: "delegated_work", "id:in": works });
+  assert.equal(work.limit, 2);
 });

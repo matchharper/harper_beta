@@ -2,6 +2,23 @@
 
 import { useLayoutEffect, useState } from "react";
 
+/** Space between two docked cards, so one never covers the other's title or buttons. */
+const STACK_GAP = 8;
+
+/**
+ * The docked cards under this one in the stack (a lower depth): their folded heights, each with a gap. A card that is
+ * open keeps its folded height, so the cards above it stay put.
+ */
+function stackBelow(layout: HTMLElement, content: HTMLElement, depth: number) {
+  let offset = 0;
+  for (const card of Array.from(layout.querySelectorAll<HTMLElement>('[data-browser-placement="dock"][data-browser-dock-depth]'))) {
+    if (card === content || !(Number(card.dataset.browserDockDepth) < depth)) continue;
+    const height = Number(card.dataset.browserFoldedHeight) || card.offsetHeight;
+    if (height) offset += height + STACK_GAP;
+  }
+  return offset;
+}
+
 /** Inline panels scroll in the document; only an offscreen panel needs coordinates. */
 export function useBrowserSessionPlacement({
   dock,
@@ -120,14 +137,17 @@ function observePlacement(
       const width = Math.min(320, Math.max(0, parent.width - 32));
       const top = Math.max(12, (window.visualViewport?.offsetTop ?? 0) - parent.top + 12,
         topbar ? topbar.getBoundingClientRect().bottom - parent.top + 8 : 0);
-      const bottom = anchor.top - parent.top - 12 - depth * 40;
+      // Stacked by the cards' real heights (a folded card is 52-72px, so a fixed 40px step overlapped them).
+      const below = stackBelow(layout, content, depth);
+      const bottom = anchor.top - parent.top - 12 - below;
       Object.assign(content.style, {
         position: "fixed", width: `${width}px`,
-        maxHeight: `${Math.max(0, mobile ? Math.min(parent.height, window.visualViewport?.height ?? window.innerHeight) - top - 16 : bottom - 16)}px`,
+        maxHeight: `${Math.max(0, mobile ? Math.min(parent.height, window.visualViewport?.height ?? window.innerHeight) - top - below - 16 : bottom - 16)}px`,
         zIndex: isCollapsed ? "10" : "11",
-        left: `${mobile ? (parent.width - width) / 2 : Math.max(16, Math.min(anchor.right - parent.left - width - depth * 12, parent.width - width - 16))}px`,
+        left: `${mobile ? (parent.width - width) / 2 : Math.max(16, Math.min(anchor.right - parent.left - width, parent.width - width - 16))}px`,
       });
-      content.style.top = `${mobile ? top + depth * 56 : Math.max(16, bottom - content.offsetHeight)}px`;
+      content.style.top = `${mobile ? top + below : Math.max(16, bottom - content.offsetHeight)}px`;
+      if (isCollapsed) content.dataset.browserFoldedHeight = String(content.offsetHeight);
     }
     if (!fullScreen) content.style.height = "";
     // Animate only the change of placement. Native scrolling never trails the
@@ -162,6 +182,14 @@ function observePlacement(
     if (frame === undefined) frame = requestAnimationFrame(() => { frame = undefined; update(); });
   });
   if (viewport) mutation?.observe(viewport, { childList: true, subtree: true, characterData: true });
+  // The cards under this one move it: their size, and whether they are docked at all.
+  const cards = () => Array.from(layout.querySelectorAll<HTMLElement>("[data-browser-dock-depth]")).filter(card => card !== content);
+  for (const card of cards()) resize?.observe(card);
+  const stack = typeof MutationObserver === "undefined" ? null : new MutationObserver(() => {
+    for (const card of cards()) resize?.observe(card);
+    if (frame === undefined) frame = requestAnimationFrame(() => { frame = undefined; update(); });
+  });
+  stack?.observe(layout, { attributes: true, attributeFilter: ["data-browser-placement", "data-browser-dock-depth"], subtree: true });
   const intersection =
     typeof IntersectionObserver === "undefined"
       ? null
@@ -183,6 +211,7 @@ function observePlacement(
       inlineAnchor.style.minHeight = "";
     }
     mutation?.disconnect();
+    stack?.disconnect();
     if (frame !== undefined) cancelAnimationFrame(frame);
     resize?.disconnect();
     intersection?.disconnect();

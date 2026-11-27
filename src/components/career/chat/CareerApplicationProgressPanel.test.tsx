@@ -19,13 +19,26 @@ import { CareerFormReferenceProvider, useCareerFormReference } from "./CareerFor
 // The open-forms hook reaches the Supabase client, which needs these at import time.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://localhost:54321";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
-const load = async () => ({
-  ...(await import("./CareerApplicationProgressPanel")),
-  ...(await import("@/hooks/career/useCareerOpenForms")),
-  ...(await import("../CareerChatPanelContext")),
-});
+// Radix picks its layout effect once, by whether a document exists when it is imported; without one its portals
+// (the answer sheet's dialog) never mount. So the first import always has one.
+const importDom = new JSDOM("");
+const load = async () => {
+  const bare = !("document" in globalThis);
+  if (bare) Object.defineProperty(globalThis, "document", { configurable: true, writable: true, value: importDom.window.document });
+  try {
+    return {
+      ...(await import("./CareerApplicationProgressPanel")),
+      ...(await import("@/hooks/career/useCareerOpenForms")),
+      ...(await import("../CareerChatPanelContext")),
+    };
+  } finally {
+    if (bare) delete (globalThis as Record<string, unknown>).document;
+  }
+};
 /** The chat history the panel can page through, as the chat panel provides it. */
 type ChatHistory = { hasOlderMessages: boolean; loadingOlderMessages: boolean; onLoadOlderMessages: () => Promise<void> };
+/** The rest of the chat panel the rows use: who is signed in, the send, and the scroller. */
+type Chat = Partial<ChatHistory> & Record<string, unknown>;
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const step = (key: CareerApplicationStepKey, state: CareerApplicationStepState, extra: Partial<CareerApplicationStep> = {}) =>
@@ -37,7 +50,7 @@ const submitted: CareerApplicationProgress = {
 const needsAnswers: CareerApplicationProgress = {
   id: "role-b", companyName: "B사", title: "데이터 엔지니어", status: "needs_you", updatedAt: ago(2),
   action: { kind: "answer_form", formId: 20 },
-  steps: [step("confirm", "done", { at: ago(20) }),
+  steps: [step("confirm", "done", { at: ago(20), answeredAt: ago(20) }),
     step("fill", "done", { subSteps: [{ key: "login", state: "done", site: "원티드" }] }),
     step("review", "current", { questions: 2 }), step("submit", "todo")],
 };
@@ -69,23 +82,29 @@ async function mount() {
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
     HTMLElement: dom.window.HTMLElement, Element: dom.window.Element, Node: dom.window.Node, Event: dom.window.Event,
     CustomEvent: dom.window.CustomEvent, sessionStorage: dom.window.sessionStorage, localStorage: dom.window.localStorage,
+    // The answer sheet's dialog moves focus into its form.
+    HTMLInputElement: dom.window.HTMLInputElement, HTMLTextAreaElement: dom.window.HTMLTextAreaElement,
+    MutationObserver: dom.window.MutationObserver, NodeFilter: dom.window.NodeFilter, getComputedStyle: dom.window.getComputedStyle.bind(dom.window),
     requestAnimationFrame: (callback: FrameRequestCallback) => { callback(0); return 0; }, IS_REACT_ACT_ENVIRONMENT: true })) {
     previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
     Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
   }
   let scrolled: Element | null = null;
   dom.window.HTMLElement.prototype.scrollIntoView = function () { scrolled = this; };
+  // The answer sheet is a dialog on wide screens.
+  dom.window.matchMedia = ((query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {},
+    addListener() {}, removeListener() {} })) as unknown as typeof dom.window.matchMedia;
   const root: Root = createRoot(dom.window.document.getElementById("root")!);
   const client = new QueryClient();
-  const render = (data: CareerOpenFormsSnapshot, onScreen: number[] = [], history?: ChatHistory) => {
+  const render = (data: CareerOpenFormsSnapshot, onScreen: number[] = [], chat?: Chat) => {
     const panel = <CareerApplicationProgressPanel conversationId="conversation" />;
     return act(async () => root.render(
       <QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}>
         <MessagesProvider locale="ko"><CareerOpenFormsSnapshotContext.Provider value={data}>
           <CareerFormReferenceProvider>
             {onScreen.map(formId => <FormLocation key={formId} formId={formId} />)}
-            {history ? (
-              <CareerChatPanelProvider value={{ user: null, messages: [], conversationId: "conversation", ...history } as never}>
+            {chat ? (
+              <CareerChatPanelProvider value={{ user: null, messages: [], conversationId: "conversation", ...chat } as never}>
                 {panel}
               </CareerChatPanelProvider>
             ) : panel}
@@ -98,18 +117,21 @@ async function mount() {
     assert.ok(element, "element to click");
     element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
   });
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   const panel = () => document.querySelector("[data-career-application-progress]");
   const toggle = () => panel()?.querySelector<HTMLButtonElement>(":scope > button");
   const row = (name: string) => [...document.querySelectorAll("[data-career-application-progress] ul > li")]
     .find(item => item.textContent?.includes(name));
   const cleanup = async () => {
     await act(async () => root.unmount());
+    // A dialog returns focus on a timer after it unmounts: let it run while its document is still in place.
+    await new Promise(resolve => setTimeout(resolve, 0));
     for (const [key, descriptor] of previous) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);
       else delete (globalThis as Record<string, unknown>)[key];
     }
   };
-  return { render, document, click, panel, toggle, row, cleanup, scrolled: () => scrolled as Element | null };
+  return { render, document, click, settle, panel, toggle, row, cleanup, scrolled: () => scrolled as Element | null };
 }
 
 test("nothing shows without applications", async () => {
@@ -158,7 +180,8 @@ test("expanded, each application is a row with its status line; a row opens its 
     await view.click(rowButton);
     assert.equal(rowButton.getAttribute("aria-expanded"), "true");
     const box = view.document.getElementById(rowButton.getAttribute("aria-controls")!)!;
-    assert.match(box.textContent ?? "", /제출까지 4단계 중 2단계50%/);
+    // The step it is on (the third), while two are finished.
+    assert.match(box.textContent ?? "", /제출까지 4단계 중 3단계50%/);
     const progress = box.querySelector('[role="progressbar"]')!;
     assert.equal(progress.getAttribute("aria-valuenow"), "2");
     const steps = [...box.querySelectorAll(":scope ol > li")];
@@ -258,9 +281,210 @@ test("답하기 for a form older than the loaded history loads earlier messages 
     await view.render(snapshot([needsAnswers]), [20], history(true));
     assert.equal(view.scrolled()?.getAttribute("data-career-form-id"), "20");
     assert.equal(loads, 1);
-    // No earlier page left and the form not on screen: no button.
-    await view.render(snapshot([needsAnswers]), [], history(false));
+  } finally { await view.cleanup(); }
+});
+
+test("a form no loaded page shows opens in a sheet to answer there: no earlier page, none left, or 25 pages loaded", async t => {
+  const { supabase } = await import("@/lib/supabase");
+  t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }) as never);
+  const fetched: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    fetched.push(String(url));
+    return Response.json({ form: { formId: 20, revision: 1, kind: "form", state: "open", title: "검토",
+      items: [{ id: "why", label: "지원 동기", type: "textarea", content: "" }] }, responses: [] });
+  });
+  const view = await mount();
+  let loads = 0;
+  const history = (hasOlderMessages: boolean, loadingOlderMessages = false): ChatHistory =>
+    ({ hasOlderMessages, loadingOlderMessages, onLoadOlderMessages: async () => { loads += 1; } });
+  const sheet = () => view.document.querySelector('[role="dialog"]');
+  const answered = snapshot([{ ...needsAnswers, status: "waiting", action: undefined }]);
+  const answer = async () => {
     await view.click(view.toggle());
-    assert.equal(view.row("B사")!.querySelector('button[aria-label$="답하기"]'), null);
+    await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
+  };
+  try {
+    // The whole history is loaded and the form is not in it (no reply placed it): the sheet, with the form itself.
+    await view.render(snapshot([needsAnswers]), [], history(false));
+    await answer();
+    await view.settle();
+    assert.match(sheet()?.textContent ?? "", /B사 · 데이터 엔지니어 답하기/);
+    assert.ok(sheet()?.querySelector('[data-career-form-id="20"] textarea'), "answered in the sheet");
+    assert.match(fetched[0] ?? "", /formId=20/);
+    assert.equal(loads, 0);
+    assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
+    // Answered (no longer asked): the sheet closes by itself.
+    await view.render(answered, [], history(false));
+    assert.equal(sheet(), null);
+
+    // The history ran out while looking for it: the sheet, not nothing.
+    await view.render(snapshot([needsAnswers]), [], history(true));
+    await answer();
+    assert.equal(loads, 1);
+    assert.equal(sheet(), null);
+    await view.render(snapshot([needsAnswers]), [], history(false));
+    await view.settle();
+    assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
+    await view.render(answered, [], history(false));
+
+    // Earlier pages keep coming without it: 25 are loaded, then the sheet.
+    loads = 0;
+    await view.render(snapshot([needsAnswers]), [], history(true));
+    await answer();
+    for (let page = 0; page < 30 && loads < 25; page += 1) {
+      await view.render(snapshot([needsAnswers]), [], history(true, true));
+      await view.render(snapshot([needsAnswers]), [], history(true));
+    }
+    assert.equal(loads, 25);
+    assert.equal(sheet(), null);
+    await view.render(snapshot([needsAnswers]), [], history(true, true));
+    await view.render(snapshot([needsAnswers]), [], history(true));
+    await view.settle();
+    assert.equal(loads, 25, "no 26th page");
+    assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
+  } finally { await view.cleanup(); }
+});
+
+test("a running step counts its minutes, and a browser left with the person says how long it still waits", async () => {
+  const view = await mount();
+  const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000 - 5_000).toISOString();
+  const submitting: CareerApplicationProgress = {
+    id: "role-g", companyName: "G사", title: "백엔드", status: "running", updatedAt: ago(0),
+    steps: [step("confirm", "done"), step("fill", "done"), step("review", "skipped"), step("submit", "current", { at: ago(2) })],
+  };
+  const login = (expiresAt: string): CareerApplicationProgress => ({
+    id: "role-h", companyName: "H사", title: "프론트엔드", status: "needs_you", updatedAt: ago(5),
+    action: { kind: "open_browser", sessionId: "session-h" },
+    steps: [step("confirm", "done"), step("fill", "current", { at: ago(6), subSteps: [{ key: "login", state: "current", site: "원티드", at: ago(5), expiresAt }] }),
+      step("review", "todo"), step("submit", "todo")],
+  });
+  const line = (name: string) => view.row(name)!.querySelector("button span.truncate:not(.font-medium)")!;
+  try {
+    await view.render(snapshot([submitting, login(inMinutes(25))]));
+    await view.click(view.toggle());
+    assert.equal(line("G사").textContent, "제출 중 · 2분째");
+    assert.equal(line("H사").textContent, "원티드 로그인이 필요해요 · 25분 남음");
+    assert.doesNotMatch(line("H사").className, /text-critical/);
+    await view.click(view.row("H사")!.querySelector("button"));
+    assert.equal(view.row("H사")!.querySelector("ol > li ul > li")?.textContent, "원티드 로그인 (답 필요)로그인하면 이어서 채워요 · 25분 남음");
+    // The last three minutes stand out.
+    await view.render(snapshot([submitting, login(inMinutes(3))]));
+    assert.equal(line("H사").textContent, "원티드 로그인이 필요해요 · 3분 남음");
+    assert.match(line("H사").className, /text-critical/);
+    // Past its time it no longer counts.
+    await view.render(snapshot([submitting, login(ago(1))]));
+    assert.equal(line("H사").textContent, "원티드 로그인이 필요해요");
+  } finally { await view.cleanup(); }
+});
+
+test("a paused application is continued, and a closed login reopened, with the person's own chat message", async () => {
+  const view = await mount();
+  const sent: unknown[] = [];
+  let finish = () => undefined as void;
+  const chat = { user: { id: "user" }, chatPending: false, assistantTyping: false,
+    onSendChatMessage: (args: unknown) => { sent.push(args); return new Promise<boolean>(resolve => { finish = () => resolve(true); }); } };
+  const paused: CareerApplicationProgress = {
+    id: "role-g", kind: "role", companyName: "G사", title: "백엔드", status: "needs_you", updatedAt: ago(180),
+    action: { kind: "continue" },
+    steps: [step("confirm", "done"), step("fill", "done"), step("review", "todo"), step("submit", "todo")],
+  };
+  const closedLogin: CareerApplicationProgress = {
+    id: "role-h", kind: "role", companyName: "H사", title: "프론트엔드", status: "needs_you", updatedAt: ago(40),
+    action: { kind: "reopen_browser", sessionId: "session-h" },
+    steps: [step("confirm", "done"), step("fill", "current", { subSteps: [{ key: "login", state: "failed", site: "원티드", at: ago(40) }] }),
+      step("review", "todo"), step("submit", "todo")],
+  };
+  const button = (name: string, label: string) => view.row(name)!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  try {
+    await view.render(snapshot([paused, closedLogin]), [], chat);
+    await view.click(view.toggle());
+    assert.match(view.row("G사")!.textContent ?? "", /G사 · 백엔드진행이 멈췄어요/);
+    // The box says since when nothing happened, at the step it stopped before.
+    await view.click(view.row("G사")!.querySelector("button"));
+    const steps = [...view.row("G사")!.querySelectorAll("ol > li")].map(item => item.textContent ?? "");
+    assert.match(steps[2], /^내 답 확인.+ 이후 진행된 일이 없어요\. Harper가 채팅에서 물어본 게 있으면 채팅에서 답해 주세요\.$/);
+    assert.match(view.row("H사")!.textContent ?? "", /H사 · 프론트엔드원티드 로그인 창이 닫혔어요/);
+    await view.click(view.row("H사")!.querySelector("button"));
+    assert.equal(view.row("H사")!.querySelector("ol > li ul > li")?.textContent, "원티드 로그인 (멈춤)다시 열기를 누르면 Harper가 창을 다시 열어요");
+
+    await view.click(button("G사", "G사 · 백엔드 이어서 하기"));
+    assert.deepEqual(sent, [{ text: "G사 · 백엔드 진행을 이어서 해 줘.", opportunityMentions: [{ label: "G사 · 백엔드", roleId: "role-g" }] }]);
+    assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false", "folded so the reply is in view");
+    // One request at a time, also after the list is folded and opened again.
+    await view.click(view.toggle());
+    assert.equal(button("G사", "G사 · 백엔드 이어서 하기")?.disabled, true);
+    assert.equal(button("H사", "H사 · 프론트엔드 로그인 창 다시 열기")?.disabled, true);
+    await act(async () => finish());
+    await view.click(button("H사", "H사 · 프론트엔드 로그인 창 다시 열기"));
+    assert.deepEqual(sent[1], { text: "H사 · 프론트엔드 로그인 창을 다시 열어 줘.", opportunityMentions: [{ label: "H사 · 프론트엔드", roleId: "role-h" }] });
+    await act(async () => finish());
+
+    // An opportunity without a role cannot be mentioned, and nobody signed in cannot send: the line stays, no button.
+    await view.render(snapshot([{ ...paused, kind: "opportunity" }]), [], chat);
+    await view.click(view.toggle());
+    assert.match(view.row("G사")!.textContent ?? "", /진행이 멈췄어요/);
+    assert.equal(view.row("G사")!.querySelectorAll("button").length, 1);
+    // (Another account remounts the chat's children, so the list starts folded.)
+    await view.render(snapshot([paused]), [], { ...chat, user: null });
+    await view.click(view.toggle());
+    assert.equal(view.row("G사")!.querySelectorAll("button").length, 1);
+  } finally { await view.cleanup(); }
+});
+
+test("a turn waiting on the person points to Harper's newest message, and a Stop reads as the person's own choice", async () => {
+  const view = await mount();
+  const scroller = view.document.createElement("div");
+  scroller.innerHTML = '<div data-career-message-role="assistant">first</div><div data-career-message-role="user">me</div>'
+    + '<div data-career-message-role="assistant">newest</div>';
+  view.document.body.append(scroller);
+  const chat = { user: { id: "user" }, scrollRef: { current: scroller }, onSendChatMessage: async () => true };
+  const asking: CareerApplicationProgress = {
+    id: "role-i", companyName: "I사", title: "디자이너", status: "needs_you", updatedAt: ago(10),
+    action: { kind: "reply_in_chat" },
+    steps: [step("confirm", "done"), step("fill", "current", { at: ago(12) }), step("review", "todo"), step("submit", "todo")],
+  };
+  const stopped: CareerApplicationProgress = {
+    id: "role-j", companyName: "J사", title: "PM", status: "failed", updatedAt: ago(10), failure: { reason: "stopped" },
+    action: { kind: "continue" },
+    steps: [step("confirm", "done"), step("fill", "done"), step("review", "skipped"), step("submit", "failed", { at: ago(10) })],
+  };
+  try {
+    await view.render(snapshot([asking, stopped]), [], chat);
+    await view.click(view.toggle());
+    assert.match(view.row("I사")!.textContent ?? "", /I사 · 디자이너Harper가 채팅에서 답을 기다려요/);
+    await view.click(view.row("I사")!.querySelector('button[aria-label="I사 · 디자이너 채팅에서 답하기"]'));
+    assert.equal(view.scrolled()?.textContent, "newest");
+    assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
+
+    await view.click(view.toggle());
+    const row = view.row("J사")!;
+    const line = row.querySelector("button span.truncate:not(.font-medium)")!;
+    assert.equal(line.textContent, "중단했어요");
+    assert.doesNotMatch(line.className, /text-critical/);
+    // Offered again, not pressed on the person: a plain button.
+    const resume = row.querySelector<HTMLButtonElement>('button[aria-label="J사 · PM 이어서 하기"]');
+    assert.ok(resume);
+    assert.doesNotMatch(resume.className, /bg-action/);
+    await view.click(row.querySelector("button"));
+    const note = row.querySelector("[role=progressbar]")!.parentElement!.querySelector(":scope > p:last-child")!;
+    assert.equal(note.textContent, "중단했어요");
+    assert.doesNotMatch(note.className, /text-critical/);
+    assert.equal(row.querySelector(".bg-critical"), null, "nothing red");
+  } finally { await view.cleanup(); }
+});
+
+test("a mail link the site sent is asked like a code", async () => {
+  const view = await mount();
+  const link: CareerApplicationProgress = {
+    id: "role-k", companyName: "K사", title: "QA", status: "needs_you", updatedAt: ago(2),
+    steps: [step("confirm", "done"), step("fill", "done"), step("review", "skipped"),
+      step("submit", "current", { at: ago(3), subSteps: [{ key: "email_link", state: "current", at: ago(2) }] })],
+  };
+  try {
+    await view.render(snapshot([link]));
+    await view.click(view.toggle());
+    assert.match(view.row("K사")!.textContent ?? "", /K사 · QA메일 인증 링크를 열어 주세요/);
+    await view.click(view.row("K사")!.querySelector("button"));
+    assert.equal(view.row("K사")!.querySelector("ol > li ul > li")?.textContent, "메일 인증 링크 (답 필요)사이트가 보낸 메일의 링크를 열어 주세요");
   } finally { await view.cleanup(); }
 });
