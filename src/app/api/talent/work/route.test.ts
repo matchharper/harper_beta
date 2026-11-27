@@ -513,8 +513,7 @@ test("a stopped application asked to go on stays while that turn runs: a day pas
   // B's browser waited for a login and the person closed it at 24:00: B is stopped since then.
   const sessionClosed = { id: sessionB, kind: "browser_session", status: "closed", createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB] };
   const runB = { id: "00000000-0000-4000-8000-0000000000d2", kind: "browser_run", parentId: sessionB, status: "completed", mode: "prepare",
-    createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB], needsUser: true, submitted: "no", verificationCode: "none",
-    url: "https://id.wanted.co.kr/login", startUrl: "https://www.wanted.co.kr/wd/1" };
+    createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB], needsUser: true, submitted: "no", verificationCode: "none" };
   const stops = [{ createdAt: hours(0), sourceMessageIds: [301] }];
   const requests = [{ id: 310, createdAt: hours(23 + 50 / 60), content: mention("A사 · 백엔드 진행을 이어서 해 줘.", [{ label: "A사 · 백엔드", roleId: roleA }]) }];
   type Row = Record<string, unknown>;

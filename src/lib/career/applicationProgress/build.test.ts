@@ -385,6 +385,21 @@ test("a form the person's Stop closed unanswered stays to do, so the percentage 
   assert.equal(startClosed.steps[0].state, "current");
 });
 
+test("closing the login browser stops the application from when it closed: a request before that does not undo it", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "review" })];
+  const loginRun = run("prepare", "completed", 6, 8, { needsUser: true });
+  // The run ended at 00:08 with the browser handed to the person; they closed it at 00:40.
+  const closedAt40 = [session(SESSION, "closed", { updatedAt: at(40) }), loginRun];
+  assert.deepEqual(only(build(messages, closedAt40, [], { now: new Date(at(45)) })).failure, { reason: "stopped" });
+  // They had asked Harper about it at 00:20, and that turn still runs: the closing came after, so it still holds.
+  const asked = only(build(messages, closedAt40, [], { now: new Date(at(45)), turnStartedAt: at(20), requests: [{ createdAt: at(20), roleIds: [ROLE_A] }] }));
+  assert.deepEqual(asked.failure, { reason: "stopped" });
+  assert.equal(sub(asked, "login")?.state, "failed");
+  // Asked after closing it: under way while that turn runs.
+  assert.equal(only(build(messages, closedAt40, [], { now: new Date(at(45)), turnStartedAt: at(42),
+    requests: [{ createdAt: at(42), roleIds: [ROLE_A] }] })).status, "waiting");
+});
+
 test("a Stop that only closed the open start or review form reads as the person's Stop, until something follows", () => {
   // No run yet: the person stops while the start form waits.
   const start = only(build([form(1, 0), closed(1, 3)], []));

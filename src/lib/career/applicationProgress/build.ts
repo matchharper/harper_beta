@@ -200,8 +200,11 @@ type FormView = {
   closedByStop?: boolean;
 };
 
-/** closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. */
-type SessionView = { status: string; requestedAction?: string | null; browserAvailability?: string | null; closing: boolean };
+/**
+ * closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. updatedAt: its row's last
+ * change, for a closed browser when it closed.
+ */
+type SessionView = { status: string; requestedAction?: string | null; browserAvailability?: string | null; closing: boolean; updatedAt: string };
 
 type RunView = {
   id: string;
@@ -341,7 +344,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       stoppedAt: stoppedAtOf(row),
       site: siteOf(row),
       session: session && { status: session.status, requestedAction: session.requestedAction,
-        browserAvailability: session.browserAvailability, closing: closing.has(session.id) },
+        browserAvailability: session.browserAvailability, closing: closing.has(session.id), updatedAt: session.updatedAt },
       latestOnSession: Boolean(row.parentId && newestOnSession.get(row.parentId)?.id === row.id),
     };
     for (const id of ids) app(id, "role").runs.push(view);
@@ -634,9 +637,10 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const closedForm = app.forms.filter((form) => form.closedByStop).sort((a, b) => time(a.resolvedAt) - time(b.resolvedAt)).at(-1);
   const formStop = closedForm && time(closedForm.resolvedAt) >= time(updatedAt) ? closedForm.resolvedAt : undefined;
   // Stopped by the person: a Stop ended the request of the newest work, the login browser it waited on was closed (in
-  // the viewer, or by a Stop's cleanup), or a Stop closed its open form. It holds until something follows for this
-  // application (movedSince).
-  const stopFrom = newestWork?.stoppedAt ?? (lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined) ?? formStop;
+  // the viewer, or by a Stop's cleanup: from when it closed, not when its run ended), or a Stop closed its open form.
+  // It holds until something follows for this application (movedSince).
+  const lostStop = lost && !browserExpired(lost.run.session) ? latestTime([lost.run.updatedAt, lost.run.session?.updatedAt]) : undefined;
+  const stopFrom = newestWork?.stoppedAt ?? lostStop ?? formStop;
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;
