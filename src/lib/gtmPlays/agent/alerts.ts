@@ -9,7 +9,7 @@ const HOUR_MS = 60 * MINUTE_MS;
 
 export type AgentAlertKind =
   | "brake" | "channel_brake" | "complaint" | "send_paused" | "tick_error" | "tick_killed" | "reply_reading" | "cost_cap_early"
-  | "search_gave_up";
+  | "search_gave_up" | "vendor_refused";
 
 /** The same kind is sent at most once in this long (a problem that lasts is not repeated every 5-minute tick). */
 export const ALERT_EVERY_MS: Record<AgentAlertKind, number> = {
@@ -23,6 +23,8 @@ export const ALERT_EVERY_MS: Record<AgentAlertKind, number> = {
   reply_reading: 6 * HOUR_MS,
   cost_cap_early: 20 * HOUR_MS,
   search_gave_up: 12 * HOUR_MS,
+  // A bad key or no balance lasts until someone fixes it: twice a day is enough to be seen.
+  vendor_refused: 12 * HOUR_MS,
 };
 
 const TITLES: Record<AgentAlertKind, string> = {
@@ -35,6 +37,7 @@ const TITLES: Record<AgentAlertKind, string> = {
   reply_reading: "답장을 읽지 못하고 있어요 (후속 메일은 기다려요)",
   cost_cap_early: "오후 3시 전에 하루 비용 한도에 닿았어요",
   search_gave_up: "사람 찾기를 끝내지 못해 건너뛰었어요",
+  vendor_refused: "treg가 요청을 거절했어요 (키·잔액 확인)",
 };
 
 /** Cost cap reached before this Korea-time hour: worth a look (a big upload, or a step costing more than it should). */

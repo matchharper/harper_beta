@@ -221,8 +221,8 @@ export function openingFromEvents(events: readonly Pick<AgentEvent, "kind" | "no
 // ---------------------------------------------------------------------------------------------------------------
 // The greeting
 
-/** Surnames written first in a romanized Korean name ("Kim Jihoon" greets "Jihoon"). */
-const KOREAN_SURNAMES = new Set([
+/** Surnames written first in a romanized Korean name ("Kim Jihoon" greets "Jihoon"). Company mails use it too. */
+export const KOREAN_SURNAMES = new Set([
   "kim", "lee", "yi", "park", "pak", "choi", "jung", "jeong", "chung", "kang", "cho", "jo", "yoon", "yun", "jang", "chang",
   "lim", "im", "han", "oh", "seo", "suh", "shin", "sin", "kwon", "hwang", "ahn", "an", "song", "yoo", "yu", "ryu", "hong",
   "jeon", "jun", "chun", "ko", "go", "moon", "mun", "yang", "son", "sohn", "bae", "baek", "paik", "heo", "huh", "nam",

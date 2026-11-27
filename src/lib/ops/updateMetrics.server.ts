@@ -24,6 +24,7 @@ import {
 } from "@/lib/ops/updateMetrics";
 import {
   UPDATE_METRICS_APPLICATIONS_SQL,
+  UPDATE_METRICS_CONNECTIONS_SQL,
   UPDATE_METRICS_EMAILS_SQL,
   UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL,
   UPDATE_METRICS_LANDING_SQL,
@@ -79,20 +80,24 @@ export async function fetchOpsUpdateMetrics(args: {
     ]);
     const slugsWithoutRole = new Set(jobsWithoutRole.map((job) => job.slug));
     const jobsWithoutRoleUserIds = new Set<string>();
+    const jobsUserIds = new Set<string>();
     for (const [userId, item] of attribution) {
-      if (item.jobSlug && slugsWithoutRole.has(item.jobSlug)) jobsWithoutRoleUserIds.add(userId);
+      if (!item.jobSlug) continue;
+      jobsUserIds.add(userId);
+      if (slugsWithoutRole.has(item.jobSlug)) jobsWithoutRoleUserIds.add(userId);
     }
-    return { jobsWithoutRoleUserIds, signups };
+    return { jobsUserIds, jobsWithoutRoleUserIds, signups };
   });
 
   const [
-    { jobsWithoutRoleUserIds, signups },
+    { jobsUserIds, jobsWithoutRoleUserIds, signups },
     usage,
     recommendations,
     landing,
     emails,
     unseenReplies,
     applications,
+    connections,
   ] = await Promise.all([
     signupsWithJobs,
     readOnly<UpdateMetricsUsageRow>(UPDATE_METRICS_LLM_USAGE_SQL, withPeople, {
@@ -108,13 +113,20 @@ export async function fetchOpsUpdateMetrics(args: {
       SUBMITTED_SENTENCE,
       NOT_SUBMITTED_SENTENCE,
     ]),
+    readOnly<{ appliedAt: string; connectedAt: string | null; userId: string }>(UPDATE_METRICS_CONNECTIONS_SQL, [
+      ...withPeople,
+      SUBMITTED_SENTENCE,
+      NOT_SUBMITTED_SENTENCE,
+    ]),
   ]);
+  const stepsByUser = new Map(connections.map((row) => [row.userId, row]));
 
   const usageByUser = new Map(usage.map((row) => [row.userId, row]));
   return buildOpsUpdateMetrics({
     applications,
     emails,
     from: range.from,
+    jobsUserIds,
     jobsWithoutRoleUserIds,
     landing,
     nowMs,
@@ -123,6 +135,8 @@ export async function fetchOpsUpdateMetrics(args: {
       ...row,
       costUsd3d: usageByUser.get(row.userId)?.costUsd3d ?? 0,
       llmMs3d: usageByUser.get(row.userId)?.llmMs3d ?? 0,
+      appliedAt: stepsByUser.get(row.userId)?.appliedAt ?? null,
+      connectedAt: stepsByUser.get(row.userId)?.connectedAt ?? null,
     })),
     to: range.to,
     unseenReplies,

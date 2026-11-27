@@ -190,7 +190,7 @@ export function agentConfigRules(): AgentConfigRules {
     searchMaxPeople: SIGNAL_MAX_PEOPLE, readSearchedPages: READ_SEARCHED_PAGES, recentMemoryDays: RECENT_MEMORY_DAYS,
     recentContactDays: RECENT_CONTACT_DAYS, draftMaxAgeDays: DRAFT_MAX_AGE_DAYS, queueDays: QUEUE_DAYS,
     followupReserveUsd: FOLLOWUP_RESERVE_USD, followupMaxLateDays: FOLLOWUP_MAX_LATE_DAYS, brakeBounceRate: BRAKE_BOUNCE_RATE,
-    brakeComplaints: BRAKE_COMPLAINTS,
+    brakeComplaints: BRAKE_COMPLAINTS, vendorDailyMax: null,
   };
 }
 

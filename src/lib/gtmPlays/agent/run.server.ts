@@ -25,7 +25,7 @@ import {
 import { agentCodeVersion } from "./config";
 import { ensureAgentConfig } from "./config.server";
 import { exclusionFacts } from "./exclusion.server";
-import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles } from "./mailRules";
+import { agentMailableAddress, agentSenderProblem, personMailable, profileHandles, workAddressRule } from "./mailRules";
 import { mailboxCanExist } from "../personalMail";
 import { MAX_FITS, MIN_FITS, detectLanguage } from "./match";
 import { matchAgentPostings } from "./match.server";
@@ -58,10 +58,12 @@ import { searchSignalPeople, type SignalSearchResult } from "./signals.server";
 import { COST_CAP_EARLY_BEFORE_HOUR } from "./alerts";
 import { agentAlert } from "./alerts.server";
 import { lookupSettleUsd, newWorkCapUsd } from "./spend";
+import { VENDOR_MAX_USD, settleVendorLookup, vendorAsks, vendorSkip } from "./vendorEmail";
+import { askVendor, vendorToken } from "./vendorEmail.server";
 import { agentSpentToday, mayAgentSpend, recordAgentSpend } from "./spend.server";
 import {
   BRAKE_DAYS, DRAFT_EXPIRED_REASON, DRAFT_MAX_AGE_DAYS, DRAFT_REDO_NOTE, FOLLOWUP_LATE_NOTE, KILLED_TICK_NOTE, QUEUE_DAYS,
-  SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS,
+  SEARCH_MAX_ATTEMPTS, SEND_LEASE_MS, SIGNAL_BUDGET_SHARE, SIGNAL_MAX_PEOPLE, STEP_MAX_ATTEMPTS, TICK_LIMIT_MS,
   bodyWithPostings, brakeReason, draftExpired, draftedAt, followupTooLate, mayStartPerson, maySendNow, retryDelayMs,
   redoExpiredDraft, runErrorAfterTick, searchDeadline, searchStep, personStep, searchesLeft, sendCallTimeoutMs,
   stillOpenPostings, waitLabel, workPaused,
@@ -170,6 +172,8 @@ async function pollLookups(people: readonly AgentPerson[]): Promise<Map<string, 
  */
 async function settleLookup(
   person: AgentPerson, lookup: AgentEmailLookup, now: Date, poll: LookupPoll | undefined, configId: string | null,
+  /** 회사 주소 쓰기 (settings.signals.workAddresses): a work address on their current company's domain may be kept. */
+  workAddresses: boolean,
 ): Promise<"waiting" | { person: AgentPerson | null; costUsd: number; found: boolean }> {
   let done: EmailLookupDone;
   if (!lookup.runId) done = emptyLookup("failed", 0);
@@ -184,7 +188,7 @@ async function settleLookup(
     await cancelEmailLookup(lookup.runId);
     done = emptyLookup("timeout", EMAIL_LOOKUP_RUN_USD);
   }
-  const settled = settleEmailLookup(lookup, done, now, profileHandles([person.profileUrl, person.contactUrl]));
+  const settled = settleEmailLookup(lookup, done, now, profileHandles([person.profileUrl, person.contactUrl]), workAddressRule(person, workAddresses));
   const updated = await updateAgentPerson(person.id, {
     emailLookup: settled.emailLookup, addCostUsd: done.costUsd,
     ...(settled.email ? { email: settled.email, emailSource: "lookup" as const } : {}),
@@ -205,7 +209,7 @@ async function settleLookups(tick: Tick): Promise<void> {
   const polls = await pollLookups(running);
   for (const person of running) {
     if (!person.emailLookup) continue;
-    const settled = await settleLookup(person, person.emailLookup, tick.now, polls.get(person.id), tick.configId);
+    const settled = await settleLookup(person, person.emailLookup, tick.now, polls.get(person.id), tick.configId, tick.settings.signals.workAddresses);
     if (settled === "waiting" || (!settled.person && settled.costUsd === 0)) continue;
     const key = settled.found ? "lookup_found" : "lookup_not_found";
     if (person.runId === tick.run.id) tick.bump(key);
@@ -282,12 +286,15 @@ function noEmailNote(person: AgentPerson, reason: AgentExcludeReason, lookup: Pi
         : only ? `${only} 있어요` : "이메일 주소가 없어요";
 }
 
-/** Where the person stands now (tickRules.ts personStep): the order of one person's steps. */
-function stepFor(person: AgentPerson): ReturnType<typeof personStep> {
-  const mailable = personMailable(person);
+/**
+ * Where the person stands now (tickRules.ts personStep): the order of one person's steps. `workAddresses`: 회사 주소
+ * 쓰기 (settings.signals.workAddresses).
+ */
+function stepFor(person: AgentPerson, workAddresses: boolean): ReturnType<typeof personStep> {
+  const mailable = personMailable(person, workAddresses);
   return personStep({
     status: person.status === "matched" ? "matched" : "found", mailable,
-    lookupState: person.emailLookup?.state ?? null, lookupPossible: needsEmailLookup(person),
+    lookupState: person.emailLookup?.state ?? null, lookupPossible: needsEmailLookup(person, workAddresses),
     profileNeeded: person.status === "found" && needsProfileRead(person, mailable),
   });
 }
@@ -314,9 +321,9 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // 프로필 읽기 (agent/profileRead.ts), once, before the pick: an applicant's public LinkedIn profile (a searched
   // person's own pages only with READ_SEARCHED_PAGES). What it reads goes into the profile text the pick and the lookup
   // read; an address they published on their own page saves the paid lookup. A read that fails holds nobody up.
-  if (stepFor(person) === "profile") {
+  if (stepFor(person, settings.signals.workAddresses) === "profile") {
     if (!(await mayAgentSpend(newWorkCapUsd(settings.dailyCostUsd), PROFILE_READ_ESTIMATE_USD))) return { outcome: "cost_cap" };
-    const mailable = personMailable(person);
+    const mailable = personMailable(person, settings.signals.workAddresses);
     const read = await readPersonProfile(person);
     await recordAgentSpend({ step: "profile", usd: read.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest });
     const ownAddress = !mailable && read.email ? read.email : null;
@@ -338,7 +345,7 @@ async function handleFound(found: AgentPerson, tick: Tick, ctx: { mayStartLookup
   // Email only: without an address the agent may mail and nothing to look one up from (or an earlier lookup that found
   // none), the pick is not worth paying for. A post-sourced address on a non-personal domain counts only on the page's
   // own domain (the page where the person was found).
-  const step = stepFor(person);
+  const step = stepFor(person, settings.signals.workAddresses);
   if (step === "wait") return { outcome: "lookup_waiting" };
   if (step === "no_address") {
     const lookup = person.emailLookup ?? null;
@@ -460,13 +467,14 @@ async function pickPostings(person: AgentPerson, tick: Tick, offer: Exclude<Agen
 /**
  * A matched person (a 잘 맞음 posting after the grader): the mail when there is an address the agent may mail;
  * otherwise the paid email lookup now (Shaun 11/18: only for people with fitting postings), the person staying matched
- * while it runs; when it ended (or never started) without an address, excluded with why. An address from the lookup
- * goes through the exclusion rules again before the mail.
+ * while it runs; when it ended without an address, one treg call (tryVendorLookup), then excluded with why when that
+ * gives none either (or never started). An address from the lookup or treg goes through the exclusion rules again
+ * before the mail.
  */
 async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLookup: () => Promise<boolean> }): Promise<FoundStep> {
-  const step = stepFor(person);
+  const step = stepFor(person, tick.settings.signals.workAddresses);
   if (step === "write") {
-    if (person.emailSource === "lookup") {
+    if (person.emailSource === "lookup" || person.emailSource === "vendor") {
       const excluded = await exclusionNow(person, tick.settings);
       if (excluded) {
         await updateAgentPerson(person.id, { status: "excluded", excludeReason: excluded }, { kind: "excluded", by: AGENT, note: excluded }, ["matched"]);
@@ -492,9 +500,65 @@ async function handleMatched(person: AgentPerson, tick: Tick, ctx: { mayStartLoo
     if (begun !== "failed") return { outcome: begun === "started" ? "lookup_started" : "lookup_retry" };
     lookup = { runId: null, reason: "start_failed" };
   }
-  const reason = noEmailReason(person, lookup);
-  await updateAgentPerson(person.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note: noEmailNote(person, reason, lookup) }, ["matched"]);
+  let current = person;
+  if (step === "lookup_ended") {
+    const vendor = await tryVendorLookup(person, tick);
+    if (vendor.kind === "wait") return { outcome: vendor.outcome };
+    if (vendor.kind === "asked") {
+      if (!vendor.person) return { outcome: "moved" };
+      // treg's address: the mail is written on the next tick, after the exclusion rules look at it (the write step).
+      if (vendor.used) return { outcome: "vendor_found" };
+      current = vendor.person;
+    }
+  }
+  const reason = noEmailReason(current, lookup);
+  const note = noEmailNote(current, reason, lookup);
+  await updateAgentPerson(current.id, { status: "excluded", excludeReason: reason }, { kind: "excluded", by: AGENT, note }, ["matched"]);
   return { outcome: `excluded_${reason}` };
+}
+
+type VendorStep =
+  /** Not asked: excluded as before. */
+  | { kind: "skip" }
+  /** The person waits, matched: today's money is used up, or the tick has no time left for an ask. */
+  | { kind: "wait"; outcome: "cost_cap" | "lookup_deferred" }
+  /** Asked: the person as it is now with treg's record (null: the row moved on), and whether its address is used. */
+  | { kind: "asked"; person: AgentPerson | null; used: boolean };
+
+/**
+ * 수정 4 (11/26): one treg call (agent/vendorEmail.ts) for a matched person whose paid lookup ended without an address
+ * the agent may mail, right before they would be excluded for it. Not for: treg 쓰기 off, no key, the applicant file /
+ * purchased DB / job-page requests, someone asked already, no LinkedIn profile. No daily max (Shaun 11/26): the day's
+ * cost cap bounds it (mayAgentSpend below). An ask without an answer yet is tried again later (handlePeople) with the
+ * same Idempotency-Key: treg hands back what it answered at no cost, with the first charge. So the person is written
+ * first and the cost logged after (step lookup, source treg): a failed write logs nothing, and the next try logs it
+ * once. On the person's last try a missing answer counts as treg failing, and they are excluded as before.
+ */
+async function tryVendorLookup(person: AgentPerson, tick: Tick): Promise<VendorStep> {
+  const { signals } = tick.settings;
+  const token = vendorToken();
+  if (!person.emailLookup || vendorSkip(person, signals.vendorLookup) || !token) return { kind: "skip" };
+  const planned = vendorAsks(person, signals.workAddresses);
+  const ceiling = planned.reduce((sum, ask) => sum + VENDOR_MAX_USD[ask], 0);
+  if (!(await mayAgentSpend(newWorkCapUsd(tick.settings.dailyCostUsd), ceiling))) return { kind: "wait", outcome: "cost_cap" };
+  const asked = await askVendor(person, signals.workAddresses, token, () => TICK_LIMIT_MS - (Date.now() - tick.startedAt));
+  if (asked.kind === "deferred") return { kind: "wait", outcome: "lookup_deferred" };
+  let asks = asked.asks;
+  if (asked.kind === "retry") {
+    if (retryDelayMs((person.attempts ?? 0) + 1) !== null) throw asked.error;
+    console.error("[gtm-agent] treg failed on the last try", person.id, asked.error.message);
+    asks = [...asks, { ask: planned[asks.length] ?? "personal", verdict: null, servedBy: null, costUsd: 0, reason: "failed" }];
+  }
+  const email = asked.kind === "asked" ? asked.email : null;
+  const { record, note } = settleVendorLookup(tick.now, asks);
+  const updated = await updateAgentPerson(person.id, {
+    emailLookup: { ...person.emailLookup, vendor: record }, addCostUsd: record.costUsd, attempts: 0, retryAt: null,
+    ...(email ? { email, emailSource: "vendor" as const } : {}),
+  }, { kind: "email_lookup", by: AGENT, note }, ["matched"]);
+  await recordAgentSpend({
+    step: "lookup", source: "treg", usd: record.costUsd, runId: tick.run.id, personId: person.id, configId: tick.configId, isTest: person.isTest,
+  });
+  return { kind: "asked", person: updated, used: Boolean(email) };
 }
 
 /** matched → approved: the mail written (today's money allowing; otherwise the person waits, matched). */
@@ -681,7 +745,7 @@ async function readyToSend(person: AgentPerson, tick: Tick): Promise<{
   }
   // The address rule as it is now (mailRules.ts personMailable): a mail written before a rule changed does not go to an
   // address the rule now refuses (11/23: gmail.com names with "_" were added after some such mails were written).
-  if (!personMailable(person)) {
+  if (!personMailable(person, tick.settings.signals.workAddresses)) {
     const reason = mailboxCanExist(person.email) ? "보낼 수 없는 주소라 보내지 않아요" : "있을 수 없는 메일 주소라 보내지 않아요";
     await updateAgentPerson(person.id, { status: "skipped", skipReason: reason }, { kind: "skipped", by: AGENT, note: reason }, ["approved"]);
     tick.bump("skipped_address");
@@ -1297,7 +1361,8 @@ function searchOptionsOf(settings: AgentSettings) {
   return budgetOptions({
     turnedOn: job ? Object.keys(sources).filter((id) => sources[id].enabled) : [],
     layoffSearch: tuning.layoffSearch && settings.channels.layoff.enabled,
-    goalSearches: goalSearchesOn(settings.channels),
+    // 링크드인 최신 글 (treg) needs its switch and the treg key (the same key as the email lookup's).
+    goalSearches: goalSearchesOn(settings.channels, { vendorSearch: settings.signals.freshPosts && Boolean(vendorToken()) }),
   }).filter((option) => job || option.search !== EXPLORE_SOURCE);
 }
 

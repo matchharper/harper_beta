@@ -41,7 +41,7 @@ const HINTS = {
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
   search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
-  sources: "체크한 곳과 목록 밖 웹에서 사람을 찾아요. 곳마다 검색 예산은 에이전트가 지난 결과를 보고 매일 나눠요.",
+  sources: "체크한 곳과 목록 밖 웹에서 사람을 찾아요. 곳마다 검색 예산은 에이전트가 지난 결과를 보고 매일 나눠요. 링크드인 최신 글: treg로 링크드인 자체 검색을 해서 최근 7일 글을 최신순으로 읽어요. 웹 검색에 아직 안 잡힌 어제오늘 글이 나와요. 검색 한 번에 약 $0.002예요.",
   blocked: "여기 넣은 도메인에서는 검색하지도, 사람을 남기지도 않아요. 이 도메인의 주소나 이 도메인 회사에 다니는 후보, 이 회사의 채용 글에도 메일을 보내지 않아요.",
   newDomains: "최근 목록 밖 웹에서 사람을 찾은 도메인이에요. '목록에 넣기'는 1번에, '막기'는 2번에 넣어요.",
   channels: "에이전트가 사람을 찾는 길이에요. 끈 채널의 사람에게는 메일을 쓰지도 보내지도 않아요.",
@@ -49,6 +49,7 @@ const HINTS = {
   fillChannels: "채널마다 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
   requestChannels: "공고 페이지에서 '비슷한 공고 추천받기'를 누른 분에게 바로 보내는 메일이에요. 하루 최대만큼만 받고 보내요(후속 메일 포함, 0~100통). 끄면 공고 페이지에서 버튼이 사라져요.",
   companyChannels: "채용 글을 올린 회사의 대표·리더에게 보내는 회사 메일이에요. 하루 최대만큼만 보내요(후속 메일 포함, 0~100통).",
+  addresses: "treg로 이메일 찾기: 유료 찾기로 쓸 주소를 못 찾은 사람에게 treg에 한 번 더 물어요. 한 사람에 최대 $0.35예요. 지금 회사 메일 주소로도 보내기: LinkedIn에 적힌 지금 회사의 도메인 주소에도 보내요. 구조조정 검색으로 찾은 사람과 info@, jobs@ 같은 공용 주소에는 보내지 않아요. 둘 다 끄면 개인 메일과 본인 도메인 주소에만 보내요.",
 } as const;
 
 /** 채널's groups, in the queue's order (agent/channels.ts): the existing channels, the new ones, the job-page requests, then the company side. */
@@ -250,6 +251,18 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
         ))}
       </div>
 
+      <div className="space-y-1.5 border-t border-neutral-1000-a05 pt-4 text-sm">
+        <span className="flex items-center gap-1 text-[14px] font-semibold">이메일 주소<Hint label="이메일 주소" text={HINTS.addresses} /></span>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={signals.vendorLookup} onChange={(event) => setSignals({ vendorLookup: event.target.checked })} />
+          treg로 이메일 찾기 (유료 찾기로 못 찾은 사람)
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={signals.workAddresses} onChange={(event) => setSignals({ workAddresses: event.target.checked })} />
+          지금 회사 메일 주소로도 보내기
+        </label>
+      </div>
+
       <div className="space-y-4 border-t border-neutral-1000-a05 pt-4">
         <span className="flex items-center gap-1 text-[14px] font-semibold">검색 관련 설정<Hint label="검색 관련 설정" text={HINTS.search} /></span>
 
@@ -278,6 +291,13 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                 </div>
               );
             })}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="w-28 shrink-0 text-[12px] text-neutral-muted">treg 검색</span>
+              <label className="flex items-center gap-1.5 whitespace-nowrap">
+                <input type="checkbox" checked={signals.freshPosts} onChange={(event) => setSignals({ freshPosts: event.target.checked })} />
+                링크드인 최신 글
+              </label>
+            </div>
           </div>
           <form className="mt-2 flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addSource(newSource); }}>
             <span className="w-72 shrink-0"><TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" /></span>

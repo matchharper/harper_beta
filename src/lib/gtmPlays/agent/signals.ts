@@ -32,7 +32,7 @@ import {
   MIN_DEMAND_COMPANIES, ROLE_FAMILIES, demandAllocation, demandBlock, isRoleFamily, roleFamiliesOf, thinFamilies,
   type DemandSummary, type RoleFamily,
 } from "./demand";
-import { addressIsPersons, mailPersonName, ownDomainAddress, pageForm, profileHandles } from "./mailRules";
+import { addressIsPersons, mailPersonName, onlyPersonalMailbox, ownDomainAddress, pageForm, profileHandles } from "./mailRules";
 import { SIGNAL_MAX_AGE_DAYS, cleanEmail, cleanProfileUrl, kstClock, personKey, personKeys, type ProfileUrlOptions } from "./people";
 import type { SignalTuning } from "./tuning";
 import type { AgentGiverKind } from "./types";
@@ -92,6 +92,12 @@ export type SignalSourceInfo = {
   place?: RegistrySourceId;
   /** Only post pages are judged (a goal that is about posts, not profiles). */
   postsOnly?: boolean;
+  /**
+   * What runs its searches: Exa's web search (missing), or treg's LinkedIn post search (Shaun 11/27, "새 출처로
+   * 붙이기"): LinkedIn's own keyword search, newest posts first, which reaches posts of the last day or two that the web
+   * index does not have yet (signals.server.ts).
+   */
+  engine?: "treg";
 };
 
 const ROLES = "software, data/ML, product or design";
@@ -175,9 +181,9 @@ export type SignalGoal = AgentIntent | "hiring";
  * A search of its own on one place besides that place's job-seeker search: its own id among the day's searches, so
  * its own part of the day's split (budget.ts), attempts, log and history, run while its channel is on.
  */
-export type GoalSearchId = "linkedin_coaching" | "linkedin_event" | "linkedin_hiring";
+export type GoalSearchId = "linkedin_coaching" | "linkedin_event" | "linkedin_hiring" | "linkedin_fresh";
 export type GoalSearch = SignalSourceInfo & {
-  id: GoalSearchId; place: RegistrySourceId; aim: Exclude<SignalGoal, "job">; channel: AgentChannelKey;
+  id: GoalSearchId; place: RegistrySourceId; aim: SignalGoal; channel: AgentChannelKey;
   /** What the day's split reads about it (budget.ts). */
   about: string;
 };
@@ -204,7 +210,18 @@ export const GOAL_SEARCHES: readonly GoalSearch[] = [
     goal: `LinkedIn posts in which a person who works at the hiring company (a founder, an executive, a team lead, an engineer or an in-house recruiter) says their own team or company is hiring now for a role in ${ROLES} (저희 팀 백엔드 개발자 채용합니다, 함께할 프로덕트 디자이너를 찾습니다, we're hiring a data engineer to join our team). Not headhunters, staffing or recruiting agencies, job boards or a company page's own account: Harper needs a person at the company. Posts, not profiles.`,
     about: "Company sourcing: LinkedIn posts in which a person at the hiring company says their own team is hiring. It finds companies for the company mails, never candidates: its 'people kept' and 'with a fitting posting' both count the hiring posts it recorded.",
   },
+  {
+    // Job seekers like the LinkedIn search, through treg's LinkedIn post search instead of the web index (11/27 test:
+    // 10 searches found 107 seekers, 55 posted in the last 24 hours, none already known). Its own switch
+    // (settings.signals.freshPosts, on from the start) besides the 구직 글 channel.
+    ...LINKEDIN, id: "linkedin_fresh", place: "linkedin", aim: "job", channel: "job", engine: "treg", label: "링크드인 최신 글 (treg)",
+    comments: false, postsOnly: true,
+    goal: `LinkedIn posts from the last few days in which a person in ${ROLES} (in any country: on-site, remote or relocating) says they are looking for a job now: 'looking for my next role', 'open to work', 'actively looking for opportunities', 'I was laid off', '구직 중', '이직 준비 중', '새로운 기회를 찾고 있습니다'. Recruiters, coaches, job boards and companies posting openings are not targets. Posts, not profiles.`,
+    about: "LinkedIn posts by job seekers through LinkedIn's own post search (treg), newest first: posts of the last days that the web search on linkedin.com does not have yet. About $0.002 a search plus the judging.",
+  },
 ];
+/** treg's LinkedIn post search (GOAL_SEARCHES): on while its switch (settings.signals.freshPosts) and the 구직 글 channel are. */
+export const LINKEDIN_FRESH_SEARCH: GoalSearchId = "linkedin_fresh";
 const GOAL_BY_ID = new Map<string, GoalSearch>(GOAL_SEARCHES.map((item) => [item.id, item]));
 
 /** A goal search by its id, or null (a place, the open web, anything else). */
@@ -231,9 +248,16 @@ export function candidateSearchPlace(id: string): string | null {
   return goal.channel === "company_post" ? null : goal.place;
 }
 
-/** The goal searches to run today: each while its channel is on (channels.ts settings). */
-export function goalSearchesOn(channels: Partial<Record<AgentChannelKey, Pick<ChannelSetting, "enabled">>> | null | undefined): GoalSearchId[] {
-  return GOAL_SEARCHES.filter((item) => channels?.[item.channel]?.enabled === true).map((item) => item.id);
+/**
+ * The goal searches to run today: each while its channel is on (channels.ts settings); a treg search also only while
+ * `vendorSearch` is (its switch on and a treg key on the server).
+ */
+export function goalSearchesOn(
+  channels: Partial<Record<AgentChannelKey, Pick<ChannelSetting, "enabled">>> | null | undefined,
+  options: { vendorSearch?: boolean } = {},
+): GoalSearchId[] {
+  return GOAL_SEARCHES.filter((item) => channels?.[item.channel]?.enabled === true && (item.engine !== "treg" || options.vendorSearch === true))
+    .map((item) => item.id);
 }
 
 /** The place whose pages a search judges: a goal search's place, else the source itself. */
@@ -596,6 +620,16 @@ export function signalWindows(maxAgeDays: number, freshDays = FRESH_SIGNAL_DAYS)
   return freshDays <= 0 || oldest <= freshDays ? [window(0, oldest)] : [window(0, freshDays), window(freshDays, oldest)];
 }
 
+/** How far back treg's LinkedIn post search reads (its "week" filter): the newest posts are what it is for. */
+export const FRESH_POST_DAYS = 7;
+
+/** The windows a source's people stages search: a treg search the last FRESH_POST_DAYS (at most maxAgeDays), others signalWindows. */
+export function searchWindows(source: SignalSource, maxAgeDays: number): SignalWindow[] {
+  if (signalSourceInfo(source).engine !== "treg") return signalWindows(maxAgeDays);
+  const oldest = Math.max(1, Math.min(FRESH_POST_DAYS, Math.round(Number.isFinite(maxAgeDays) ? maxAgeDays : FRESH_POST_DAYS)));
+  return [{ label: `0-${oldest}d`, newestDays: 0, oldestDays: oldest }];
+}
+
 /** Exa's published-date filter for a window (the newest window has no end, the older ones end where the newer begin). */
 export function windowDates(window: SignalWindow, now: Date): { startPublishedDate: string; endPublishedDate: string | null } {
   const ago = (days: number) => new Date(now.getTime() - days * DAY_MS).toISOString();
@@ -778,6 +812,14 @@ export const JUDGE_ESTIMATE_USD = 0.003;
 /** What a search with its judging costs, roughly (for the planner's budget line). */
 export function searchCostHint(resultsPerSearch: number): number {
   return exaSearchCost(null, resultsPerSearch) + JUDGE_ESTIMATE_USD;
+}
+
+/** One treg LinkedIn post search as planned (its catalog price; 11/27 it came to $0.002). */
+export const TREG_POST_SEARCH_USD = 0.004;
+
+/** One search with its judging as a source plans it: treg's post search, or Exa's (searchCostHint). */
+export function sourceSearchCost(source: SignalSource, resultsPerSearch: number): number {
+  return signalSourceInfo(source).engine === "treg" ? TREG_POST_SEARCH_USD + JUDGE_ESTIMATE_USD : searchCostHint(resultsPerSearch);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1175,23 +1217,30 @@ export function planPrompt(args: {
   const info = signalSourceInfo(args.source);
   // A goal search's family (coaching, event, hiring); every other search looks for job seekers.
   const aim = info.aim ?? "job";
-  const cost = searchCostHint(args.tuning?.resultsPerSearch ?? 10);
+  const cost = sourceSearchCost(args.source, args.tuning?.resultsPerSearch ?? 10);
   const now = args.now ?? new Date();
-  const windows = signalWindows(args.tuning?.maxAgeDays ?? SIGNAL_MAX_AGE_DAYS);
+  const windows = searchWindows(args.source, args.tuning?.maxAgeDays ?? SIGNAL_MAX_AGE_DAYS);
+  const treg = info.engine === "treg";
   const recency = windows.length > 1
     ? `The code runs every query first on pages published in the last ${windows[0].oldestDays} days (window ${windows[0].label}) and on ${windows[1].label} (${windows[1].newestDays} to ${windows[1].oldestDays} days ago) only when the fresh window did not find enough people; the yields show each window.`
     : `The code searches pages published in the last ${windows[0].oldestDays} days (window ${windows[0].label}).`;
   const history = args.previous ? "" : signalHistorySection(args.history, stage);
   const system = [
-    `You plan web searches (Exa neural search) that find ${PLAN_AIMS[aim].who}, for Harper, a Korean career agent. Harper contacts them by email only.`,
+    treg
+      ? `You plan LinkedIn post searches (LinkedIn's own keyword search, newest posts first) that find ${PLAN_AIMS[aim].who}, for Harper, a Korean career agent. Harper contacts them by email only.`
+      : `You plan web searches (Exa neural search) that find ${PLAN_AIMS[aim].who}, for Harper, a Korean career agent. Harper contacts them by email only.`,
     stage === "explore"
       ? "Source: the open web. Searches go to any site except the default list (searched separately), news sites and blocked domains."
+      : treg
+      ? "Source: LinkedIn posts only (no profiles), each with its author's name and headline. A separate web search covers LinkedIn too; this one reaches the posts of the last days first."
       : `Source: ${info.label}. The code limits every search to ${stageDomains(args.source, stage).slice(0, 6).join(", ")}${stageDomains(args.source, stage).length > 6 ? " and similar news sites" : ""}.`,
     `Today is ${kstClock(now).day} (Korea time).`,
     `Goal: ${stageGoal(args.source, stage, args.layoffs ?? [])}`,
     // Ops' 찾는 기준 is about candidates: not for the company side.
     stage === "layoff_news" || aim === "hiring" ? "" : opsGuidanceBlock("look_for", args.tuning?.lookFor),
-    "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its query family) and a role family (family).",
+    treg
+      ? "Write short keyword phrases (2 to 6 words) that the post itself would contain, as a job seeker writes them ('looking for my next role backend', 'open to work data engineer', '구직 중 프론트엔드'), in Korean or English: LinkedIn matches the words, so no site:, quotes or descriptions of the page. Each query has a group label (its query family) and a role family (family)."
+      : "Write short natural-language queries that read like the page you want to find (a profile headline, a post's first line, a news headline), in Korean or English. Each query has a group label (its query family) and a role family (family).",
     stage === "layoff_news" ? "" : `Fresher is better: people act within days of posting, so someone who posted in the last few days is worth more than someone who posted two weeks ago. ${recency} Write queries that read like something written now ${PLAN_AIMS[aim].now}, not like a look back.`,
     stage === "layoff_news" ? "" : "Prefer families whose pages carry a public contact: an email the person wrote, or a link to their own site, GitHub or portfolio (Harper can reach people by email only). The yields show how many kept people had one.",
     // The open postings are what job seekers are mailed; the other families' offers do not depend on them.
@@ -1475,7 +1524,11 @@ function hiringJudgePrompt(results: ReadonlyArray<{ id: string; url: string; pub
 // Judge batches
 
 /** A result as the judge reads it. */
-export type JudgePage = { id: string; url: string; publishedDate: string | null; text: string };
+export type JudgePage = {
+  id: string; url: string; publishedDate: string | null; text: string;
+  /** Whose post it is as the search gave it (treg's LinkedIn post search), when the URL does not say (identifyPerson). */
+  author?: string | null;
+};
 
 /**
  * The id of the n-th result in a judge batch ("r0", "r1" …): never a bare number, which the judge confused with a
@@ -1494,11 +1547,13 @@ export function wellFormedText(text: string): string {
 
 /** One judge batch: ids r0, r1 …, each page's title and text with blank runs collapsed, cut to `textChars`. */
 export function judgeBatch(
-  items: ReadonlyArray<{ url: string; title?: string | null; text?: string | null; publishedDate?: string | null }>, textChars: number,
+  items: ReadonlyArray<{ url: string; title?: string | null; text?: string | null; publishedDate?: string | null; author?: string | null }>,
+  textChars: number,
 ): JudgePage[] {
   return items.map((item, index) => ({
     id: judgeResultId(index), url: item.url, publishedDate: item.publishedDate ?? null,
     text: wellFormedText(`${item.title ?? ""}\n${item.text ?? ""}`.replace(/\s+/g, " ").trim().slice(0, textChars)),
+    ...(item.author ? { author: item.author } : {}),
   }));
 }
 
@@ -1610,7 +1665,7 @@ export function sortVerdicts(args: {
     const shared = args.sharedPages || commenter || commented.has(page.id);
     const who = identifyPerson({
       url: page.url, text: page.text, email: verdict.email, contactUrl: verdict.contactUrl, name: verdict.name,
-      foundAs: base.foundAs, others: shared ? namesOnPage.get(page.id) : undefined,
+      foundAs: base.foundAs, others: shared ? namesOnPage.get(page.id) : undefined, author: page.author,
     });
     // A giver the search cannot key or already has stays rejected, as before (its own count is new givers only).
     const missed = (outcome: JudgeOutcome): SortedVerdict => ({ ...base, who, outcome: giver ? "rejected" : outcome });
@@ -1793,17 +1848,23 @@ export function linkFollowsName(
  *
  * The email counts only when it is written on the page near the person's name or handle, no other person on the
  * same page (`others`: a comment thread, a post's author and commenters) is named in that stretch, and the page lists
- * no other person's address unless it is the person's own (their profile page, or the address is on the page's own
- * domain): mailRules.ts addressIsPersons. The name is kept as a mail may use it (mailPersonName: plain words, at most
- * 60 characters).
+ * no other person's address unless it is the person's own (their profile page, their LinkedIn post, or the address is
+ * on the page's own domain): mailRules.ts addressIsPersons. The name is kept as a mail may use it (mailPersonName:
+ * plain words, at most 60 characters).
  */
 export function identifyPerson(args: {
   url: string; text: string; email: string | null | undefined; contactUrl: string | null | undefined;
   name?: string | null; others?: ReadonlyArray<string | null | undefined>;
   /** Author of the page (as before), or a commenter on it. */
   foundAs?: AgentFoundAs | null;
+  /**
+   * Whose post it is as the search gave it (treg's LinkedIn post search: the author's profile), for a LinkedIn post
+   * whose URL does not name its author (/feed/update/...). A URL that names one wins; anything but a LinkedIn profile is
+   * ignored.
+   */
+  author?: string | null;
 }) {
-  const page = readPage(args.url);
+  const page = withVendorAuthor(readPage(args.url), args.author);
   const commenter = args.foundAs === "commenter";
   const shared = commenter || (page.source !== "other" && Boolean(signalSourceInfo(page.source).sharedPages));
   const written = contactUrlOnPage(args.contactUrl, args.text);
@@ -1815,8 +1876,12 @@ export function identifyPerson(args: {
   const candidate = cleanEmail(args.email);
   const email = candidate && emailWrittenOn(candidate, args.text) && addressIsPersons({
     email: candidate, text: args.text, names: [args.name], handles: profileHandles([author, contactUrl]),
-    // Their own page: a profile on a known site (whose it is is in the URL), or an address on the page's own domain.
-    ownPage: (!shared && page.kind === "profile" && Boolean(page.author)) || (!commenter && ownDomainAddress(candidate, [args.url])),
+    // Their own page: a profile on a known site (whose it is is in the URL), a LinkedIn post they wrote with no other
+    // personal mailbox on it (a commenter's), or an address on the page's own domain.
+    ownPage: (!shared && page.kind === "profile" && Boolean(page.author))
+      || (!shared && page.source === "linkedin" && page.kind === "post" && Boolean(page.author)
+        && onlyPersonalMailbox(args.text, candidate))
+      || (!commenter && ownDomainAddress(candidate, [args.url])),
     others: args.others ?? [],
   }) ? candidate : null;
   const pageItself = !shared && page.kind !== "other" ? args.url.trim().replace(/#.*$/, "") : null;
@@ -1829,6 +1894,13 @@ export function identifyPerson(args: {
     profileUrl: author ?? contactUrl ?? null,
     name: mailPersonName(args.name),
   };
+}
+
+/** A LinkedIn post page whose URL names no author takes the profile the search gave for it (identifyPerson). */
+function withVendorAuthor(page: SignalPage, author: string | null | undefined): SignalPage {
+  if (page.author || !author || page.source !== "linkedin" || page.kind !== "post") return page;
+  const profile = readPage(author);
+  return profile.source === "linkedin" && profile.kind === "profile" && profile.author ? { ...page, author: profile.author } : page;
 }
 
 /**

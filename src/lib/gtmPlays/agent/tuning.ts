@@ -245,10 +245,41 @@ export type SignalSettings = {
   tuning: SignalTuning;
   /** Never searched (exclude_domains on the open web) and never kept, on any source. */
   blockedDomains: string[];
+  /**
+   * treg 쓰기 (11/26, Shaun: on from the start): a person whose paid lookup gave no address the agent may mail gets one
+   * treg call before being excluded (agent/vendorEmail.ts). Off: excluded as before.
+   */
+  vendorLookup: boolean;
+  /**
+   * 회사 주소 쓰기 (11/26, on from the start): a work address on the person's current company's domain may be mailed
+   * (mailRules.ts currentWorkAddress). Off: personal mailboxes and their own domains only, as before.
+   */
+  workAddresses: boolean;
+  /**
+   * 링크드인 최신 글 (treg) (11/27, Shaun: "이건 켜 그냥 배포하면서"): treg's LinkedIn post search runs as its own
+   * search among the day's searches (signals.ts GOAL_SEARCHES linkedin_fresh) while the 구직 글 channel is on. Off: only
+   * the web search reads LinkedIn, as before.
+   */
+  freshPosts: boolean;
 };
 
+/** Both on until Ops turns one off (Shaun 11/26: "스위치 두 개를 처음부터 다 켜면 돼요"). */
+export const DEFAULT_VENDOR_LOOKUP = true;
+export const DEFAULT_WORK_ADDRESSES = true;
+/** On from the deploy (Shaun 11/27). */
+export const DEFAULT_FRESH_POSTS = true;
+
+/** An on/off saved as a boolean (or a word for one); anything else is the default. */
+function readSwitch(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  const text = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (["true", "1", "on", "yes"].includes(text)) return true;
+  if (["false", "0", "off", "no"].includes(text)) return false;
+  return fallback;
+}
+
 /**
- * All signal settings from what is saved ({ sources, tuning, blockedDomains }), cleaned. Earlier saves
+ * All signal settings from what is saved ({ sources, tuning, blockedDomains, vendorLookup, workAddresses, freshPosts }), cleaned. Earlier saves
  * kept a tuning per source and one for the open web ("explore"): the open web's is read as the one 찾는 기준.
  */
 export function normalizeSignalSettings(input: unknown): {
@@ -263,5 +294,13 @@ export function normalizeSignalSettings(input: unknown): {
     ...tuning.issues.map((issue) => ({ ...issue, source: "settings" as const })),
   ];
   const blockedDomains = normalizeDomainList(record.blockedDomains, SIGNAL_TUNING_LIMITS.blockedDomains);
-  return { settings: { sources: sources.settings, tuning: tuning.tuning, blockedDomains }, issues };
+  return {
+    settings: {
+      sources: sources.settings, tuning: tuning.tuning, blockedDomains,
+      vendorLookup: readSwitch(record.vendorLookup, DEFAULT_VENDOR_LOOKUP),
+      workAddresses: readSwitch(record.workAddresses, DEFAULT_WORK_ADDRESSES),
+      freshPosts: readSwitch(record.freshPosts, DEFAULT_FRESH_POSTS),
+    },
+    issues,
+  };
 }

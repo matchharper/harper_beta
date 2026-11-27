@@ -96,3 +96,15 @@ test("settings as a whole: the one 찾는 기준, blocked domains; an earlier op
   assert.deepEqual(settings.blockedDomains, ["spam.com"]);
   assert.deepEqual(issues, []);
 });
+
+test("treg 쓰기 and 회사 주소 쓰기: on until saved off (Shaun 11/26), kept through a save that has them", () => {
+  const empty = normalizeSignalSettings({}).settings;
+  assert.equal(empty.vendorLookup, true);
+  assert.equal(empty.workAddresses, true);
+  const off = normalizeSignalSettings({ vendorLookup: false, workAddresses: "off" }).settings;
+  assert.equal(off.vendorLookup, false);
+  assert.equal(off.workAddresses, false);
+  // Read and saved again (the /ops form saves the whole object), it stays as it was.
+  assert.deepEqual(normalizeSignalSettings(JSON.parse(JSON.stringify(off))).settings, off);
+  assert.equal(normalizeSignalSettings({ vendorLookup: "maybe" }).settings.vendorLookup, true);
+});

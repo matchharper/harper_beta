@@ -64,6 +64,10 @@ python3 scripts/reportExternalDecisionsSummary.py
 
 원문·모델 raw output·원본 ID는 `private/`, `runs/`의0700/0600 파일로만 보존한다. workspace의 raw-data 비커밋 지침이 harper_eval의 기존 raw Git 보존 관행보다 우선한다. harper_eval에는 비식별 결과, manifest, 실행 설명과 raw 위치/해시를 저장하고 결과 이슈에 링크한다. 공개 beta 등록부에는 비식별 gold, 재현 manifest, aggregate report만 둔다.
 
+## 추가 run
+
+- 2026-11-26 Decisions 모델 비교(gpt-6-luna · liquid/d1.2 · pplx-decider-v1.3:free): 같은 frozen-v1과 gold에 현재 운영 채점 경로를 그대로 쓰고 모델만 바꿨다. Runner `scripts/evalExternalDecisionsModels.ts`, [결과](reports/2026-11-26-decisions-model-comparison-v1/report.md). harper_eval에는 [issue #7](https://github.com/matchharper/harper_eval/issues/7)의 `runs/20261126-decisions-model-comparison-v1/`로 기록했다.
+
 ## 한계
 
 과거 노출·반응이 있는 후보자의 선택 편향, 불완전한 과거 프로필/Brief 복원, 재생성 Behavior Context, 여러 run이 있는 동일 talent, 당시 저장된 요약의 정보 손실을 포함한다. 실제 선호 반응은 회사 채용 의사나 hard constraint의 독립 정답이 아니다. summary와 축 제거·정렬식의 효과를 분리해서 주장하지 않는다. 실제 reranker나 전체 검색 pool은 평가하지 않는다.

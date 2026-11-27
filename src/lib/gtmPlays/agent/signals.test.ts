@@ -175,6 +175,21 @@ test("who a kept person is", () => {
   assert.equal(identifyPerson({ url: "https://forum.example.com/read.cgi?k=12", text: "구직 중", email: "", contactUrl: "" }).key, null);
 });
 
+test("the author of a LinkedIn post: their mailbox on it counts however far below their name; a commenter's does not", () => {
+  const body = "Open to backend roles in Seoul. Six years on payment systems and data pipelines. ".repeat(25);
+  const text = `Jane Doe's Post. Jane Doe · Backend Engineer. ${body} Email: janedoecodes@gmail.com`;
+  const url = "https://www.linkedin.com/posts/jane-doe-000_backend-activity-7390000000000000000-AbCd";
+  const email = (args: Partial<Parameters<typeof identifyPerson>[0]> = {}) =>
+    identifyPerson({ url, text, email: "janedoecodes@gmail.com", contactUrl: "", name: "Jane Doe", ...args }).email;
+  assert.equal(email(), "janedoecodes@gmail.com");
+  // Another personal mailbox on the post (a commenter's): not their own page then, so the distance counts.
+  assert.equal(email({ text: `${text} John Roe 1d Me too: john.roe@gmail.com` }), null);
+  // A commenter is never the post's author.
+  assert.equal(email({ name: "John Roe", foundAs: "commenter" }), null);
+  // A post without its author in the link (feed/update) stays as before.
+  assert.equal(email({ url: "https://www.linkedin.com/feed/update/urn:li:activity:7390000000000000000" }), null);
+});
+
 test("an address from a page is the person's only near their name, and only when it is the page's one person's address", () => {
   const who = (url: string, text: string, email: string, name: string | null, others?: string[]) =>
     identifyPerson({ url, text, email, contactUrl: "", name, others });
@@ -871,8 +886,9 @@ test("a commenter never takes an address that sits near someone else's name, nor
 });
 
 test("goal searches: their own ids on LinkedIn, run while their channel is on (Shaun 11/23)", () => {
-  assert.deepEqual(GOAL_SEARCHES.map((item) => item.id), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
+  assert.deepEqual(GOAL_SEARCHES.map((item) => item.id), ["linkedin_coaching", "linkedin_event", "linkedin_hiring", "linkedin_fresh"]);
   const channels = defaultChannelSettings();
+  // 링크드인 최신 글 (treg, 11/27) also needs its switch and the treg key (freshPosts.test.ts).
   assert.deepEqual(goalSearchesOn(channels), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
   channels.coaching_post.enabled = false;
   channels.company_post.enabled = false;

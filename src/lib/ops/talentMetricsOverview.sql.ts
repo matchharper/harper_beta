@@ -86,7 +86,10 @@ applications as materialized (
 }
 
 // 외부 연결 = a submitted application.
-const APPLICATION_CTES = String.raw`${confirmedApplicationCtes({ notSubmitted: "$6", submitted: "$5" })},
+// `submitted` and `notSubmitted` name the query parameters holding SUBMITTED_SENTENCE and NOT_SUBMITTED_SENTENCE.
+// Needs the included_users and test_only_roles CTEs before it.
+export const applicationCtes = (params: { submitted: string; notSubmitted: string }) =>
+  String.raw`${confirmedApplicationCtes(params)},
 external_connections as materialized (
   select id, user_id, finished_at as connected_at
   from applications
@@ -116,6 +119,7 @@ delegation_clicks as materialized (
   join included_users users on users.user_id = log.user_id
   where log.type = 'career_click_history_submit_internal_connection_acceptance'
 )`;
+const APPLICATION_CTES = applicationCtes({ submitted: "$5", notSubmitted: "$6" });
 
 /**
  * One row per talent who signed up in the period, the comparison period or the funnel's 7 days, with when they

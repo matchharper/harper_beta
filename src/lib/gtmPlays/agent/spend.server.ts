@@ -14,7 +14,7 @@ export type AgentSpendEntry = {
   usd: number;
   runId?: string | null;
   personId?: string | null;
-  /** The source searched (search steps). */
+  /** The source searched (search steps); "treg" for a lookup step's treg asks (agent/vendorEmail.server.ts). */
   source?: string | null;
   /** The 설정 묶음 of the tick that spends it; without one, the one its run's last tick ran with. */
   configId?: string | null;
