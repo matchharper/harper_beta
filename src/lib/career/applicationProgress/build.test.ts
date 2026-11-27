@@ -422,6 +422,22 @@ test("a Stop that only closed the open start or review form reads as the person'
   assert.equal(only(build([...messages, closed(2, 30)], [...prepared, run("prepare", "running", 35, 35)])).status, "running");
 });
 
+test("a question found while submitting that was closed unanswered is not shown as answered", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" }), form(3, 15)];
+  const base = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
+  const exec = run("execute", "completed", 11, 14, { submitted: "no" });
+  assert.equal(sub(only(build(messages, [...base, exec], [openForm(3, REVIEW_ITEMS)])), "new_question")?.state, "current");
+  // The person's Stop at 00:30 closed it and ended the run's request.
+  const stopped = only(build([...messages, closed(3, 30)], [...base, { ...exec, stopped: true, stoppedAt: at(30) }]));
+  assert.deepEqual(stopped.failure, { reason: "stopped" });
+  assert.equal(sub(stopped, "new_question"), undefined, "never answered: the Stop closed it");
+  // Harper closed it as no longer needed: not answered either.
+  assert.equal(sub(only(build([...messages, closed(3, 30, "Handled in the conversation")], [...base, exec])), "new_question"), undefined);
+  // Answered: done when the person answered.
+  assert.deepEqual(sub(only(build([...messages, answer(3, 17)], [...base, exec])), "new_question"),
+    { key: "new_question", state: "done", at: at(17), step: "submit" });
+});
+
 test("the cancelled-work lookup names only the work behind each application's newest run or send", () => {
   const older = run("prepare", "completed", 6, 10, { sourceMessageId: "101", workId: WORK });
   const newer = run("execute", "completed", 11, 14, { sourceMessageId: "102", workId: WORK_2 });

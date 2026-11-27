@@ -592,7 +592,12 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     if (openQuestion) {
       subSteps.push(subStep("new_question", "current", openQuestion.createdAt));
       pending.push(answerForm(openQuestion));
-    } else if (postReview.length) subSteps.push(subStep("new_question", "done", latestTime(postReview.map(formDoneAt))));
+    } else {
+      // The newest such question, once the person answered it. One closed without an answer (by their Stop, or by
+      // Harper as no longer needed) was not answered here, so it adds nothing.
+      const lastQuestion = postReview.at(-1);
+      if (lastQuestion?.answer) subSteps.push(subStep("new_question", "done", lastQuestion.answer.at));
+    }
     const code = verificationSubStep("verification_code", exec.filter((run) => run.awaitsCode).at(-1), nextAttempt, done, pending);
     const link = verificationSubStep("email_link", exec.filter((run) => run.awaitsLink).at(-1), nextAttempt, done, pending);
     for (const item of [code, link]) if (item) subSteps.push(item.sub);
