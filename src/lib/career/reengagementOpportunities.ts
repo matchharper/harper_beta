@@ -200,8 +200,8 @@ export async function readCareerReengagementOpportunities(args: {
         (cached.value->>'mutualFit')::float DESC NULLS LAST,
         (coalesce(f.meta->>'score',f.meta->>'score100',f.meta->>'fitScore',f.meta->>'fit_score'))::float DESC NULLS LAST,
         cr.role_id
-      LIMIT ${INITIAL_CANDIDATES}
     `,
+      // The raw-SQL function appends LIMIT/OFFSET; a second LIMIT here is a syntax error (#83).
       INITIAL_CANDIDATES
     );
   }
