@@ -252,13 +252,14 @@ export function CareerFormField({
     );
   if (item.type === "multiselect")
     return (
-      // One option per line, its box before its own name: wrapped side by side, a box sat between two names.
+      // One option per line, its box before its own name: wrapped side by side, a box sat between two names. A name
+      // that wraps keeps its box on its first line (top-aligned, centred on that line), not in the middle.
       <div id={id} className="space-y-2">
         {careerFormOptions(item).map((option) => (
           <Checkbox
             key={option.id}
             disabled={disabled}
-            className={cn("flex w-full", readOnly && "disabled:opacity-100")}
+            className={cn("flex w-full items-start [&>input]:mt-[3px]", readOnly && "disabled:opacity-100")}
             label={option.label}
             checked={Array.isArray(value) && value.includes(option.id)}
             onChange={(event) => {
