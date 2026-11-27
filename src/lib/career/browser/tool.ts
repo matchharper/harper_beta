@@ -522,22 +522,36 @@ export async function refreshBrowserExecution(
  * Whether the live browser served an application that no run on it has submitted yet. Harper may carry a signed-in
  * browser over to another posting of the same site, and that application still needs the browser and its login
  * (review 11/27). Only runs in the browser's current provider session share its pages and login; a released browser
- * keeps its session record for later work. A run without role references (37% of preparations, 6% of submissions in
- * 14 days) counts as submitted only by its own confirmed result.
+ * keeps its session record for later work. A run's application is its role references and the page it worked on: its
+ * start URL, or without one the page the run before it left (it continued there; 14 days: most submissions on a live
+ * browser have no start URL). A confirmed submission covers the runs on its page whose roles it does not contradict,
+ * so its own preparation counts as submitted with or without role references (37% of preparations and 6% of
+ * submissions in 14 days have none); a run is also covered once all its roles were confirmed on this browser.
  */
 async function browserServesUnsubmittedApplication(context: Pick<ExternalToolContext, "admin" | "userId">, session: ExternalOperation) {
   const live = reference(session, "session_id");
   if (!live) return false;
-  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("request,result,provider_refs")
+  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("id,created_at,request,result,provider_refs")
     .eq("user_id", context.userId).eq("kind", "browser_run").eq("parent_id", session.id)
     .order("created_at", { ascending: false }).limit(100);
   if (error) throw new Error(error.message);
-  const runs = ((data ?? []) as Pick<ExternalOperation, "request" | "result" | "provider_refs">[])
-    .filter((run) => run.provider_refs?.session_id === live);
-  const roles = (run: (typeof runs)[number]) => Array.isArray(run.request?.role_refs) ? run.request.role_refs.map(String) : [];
-  const confirmed = (run: (typeof runs)[number]) => browserRunSubmission(run.result ?? {}) === "yes";
-  const submitted = new Set(runs.filter(confirmed).flatMap(roles));
-  return runs.some((run) => roles(run).length ? roles(run).some((role) => !submitted.has(role)) : !confirmed(run));
+  type Run = Pick<ExternalOperation, "id" | "created_at" | "request" | "result" | "provider_refs">;
+  const runs = ((data ?? []) as Run[]).filter((run) => run.provider_refs?.session_id === live)
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id.localeCompare(b.id));
+  const roles = (run: Run) => Array.isArray(run.request?.role_refs) ? run.request.role_refs.map(String) : [];
+  const pages = new Map<Run, string>();
+  let page: string | undefined;
+  for (const run of runs) {
+    const url = typeof run.request?.url === "string" ? run.request.url.trim() : "";
+    page = url || page || `run:${run.id}`;
+    pages.set(run, page);
+  }
+  const confirmed = runs.filter((run) => browserRunSubmission(run.result ?? {}) === "yes");
+  const submittedRoles = new Set(confirmed.flatMap(roles));
+  const covered = (run: Run) => (roles(run).length > 0 && roles(run).every((role) => submittedRoles.has(role)))
+    || confirmed.some((done) => pages.get(done) === pages.get(run)
+      && (!roles(done).length || roles(run).every((role) => roles(done).includes(role))));
+  return runs.some((run) => !covered(run));
 }
 
 /**

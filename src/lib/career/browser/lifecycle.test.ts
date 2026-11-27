@@ -428,6 +428,10 @@ test("a confirmed submission keeps its browser open while another application it
   await settle(() => rows[0].result.browser_availability === "stopped");
   assert.deepEqual(events, ["picture", "stop"]);
 });
+/** A finished run on the live browser, started at minute (before the submission at 00:00) on url when given. */
+const earlierRun = (rows: ExternalOperation[], id: string, minute: number, request: Record<string, unknown>, submitted = "no") =>
+  rows.push({ ...structuredClone(rows[1]), id, idempotency_key: `run-${id}`, status: "completed", request,
+    result: { submitted }, created_at: new Date(Date.parse("2026-10-29T00:00:00Z") + minute * 60_000).toISOString() });
 test("an application on the live browser without role references keeps it open; runs of an earlier browser on that record do not", async (t) => {
   // Review 11/27: the check knew an application only by its role references, and it also counted runs of browsers
   // released long before, since a released browser keeps its session record.
@@ -437,9 +441,10 @@ test("an application on the live browser without role references keeps it open; 
   rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000008", idempotency_key: "prepare-c",
     status: "completed", request: { mode: "prepare", role_refs: ["role-c"] }, result: { submitted: "no" },
     provider_refs: { session_id: "earlier-browser", run_id: "earlier-run" } });
-  // On the live browser Harper also opened Company B's posting, which has no role reference.
-  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000009", idempotency_key: "prepare-b",
-    status: "completed", request: { mode: "prepare" }, result: { submitted: "no" } });
+  // On the live browser Harper first opened Company B's posting, which has no role reference; then it carried the
+  // browser over to Company A's posting and prepared it, and the submission went on from that page.
+  earlierRun(rows, "00000000-0000-4000-8000-000000000009", -20, { mode: "prepare", url: "https://company-b.example/jobs/2" });
+  earlierRun(rows, "00000000-0000-4000-8000-000000000010", -10, { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] });
   await refreshBrowserExecution(context, structuredClone(rows[1]));
   finish();
   await settle(() => false);
@@ -451,6 +456,42 @@ test("an application on the live browser without role references keeps it open; 
   await settle(() => rows[0].result.browser_availability === "stopped");
   assert.deepEqual(events, ["picture", "stop"]);
 });
+// Review 11/27: Harper prepared Company A's form without role references (37% of preparations), the person approved,
+// and the submission on the same browser went on from that page; the site confirmed it.
+for (const [what, prepared, submitting] of [
+  ["without role references", { mode: "prepare", url: "https://company-a.example/jobs/1" }, { mode: "execute", role_refs: ["role-a"] }],
+  ["named by role, submitted without one", { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] }, { mode: "execute" }],
+  ["without a start URL or role references", { mode: "prepare" }, { mode: "execute" }],
+] as const) {
+  test(`the submitted application's own preparation does not keep its browser: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { ...submitting };
+    earlierRun(rows, "00000000-0000-4000-8000-000000000009", -10, { ...prepared });
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => rows[0].result.browser_availability === "stopped");
+    assert.deepEqual(events, ["picture", "stop"]);
+  });
+}
+// Company B's preparation on its own page was cut off before Harper went on to Company A's posting; or Harper went on
+// from Company A's page to Company B's role and came back to submit A.
+for (const [what, minute, status, request] of [
+  ["one cut off before its receipt", -30, "failed", { mode: "prepare", url: "https://company-b.example/jobs/2" }],
+  ["one whose role the submission does not name", -10, "completed", { mode: "prepare", role_refs: ["role-b"] }],
+] as const) {
+  test(`another application on the browser keeps it open: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+    earlierRun(rows, "00000000-0000-4000-8000-000000000009", -20, { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] });
+    earlierRun(rows, "00000000-0000-4000-8000-000000000010", minute, { ...request });
+    rows[3].status = status;
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => false);
+    assert.deepEqual(events, ["picture"]);
+    assert.equal(rows[0].result.browser_availability, undefined);
+  });
+}
 test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
   const { rows, context, events, finish } = finishedSubmission(t, "unclear");
   await refreshBrowserExecution(context, structuredClone(rows[1]));
