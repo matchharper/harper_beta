@@ -428,6 +428,29 @@ test("a confirmed submission keeps its browser open while another application it
   await settle(() => rows[0].result.browser_availability === "stopped");
   assert.deepEqual(events, ["picture", "stop"]);
 });
+test("an application on the live browser without role references keeps it open; runs of an earlier browser on that record do not", async (t) => {
+  // Review 11/27: the check knew an application only by its role references, and it also counted runs of browsers
+  // released long before, since a released browser keeps its session record.
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+  // An earlier browser on this record prepared Company C and was released; that application has no use for this one.
+  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000008", idempotency_key: "prepare-c",
+    status: "completed", request: { mode: "prepare", role_refs: ["role-c"] }, result: { submitted: "no" },
+    provider_refs: { session_id: "earlier-browser", run_id: "earlier-run" } });
+  // On the live browser Harper also opened Company B's posting, which has no role reference.
+  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000009", idempotency_key: "prepare-b",
+    status: "completed", request: { mode: "prepare" }, result: { submitted: "no" } });
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  finish();
+  await settle(() => false);
+  assert.deepEqual(events, ["picture"], "Company B's application keeps the browser");
+  // Once that run reports its own confirmed submission, only the earlier browser's run is left, and it does not count.
+  rows[3].result = { submitted: "yes" };
+  const { releaseAfterConfirmedSubmission } = await import("./tool");
+  releaseAfterConfirmedSubmission(context, structuredClone(rows[1]), () => {});
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+});
 test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
   const { rows, context, events, finish } = finishedSubmission(t, "unclear");
   await refreshBrowserExecution(context, structuredClone(rows[1]));

@@ -519,18 +519,25 @@ export async function refreshBrowserExecution(
 }
 
 /**
- * Whether a run on this browser served an application that no run on it has submitted yet. Harper may carry a
- * signed-in browser over to another posting of the same site, and that application still needs the browser and its
- * login (review 11/27).
+ * Whether the live browser served an application that no run on it has submitted yet. Harper may carry a signed-in
+ * browser over to another posting of the same site, and that application still needs the browser and its login
+ * (review 11/27). Only runs in the browser's current provider session share its pages and login; a released browser
+ * keeps its session record for later work. A run without role references (37% of preparations, 6% of submissions in
+ * 14 days) counts as submitted only by its own confirmed result.
  */
-async function browserServesUnsubmittedApplication(context: Pick<ExternalToolContext, "admin" | "userId">, sessionId: string) {
-  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("request,result")
-    .eq("user_id", context.userId).eq("kind", "browser_run").eq("parent_id", sessionId).limit(100);
+async function browserServesUnsubmittedApplication(context: Pick<ExternalToolContext, "admin" | "userId">, session: ExternalOperation) {
+  const live = reference(session, "session_id");
+  if (!live) return false;
+  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("request,result,provider_refs")
+    .eq("user_id", context.userId).eq("kind", "browser_run").eq("parent_id", session.id)
+    .order("created_at", { ascending: false }).limit(100);
   if (error) throw new Error(error.message);
-  const runs = (data ?? []) as Pick<ExternalOperation, "request" | "result">[];
+  const runs = ((data ?? []) as Pick<ExternalOperation, "request" | "result" | "provider_refs">[])
+    .filter((run) => run.provider_refs?.session_id === live);
   const roles = (run: (typeof runs)[number]) => Array.isArray(run.request?.role_refs) ? run.request.role_refs.map(String) : [];
-  const submitted = new Set(runs.filter((run) => browserRunSubmission(run.result ?? {}) === "yes").flatMap(roles));
-  return runs.some((run) => roles(run).some((role) => !submitted.has(role)));
+  const confirmed = (run: (typeof runs)[number]) => browserRunSubmission(run.result ?? {}) === "yes";
+  const submitted = new Set(runs.filter(confirmed).flatMap(roles));
+  return runs.some((run) => roles(run).length ? roles(run).some((role) => !submitted.has(role)) : !confirmed(run));
 }
 
 /**
@@ -551,7 +558,7 @@ export function releaseAfterConfirmedSubmission(
     const session = await readOperation(context, sessionId);
     if (!session?.conversation_id || session.kind !== "browser_session" || session.status !== "idle"
       || reference(session, "current_execution_id") !== run.id) return;
-    if (await browserServesUnsubmittedApplication(context, session.id)) return;
+    if (await browserServesUnsubmittedApplication(context, session)) return;
     await executeUseBrowser({ action: "release", session_id: session.id }, {
       admin: context.admin, userId: context.userId, conversationId: session.conversation_id,
       requestId: `confirmed-submission:${run.id}`, deadlineAt: Date.now(),
