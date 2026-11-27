@@ -97,13 +97,13 @@ export async function fetchOpsUpdateMetrics(args: {
       readOnly<UpdateMetricsLandingRow>(UPDATE_METRICS_LANDING_SQL, window),
       readOnly<UpdateMetricsEmailRow>(UPDATE_METRICS_EMAILS_SQL, withPeople),
       readOnly<UpdateMetricsUnseenReplyRow>(UPDATE_METRICS_UNSEEN_REPLIES_SQL, withPeople),
-      readOnly<{ connectedAt: string; userId: string }>(UPDATE_METRICS_CONNECTIONS_SQL, [
+      readOnly<{ appliedAt: string; connectedAt: string | null; userId: string }>(UPDATE_METRICS_CONNECTIONS_SQL, [
         ...withPeople,
         SUBMITTED_SENTENCE,
         NOT_SUBMITTED_SENTENCE,
       ]),
     ]);
-  const connectedAtByUser = new Map(connections.map((row) => [row.userId, row.connectedAt]));
+  const stepsByUser = new Map(connections.map((row) => [row.userId, row]));
 
   const usageByUser = new Map(usage.map((row) => [row.userId, row]));
   return buildOpsUpdateMetrics({
@@ -118,7 +118,8 @@ export async function fetchOpsUpdateMetrics(args: {
       ...row,
       costUsd3d: usageByUser.get(row.userId)?.costUsd3d ?? 0,
       llmMs3d: usageByUser.get(row.userId)?.llmMs3d ?? 0,
-      connectedAt: connectedAtByUser.get(row.userId) ?? null,
+      appliedAt: stepsByUser.get(row.userId)?.appliedAt ?? null,
+      connectedAt: stepsByUser.get(row.userId)?.connectedAt ?? null,
     })),
     to: range.to,
     unseenReplies,

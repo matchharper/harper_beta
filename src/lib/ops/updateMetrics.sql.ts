@@ -241,11 +241,11 @@ group by visits.local_id, visits.first_seen_at
 order by visits.first_seen_at
 `;
 
-/** /jobs postings with no internal Role behind them (official_jobs.role_id is empty). */
 /**
- * When each talent who signed up in [$1, $2) was first connected, by the /ops/metrics rule: a 대신 지원 that was
- * really submitted, or an introduction delivered to the company. $4 / $5 are SUBMITTED_SENTENCE /
- * NOT_SUBMITTED_SENTENCE (talentMetricsOverview.server.ts). Talents never connected have no row.
+ * For each talent who signed up in [$1, $2): when they were first connected (the /ops/metrics rule: a 대신 지원 that
+ * was really submitted, or an introduction delivered to the company) and when they first applied (connected, a
+ * 맡김 by the /ops/metrics rule, or their own '직접 지원했어요'). $4 / $5 are SUBMITTED_SENTENCE /
+ * NOT_SUBMITTED_SENTENCE (talentMetricsOverview.server.ts). Talents who never applied have no row.
  */
 export const UPDATE_METRICS_CONNECTIONS_SQL = String.raw`
 with ${BASE_CTES},
@@ -256,17 +256,34 @@ signups as materialized (
   where users.created_at >= $1::timestamptz
     and users.created_at < $2::timestamptz
 ),
-connections as (
-  select user_id, connected_at from external_connections
+steps as (
+  -- 연결 (the /ops/metrics rule): a submitted 대신 지원 or a delivered introduction.
+  select user_id, connected_at as at, true as connected from external_connections
   union all
-  select user_id, connected_at from internal_connections
+  select user_id, connected_at, true from internal_connections
+  -- 맡김 (the /ops/metrics rule): a confirmed 대신 지원, whether or not it was submitted, and the 맡김 clicks.
+  union all
+  select user_id, confirmed_at, false from applications
+  union all
+  select user_id, created_at, false from delegation_clicks
+  -- '직접 지원했어요' on an opportunity, PC and phone (the events the daily debug report reads).
+  union all
+  select log.user_id, log.created_at, false
+  from public.logs log
+  join signups on signups.user_id = log.user_id
+  where log.type in ('career_click_history_external_apply_directly', 'career_click_mobile_history_external_apply_directly')
+    and log.created_at >= $1::timestamptz
 )
-select signups.user_id::text as "userId", min(connections.connected_at) as "connectedAt"
+select
+  signups.user_id::text as "userId",
+  min(steps.at) filter (where steps.connected) as "connectedAt",
+  min(steps.at) as "appliedAt"
 from signups
-join connections on connections.user_id = signups.user_id
+join steps on steps.user_id = signups.user_id
 group by signups.user_id
 `;
 
+/** /jobs postings with no internal Role behind them (official_jobs.role_id is empty). */
 export const UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL = String.raw`
 select slug
 from public.official_jobs
