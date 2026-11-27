@@ -6,6 +6,7 @@ import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { toUiMessage } from "./careerHelpers";
 import { latestChoiceMessageIndex, choiceRepliesByMessageId } from "@/lib/career/latestChoiceMessage";
 import { createCareerMessageMerger } from "./careerMessageMerge";
+import { projectCareerWorkActivity } from "@/lib/career/work/activity";
 
 const source: CareerMessage = { id: 1, role: "user", content: "확인해줘", createdAt: "2026-11-05T00:00:00Z", messageType: "chat" };
 const activity: CareerMessage = { id: 2, role: "assistant", content: "", createdAt: "2026-11-05T00:00:01Z", messageType: "career_turn_activity", workReplyId: "invocation:a", workPending: true, workEvents: [{ id: "message:0", kind: "message", text: "확인할게요." }] };
@@ -294,4 +295,20 @@ test("a reply woken only by execution updates that showed nothing leaves no row"
   const runningSnapshot = { latestMessageId: 4, activeInvocationIds: ["c"], activities: [{ id: "c", startedAt: at(3), logs: ["지원 상태를 확인하고 있어요."] }] };
   const live = { ...silent, messageType: "career_turn_activity", workPending: true, workUnprompted: undefined };
   assert.equal(replies(live, runningSnapshot).length, 1, "the running work still shows until it ends");
+});
+
+test("a reply claimed at once stays below its question when the server clock reads a little earlier than the database", () => {
+  // 11/27: the question was stored at .564360 by the database; the server claimed its turn and stamped .540. The open
+  // chat kept that start for the finished reply and showed the answer above "어떻게 돼 가?"; a reload showed it below.
+  const question = { ...source, id: 339, content: "어떻게 돼 가?", createdAt: "2026-11-27T12:54:41.564360+00:00" };
+  const running = projectCareerWorkActivity({ id: "a", created_at: question.createdAt,
+    result: { activity: { logs: ["지원 정보 확인 중"], startedAt: "2026-11-27T12:54:41.540Z" } } });
+  const project = createCareerTurnProjection();
+  const during = { latestMessageId: 339, activeInvocationIds: ["a"], pendingInputMessageIds: [], activities: running };
+  assert.equal(project(projectCareerInputDelivery([question], during), during)[0].id, question.id, "nothing of the reply above the question while it runs");
+  const final = { ...activity, id: 340, messageType: "chat", content: "네 건이 제출됐어요.", workPending: false, workEvents: [],
+    createdAt: "2026-11-27T12:59:50.271655+00:00", workStartedAt: "2026-11-27T12:54:41.564Z", workCompletedAt: "2026-11-27T12:59:50.192Z" };
+  const done = { latestMessageId: 340, activeInvocationIds: [], pendingInputMessageIds: [], activities: [] };
+  assert.deepEqual(project(projectCareerInputDelivery([question, final], done), done).map(row => row.id), [339, 340]);
+  assert.deepEqual(createCareerTurnProjection()([question, final], done).map(row => row.id), [339, 340], "the same as a reload");
 });

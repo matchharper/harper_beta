@@ -59,6 +59,15 @@ test("progress survives overlapping callbacks, hides waits for a newer reply, an
   assert.deepEqual(row.result, {});
 });
 
+test("a turn's start is never earlier than its invocation, whose time is the message that started it", () => {
+  const created = "2026-11-27T12:54:41.564360+00:00";
+  const at = (startedAt: string) => projectCareerWorkActivity({ id: "turn", created_at: created, result: { activity: { logs: [], startedAt } } })[0].startedAt;
+  // Claimed at once by a server whose clock runs a little behind the database's.
+  assert.equal(at("2026-11-27T12:54:41.540Z"), created);
+  // Queued behind other work and started later: its own start stands.
+  assert.equal(at("2026-11-27T12:59:51.230Z"), "2026-11-27T12:59:51.230Z");
+});
+
 test("projection excludes cleanup and private execution fields", () => {
   assert.deepEqual(
     projectCareerWorkActivity({ id: "cleanup", request: { cleanup: true } }),
