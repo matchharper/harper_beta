@@ -324,6 +324,7 @@ export type OpsTrackedChange = UpdateMetricChart & {
   title: string;
 };
 
+const PR_479 = { label: "PR #479", url: "https://github.com/matchharper/harper_beta/pull/479" };
 const PR_474 = { label: "PR #474", url: "https://github.com/matchharper/harper_beta/pull/474" };
 const PR_436 = { label: "PR #436", url: "https://github.com/matchharper/harper_beta/pull/436" };
 const PR_433 = { label: "PR #433", url: "https://github.com/matchharper/harper_beta/pull/433" };
@@ -353,12 +354,11 @@ export const OPS_HEADLINE_CHART: UpdateMetricChart & { primary: UpdateMetricKey 
 export const OPS_TRACKED_CHANGES: OpsTrackedChange[] = [
   {
     ...applySuccessChart(),
-    // Placeholder: set the real KST deploy day and the PR link when this branch reaches main.
-    deployedOn: "2026-11-27",
+    deployedOn: "2026-11-28",
     detail:
-      "시작 확인 폼 한 장에서 공고, 맡길 범위, 공통 사실, 공고별 이력서, 로그인 유지를 한 번에 묻고, 새로 물을 것이 없으면 다시 검토하지 않고 제출합니다. 마감된 공고는 브라우저를 열기 전에 거르고, 채팅 입력창 위 패널에 지원마다 제출까지의 단계를 실시간으로 보여 줍니다.",
-    key: "2026-11-27-apply-confirm-progress",
-    links: [],
+      "시작 확인 폼 한 장에서 공고, 맡길 범위, 공고별 이력서, 로그인 유지를 한 번에 묻고, 마감된 공고는 브라우저를 열기 전에 거릅니다. 준비할 때 아는 답으로 회사 양식을 끝까지 채우고(한 번에 5개까지) 새로 물을 것이 없으면 다시 검토하지 않고 제출하며, 진행 중에 채팅을 보내도 제출이 끊기지 않습니다. 채팅 입력창 위 패널에 지원마다 제출까지의 단계를 보여 주고, 답하지 않고 떠난 지원 질문은 메일로 한 번 알립니다.",
+    key: "2026-11-28-apply-confirm-progress",
+    links: [PR_479],
     title: "지원 확인폼·패널",
   },
   {

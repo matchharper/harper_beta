@@ -234,7 +234,7 @@ test("대신 지원 changes mark only the 대신지원 성공률 chart and read 
   assert.deepEqual(
     applyChanges.map((change) => [change.key, change.deployedOn]),
     [
-      ["2026-11-27-apply-confirm-progress", "2026-11-27"],
+      ["2026-11-28-apply-confirm-progress", "2026-11-28"],
       ["2026-11-23-apply-batch", "2026-11-23"],
       ["2026-11-18-apply-login-code", "2026-11-18"],
     ]
