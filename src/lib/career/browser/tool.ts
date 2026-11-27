@@ -523,10 +523,14 @@ export async function refreshBrowserExecution(
  * browser over to another posting of the same site, and that application still needs the browser and its login
  * (review 11/27). Only runs in the browser's current provider session share its pages and login; a released browser
  * keeps its session record for later work. A run's application is its role references and the page it worked on: its
- * start URL, or without one the page the run before it left (it continued there; 14 days: most submissions on a live
- * browser have no start URL). A confirmed submission covers the runs on its page whose roles it does not contradict,
- * so its own preparation counts as submitted with or without role references (37% of preparations and 6% of
- * submissions in 14 days have none); a run is also covered once all its roles were confirmed on this browser.
+ * start URL; without one, the page of the latest earlier run sharing one of its roles (it went back to that
+ * application), else the page the run before it left (it continued there; 14 days: most submissions on a live browser
+ * have no start URL). A run is covered when its own result confirms a submission, when all its roles were confirmed on
+ * this browser, or when a confirmed submission on its page names every role it names. A submission that names no role
+ * covers its page only while that page served at most one role, since it cannot tell which of them it sent. So an
+ * application's own preparation counts as submitted with or without role references (37% of preparations and 6% of
+ * submissions in 14 days have none), and any doubt keeps the browser: a wrong close costs another login, a wrong keep
+ * only the idle browser until CAREER_BROWSER_KEEP_ALIVE_SECONDS.
  */
 async function browserServesUnsubmittedApplication(context: Pick<ExternalToolContext, "admin" | "userId">, session: ExternalOperation) {
   const live = reference(session, "session_id");
@@ -543,14 +547,19 @@ async function browserServesUnsubmittedApplication(context: Pick<ExternalToolCon
   let page: string | undefined;
   for (const run of runs) {
     const url = typeof run.request?.url === "string" ? run.request.url.trim() : "";
-    page = url || page || `run:${run.id}`;
+    const sameApplication = [...pages].reverse().find(([earlier]) => roles(earlier).some((role) => roles(run).includes(role)));
+    page = url || sameApplication?.[1] || page || `run:${run.id}`;
     pages.set(run, page);
   }
-  const confirmed = runs.filter((run) => browserRunSubmission(run.result ?? {}) === "yes");
+  const submitted = (run: Run) => browserRunSubmission(run.result ?? {}) === "yes";
+  const confirmed = runs.filter(submitted);
   const submittedRoles = new Set(confirmed.flatMap(roles));
-  const covered = (run: Run) => (roles(run).length > 0 && roles(run).every((role) => submittedRoles.has(role)))
-    || confirmed.some((done) => pages.get(done) === pages.get(run)
-      && (!roles(done).length || roles(run).every((role) => roles(done).includes(role))));
+  const pageRoles = (of: string | undefined) => new Set(runs.filter((run) => pages.get(run) === of).flatMap(roles));
+  const covered = (run: Run) => submitted(run)
+    || (roles(run).length > 0 && roles(run).every((role) => submittedRoles.has(role)))
+    || confirmed.some((done) => pages.get(done) === pages.get(run) && (roles(done).length
+      ? roles(run).every((role) => roles(done).includes(role))
+      : pageRoles(pages.get(done)).size <= 1));
   return runs.some((run) => !covered(run));
 }
 

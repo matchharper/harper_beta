@@ -492,6 +492,38 @@ for (const [what, minute, status, request] of [
     assert.equal(rows[0].result.browser_availability, undefined);
   });
 }
+// Review 11/27 (second look): a run without a start URL took the page of whatever ran just before it, even another
+// application's, and a submission without role references covered every run on its page. In each order below another
+// application on the browser is still not submitted.
+const companyA = "https://company-a.example/jobs/1", companyB = "https://company-b.example/jobs/2";
+for (const [what, submitting, earlier] of [
+  ["B prepared after A, then A submitted without a start URL", { mode: "execute", role_refs: ["role-a"] }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", url: companyB }, "completed"]]],
+  ["A prepared without roles after B, then B submitted without a start URL", { mode: "execute", role_refs: ["role-b"] }, [
+    [-20, { mode: "prepare", url: companyB, role_refs: ["role-b"] }, "completed"],
+    [-10, { mode: "prepare", url: companyA }, "completed"]]],
+  ["B's preparation cut off after A's, then A submitted without a start URL", { mode: "execute", role_refs: ["role-a"] }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", url: companyB }, "failed"]]],
+  ["B's role prepared on A's page, then a submission that names no role", { mode: "execute" }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", role_refs: ["role-b"] }, "completed"]]],
+] as const) {
+  test(`another application on the browser keeps it open: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { ...submitting };
+    earlier.forEach(([minute, request, status], index) => {
+      earlierRun(rows, `00000000-0000-4000-8000-00000000002${index}`, minute, { ...request });
+      rows[rows.length - 1].status = status;
+    });
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => false);
+    assert.deepEqual(events, ["picture"]);
+    assert.equal(rows[0].result.browser_availability, undefined);
+  });
+}
 test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
   const { rows, context, events, finish } = finishedSubmission(t, "unclear");
   await refreshBrowserExecution(context, structuredClone(rows[1]));
