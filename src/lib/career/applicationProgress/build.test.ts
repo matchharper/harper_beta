@@ -187,13 +187,25 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(sub(handedOff, "login")?.site, "Greenhouse");
   assert.equal(handedOff.status, "needs_you");
 
-  // The browser was closed while it waited (in the viewer, or by a Stop's cleanup): the person stopped it.
-  const closed = only(build(messages, [session(SESSION, "closed", { requestedAction: "close" }), loginRun]));
-  assert.equal(closed.status, "failed");
-  assert.equal(sub(closed, "login")?.state, "failed");
-  assert.deepEqual(closed.failure, { reason: "stopped" });
-  assert.deepEqual(closed.action, { kind: "continue" });
-  assert.equal(states(closed), "confirm:done fill:current review:todo submit:todo");
+  // The person closed the browser while it waited (in the viewer), or a Stop's cleanup is closing it, or closed it (the
+  // Stop's record then lists the run that handed it over): the person stopped it.
+  const viewerClosed = session(SESSION, "closed", { requestedAction: "close", controlSource: "user" });
+  for (const ops of [[viewerClosed, loginRun], [session(SESSION, "human"), loginRun],
+    [session(SESSION, "closed", { requestedAction: "close", controlSource: "assistant" }), { ...loginRun, stopped: true, stoppedAt: at(30) }]]) {
+    const closed = only(build(messages, ops, [], { closingBrowserSessionIds: ops[0].status === "human" ? [SESSION] : [] }));
+    assert.equal(closed.status, "failed");
+    assert.equal(sub(closed, "login")?.state, "failed");
+    assert.deepEqual(closed.failure, { reason: "stopped" });
+    assert.deepEqual(closed.action, { kind: "continue" });
+    assert.equal(states(closed), "confirm:done fill:current review:todo submit:todo");
+  }
+  // Harper closed it itself (it gave up on that login, or cancelled the work with manage_work): no Stop of the
+  // person's. Nothing moves it, so the person can ask Harper to go on.
+  const byHarper = only(build(messages, [session(SESSION, "closed", { requestedAction: "close", controlSource: "assistant" }), loginRun]));
+  assert.equal(sub(byHarper, "login")?.state, "failed");
+  assert.equal(byHarper.failure, undefined);
+  assert.equal(byHarper.status, "needs_you");
+  assert.deepEqual(byHarper.action, { kind: "continue" });
 });
 
 test("a login is done only once a later run on that browser or site gets past it", () => {
@@ -402,8 +414,8 @@ test("a form the person's Stop closed unanswered stays to do, so the percentage 
 test("closing the login browser stops the application from when it closed: a request before that does not undo it", () => {
   const messages = [form(1, 0), answer(1, 5, { submitScope: "review" })];
   const loginRun = run("prepare", "completed", 6, 8, { needsUser: true });
-  // The run ended at 00:08 with the browser handed to the person; they closed it at 00:40.
-  const closedAt40 = [session(SESSION, "closed", { updatedAt: at(40) }), loginRun];
+  // The run ended at 00:08 with the browser handed to the person; they closed it in the viewer at 00:40.
+  const closedAt40 = [session(SESSION, "closed", { updatedAt: at(40), requestedAction: "close", controlSource: "user" }), loginRun];
   assert.deepEqual(only(build(messages, closedAt40, [], { now: new Date(at(45)) })).failure, { reason: "stopped" });
   // They had asked Harper about it at 00:20, and that turn still runs: the closing came after, so it still holds.
   const asked = only(build(messages, closedAt40, [], { now: new Date(at(45)), turnStartedAt: at(20), requests: [{ createdAt: at(20), roleIds: [ROLE_A] }] }));

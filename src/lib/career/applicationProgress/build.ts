@@ -58,6 +58,8 @@ export type ApplicationOperationRow = {
   verificationCode?: string | null;
   url?: string | null;
   requestedAction?: string | null;
+  /** browser_session: who asked for that action, "user" in the browser viewer ("assistant" is Harper or a cleanup). */
+  controlSource?: string | null;
   browserAvailability?: string | null;
   /** browser_run and email_send: the person's message, and the delegated work, it was started for. */
   sourceMessageId?: string | null;
@@ -204,9 +206,10 @@ type FormView = {
 
 /**
  * closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. updatedAt: its row's last
- * change, for a closed browser when it closed.
+ * change, for a closed browser when it closed. controlSource: who asked for requestedAction ("user": in the viewer).
  */
-type SessionView = { status: string; requestedAction?: string | null; browserAvailability?: string | null; closing: boolean; updatedAt: string };
+type SessionView = { status: string; requestedAction?: string | null; controlSource?: string | null; browserAvailability?: string | null;
+  closing: boolean; updatedAt: string };
 
 type RunView = {
   id: string;
@@ -345,7 +348,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       awaitsLink: finishedExecute && browserRunAwaitsEmailLink({ verificationCode: row.verificationCode, submitted: row.submitted }),
       stoppedAt: stoppedAtOf(row),
       site: siteOf(row),
-      session: session && { status: session.status, requestedAction: session.requestedAction,
+      session: session && { status: session.status, requestedAction: session.requestedAction, controlSource: session.controlSource,
         browserAvailability: session.browserAvailability, closing: closing.has(session.id), updatedAt: session.updatedAt },
       latestOnSession: Boolean(row.parentId && newestOnSession.get(row.parentId)?.id === row.id),
     };
@@ -647,11 +650,14 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // A Stop closed its open start or review form, and that is its newest record (no work of it was under way then).
   const closedForm = app.forms.filter((form) => form.closedByStop).sort((a, b) => time(a.resolvedAt) - time(b.resolvedAt)).at(-1);
   const formStop = closedForm && time(closedForm.resolvedAt) >= time(updatedAt) ? closedForm.resolvedAt : undefined;
-  // Stopped by the person: a Stop ended the request of the newest work, the login browser it waited on was closed (in
-  // the viewer, or by a Stop's cleanup: from when it closed, not when its run ended), or a Stop closed its open form.
+  // Stopped by the person: a Stop ended the request of the newest work, the person closed the login browser it waited on
+  // in the viewer (from when it closed, not when its run ended) or a Stop's cleanup is closing it, or a Stop closed its
+  // open form. Once that cleanup is done, the Stop's own record names the run that handed the browser over, so its
+  // request reads as stopped. Harper closing the browser itself (use_browser close, a manage_work cancel) is no Stop.
   // From the latest of these: a later Stop that closed only a newer form counts from then, so an answer between the two
   // Stops does not undo it. It holds until something follows for this application (movedSince).
-  const lostStop = lost && !browserExpired(lost.run.session) ? latestTime([lost.run.updatedAt, lost.run.session?.updatedAt]) : undefined;
+  const closedByPerson = lost && (lost.run.session?.closing || (lost.run.session?.controlSource === "user" && !browserExpired(lost.run.session)));
+  const lostStop = closedByPerson ? latestTime([lost.run.updatedAt, lost.run.session?.updatedAt]) : undefined;
   const stopFrom = latestTime([newestWork?.stoppedAt ?? lostStop, formStop]);
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;

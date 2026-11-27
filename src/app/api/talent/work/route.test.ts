@@ -425,6 +425,52 @@ test("only the person's own Stop reads as stopped: its Stop record or a work it 
   assert.equal(work?.limit, 3);
 });
 
+test("a login browser Harper closed itself is not the person's Stop; one the person closed in the viewer is", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleId = "00000000-0000-4000-8000-0000000000a1";
+  const sessionId = "00000000-0000-4000-8000-0000000000c1";
+  const workId = "00000000-0000-4000-8000-0000000000e1";
+  const columns: string[] = [];
+  // A's delegated work prepared on a login site and handed its browser to the person. Then either Harper cancelled the
+  // work itself (manage_work, its own note), which closed that browser, or the person closed it in the viewer.
+  const read = (controlSource: string) => {
+    const operations = [
+      { id: sessionId, kind: "browser_session", status: "closed", createdAt: "2026-11-26T09:00:00Z", updatedAt: "2026-11-26T09:20:00Z",
+        roleRefs: [roleId], requestedAction: "close", controlSource },
+      { id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", parentId: sessionId, status: "completed", mode: "prepare",
+        createdAt: "2026-11-26T09:01:00Z", updatedAt: "2026-11-26T09:05:00Z", roleRefs: [roleId], needsUser: true, submitted: "no",
+        verificationCode: "none", sourceMessageId: "301", workId },
+    ];
+    const admin = {
+      from(table: string) {
+        const filters: Record<string, unknown> = {};
+        const query: any = {
+          select(value: string) { columns.push(value); return query; },
+          eq(column: string, value: unknown) { filters[column] = value; return query; },
+          in() { return query; }, gte() { return query; }, gt() { return query; }, like() { return query; },
+          not() { return query; }, order() { return query; }, limit() { return query; },
+          then(resolve: (value: unknown) => unknown) {
+            const data = table === "company_roles" || table === "talent_messages" ? []
+              : filters.kind === "delegated_work"
+                ? [{ id: workId, status: controlSource === "user" ? "waiting" : "cancelled", note: "Posting closed; stopping this application" }]
+                : operations;
+            return Promise.resolve(resolve({ data, error: null }));
+          },
+        };
+        return query;
+      },
+    };
+    return readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
+      turnStartedAt: Promise.resolve(null), now: new Date("2026-11-26T10:00:00Z") });
+  };
+  const byHarper = (await read("assistant")).find((item) => item.id === roleId);
+  assert.notDeepEqual(byHarper?.failure, { reason: "stopped" }, "Harper cancelled that work and closed its browser");
+  assert.deepEqual(byHarper?.action, { kind: "continue" });
+  assert.deepEqual((await read("user")).find((item) => item.id === roleId)?.failure, { reason: "stopped" });
+  // Who asked for the close is read with the other selected paths.
+  assert.ok(columns.some((value) => value.split(",").includes("controlSource:result->>control_source")));
+});
+
 test("while an application is stopped, the person's messages naming it during the running turn pick it up, unless a Stop ended them", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
   const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
@@ -510,8 +556,9 @@ test("a stopped application asked to go on stays while that turn runs: a day pas
   // 24:10 and has recorded nothing for A yet, so A's newest record is more than a day old.
   const runA = { id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", status: "failed", mode: "execute",
     createdAt: hours(-0.1), updatedAt: hours(0), roleRefs: [roleA], sourceMessageId: "301" };
-  // B's browser waited for a login and the person closed it at 24:00: B is stopped since then.
-  const sessionClosed = { id: sessionB, kind: "browser_session", status: "closed", createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB] };
+  // B's browser waited for a login and the person closed it in the viewer at 24:00: B is stopped since then.
+  const sessionClosed = { id: sessionB, kind: "browser_session", status: "closed", createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB],
+    requestedAction: "close", controlSource: "user" };
   const runB = { id: "00000000-0000-4000-8000-0000000000d2", kind: "browser_run", parentId: sessionB, status: "completed", mode: "prepare",
     createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB], needsUser: true, submitted: "no", verificationCode: "none" };
   const stops = [{ createdAt: hours(0), sourceMessageIds: [301] }];

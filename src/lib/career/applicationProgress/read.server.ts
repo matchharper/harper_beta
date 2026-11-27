@@ -88,7 +88,7 @@ export async function readCareerApplicationProgress(args: {
       .order("id", { ascending: false })
       .limit(MESSAGE_LIMIT),
     db.from("talent_external_operations")
-      .select("id,kind,parentId:parent_id,status,createdAt:created_at,updatedAt:updated_at,mode:request->>mode,roleRefs:request->role_refs,startUrl:request->>url,opportunityId:request->>opportunity_id,sourceMessageId:request->>source_message_id,workId:request->>work_id,needsUser:result->needsUser,submitted:result->>submitted,verificationCode:result->>verificationCode,url:result->>url,requestedAction:result->>requested_action,browserAvailability:result->>browser_availability")
+      .select("id,kind,parentId:parent_id,status,createdAt:created_at,updatedAt:updated_at,mode:request->>mode,roleRefs:request->role_refs,startUrl:request->>url,opportunityId:request->>opportunity_id,sourceMessageId:request->>source_message_id,workId:request->>work_id,needsUser:result->needsUser,submitted:result->>submitted,verificationCode:result->>verificationCode,url:result->>url,requestedAction:result->>requested_action,controlSource:result->>control_source,browserAvailability:result->>browser_availability")
       .eq("user_id", args.userId)
       .eq("conversation_id", args.conversationId)
       .in("kind", ["browser_session", "browser_run", "email_send"])
