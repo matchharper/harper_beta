@@ -199,13 +199,14 @@ export function useBrowserSessionDevPreview() {
 
 /**
  * Opens a browser of this conversation from elsewhere (the application progress panel), the same way the timeline's
- * browser link does. null when there is no dock, or the browser is closed or not on screen.
+ * browser link does. null when there is no dock, or the browser is closed. A browser whose timeline card is older
+ * than the loaded history still opens: selection loads it into the dock.
  */
 export function useBrowserSessionOpener(sessionId: string | null) {
   const dock = useContext(BrowserDockContext);
   if (!dock || !sessionId) return null;
   const session = dock.summaries.get(sessionId);
-  if (session?.status === "closed" || session?.browserAvailability === "stopped" || !dock.anchors.has(sessionId)) return null;
+  if (session?.status === "closed" || session?.browserAvailability === "stopped") return null;
   return () => {
     dock.anchors.get(sessionId)?.scrollIntoView({ block: "center", behavior: "smooth" });
     dock.select(sessionId);
