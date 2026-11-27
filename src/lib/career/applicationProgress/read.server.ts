@@ -70,7 +70,7 @@ export async function readCareerApplicationProgress(args: {
   const [messages, operations, stops, openForms, turnStartedAt, waitingForReply, closingBrowserSessionIds]:
     [Result, Result, Result, ApplicationOpenForm[], string | null, boolean, readonly string[]] = await Promise.all([
     db.from("talent_messages")
-      .select("messageType:message_type,createdAt:created_at,formId:payload->formId,revision:payload->revision,kind:payload->>kind,hidden:payload->hidden,relatedRefs:payload->relatedRefs,itemId:payload->>itemId,actionId:payload->>actionId,negativeActionId:payload->formSnapshot->negative->>id,submitScope:payload->values->submit_scope,saveLogin:payload->values->save_login,postings:payload->values->apply_postings")
+      .select("messageType:message_type,createdAt:created_at,formId:payload->formId,revision:payload->revision,kind:payload->>kind,hidden:payload->hidden,relatedRefs:payload->relatedRefs,itemId:payload->>itemId,actionId:payload->>actionId,negativeActionId:payload->formSnapshot->negative->>id,submitScope:payload->values->submit_scope,saveLogin:payload->values->save_login,postings:payload->values->apply_postings,reason:payload->>reason")
       .eq("user_id", args.userId)
       .eq("conversation_id", args.conversationId)
       .in("message_type", ["career_form", "career_form_response", "career_form_resolution"])

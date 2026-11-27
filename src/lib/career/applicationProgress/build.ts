@@ -37,6 +37,8 @@ export type ApplicationMessageRow = {
   saveLogin?: unknown;
   /** The role ids left selected in the start form's postings list (apply_postings). */
   postings?: unknown;
+  /** career_form_resolution only: why the form was closed. */
+  reason?: string | null;
 };
 
 /** One talent_external_operations row (browser_session, browser_run or email_send) with only the paths read. */
@@ -114,6 +116,8 @@ const ACTIVE_SEND = new Set(["reserved", "preparing", "dispatching"]);
 const INPUT_TYPES = new Set(["text", "textarea", "change", "select", "multiselect", "checkbox", "consent", "document"]);
 /** Items of the start form of delegated applications (handbooks/application.ts, shareLinks/formGuard.ts). */
 const START_ITEMS = new Set(["submit_scope", "save_login", "apply_postings"]);
+/** The reason stop_career_conversation gives the forms it closes (Harper's own resolve gives another). */
+const STOP_REASON = "User stopped the conversation work";
 
 const time = (value?: string | null) => (value ? Date.parse(value) : Number.NaN);
 const iso = (value: string) => {
@@ -182,6 +186,8 @@ type FormView = {
   knownStart: boolean;
   answer?: { at: string; negative: boolean };
   resolvedAt?: string;
+  /** The person's Stop closed it before anyone answered: what it asked is still to do. */
+  closedByStop?: boolean;
 };
 
 /** closing: a Stop queued this browser's cleanup, so it closes without waiting for anyone. */
@@ -283,6 +289,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
         || (answer && (present(answer.submitScope) || present(answer.saveLogin) || present(answer.postings)))),
       ...(answer ? { answer: { at: answer.createdAt, negative: Boolean(answer.actionId && answer.actionId === answer.negativeActionId) } } : {}),
       ...(resolution ? { resolvedAt: resolution.createdAt } : {}),
+      ...(resolution && !answer && resolution.reason === STOP_REASON ? { closedByStop: true } : {}),
     };
     // A posting the person took out of the start form's list is not applied to: that form does not track it.
     const kept = answer && !view.answer?.negative && Array.isArray(answer.postings) ? new Set(answer.postings) : undefined;
@@ -474,9 +481,12 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const lastWork = latestTime(works.map((work) => work.updatedAt));
   // A form created before any browser run or send is the start (confirm) form, otherwise a review form. Creation
   // times never change, so a form never moves to another step between polls. Once a form is known to be the start
-  // form (its own items or answer), only such forms are: a mail's review form is written before its send exists.
-  const knownStart = app.forms.some((form) => form.knownStart);
-  const isStart = (form: FormView) => form.knownStart || (!knownStart && !works.some((work) => time(work.createdAt) <= time(form.createdAt)));
+  // form (its own items or answer), only such forms and those before it are: a mail's review form is written before
+  // its send exists, but after the start form. (A start form a Stop closed unanswered is no longer known by its items;
+  // the start form Harper asks again after it does not make it a review.)
+  const firstKnownStart = earliestTime(app.forms.filter((form) => form.knownStart).map((form) => form.createdAt));
+  const isStart = (form: FormView) => form.knownStart || ((!firstKnownStart || time(form.createdAt) < time(firstKnownStart))
+    && !works.some((work) => time(work.createdAt) <= time(form.createdAt)));
   const startForms = app.forms.filter(isStart);
   const reviewForms = app.forms.filter((form) => !isStart(form));
   const preReview = reviewForms.filter((form) => !submitStart || time(form.createdAt) < time(submitStart));
@@ -492,8 +502,8 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     const answered = startForms.filter((form) => form.answer && !form.answer.negative).at(-1);
     confirm = step("confirm", "done", { at: answered?.answer?.at ?? firstWork, answeredAt: answered?.answer?.at });
   } else if (startForm?.open) confirm = step("confirm", "current", { at: startForm.createdAt, questions: startForm.questions });
-  // Put off ("not now"): the person said no for now.
-  else if (startForm?.answer?.negative) confirm = step("confirm", "current", { at: startForm.createdAt });
+  // Put off ("not now"), or closed by the person's Stop before they answered: not confirmed yet.
+  else if (startForm?.answer?.negative || startForm?.closedByStop) confirm = step("confirm", "current", { at: startForm.createdAt });
   else confirm = step("confirm", "done", { at: startForm ? formDoneAt(startForm) : app.forms[0]?.createdAt, answeredAt: startForm?.answer?.at });
 
   // fill
@@ -541,9 +551,11 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     review = step("review", "current", { at: openReview.createdAt, questions: openReview.questions });
     actions.push(answerForm(openReview));
   } else if (approved) review = step("review", "done", { at: approved.answer!.at, answeredAt: approved.answer!.at });
-  // Changes requested or put off: Harper revises the form, or waits.
-  else if (preReview.some((form) => form.answer?.negative)) review = step("review", "current", { at: preReview.at(-1)!.createdAt });
-  // Resolved without a form answer (answered in chat, or closed by a Stop): done, but not answered here.
+  // Changes requested or put off: Harper revises the form, or waits. Closed by the person's Stop before an answer: still
+  // to review (read as done, it would go back once Harper asks again).
+  else if (preReview.some((form) => form.answer?.negative) || preReview.at(-1)!.closedByStop)
+    review = step("review", "current", { at: preReview.at(-1)!.createdAt });
+  // Resolved without a form answer (answered in chat): done, but not answered here.
   else review = step("review", "done", { at: formDoneAt(preReview.at(-1)!) });
 
   // submit

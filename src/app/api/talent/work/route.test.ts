@@ -338,6 +338,8 @@ test("progress reads narrow queries: this conversation, the last 7 days, selecte
     // Form items and run reports can be hundreds of KB; only paths are selected, never whole JSON columns.
     assert.ok(!call.columns.split(",").some((column) => ["payload", "request", "result", "provider_refs", "*"].includes(column)), call.columns);
   }
+  // Why a form was closed: a Stop's closing leaves its step to do.
+  assert.ok(calls[0].columns.split(",").includes("reason:payload->>reason"));
   assert.deepEqual(calls[1].filters["kind:in"], ["browser_session", "browser_run", "email_send"]);
   assert.equal(calls[2].filters.message_type, "career_turn_stop");
   assert.deepEqual(calls[3].filters["role_id:in"], [roleId]);
