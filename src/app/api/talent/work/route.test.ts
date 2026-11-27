@@ -497,3 +497,62 @@ test("while an application is stopped, the person's messages naming it during th
   assert.ok((await read("2026-11-26T09:10:00Z")).every((item) => item.failure?.reason !== "stopped"));
   assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
 });
+
+test("a stopped application asked to go on stays while that turn runs: a day past its newest record, and past another's later stop", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleA = "00000000-0000-4000-8000-0000000000a1";
+  const roleB = "00000000-0000-4000-8000-0000000000a2";
+  const sessionB = "00000000-0000-4000-8000-0000000000c2";
+  const hours = (value: number) => new Date(Date.UTC(2026, 10, 26, 0, 0) + value * 3_600_000).toISOString();
+  const mention = (text: string, mentions: unknown[]) =>
+    `${text}\n\n[[HARPER_OPPORTUNITY_MENTIONS_V1:${encodeURIComponent(JSON.stringify(mentions))}]]`;
+  // The person's Stop at 00:00 cut off A's submission. At 23:50 they pressed "이어서 하기" on A; that turn still runs at
+  // 24:10 and has recorded nothing for A yet, so A's newest record is more than a day old.
+  const runA = { id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", status: "failed", mode: "execute",
+    createdAt: hours(-0.1), updatedAt: hours(0), roleRefs: [roleA], sourceMessageId: "301" };
+  // B's browser waited for a login and the person closed it at 24:00: B is stopped since then.
+  const sessionClosed = { id: sessionB, kind: "browser_session", status: "closed", createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB] };
+  const runB = { id: "00000000-0000-4000-8000-0000000000d2", kind: "browser_run", parentId: sessionB, status: "completed", mode: "prepare",
+    createdAt: hours(23.9), updatedAt: hours(24), roleRefs: [roleB], needsUser: true, submitted: "no", verificationCode: "none",
+    url: "https://id.wanted.co.kr/login", startUrl: "https://www.wanted.co.kr/wd/1" };
+  const stops = [{ createdAt: hours(0), sourceMessageIds: [301] }];
+  const requests = [{ id: 310, createdAt: hours(23 + 50 / 60), content: mention("A사 · 백엔드 진행을 이어서 해 줘.", [{ label: "A사 · 백엔드", roleId: roleA }]) }];
+  type Row = Record<string, unknown>;
+  // The fake applies the time and content filters, as PostgREST would.
+  const fake = (operations: Row[]) => ({
+    from(table: string) {
+      const filters: Record<string, unknown> = {};
+      const keep: ((row: Row) => boolean)[] = [];
+      const query: any = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters[column] = value; return query; },
+        in() { return query; },
+        gte(_: string, value: string) { keep.push((row) => Date.parse(String(row.createdAt)) >= Date.parse(value)); return query; },
+        gt(_: string, value: string) { keep.push((row) => Date.parse(String(row.createdAt)) > Date.parse(value)); return query; },
+        like(_: string, value: string) { keep.push((row) => String(row.content ?? "").includes(value.replaceAll("%", ""))); return query; },
+        not() { return query; },
+        order() { return query; },
+        limit() { return query; },
+        then(resolve: (value: unknown) => unknown) {
+          const rows = table === "company_roles" ? [] : table === "talent_messages"
+            ? filters.message_type === "career_turn_stop" ? stops : filters.role === "user" ? requests : []
+            : filters.kind === "delegated_work" ? [] : operations;
+          return Promise.resolve(resolve({ data: rows.filter((row) => keep.every((test) => test(row))), error: null }));
+        },
+      };
+      return query;
+    },
+  });
+  const read = (operations: Row[], turnStartedAt: string | null) => readCareerApplicationProgress({ admin: fake(operations) as any,
+    userId, conversationId, openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt), now: new Date(hours(24 + 10 / 60)) });
+  const statusOf = (list: CareerApplicationProgress[], id: string) => list.find((item) => item.id === id)?.status;
+
+  assert.equal(statusOf(await read([runA], requests[0].createdAt), roleA), "waiting", "asked to go on, and that turn runs");
+  const both = await read([runA, sessionClosed, runB], requests[0].createdAt);
+  assert.equal(statusOf(both, roleA), "waiting", "B's later stop does not move the request window past A's go-on");
+  assert.deepEqual(both.find((item) => item.id === roleB)?.failure, { reason: "stopped" });
+  // Once that turn ends with nothing recorded for A, A is stopped again and, a day past its newest record, no longer shown.
+  const after = await read([runA, sessionClosed, runB], null);
+  assert.equal(statusOf(after, roleA), undefined);
+  assert.equal(statusOf(after, roleB), "failed");
+});

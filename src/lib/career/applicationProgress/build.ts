@@ -677,8 +677,8 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
 
 const STATUS_ORDER: Record<CareerApplicationStatus, number> = { needs_you: 0, running: 1, waiting: 2, submitted: 3, failed: 3, closed: 3 };
 
-/** Applications of this conversation whose newest record is within 7 days, leaving out those finished more than 24 hours ago. */
-function buildShown(input: CareerApplicationProgressInput): Built[] {
+/** Applications of this conversation whose newest record is within 7 days, whatever their status. */
+function buildInWindow(input: CareerApplicationProgressInput): Built[] {
   const now = input.now.getTime();
   const roles = new Map((input.roles ?? []).map((role) => [role.roleId, role]));
   return [...collect(input).values()]
@@ -686,24 +686,27 @@ function buildShown(input: CareerApplicationProgressInput): Built[] {
       const built = buildOne(app, roles.get(app.id), input);
       return built ? [built] : [];
     })
-    .filter(({ progress }) => {
-      const updated = time(progress.updatedAt);
-      return updated >= now - CAREER_APPLICATION_WINDOW_MS && (STATUS_ORDER[progress.status] < 3 || updated >= now - FINISHED_WINDOW_MS);
-    });
+    .filter(({ progress }) => time(progress.updatedAt) >= now - CAREER_APPLICATION_WINDOW_MS);
 }
 
 /**
  * When the earliest application the person stopped was stopped, if one is: read.server.ts reads the person's requests
- * since then (CareerApplicationProgressInput.requests) only while this is set and a Harper turn runs.
+ * since then (CareerApplicationProgressInput.requests) only while this is set and a Harper turn runs. Every application
+ * of the 7-day window counts, also one stopped more than a day ago and so not shown: a request may pick it up again.
  */
 export function careerApplicationStoppedSince(input: CareerApplicationProgressInput): string | undefined {
-  return earliestTime(buildShown(input).map((built) => built.stoppedSince));
+  return earliestTime(buildInWindow(input).map((built) => built.stoppedSince));
 }
 
-/** The shown applications: needs-you first, then running, waiting and finished, each newest first; at most CAREER_APPLICATION_LIMIT. */
+/**
+ * The shown applications, leaving out finished ones more than 24 hours after their newest record: needs-you first, then
+ * running, waiting and finished, each newest first; at most CAREER_APPLICATION_LIMIT.
+ */
 export function buildCareerApplicationProgress(input: CareerApplicationProgressInput): CareerApplicationProgress[] {
-  return buildShown(input)
+  const now = input.now.getTime();
+  return buildInWindow(input)
     .map((built) => built.progress)
+    .filter((progress) => STATUS_ORDER[progress.status] < 3 || time(progress.updatedAt) >= now - FINISHED_WINDOW_MS)
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || time(b.updatedAt) - time(a.updatedAt) || a.id.localeCompare(b.id))
     .slice(0, CAREER_APPLICATION_LIMIT);
 }
