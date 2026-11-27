@@ -6,9 +6,11 @@
 -- 1. A run that never reached Browser Use (cancelled or failed with no provider run id) entered and submitted
 --    nothing, so it releases its effect like a finished run that reported no submission.
 -- 2. A run whose outcome is unknown (cancelled or failed after dispatch, or finished with an unclear receipt)
---    releases only for a later message of the person in that conversation: the agent passes it after telling them the
---    earlier attempt may have gone in. A run that reported a submission never releases. "uncertain" (dispatch itself
---    unresolved) is left as it is: Browser Use may still be running that task.
+--    releases only for a later message of the person in the conversation that submits again: the agent passes it
+--    after telling them the earlier attempt may have gone in. That conversation can be another one than the
+--    attempt's, since an application's effect is shared across conversations by its opportunity. A run that reported
+--    a submission never releases. "uncertain" (dispatch itself unresolved) is left as it is: Browser Use may still be
+--    running that task.
 create or replace function public.release_unsubmitted_career_effect_v1(p_user_id uuid,p_effect_id uuid,p_operation_id uuid)
 returns boolean language plpgsql security invoker set search_path='' as $$
 begin
@@ -25,7 +27,8 @@ end $$;
 revoke all on function public.release_unsubmitted_career_effect_v1(uuid,uuid,uuid) from public,anon,authenticated;
 grant execute on function public.release_unsubmitted_career_effect_v1(uuid,uuid,uuid) to service_role;
 
-create function public.release_confirmed_career_effect_v1(p_user_id uuid,p_effect_id uuid,p_operation_id uuid,p_message_id bigint)
+create function public.release_confirmed_career_effect_v1(p_user_id uuid,p_effect_id uuid,p_operation_id uuid,p_message_id bigint,
+  p_conversation_id uuid)
 returns boolean language plpgsql security invoker set search_path='' as $$
 declare run public.talent_external_operations;
 begin
@@ -35,7 +38,7 @@ begin
    and (status in ('cancelled','failed') or (status='completed' and lower(btrim(coalesce(result->>'submitted','')))<>'no'))
    for update;
  if not found then return false; end if;
- perform 1 from public.talent_messages where id=p_message_id and user_id=p_user_id and conversation_id=run.conversation_id
+ perform 1 from public.talent_messages where id=p_message_id and user_id=p_user_id and conversation_id=p_conversation_id
    and role='user' and created_at>run.updated_at;
  if not found then return false; end if;
  -- The released effect keeps which attempt it left and on whose word.
@@ -44,5 +47,5 @@ begin
    where id=p_effect_id and user_id=p_user_id and kind='work_effect' and status='dispatching' and result->>'operation_id'=p_operation_id::text;
  return found;
 end $$;
-revoke all on function public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint) from public,anon,authenticated;
-grant execute on function public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint) to service_role;
+revoke all on function public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint,uuid) from public,anon,authenticated;
+grant execute on function public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint,uuid) to service_role;

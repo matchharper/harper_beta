@@ -65,9 +65,11 @@ export async function reserveWorkEffect(context: ExternalToolContext, key: strin
     if (data === true) effect = (await readOperation(context, effect.id))!;
   } else if (bound && options.resubmitConfirmedBy && unknownApplicationOutcome(bound)) {
     // The person, told the earlier attempt may have gone in, asked to submit again. The database checks that their
-    // message came after that attempt ended and that the attempt never reported a submission.
+    // message is in this conversation (the attempt may have run in another one: the effect follows the opportunity),
+    // that it came after that attempt ended, and that the attempt never reported a submission.
     const { data, error } = await (context.admin.rpc as any)("release_confirmed_career_effect_v1", {
       p_user_id: context.userId, p_effect_id: effect.id, p_operation_id: bound.id, p_message_id: options.resubmitConfirmedBy,
+      p_conversation_id: context.conversationId,
     });
     if (error) throw error;
     if (data === true) effect = (await readOperation(context, effect.id))!;

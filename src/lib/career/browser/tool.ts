@@ -115,7 +115,7 @@ export const USE_BROWSER_TOOL = {
       },
       resubmit_confirmed_by: {
         type: "integer",
-        description: "Execute only, after an earlier attempt at this application ended with an unknown outcome: the ID of the user's message, written after you told them it may have gone in, that asks to submit again. Never set it on your own judgment.",
+        description: "Execute only, after an earlier attempt at this application ended with an unknown outcome (a submit, or a preparation whose receipt is unclear): the ID of the user's message in this conversation, written after you told them it may have gone in, that asks to submit again. Never set it on your own judgment.",
       },
     },
     required: ["action"],
@@ -299,8 +299,10 @@ export function formatBrowserToolResult(operations: ExternalOperation[]) {
             : `Browser agent report: ${op.result.summary}`
           : "",
         typeof op.result.failure === "string" ? `Execution failure: ${op.result.failure}` : "",
-        op.kind === "browser_run" && op.request.mode === "prepare" && ["yes", "unclear"].includes(browserRunSubmission(op.result) ?? "")
+        op.kind === "browser_run" && op.request.mode === "prepare" && browserRunSubmission(op.result) === "yes"
           ? "This was a preparation run, which must not submit, yet it reports a submission. Tell the user plainly what happened, do not submit this application again, and check the receipt before anything else." : "",
+        op.kind === "browser_run" && op.request.mode === "prepare" && browserRunSubmission(op.result) === "unclear"
+          ? "This was a preparation run, which must not submit, yet it pressed a final button without a confirmed receipt, so the application may have gone in. Tell the user plainly what happened and how they can check (the company's confirmation mail, the site's own list of applications); submit it only if they then ask again, with resubmit_confirmed_by set to that message's ID." : "",
         op.kind === "browser_run" && browserRunSubmission(op.result)
           ? `Submission receipt from the browser agent: ${browserRunSubmission(op.result)}${browserRunSubmission(op.result) === "yes" && Array.isArray(op.request.role_refs) && op.request.role_refs.length ? " (a saved or unstaged linked opportunity moves to 지원함)" : ""}`
           : "",
@@ -633,19 +635,22 @@ export async function earlierPagesOfThisBrowser(context: Pick<ExternalToolContex
 }
 
 /**
- * #27: Harper's own receipts of earlier submit attempts for these roles, for a browser agent that sees only the page.
- * 11/27 local test: a new browser showed the application already filled in (the site had kept a draft), and the run
- * held back as a possible duplicate although no attempt had submitted. A failed read only leaves the line out.
+ * #27: Harper's own receipts of earlier submit attempts and preparation visits for these roles, for a browser agent
+ * that sees only the page. 11/27 local test: a new browser showed the application already filled in (the site had kept
+ * a draft), and the run held back as a possible duplicate although no attempt had submitted. Preparation fills the
+ * answers it knows since 11/27, so a site's draft can come from it too. A failed read only leaves the line out.
  */
 export async function earlierSubmitAttempts(context: Pick<ExternalToolContext, "admin" | "userId">, roleRefs: string[], currentRunId: string) {
   if (!roleRefs.length) return "";
   const { data, error } = await (context.admin.from as any)("talent_external_operations").select("id,request,result,provider_refs")
-    .eq("user_id", context.userId).eq("kind", "browser_run").eq("request->>mode", "execute")
-    .order("created_at", { ascending: false }).limit(50);
+    .eq("user_id", context.userId).eq("kind", "browser_run").in("request->>mode", ["execute", "prepare"])
+    .order("created_at", { ascending: false }).limit(100);
   if (error) return "";
-  const attempts = ((data ?? []) as Pick<ExternalOperation, "id" | "request" | "result" | "provider_refs">[]).filter((run) =>
+  const runs = ((data ?? []) as Pick<ExternalOperation, "id" | "request" | "result" | "provider_refs">[]).filter((run) =>
     run.id !== currentRunId && Array.isArray(run.request?.role_refs) && run.request.role_refs.some((id) => roleRefs.includes(String(id))));
-  if (!attempts.length) return "";
+  const attempts = runs.filter((run) => run.request.mode === "execute");
+  const visits = runs.filter((run) => run.request.mode === "prepare");
+  if (!attempts.length && !visits.length) return "";
   const outcome = (run: (typeof attempts)[number]) => {
     const submitted = browserRunSubmission(run.result ?? {});
     return submitted === "yes" ? "reported a submission" : submitted === "no" ? "did not submit"
@@ -655,8 +660,53 @@ export async function earlierSubmitAttempts(context: Pick<ExternalToolContext, "
   const counts = new Map<string, number>();
   for (const run of attempts) counts.set(outcome(run), (counts.get(outcome(run)) ?? 0) + 1);
   const summary = [...counts].map(([text, count]) => `${count} ${text}`).join(", ");
-  return `Harper's records for this application: ${attempts.length} earlier submit attempt${attempts.length === 1 ? "" : "s"} (${summary}).`
-    + (counts.has("reported a submission") ? " One reported a submission: do not submit again; report what the site shows about it." : "");
+  const unclearVisits = visits.filter((run) => browserRunSubmission(run.result ?? {}) === "unclear").length;
+  const parts = [
+    attempts.length ? `${attempts.length} earlier submit attempt${attempts.length === 1 ? "" : "s"} (${summary})` : "",
+    visits.length ? `${visits.length} preparation visit${visits.length === 1 ? "" : "s"} (preparation may fill answers but does not submit, so answers already on the page are not by themselves a submission${unclearVisits ? `; ${unclearVisits} of them pressed a final button without a confirmed receipt` : ""})` : "",
+  ].filter(Boolean);
+  const reported = runs.some((run) => browserRunSubmission(run.result ?? {}) === "yes");
+  return `Harper's records for this application: ${parts.join("; ")}.`
+    + (reported ? " One reported a submission: do not submit again; report what the site shows about it." : "");
+}
+
+const UNKNOWN_OUTCOME_NEXT = "Do not submit again on your own judgment: tell the person the earlier attempt may have gone in and how they can check (the company's confirmation mail, the site's own list of applications). If they then ask to submit again, run execute once more with resubmit_confirmed_by set to that message's ID.";
+/** Why the person's word to submit again was not taken, so Harper asks them instead of trying other messages. */
+const confirmationNotAccepted = (messageId: number, ended: string) =>
+  `Message ${messageId} was not accepted as the person's request to submit again: it has to be their own message in this conversation, written after that attempt ended (${ended}). Do not pick another message yourself.`;
+
+/**
+ * Review of the 11/27 fixes: a preparation run must not submit, but when one reports that it did, nothing in code held
+ * back the submit that followed. Preparation reserves no effect, so only Harper's reading of that receipt stood in the
+ * way, and preparation fills the answers it knows since 11/27 (production through 11/27: none of the 1,220 preparation
+ * runs reported a submission). Its receipt now holds the submit as a submit's own receipt does (effects.ts): "yes"
+ * never submits again, "unclear" only on the person's later word in this conversation.
+ */
+export async function preparationSubmissionRefusal(context: ExternalToolContext, roleRefs: string[], confirmedBy?: number) {
+  if (!roleRefs.length) return null;
+  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("id,request,result,updated_at")
+    .eq("user_id", context.userId).eq("kind", "browser_run").eq("request->>mode", "prepare").in("result->>submitted", ["yes", "unclear"])
+    .order("created_at", { ascending: false }).limit(50);
+  if (error) throw new Error("Browser runs unavailable");
+  const runs = ((data ?? []) as Pick<ExternalOperation, "id" | "request" | "result" | "updated_at">[]).filter((run) =>
+    Array.isArray(run.request?.role_refs) && run.request.role_refs.some((id) => roleRefs.includes(String(id))));
+  const submitted = runs.find((run) => browserRunSubmission(run.result ?? {}) === "yes");
+  if (submitted) return { status: "submission_reported", modelOutput: `Not started, nothing was submitted now: preparation run ${submitted.id} for this posting reports that it submitted the application. Report that receipt; do not submit again.` };
+  const unclear = runs.filter((run) => browserRunSubmission(run.result ?? {}) === "unclear");
+  if (!unclear.length) return null;
+  const ended = unclear.reduce((last, run) => Date.parse(run.updated_at) > Date.parse(last.updated_at) ? run : last).updated_at;
+  if (confirmedBy) {
+    const { data: message, error: readError } = await (context.admin.from as any)("talent_messages").select("id")
+      .eq("id", confirmedBy).eq("user_id", context.userId).eq("conversation_id", context.conversationId).eq("role", "user")
+      .gt("created_at", ended).maybeSingle();
+    if (readError) throw new Error("Confirmation message unavailable");
+    if (message) return null;
+  }
+  return { status: "submission_unknown", modelOutput: [
+    `Not started, nothing was submitted now: preparation run ${unclear[0].id} for this posting pressed a final button without a confirmed receipt, so the application may have gone in.`,
+    confirmedBy ? confirmationNotAccepted(confirmedBy, ended) : "",
+    UNKNOWN_OUTCOME_NEXT,
+  ].filter(Boolean).join(" ") };
 }
 
 /**
@@ -803,13 +853,17 @@ export async function executePreparationList(
   };
 }
 
-/** What may happen next to an application this effect already sent to a browser. */
-function boundEffectRefusal(run: ExternalOperation) {
+/**
+ * What may happen next to an application this effect already sent to a browser. A confirmation the database did not
+ * take (reserveWorkEffect) says why, so Harper asks the person rather than retrying the same message.
+ */
+export function boundEffectRefusal(run: ExternalOperation, confirmedBy?: number) {
   const sent = `Not started: this application was already sent as ${run.kind} ${run.id} (status ${run.status}).`;
   if (browserRunSubmission(run.result) === "yes")
     return `${sent} Its receipt says it was submitted. Report that receipt; do not submit again.`;
   if (unknownApplicationOutcome(run))
-    return `${sent} Whether it reached the company is unknown. Do not submit again on your own judgment: tell the person the earlier attempt may have gone in and how they can check (the company's confirmation mail, the site's own list of applications). If they then ask to submit again, run execute once more with resubmit_confirmed_by set to that message's ID.`;
+    return [`${sent} Whether it reached the company is unknown.`, confirmedBy ? confirmationNotAccepted(confirmedBy, run.updated_at) : "", UNKNOWN_OUTCOME_NEXT]
+      .filter(Boolean).join(" ");
   return `${sent} Read its receipt; do not submit through another route.`;
 }
 
@@ -989,10 +1043,13 @@ export async function executeUseBrowser(
   const notChosen = input.mode === "execute" ? rolesNotChosen(input.role_refs ?? [], authorization) : [];
   if (notChosen.length)
     return { ok: false, status: "posting_not_chosen", modelOutput: `Not started, nothing was submitted: role ${notChosen.join(", ")} is not among the postings the person left selected in the start form this submission cites. Another posting, including one at the same company, needs the person's own choice first: suggest it, and submit it only after they pick it.` };
+  const preparedSubmission = input.mode === "execute"
+    ? await preparationSubmissionRefusal(context, input.role_refs ?? [], input.resubmit_confirmed_by) : null;
+  if (preparedSubmission) return { ok: false, ...preparedSubmission };
   const effect = input.mode === "execute" ? await reserveWorkEffect(context, input.effect_key, { task: input.task, url: input.url, documents: input.documents, authorization_refs: input.authorization_refs },
     { resubmitConfirmedBy: input.resubmit_confirmed_by }) : undefined;
   const existingEffect = await readBoundEffect(context, effect);
-  if (existingEffect) return { operation: existingEffect, modelOutput: boundEffectRefusal(existingEffect) };
+  if (existingEffect) return { operation: existingEffect, modelOutput: boundEffectRefusal(existingEffect, input.resubmit_confirmed_by) };
   const files = await prepareAttachments(context, input.documents ?? []);
   if (files.length && !authorization.length)
     throw new Error(

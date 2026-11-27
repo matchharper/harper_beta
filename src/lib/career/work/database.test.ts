@@ -605,7 +605,8 @@ test("an attempt that never reached Browser Use releases its application; an unk
       return { effect, attempt };
     };
     const unsubmitted = (effect: string, attempt: string) => scalar(db, "release_unsubmitted_career_effect_v1($1,$2,$3)", [user, effect, attempt]);
-    const confirmed = (effect: string, attempt: string, message: number) => scalar(db, "release_confirmed_career_effect_v1($1,$2,$3,$4)", [user, effect, attempt, message]);
+    const confirmed = (effect: string, attempt: string, message: number, chat = conversation) =>
+      scalar(db, "release_confirmed_career_effect_v1($1,$2,$3,$4,$5)", [user, effect, attempt, message, chat]);
 
     // Never dispatched: nothing reached the company, so the same application may run again.
     for (const [key, status] of [["reserved-closed", "cancelled"], ["preparing-failed", "failed"]] as const) {
@@ -619,6 +620,7 @@ test("an attempt that never reached Browser Use releases its application; an unk
     // Bound before any new message: an input waiting for the work holds every new dispatch.
     const sent = await bound("submitted", { status: "completed", result: { submitted: "yes" }, dispatched: true });
     const unclear = await bound("unclear", { status: "completed", result: { submitted: "unclear" }, dispatched: true });
+    const moved = await bound("other-chat", { status: "completed", result: { submitted: "unclear" }, dispatched: true });
     assert.equal(await unsubmitted(cut.effect.id, cut.attempt.id), false);
     const before = await admit(db, "before");
     await db.query("update talent_messages set created_at=now()-interval '2 minutes' where id=$1", [before.id]);
@@ -639,7 +641,14 @@ test("an attempt that never reached Browser Use releases its application; an unk
     const stranger = (await db.query<{ id: number }>(`insert into talent_messages(user_id,conversation_id,role,content,payload) values('${other}','00000000-0000-4000-8000-000000000009','user','다시 내 줘','{}') returning id`)).rows[0];
     assert.equal(await confirmed(unclear.effect.id, unclear.attempt.id, stranger.id), false, "another person's message confirms nothing");
     assert.equal(await confirmed(unclear.effect.id, unclear.attempt.id, (await admit(db, "mine")).id), true, "an unclear receipt releases on the person's later word");
-    const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint)','EXECUTE') allowed");
+    // An application's effect follows its opportunity into another chat, so the person's word counts in the chat
+    // that submits again, and only there.
+    const otherChat = "00000000-0000-4000-8000-000000000008";
+    await db.query(`insert into talent_conversations values('${otherChat}','${user}')`);
+    const elsewhere = (await db.query<{ id: number }>(`insert into talent_messages(user_id,conversation_id,role,content,payload) values('${user}','${otherChat}','user','다시 내 줘','{}') returning id`)).rows[0];
+    assert.equal(await confirmed(moved.effect.id, moved.attempt.id, elsewhere.id), false, "a message in another chat confirms nothing for this chat's submit");
+    assert.equal(await confirmed(moved.effect.id, moved.attempt.id, elsewhere.id, otherChat), true, "the person's later word in the chat that submits again releases an attempt made in another chat");
+    const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint,uuid)','EXECUTE') allowed");
     assert.equal(access.rows[0].allowed, false);
   } finally { await db.close(); }
 });
