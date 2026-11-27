@@ -2,8 +2,10 @@
  * #1 후보자 링크: the review form of an application always offers 'Harper 후보 요약 링크 넣기' (Shaun 11/18: in the first
  * days 2 of 5 application mails went out without the box ever being offered). The application guide asks the writer to
  * add it; this adds it in code when a form looks like an application and the box is missing: a document (a résumé) sent
- * to a company address (an application mail), or a form tied to a browser session (a web application being prepared).
- * Checked by default like the other boxes; the user can uncheck it. Pure.
+ * to a company address (an application mail), a form tied to a browser session (a web application being prepared), or
+ * the start form of delegated applications (roles plus submit_scope, save_login or apply_postings).
+ * Checked by default like the other boxes; the user can uncheck it. Asked once: a web application's review form is not
+ * given a second box when the start form for its roles already offered one (that answer decides the link). Pure.
  */
 import type { CareerFormDraft } from "@/lib/career/forms/schema";
 
@@ -41,6 +43,19 @@ export function looksLikeWebApplication(form: Pick<CareerFormDraft, "relatedRefs
   return (form.relatedRefs ?? []).some((ref) => ref.type === "browser_session");
 }
 
+/** Item ids only the start form of delegated applications carries (handbooks/application.ts). */
+export const APPLICATION_START_ITEM_IDS = ["submit_scope", "save_login", "apply_postings"];
+
+/**
+ * Whether the form starts applications: tied to roles and carrying the delegation scope (submit_scope), the
+ * saved-login choice (save_login) or the postings list (apply_postings). A delegated application may submit with no
+ * review form, so this form's box decides the link.
+ */
+export function looksLikeApplicationStart(form: Pick<CareerFormDraft, "items" | "relatedRefs">): boolean {
+  return (form.relatedRefs ?? []).some((ref) => ref.type === "role")
+    && form.items.some((item) => APPLICATION_START_ITEM_IDS.includes(item.id));
+}
+
 function hasCompanyAddress(form: Pick<CareerFormDraft, "title" | "items">): boolean {
   for (const text of formTexts(form)) {
     for (const match of text.matchAll(EMAIL)) {
@@ -51,12 +66,21 @@ function hasCompanyAddress(form: Pick<CareerFormDraft, "title" | "items">): bool
   return false;
 }
 
+/** Whether the form reviews a web application only (not a mail, not a start form): the case a start form can decide. */
+export function looksLikeWebApplicationReview(form: Pick<CareerFormDraft, "title" | "items" | "relatedRefs">): boolean {
+  return looksLikeWebApplication(form) && !looksLikeApplicationStart(form) && !looksLikeApplicationMail(form);
+}
+
 /**
  * The form with the box added when it looks like an application mail and has none (matched by its label), or the
- * same form. `added` says whether it was added, so the writer can be told.
+ * same form. `added` says whether it was added, so the writer can be told. `startFormOffersLink`: a start form for
+ * this web application's roles already offered the box, so its review form gets none.
  */
-export function withProfileLinkBox<T extends Pick<CareerFormDraft, "kind" | "title" | "items" | "relatedRefs">>(form: T): { form: T; added: boolean } {
-  if (form.kind !== "form" || !(looksLikeApplicationMail(form) || looksLikeWebApplication(form))) return { form, added: false };
+export function withProfileLinkBox<T extends Pick<CareerFormDraft, "kind" | "title" | "items" | "relatedRefs">>(form: T,
+  options: { startFormOffersLink?: boolean } = {}): { form: T; added: boolean } {
+  if (form.kind !== "form" || !(looksLikeApplicationMail(form) || looksLikeWebApplication(form) || looksLikeApplicationStart(form)))
+    return { form, added: false };
+  if (options.startFormOffersLink && looksLikeWebApplicationReview(form)) return { form, added: false };
   if (form.items.some((item) => item.label.includes("후보 요약 링크") || /candidate summary link/i.test(item.label))) return { form, added: false };
   const ids = new Set(form.items.map((item) => item.id));
   let id = "harper_candidate_link";

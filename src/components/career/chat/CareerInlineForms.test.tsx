@@ -225,6 +225,63 @@ test("approving with a required answer empty names it once, then sends the same 
   }
 });
 
+test("each box sits on its own line before its own name: a yes/no item with its explanation under the name, postings one per line", async t => {
+  const dom = installFormDom(t);
+  const form: CareerForm = { formId: 85, revision: 1, kind: "form", state: "open", title: "지원 시작",
+    items: [{ id: "apply_postings", label: "지원할 공고", type: "multiselect",
+      content: { value: ["a", "b"], options: [{ id: "a", label: "A사 · 백엔드 엔지니어 · 원티드" }, { id: "b", label: "B사 · ML 엔지니어" }] } },
+    { id: "save_login", label: "다음 지원에도 로그인 유지", type: "checkbox", content: { value: true },
+      description: "로그인이 유효한 동안 같은 사이트에 다시 로그인하지 않아도 돼요." },
+    { id: "profile_link", label: "Harper 후보 요약 링크 넣기", type: "checkbox", content: "", required: true,
+      description: "회사가 가입 없이 볼 수 있는 요약 링크를 지원서에 넣어요." },
+    { id: "salary", label: "희망 연봉", type: "text", content: "" }],
+    positive: { id: "start-85", label: "시작", message: "시작해줘" } };
+  t.mock.method(globalThis, "fetch", async () => Response.json({ form, responses: [] }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  const document = dom.window.document;
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+      <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}>
+        <CareerInlineForms formIds={[85]} />
+      </CareerChatPanelProvider>
+    </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+    await settle();
+    // A posting list gives one line per posting: side by side, a box sat between two names.
+    const postings = [...document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"]:not([id])')];
+    assert.deepEqual(postings.map(box => box.closest("label")!.textContent), ["A사 · 백엔드 엔지니어 · 원티드", "B사 · ML 엔지니어"]);
+    for (const box of postings) {
+      const row = box.closest("label")!.className.split(/\s+/);
+      assert.ok(row.includes("flex") && row.includes("w-full") && !row.includes("inline-flex"), "each posting has a line of its own");
+    }
+    const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"][id]')];
+    assert.equal(boxes.length, 2);
+    const labelOf = (box: HTMLInputElement) => document.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`)!;
+    assert.deepEqual(boxes.map(box => labelOf(box).textContent), ["다음 지원에도 로그인 유지", "Harper 후보 요약 링크 넣기필수"]);
+    for (const box of boxes) {
+      const label = labelOf(box);
+      // Compared as a yes/no: a failing comparison of two DOM nodes prints the whole page and runs out of memory.
+      assert.ok(label.parentElement!.parentElement === box.parentElement, "the box and its own label share one row");
+      assert.ok(box.compareDocumentPosition(label) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, "the box comes before its label");
+      const explanation = document.getElementById(box.getAttribute("aria-describedby")!)!;
+      assert.ok(explanation.parentElement === label.parentElement, "the explanation hangs under the label, beside the box");
+    }
+    assert.match(document.getElementById(boxes[0].getAttribute("aria-describedby")!)!.textContent!, /다시 로그인하지 않아도/);
+    assert.equal(boxes[0].checked, true, "an item Harper offers checked stays checked");
+    assert.equal(boxes[1].checked, false);
+    await act(async () => labelOf(boxes[1]).click());
+    assert.equal(document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"][id]')[1].checked, true,
+      "pressing the label checks its box");
+    const salary = document.querySelector<HTMLInputElement>('[data-career-form-id="85"] input:not([type])')
+      ?? document.querySelector<HTMLInputElement>('[data-career-form-id="85"] input[type="text"]')!;
+    assert.ok(labelOf(salary as HTMLInputElement).compareDocumentPosition(salary) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
+      "other answers keep their label above the field");
+  } finally {
+    await act(async () => root.unmount()); client.clear();
+  }
+});
+
 test("each checklist row submits alone, retains its check after reload and leaves siblings available", async t => {
   const dom = installFormDom(t);
   const form: CareerForm = {
@@ -286,5 +343,123 @@ test("each checklist row submits alone, retains its check after reload and leave
     assert.deepEqual(posts.map(post => post.answers.map((a: { itemId: string }) => a.itemId)), [["0"], ["1"], ["2"]]);
   } finally {
     await act(async () => root.unmount()); client.clear();
+  }
+});
+
+const harperDocumentId = "00000000-0000-4000-8000-000000000003";
+// One review with a Harper-made document chosen as its file. `answer` decides what the server says to each approval.
+async function renderReview(t: TestContext, answer: () => Response, origin?: { conversationId: string; revision: number }) {
+  const dom = installFormDom(t);
+  const form: CareerForm = { formId: 90, revision: 1, kind: "form", state: "open", title: "A사 지원",
+    items: [{ id: "resume", label: "이력서", type: "document", content: { documentId: harperDocumentId, revision: 2, fileName: "A사 지원용 이력서" } }],
+    positive: { id: "submit-90", label: "이 내용으로 지원", message: "이 내용으로 지원해줘" } };
+  const posts: any[] = [], sent: any[] = [];
+  let reads = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    if (String(url).startsWith("/api/talent/documents")) return Response.json({ documents: [] });
+    if (init?.method !== "POST") { reads++; return Response.json({ form, responses: [] }); }
+    posts.push(JSON.parse(String(init.body)));
+    return answer();
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  const button = (label: string) => [...dom.window.document.querySelectorAll("button")].find(b => b.textContent === label);
+  await act(async () => root.render(<QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+    <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" },
+      onSendChatMessage: (args: any) => { sent.push(args); } } as CareerChatPanelContextValue}>
+      <CareerInlineForms formIds={[90]} origin={origin} />
+    </CareerChatPanelProvider>
+  </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+  await settle();
+  return { dom, posts, sent, button, settle, reads: () => reads,
+    alert: () => dom.window.document.querySelector('[role="alert"]')?.textContent ?? null,
+    approve: async () => { await act(async () => button("이 내용으로 지원")!.click()); await settle(); },
+    close: async () => { await act(async () => root.unmount()); client.clear(); } };
+}
+
+test("a document Harper cannot make into a PDF names the reason, never the server's text, and lets the person tell Harper", async t => {
+  const review = await renderReview(t, () =>
+    Response.json({ code: "file_render_unavailable", retryable: false, error: "PDF rendering is not configured." }, { status: 503 }));
+  try {
+    const before = review.reads();
+    await review.approve();
+    assert.equal(review.posts.length, 1);
+    assert.equal(review.posts[0].responses[0].values.resume, harperDocumentId);
+    assert.ok(review.reads() > before, "a 5xx reads the receipt before showing the failure");
+    assert.equal(review.alert(), "지금은 Harper가 만든 문서를 PDF로 만들 수 없어요. 다시 눌러도 같아요. 직접 올린 파일을 고르거나 Harper에게 알려 주세요.");
+    assert.doesNotMatch(review.dom.window.document.body.textContent ?? "", /not configured|file_render_unavailable/);
+    const tell = review.button("Harper에게 알리기");
+    assert.ok(tell, "pressing again cannot help, so telling Harper is offered at once");
+    await act(async () => { tell!.click(); tell!.click(); });
+    assert.equal(review.sent.length, 1, "a double click sends one message");
+    assert.equal(review.sent[0].text, "답을 보내려는데 고른 문서를 지금은 PDF로 만들 수 없대. 내가 올린 원본 파일로 다시 보여줘.\n" +
+      `A사 지원\n[A사 지원용 이력서](documentId:${harperDocumentId})`);
+    await act(async () => review.sent[0].onSuccess());
+    assert.equal(review.button("Harper에게 알리기"), undefined, "once sent, the offer goes away");
+    assert.match(review.alert() ?? "", /PDF로 만들 수 없어요/);
+    assert.equal(review.posts.length, 1, "telling Harper is a chat message, not another approval");
+  } finally {
+    await review.close();
+  }
+});
+
+test("a PDF failure that may pass offers to tell Harper after the same press failed twice; a lost connection reads the receipt", async t => {
+  let lost = false;
+  const review = await renderReview(t, () => {
+    if (lost) throw new TypeError("Failed to fetch");
+    return Response.json({ code: "file_render_failed", retryable: true }, { status: 503 });
+  });
+  try {
+    await review.approve();
+    assert.match(review.alert() ?? "", /PDF로 만들지 못했어요. 잠시 뒤 다시 눌러 주세요/);
+    assert.equal(review.button("Harper에게 알리기"), undefined, "the first failure may pass on its own");
+    await review.approve();
+    assert.equal(review.posts[1].requestId, review.posts[0].requestId, "the retry keeps its identity");
+    assert.ok(review.button("Harper에게 알리기"), "the same failure twice is worth telling Harper");
+    lost = true;
+    const before = review.reads();
+    await review.approve();
+    assert.equal(review.posts.length, 3);
+    assert.ok(review.reads() > before, "a lost connection still reads the receipt");
+    assert.equal(review.alert(), "답변 전송을 확인하지 못했어요. 최신 질문을 확인한 뒤 다시 보내 주세요. 작성 내용은 유지돼요.");
+    assert.equal(review.button("Harper에게 알리기"), undefined, "without the server's reason nothing is offered");
+  } finally {
+    await review.close();
+  }
+});
+
+test("a refusal below 500 shows its reason without a receipt read; only a changed form is reloaded", async t => {
+  let refusal = { status: 422, code: "file_unavailable" };
+  const review = await renderReview(t, () => Response.json({ code: refusal.code, retryable: false }, { status: refusal.status }));
+  try {
+    let before = review.reads();
+    await review.approve();
+    assert.equal(review.reads(), before, "nothing was saved, so there is no receipt to read");
+    assert.equal(review.alert(), "고른 파일을 지원서에 붙일 수 없어요. 다른 파일을 고르거나 Harper에게 알려 주세요.");
+    assert.ok(review.button("Harper에게 알리기"));
+    refusal = { status: 409, code: "form_changed" };
+    before = review.reads();
+    await review.approve();
+    assert.ok(review.reads() > before, "a changed form is reloaded");
+    assert.equal(review.alert(), "그사이 질문이 바뀌었거나 닫혔어요. 최신 질문을 확인한 뒤 다시 보내 주세요.");
+    assert.equal(review.button("Harper에게 알리기"), undefined, "the latest questions are the answer, not Harper");
+    refusal = { status: 400, code: "an_unknown_reason" };
+    await review.approve();
+    assert.equal(review.alert(), "답을 저장하지 못했어요. 작성 내용은 그대로예요. 잠시 뒤 다시 눌러 주세요.");
+  } finally {
+    await review.close();
+  }
+});
+
+test("a review shown from another conversation does not offer to message the open chat", async t => {
+  const review = await renderReview(t, () => Response.json({ code: "file_render_unavailable", retryable: false }, { status: 503 }),
+    { conversationId: "another-conversation", revision: 1 });
+  try {
+    await review.approve();
+    assert.match(review.alert() ?? "", /PDF로 만들 수 없어요/);
+    assert.equal(review.button("Harper에게 알리기"), undefined);
+  } finally {
+    await review.close();
   }
 });

@@ -6,10 +6,17 @@ export function browserRunSubmission(result: Record<string, unknown>): "yes" | "
   return value === "yes" || value === "no" || value === "unclear" ? value : null;
 }
 
+const verificationOf = (result: Record<string, unknown>) =>
+  typeof result.verificationCode === "string" ? result.verificationCode.trim().toLowerCase() : "";
+
 /** Whether the run stopped at a screen waiting for a code the site emailed, without submitting. */
 export function browserRunAwaitsEmailCode(result: Record<string, unknown>) {
-  const value = typeof result.verificationCode === "string" ? result.verificationCode.trim().toLowerCase() : "";
-  return value === "email" && browserRunSubmission(result) !== "yes";
+  return verificationOf(result) === "email" && browserRunSubmission(result) !== "yes";
+}
+
+/** Whether the run stopped at a screen waiting for the applicant to open a link the site emailed, without submitting. */
+export function browserRunAwaitsEmailLink(result: Record<string, unknown>) {
+  return verificationOf(result) === "email_link" && browserRunSubmission(result) !== "yes";
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

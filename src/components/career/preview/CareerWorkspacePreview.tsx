@@ -1,5 +1,8 @@
 // career-i18n-skip-file: Internal developer controls and synthetic preview copy.
-import { CareerOpenFormsSnapshotContext } from "@/hooks/career/useCareerOpenForms";
+import {
+  CareerOpenFormsSnapshotContext,
+  type CareerOpenFormsSnapshot,
+} from "@/hooks/career/useCareerOpenForms";
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/router";
 import {
@@ -53,6 +56,7 @@ import {
   type CareerTasksSnapshot,
 } from "@/lib/career/taskItems";
 import { ENABLE_NEW_OPPORTUNITY_COMPANY_ROLE_SWITCHER } from "@/components/career/history/NewOpportunityCompanyRoleSwitcher";
+import type { CareerApplicationProgress } from "@/lib/career/applicationProgress/types";
 
 type CareerT = ReturnType<typeof useCareerT>;
 
@@ -64,6 +68,65 @@ const previewDaysAgo = (days: number) =>
 const previewHoursAgo = (hours: number) => previewDate(-hours * 60 * 60 * 1000);
 const previewMinutesAfter = (minutes: number) =>
   previewDate(minutes * 60 * 1000);
+const previewMinutesAgo = (minutes: number) => previewDate(-minutes * 60 * 1000);
+
+// Delegated applications in three states so the progress panel above the composer shows here.
+const PREVIEW_APPLICATIONS: CareerApplicationProgress[] = [
+  {
+    id: "preview-application-a",
+    companyName: "A사",
+    title: "백엔드 엔지니어",
+    status: "submitted",
+    steps: [
+      { key: "confirm", state: "done", at: previewMinutesAgo(32) },
+      { key: "fill", state: "done", at: previewMinutesAgo(25) },
+      { key: "review", state: "skipped", at: previewMinutesAgo(25) },
+      { key: "submit", state: "done", at: previewMinutesAgo(12) },
+    ],
+    updatedAt: previewMinutesAgo(12),
+    submittedAt: previewMinutesAgo(12),
+  },
+  {
+    id: "preview-application-b",
+    companyName: "B사",
+    title: "데이터 엔지니어",
+    status: "needs_you",
+    action: { kind: "answer_form", formId: 900002 },
+    steps: [
+      { key: "confirm", state: "done", at: previewMinutesAgo(32) },
+      {
+        key: "fill",
+        state: "done",
+        at: previewMinutesAgo(6),
+        subSteps: [{ key: "login", state: "done", site: "원티드", at: previewMinutesAgo(18) }],
+      },
+      { key: "review", state: "current", at: previewMinutesAgo(6), questions: 2 },
+      { key: "submit", state: "todo" },
+    ],
+    updatedAt: previewMinutesAgo(6),
+  },
+  {
+    id: "preview-application-c",
+    companyName: "C사",
+    title: "ML 엔지니어",
+    status: "running",
+    steps: [
+      { key: "confirm", state: "done", at: previewMinutesAgo(32) },
+      { key: "fill", state: "current", at: previewMinutesAgo(1) },
+      { key: "review", state: "todo" },
+      { key: "submit", state: "todo" },
+    ],
+    updatedAt: previewMinutesAgo(1),
+  },
+];
+const PREVIEW_OPEN_FORMS: CareerOpenFormsSnapshot = {
+  completionCursor: null,
+  forms: [],
+  latestMessageId: null,
+  pending: 0,
+  activities: [],
+  applications: PREVIEW_APPLICATIONS,
+};
 
 type CareerWorkspaceHistoryTarget = {
   historyTab: "new" | "saved" | "archived";
@@ -2001,15 +2064,7 @@ const CareerWorkspacePreview = ({
   const renderPreviewContent = (
     resolvedViewport?: CareerWorkspacePreviewViewport
   ) => (
-    <CareerOpenFormsSnapshotContext.Provider
-      value={{
-        completionCursor: null,
-        forms: [],
-        latestMessageId: null,
-        pending: 0,
-        activities: [],
-      }}
-    >
+    <CareerOpenFormsSnapshotContext.Provider value={PREVIEW_OPEN_FORMS}>
       <CareerChatPanelProvider value={chatContextValue}>
         <CareerSidebarProvider value={sidebarContextValue}>
           <CareerWorkspaceScreen

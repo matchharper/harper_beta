@@ -432,9 +432,13 @@ export class CareerCapabilityRuntime {
       if (sources.has("internal")) this.handbooks.load(["internal_recommendation_writing"], "selector");
       if (sources.has("external")) this.handbooks.load(["external_recommendation_writing"], "selector");
     }
-    const pending = result && typeof result === "object" && "careerContinuation" in result
-      ? result.careerContinuation as CareerDeferredWork | undefined : undefined;
-    if (pending && ["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity", "resource_operation"].includes(pending.kind) && typeof pending.id === "string") {
+    // A use_browser preparation list returns one continuation per started run; the reply waits for all of them.
+    const pendingList = result && typeof result === "object" && "careerContinuations" in result && Array.isArray(result.careerContinuations)
+      ? result.careerContinuations as CareerDeferredWork[]
+      : result && typeof result === "object" && "careerContinuation" in result && result.careerContinuation
+        ? [result.careerContinuation as CareerDeferredWork] : [];
+    for (const pending of pendingList) {
+      if (!pending || !["external_evaluation", "email_delivery", "browser_run", "career_input", "external_capacity", "resource_operation"].includes(pending.kind) || typeof pending.id !== "string") continue;
       if (this.options.observePendingWork && !["browser_run", "external_capacity"].includes(pending.kind)) await this.options.observePendingWork(pending);
       else this.deferredWork.set(`${pending.kind}:${pending.id}`, { ...pending, ...(callId ? { toolCallId: callId } : {}) });
     }

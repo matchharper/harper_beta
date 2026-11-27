@@ -20,6 +20,8 @@ function store(tables: Record<string, Record<string, any>[]>) {
       select: () => chain,
       eq: (key: string, value: unknown) => { filters.push([key, value]); return chain; },
       update: (value: Record<string, unknown>) => { changes = value; return chain; },
+      in: (key: string, values: unknown[]) => Promise.resolve({
+        data: rows.filter(row => matches(row) && values.includes(row[key])).map(row => structuredClone(row)), error: null }),
       maybeSingle: async () => {
         const row = rows.find(matches);
         if (row && changes) Object.assign(row, changes);
@@ -44,7 +46,11 @@ function store(tables: Record<string, Record<string, any>[]>) {
 }
 const context = (tables: Record<string, Record<string, any>[]>, userMessageId?: number): ExternalToolContext => ({
   admin: store({ talent_users: [{ user_id: userId, deleted_at: null }],
-    talent_messages: [{ id: 77, user_id: userId, conversation_id: id(99), role: "user", payload: {}, content: "네, 로그인 저장해 주세요" }], ...tables }),
+    talent_messages: [{ id: 77, user_id: userId, conversation_id: id(99), role: "user", payload: {}, content: "네, 로그인 저장해 주세요" },
+      // A start form answered with the keep-login box left unchecked, and one answered (with another form) checked.
+      { id: 78, user_id: userId, conversation_id: id(99), role: "user", content: "", payload: { formId: 5, values: { save_login: false, salary: "8000만원" } } },
+      { id: 79, user_id: userId, conversation_id: id(99), role: "user", content: "",
+        payload: { responses: [{ formId: 6, values: {} }, { formId: 5, values: { save_login: true } }] } }], ...tables }),
   userId, conversationId: id(99), requestId: "save-login", userMessageId,
 });
 function provider(t: test.TestContext) {
@@ -145,4 +151,21 @@ test("checking keep-signed-in in the viewer is the consent: it turns saved login
   assert.match(event, /page waiting for sign-in was https:\/\/jobs\.example\.test\/login/);
   assert.match(event, /has not signed in yet/);
   assert.doesNotMatch(event, /selected Done/);
+});
+
+test("a form answer turns saved login on only when its save_login consent is checked", async (t) => {
+  const calls = provider(t);
+  const unchecked: Record<string, Record<string, any>[]> = { talent_external_operations: [] };
+  await assert.rejects(executeUseBrowser({ action: "run", task: "Sign in", save_login: true, authorization_refs: [78] }, context(unchecked)),
+    /check of the save_login consent/);
+  assert.deepEqual(calls, []);
+  assert.equal(unchecked.talent_external_operations.length, 0);
+
+  const checked: Record<string, Record<string, any>[]> = { talent_external_operations: [] };
+  const scope = context(checked);
+  // The fixture provider stops after the profile is made; the consent is recorded before any browser starts.
+  await executeUseBrowser({ action: "run", task: "Sign in", save_login: true, authorization_refs: [79] }, scope).catch(() => undefined);
+  const saved = await readSavedLogin(scope);
+  assert.equal(savedLoginProfileId(saved), profileId);
+  assert.equal(saved?.result.consent_message_id, 79);
 });

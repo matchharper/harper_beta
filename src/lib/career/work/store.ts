@@ -10,8 +10,45 @@ export async function workRpc(scope: WorkScope, action: string, input: Record<st
   const { data, error } = await resourceDb(scope.admin).rpc("manage_career_work", {
     p_user_id: scope.userId, p_conversation_id: scope.conversationId, p_action: action, p_input: input,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(await workRefusal(scope, action, input, error.message));
   return operationSchema.parse(data);
+}
+
+/** The next step for each refusal the model can act on. The database stays the authority; code never reads around it. */
+const REFUSAL_STEPS: Record<string, (action: string, input: Record<string, unknown>) => string> = {
+  "Work revision conflict; read current work": (_, input) =>
+    `manage_work read with work_id ${input.work_id} shows its current revision and instructions; resend with that revision as expected_revision only if your change still applies.`,
+  "User source required": action =>
+    `${action} needs the user message that asks for it: set source_refs to that message's exact ID (shown as "User message <id>"), or omit source_refs when it was delivered to this execution, and resend the same ${action}.`,
+  "User source unavailable": action =>
+    `Every source_refs ID must be a user message of this conversation. Resend the same ${action} with source_refs omitted (the user messages delivered to this execution) or with exact IDs shown as "User message <id>"; conversation positions are not IDs.`,
+  "User stopped this request": () => "The user stopped the message it cites. Do not resend it; act only on a new request.",
+  "Origin execution claim unavailable": action => action === "start"
+    ? "mode=current records work only from the reply holding this conversation's live execution claim, and this call did not hold it. Resend the same start once in your next step; if it is refused again, use mode=independent only when the work must go on beyond this reply, otherwise continue without recording it."
+    : `Only the reply holding its origin conversation's live execution claim can wait or finish this work. From another conversation, use update to route the change there; otherwise resend the same ${action} once in your next step and stop if it is refused again.`,
+  "Only the executing work may report its outcome": () =>
+    "Only this work's own delegated execution can wait or finish it. From here, use update (its current revision and the user's source) to change it, or cancel to stop it.",
+  "Work unavailable": () =>
+    "No delegated work with this work_id belongs to this user. Find the exact work_id with manage_work list (scope user covers other conversations; include_closed adds finished work).",
+};
+
+async function workRefusal(scope: WorkScope, action: string, input: Record<string, unknown>, message: string) {
+  const step = message === "Work resource unavailable" ? await unusableRefs(scope, action, input) : REFUSAL_STEPS[message]?.(action, input);
+  return step ? `${message}. Nothing was recorded. ${step}` : message;
+}
+
+/**
+ * The refusal does not say which attached ref the user cannot use, so only on this path each one is checked again
+ * with the same availability function (#120: a start resent after it often dropped its identity, purpose or source).
+ */
+async function unusableRefs(scope: WorkScope, action: string, input: Record<string, unknown>) {
+  const { parseSourceRefs, resourceAvailable } = await import("../resources/read");
+  const attached = (["resource_refs", "context_refs"] as const).flatMap(field => parseSourceRefs(input[field]).map(ref => ({ field, ref })));
+  const checked = await Promise.all(attached.map(async item => ({ ...item, available: await resourceAvailable(scope, item.ref).catch(() => null) })));
+  const unusable = checked.filter(item => item.available === false);
+  if (!unusable.length) return `Which attached ref failed could not be identified. Resend the same ${action} once; if it is refused again, resend it without resource_refs and context_refs, keeping its other values.`;
+  console.warn("[career-work] Work resource unavailable", { action, refs: unusable.map(({ field, ref }) => ({ field, ...ref })) });
+  return `This user cannot use ${unusable.map(({ field, ref }) => `${field} ${JSON.stringify(ref)}`).join(", ")}. Resend the same ${action} without ${unusable.length > 1 ? "them" : "it"}, keeping its other values.`;
 }
 
 export async function readWork(scope: WorkScope, id: string) {

@@ -24,7 +24,8 @@ export async function withEffectWaiting<T>(execute: () => Promise<T>) {
 }
 
 /** One responsibility/effect identity spans source messages, revisions and transports. */
-export async function reserveWorkEffect(context: ExternalToolContext, key: string | undefined, snapshot: Record<string, unknown>) {
+export async function reserveWorkEffect(context: ExternalToolContext, key: string | undefined, snapshot: Record<string, unknown>,
+  options: { resubmitConfirmedBy?: number } = {}) {
   if (!context.workId && !context.claimId) return undefined;
   if (!key?.trim()) throw new Error("An external effect requires a stable effect_key for this purpose and target. Reuse it across retries, replies and route changes.");
   const responsibilityId=context.responsibilityId??context.workId;
@@ -62,15 +63,37 @@ export async function reserveWorkEffect(context: ExternalToolContext, key: strin
     });
     if (error) throw error;
     if (data === true) effect = (await readOperation(context, effect.id))!;
+  } else if (bound && options.resubmitConfirmedBy && unknownApplicationOutcome(bound)) {
+    // The person, told the earlier attempt may have gone in, asked to submit again. The database checks that their
+    // message is in this conversation (the attempt may have run in another one: the effect follows the opportunity),
+    // that it came after that attempt ended, and that the attempt never reported a submission.
+    const { data, error } = await (context.admin.rpc as any)("release_confirmed_career_effect_v1", {
+      p_user_id: context.userId, p_effect_id: effect.id, p_operation_id: bound.id, p_message_id: options.resubmitConfirmedBy,
+      p_conversation_id: context.conversationId,
+    });
+    if (error) throw error;
+    if (data === true) effect = (await readOperation(context, effect.id))!;
   }
   return effect;
 }
 
-/** A finished web application run whose own receipt says it did not submit. */
+const applicationRun = (run: ExternalOperation) =>
+  run.kind === "browser_run" && Array.isArray(run.request.role_refs) && run.request.role_refs.length > 0;
+const reachedProvider = (run: ExternalOperation) => typeof run.provider_refs?.run_id === "string";
+
+/** A web application run that submitted nothing: it finished and its own receipt says so, or it never reached Browser Use. */
 export function unsubmittedApplicationRun(run: ExternalOperation) {
-  const roles = run.request.role_refs;
-  return run.kind === "browser_run" && run.status === "completed" && browserRunSubmission(run.result) === "no"
-    && Array.isArray(roles) && roles.length > 0;
+  if (!applicationRun(run)) return false;
+  if (run.status === "completed") return browserRunSubmission(run.result) === "no";
+  return ["cancelled", "failed"].includes(run.status) && !reachedProvider(run);
+}
+
+/** A web application run that ended without telling whether it submitted: cut off, failed, or an unclear receipt. */
+export function unknownApplicationOutcome(run: ExternalOperation) {
+  if (!applicationRun(run) || unsubmittedApplicationRun(run)) return false;
+  const submitted = browserRunSubmission(run.result);
+  if (submitted === "yes") return false;
+  return ["cancelled", "failed"].includes(run.status) || (run.status === "completed" && submitted !== "no");
 }
 
 export async function readBoundEffect(context: ExternalToolContext, effect?: ExternalOperation) {

@@ -1,7 +1,7 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { executeUseBrowser, refreshBrowserExecution, observeBrowserSession, formatBrowserToolResult, formatBrowserSessionResult } from "./tool";
-import { browserUseAgents, BrowserUseHttpError } from "../simulation/browserUseAgents";
+import { browserUseAgents, BrowserUseHttpError, type SessionPageCapture } from "../simulation/browserUseAgents";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { ExternalOperation } from "../externalOperations/store";
 const userId = "00000000-0000-4000-8000-000000000001",
@@ -184,7 +184,7 @@ for (const replaceAttachments of [false, true]) {
       dispatched = true;
       assert.equal(workspaceId, rows[0].provider_refs.workspace_id);
       assert.equal(sessionId, remoteSession);
-      assert.equal(options.keepAlive, 600);
+      assert.equal(options.keepAlive, 1800);
       assert.equal(options.serviceTier, "default");
       // Stop at dispatch to test an unknown provider outcome.
       throw new Error("Provider response unavailable in this attachment test");
@@ -210,6 +210,47 @@ for (const replaceAttachments of [false, true]) {
     assert.equal(repeated.message?.id, result.message?.id);
   });
 }
+test("a sign-in for an existing account goes through a sign-in method, not an account finder or a sign-up entry", async (t) => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs.workspace_id = remoteSession;
+  let sent = "";
+  t.mock.method(console, "error", () => {});
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (task: string) => {
+    sent = task;
+    // Only the instructions matter here: stop at dispatch.
+    throw new Error("Provider response unavailable in this instruction test");
+  });
+  await executeUseBrowser({ action: "run", session_id: sessionId,
+    task: "Candidate has an existing account on the job site. Open its application." }, context).catch(() => undefined);
+  // 11/27: told "existing account", the browser took a site's "Find existing account" entry (a phone-number account
+  // finder) instead of a sign-in method, and handed that screen to the person, whose sign-in then found no account.
+  assert.match(sent, /An existing account signs in through the sign-in method the task names, else the site's own email or ID sign-in, else hand over at the method choice/);
+  assert.match(sent, /entries that find or recover an account \(find account or ID, reset password\), sign up or are for business accounts are not its sign-in entry/);
+});
+
+test("a verification mail counts as already requested only when this browser requested it", async (t) => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs.workspace_id = remoteSession;
+  let sent = "";
+  t.mock.method(console, "error", () => {});
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (task: string) => {
+    sent = task;
+    throw new Error("Provider response unavailable in this instruction test");
+  });
+  await executeUseBrowser({ action: "run", session_id: sessionId,
+    task: "An earlier attempt stopped at the site's email verification. Continue the application." }, context).catch(() => undefined);
+  // 11/27: an earlier attempt's mail (another browser, the day before) kept a new browser from asking for one, while
+  // Harper waited for that old link: nobody moved. Such a link verifies only the browser that asked for it.
+  assert.match(sent, /do not ask for another one while the task says this browser already asked for one/);
+  assert.match(sent, /A request made from another browser, such as an earlier attempt's, does not count: ask for one here\./);
+  const { TOOL_DESCRIPTIONS } = await import("@/lib/llm/toolDescriptions");
+  assert.match(TOOL_DESCRIPTIONS.use_browser, /while one this same open browser requested may still be valid\. A mail requested from another browser, such as an earlier attempt's, cannot verify this one/);
+});
+
 test("run delivers the browser card before waiting and returns the observation to the same tool call", async (t) => {
   const { rows, context } = fixture("reserved");
   rows[0].status = "idle";
@@ -361,6 +402,182 @@ test("close during attachment preparation revokes dispatch and closes only the o
   assert.equal(rows[1].status, "cancelled");
   assert.equal(rows[0].status, "closed");
   assert.match(result.modelOutput, /User selected browser close/);
+});
+test("closing a browser handed to the person after its run finished stops it without cancelling the finished run", async (t) => {
+  const { rows, context } = fixture("completed");
+  rows[0].status = "human";
+  let stopped = 0;
+  t.mock.method(browserUseAgents, "cancelRun", async () => assert.fail("A finished run has nothing to cancel"));
+  t.mock.method(browserUseAgents, "stop", async (state: Parameters<typeof browserUseAgents.stop>[0]) => {
+    stopped++;
+    assert.equal(state.sessionId, remoteSession);
+  });
+  await executeUseBrowser({ action: "close", session_id: sessionId }, context);
+  assert.equal(stopped, 1);
+  assert.equal(rows[1].status, "completed");
+  assert.equal(rows[0].status, "closed");
+});
+/** A finished execute run whose receipt reports `submitted`, with the picture of its last page held until `finish`. */
+function finishedSubmission(t: { mock: typeof mock }, submitted: string) {
+  const fixed = fixture("running");
+  fixed.rows[1].request = { mode: "execute" };
+  const events: string[] = [];
+  let finish!: () => void;
+  t.mock.method(browserUseAgents, "captureSessionPage", () => new Promise<SessionPageCapture>((resolve) => {
+    finish = () => { events.push("picture"); resolve({ status: "unavailable", reason: "no_cdp_url" }); };
+  }));
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));
+  t.mock.method(browserUseAgents, "result", async () => ({ status: "completed", output: JSON.stringify({
+    summary: "Company A's form was sent.", evidence: [], needsUser: false, url: "https://company-a.example/done", submitted }) }));
+  t.mock.method(browserUseAgents, "stop", async () => { events.push("stop"); });
+  return { ...fixed, events, finish: () => finish() };
+}
+const settle = async (done: () => boolean) => {
+  for (let tick = 0; tick < 200 && !done(); tick++) await new Promise((resolve) => setImmediate(resolve));
+};
+test("a browser whose submission the site confirmed is released once the picture of its last page is kept", async (t) => {
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  const latest = await refreshBrowserExecution(context, structuredClone(rows[1]));
+  assert.equal(latest.status, "completed");
+  await settle(() => false);
+  assert.deepEqual(events, [], "the browser stays open while its last page is pictured");
+  finish();
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.last_execution_id, executionId);
+  assert.equal(rows[0].provider_refs.session_id, undefined);
+  assert.deepEqual(rows[1].provider_refs.receipt_screenshot, { status: "unavailable", reason: "no_cdp_url" });
+});
+test("a confirmed submission keeps its browser open while another application it served is not submitted", async (t) => {
+  // Review 11/27: Harper carried a signed-in browser over to Company B's posting; releasing it after Company A's
+  // submission would have closed B's login too.
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000007", idempotency_key: "prepare-b",
+    status: "completed", request: { mode: "prepare", role_refs: ["role-b"] }, result: { submitted: "no" } });
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  finish();
+  await settle(() => false);
+  assert.deepEqual(events, ["picture"], "the browser is not stopped");
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.browser_availability, undefined);
+  // Once Company B's application on it is submitted as well, the same rule releases it.
+  rows[2].result = { submitted: "yes" };
+  const { releaseAfterConfirmedSubmission } = await import("./tool");
+  releaseAfterConfirmedSubmission(context, structuredClone(rows[1]), () => {});
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+});
+/** A finished run on the live browser, started at minute (before the submission at 00:00) on url when given. */
+const earlierRun = (rows: ExternalOperation[], id: string, minute: number, request: Record<string, unknown>, submitted = "no") =>
+  rows.push({ ...structuredClone(rows[1]), id, idempotency_key: `run-${id}`, status: "completed", request,
+    result: { submitted }, created_at: new Date(Date.parse("2026-10-29T00:00:00Z") + minute * 60_000).toISOString() });
+test("an application on the live browser without role references keeps it open; runs of an earlier browser on that record do not", async (t) => {
+  // Review 11/27: the check knew an application only by its role references, and it also counted runs of browsers
+  // released long before, since a released browser keeps its session record.
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+  // An earlier browser on this record prepared Company C and was released; that application has no use for this one.
+  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000008", idempotency_key: "prepare-c",
+    status: "completed", request: { mode: "prepare", role_refs: ["role-c"] }, result: { submitted: "no" },
+    provider_refs: { session_id: "earlier-browser", run_id: "earlier-run" } });
+  // On the live browser Harper first opened Company B's posting, which has no role reference; then it carried the
+  // browser over to Company A's posting and prepared it, and the submission went on from that page.
+  earlierRun(rows, "00000000-0000-4000-8000-000000000009", -20, { mode: "prepare", url: "https://company-b.example/jobs/2" });
+  earlierRun(rows, "00000000-0000-4000-8000-000000000010", -10, { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] });
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  finish();
+  await settle(() => false);
+  assert.deepEqual(events, ["picture"], "Company B's application keeps the browser");
+  // Once that run reports its own confirmed submission, only the earlier browser's run is left, and it does not count.
+  rows[3].result = { submitted: "yes" };
+  const { releaseAfterConfirmedSubmission } = await import("./tool");
+  releaseAfterConfirmedSubmission(context, structuredClone(rows[1]), () => {});
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+});
+// Review 11/27: Harper prepared Company A's form without role references (37% of preparations), the person approved,
+// and the submission on the same browser went on from that page; the site confirmed it.
+for (const [what, prepared, submitting] of [
+  ["without role references", { mode: "prepare", url: "https://company-a.example/jobs/1" }, { mode: "execute", role_refs: ["role-a"] }],
+  ["named by role, submitted without one", { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] }, { mode: "execute" }],
+  ["without a start URL or role references", { mode: "prepare" }, { mode: "execute" }],
+] as const) {
+  test(`the submitted application's own preparation does not keep its browser: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { ...submitting };
+    earlierRun(rows, "00000000-0000-4000-8000-000000000009", -10, { ...prepared });
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => rows[0].result.browser_availability === "stopped");
+    assert.deepEqual(events, ["picture", "stop"]);
+  });
+}
+// Company B's preparation on its own page was cut off before Harper went on to Company A's posting; or Harper went on
+// from Company A's page to Company B's role and came back to submit A.
+for (const [what, minute, status, request] of [
+  ["one cut off before its receipt", -30, "failed", { mode: "prepare", url: "https://company-b.example/jobs/2" }],
+  ["one whose role the submission does not name", -10, "completed", { mode: "prepare", role_refs: ["role-b"] }],
+] as const) {
+  test(`another application on the browser keeps it open: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+    earlierRun(rows, "00000000-0000-4000-8000-000000000009", -20, { mode: "prepare", url: "https://company-a.example/jobs/1", role_refs: ["role-a"] });
+    earlierRun(rows, "00000000-0000-4000-8000-000000000010", minute, { ...request });
+    rows[3].status = status;
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => false);
+    assert.deepEqual(events, ["picture"]);
+    assert.equal(rows[0].result.browser_availability, undefined);
+  });
+}
+// Review 11/27 (second look): a run without a start URL took the page of whatever ran just before it, even another
+// application's, and a submission without role references covered every run on its page. In each order below another
+// application on the browser is still not submitted.
+const companyA = "https://company-a.example/jobs/1", companyB = "https://company-b.example/jobs/2";
+for (const [what, submitting, earlier] of [
+  ["B prepared after A, then A submitted without a start URL", { mode: "execute", role_refs: ["role-a"] }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", url: companyB }, "completed"]]],
+  ["A prepared without roles after B, then B submitted without a start URL", { mode: "execute", role_refs: ["role-b"] }, [
+    [-20, { mode: "prepare", url: companyB, role_refs: ["role-b"] }, "completed"],
+    [-10, { mode: "prepare", url: companyA }, "completed"]]],
+  ["B's preparation cut off after A's, then A submitted without a start URL", { mode: "execute", role_refs: ["role-a"] }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", url: companyB }, "failed"]]],
+  ["B's role prepared on A's page, then a submission that names no role", { mode: "execute" }, [
+    [-20, { mode: "prepare", url: companyA, role_refs: ["role-a"] }, "completed"],
+    [-10, { mode: "prepare", role_refs: ["role-b"] }, "completed"]]],
+] as const) {
+  test(`another application on the browser keeps it open: ${what}`, async (t) => {
+    const { rows, context, events, finish } = finishedSubmission(t, "yes");
+    rows[1].request = { ...submitting };
+    earlier.forEach(([minute, request, status], index) => {
+      earlierRun(rows, `00000000-0000-4000-8000-00000000002${index}`, minute, { ...request });
+      rows[rows.length - 1].status = status;
+    });
+    await refreshBrowserExecution(context, structuredClone(rows[1]));
+    finish();
+    await settle(() => false);
+    assert.deepEqual(events, ["picture"]);
+    assert.equal(rows[0].result.browser_availability, undefined);
+  });
+}
+test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
+  const { rows, context, events, finish } = finishedSubmission(t, "unclear");
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  await settle(() => false);
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.browser_availability, undefined);
+  const closing = executeUseBrowser({ action: "close", session_id: sessionId }, context);
+  await settle(() => false);
+  assert.deepEqual(events, [], "close waits for the picture");
+  finish();
+  await closing;
+  assert.deepEqual(events, ["picture", "stop"]);
+  assert.equal(rows[0].status, "closed");
 });
 test("unknown dispatch cannot claim successful close or release its session for a competing run", async (t) => {
   const { rows, context } = fixture("dispatching");

@@ -14,6 +14,7 @@ import {
   kstMidnightMs,
   updateMetricsWindow,
   type OpsUpdateMetricsResponse,
+  type UpdateMetricsApplicationRow,
   type UpdateMetricsEmailRow,
   type UpdateMetricsLandingRow,
   type UpdateMetricsRecommendationRow,
@@ -22,6 +23,7 @@ import {
   type UpdateMetricsUsageRow,
 } from "@/lib/ops/updateMetrics";
 import {
+  UPDATE_METRICS_APPLICATIONS_SQL,
   UPDATE_METRICS_CONNECTIONS_SQL,
   UPDATE_METRICS_EMAILS_SQL,
   UPDATE_METRICS_JOBS_WITHOUT_ROLE_SQL,
@@ -87,26 +89,41 @@ export async function fetchOpsUpdateMetrics(args: {
     return { jobsUserIds, jobsWithoutRoleUserIds, signups };
   });
 
-  const [{ jobsUserIds, jobsWithoutRoleUserIds, signups }, usage, recommendations, landing, emails, unseenReplies, connections] =
-    await Promise.all([
-      signupsWithJobs,
-      readOnly<UpdateMetricsUsageRow>(UPDATE_METRICS_LLM_USAGE_SQL, withPeople, {
-        enable_indexscan: "off",
-      }),
-      readOnly<UpdateMetricsRecommendationRow>(UPDATE_METRICS_RECOMMENDATIONS_SQL, withPeople),
-      readOnly<UpdateMetricsLandingRow>(UPDATE_METRICS_LANDING_SQL, window),
-      readOnly<UpdateMetricsEmailRow>(UPDATE_METRICS_EMAILS_SQL, withPeople),
-      readOnly<UpdateMetricsUnseenReplyRow>(UPDATE_METRICS_UNSEEN_REPLIES_SQL, withPeople),
-      readOnly<{ appliedAt: string; connectedAt: string | null; userId: string }>(UPDATE_METRICS_CONNECTIONS_SQL, [
-        ...withPeople,
-        SUBMITTED_SENTENCE,
-        NOT_SUBMITTED_SENTENCE,
-      ]),
-    ]);
+  const [
+    { jobsUserIds, jobsWithoutRoleUserIds, signups },
+    usage,
+    recommendations,
+    landing,
+    emails,
+    unseenReplies,
+    applications,
+    connections,
+  ] = await Promise.all([
+    signupsWithJobs,
+    readOnly<UpdateMetricsUsageRow>(UPDATE_METRICS_LLM_USAGE_SQL, withPeople, {
+      enable_indexscan: "off",
+    }),
+    readOnly<UpdateMetricsRecommendationRow>(UPDATE_METRICS_RECOMMENDATIONS_SQL, withPeople),
+    readOnly<UpdateMetricsLandingRow>(UPDATE_METRICS_LANDING_SQL, window),
+    readOnly<UpdateMetricsEmailRow>(UPDATE_METRICS_EMAILS_SQL, withPeople),
+    readOnly<UpdateMetricsUnseenReplyRow>(UPDATE_METRICS_UNSEEN_REPLIES_SQL, withPeople),
+    // The same submitted-sentence rules as /ops/metrics, passed as parameters like there.
+    readOnly<UpdateMetricsApplicationRow>(UPDATE_METRICS_APPLICATIONS_SQL, [
+      ...withPeople,
+      SUBMITTED_SENTENCE,
+      NOT_SUBMITTED_SENTENCE,
+    ]),
+    readOnly<{ appliedAt: string; connectedAt: string | null; userId: string }>(UPDATE_METRICS_CONNECTIONS_SQL, [
+      ...withPeople,
+      SUBMITTED_SENTENCE,
+      NOT_SUBMITTED_SENTENCE,
+    ]),
+  ]);
   const stepsByUser = new Map(connections.map((row) => [row.userId, row]));
 
   const usageByUser = new Map(usage.map((row) => [row.userId, row]));
   return buildOpsUpdateMetrics({
+    applications,
     emails,
     from: range.from,
     jobsUserIds,

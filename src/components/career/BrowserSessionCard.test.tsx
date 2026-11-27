@@ -80,6 +80,32 @@ test("a confirmed stopped browser does not claim direct control or offer its old
   dom.window.close();
 });
 
+test("a stopped browser left with the person has nothing to finish, and offers a reopen only when one is given", () => {
+  const render = (reopen?: { onReopen: () => void; disabled?: boolean }) => {
+    const html = renderToStaticMarkup(
+      <MessagesProvider locale="ko">
+        <BrowserSessionView
+          view={{ session: { id: "session-1", status: "human", revision: 7 }, browserAvailability: "stopped", liveUrl: null, executions: [] }}
+          onAction={() => {}}
+          reopen={reopen}
+        />
+      </MessagesProvider>
+    );
+    return new JSDOM(html).window.document;
+  };
+  const buttons = (document: Document) => [...document.querySelectorAll("button")].map(button => button.textContent);
+  const plain = render();
+  assert.match(plain.body.textContent ?? "", /종료된 브라우저/);
+  // "완료" would hand Harper a page that no longer exists.
+  assert.ok(!buttons(plain).includes("완료"));
+  assert.doesNotMatch(plain.body.textContent ?? "", /다시 열기/);
+  const offered = render({ onReopen: () => {}, disabled: true });
+  assert.match(offered.body.textContent ?? "", /창이 닫혔어요\. 다시 열기를 누르면 Harper에게 다시 열어 달라고 보내요\./);
+  const reopen = [...offered.querySelectorAll("button")].find(button => button.textContent === "다시 열기");
+  assert.ok(reopen);
+  assert.equal(reopen.hasAttribute("disabled"), true);
+});
+
 test("an unverified human session does not claim its browser is currently available or closed", () => {
   const html = renderToStaticMarkup(
     <MessagesProvider locale="ko">

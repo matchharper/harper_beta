@@ -12,7 +12,7 @@ import { createHash } from "node:crypto";
 import type { TalentToolDefinition, TalentToolExecutionContext } from "@/lib/talentOnboarding/tools";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { suggestFormTool, executeSuggestForm } from "./forms/server";
-import { USE_BROWSER_TOOL, executeUseBrowser } from "./browser/tool";
+import { USE_BROWSER_TOOL, browserContinuation, executePreparationList, executeUseBrowser } from "./browser/tool";
 import { WRITE_EMAIL_TOOL, executeWriteEmail } from "./emailWriting/tool";
 import {READ_CALENDAR_TOOL,WRITE_CALENDAR_TOOL,executeReadCalendar,executeWriteCalendar} from "./calendar/tools";
 import { CAREER_PROFILE_TOOLS, formatProfileToolResult } from "./profiles/tools";
@@ -93,14 +93,18 @@ export const CAREER_GENERAL_TOOLS: Record<string, TalentToolDefinition> = {
       const browserContext = executionContext(context, "use_browser", input);
       const browserServiceTier = input.action === "run"
         ? await readCareerBrowserServiceTier(browserContext) : undefined;
-      const result = await withEffectWaiting(() => executeUseBrowser(
-        input, { ...browserContext, browserServiceTier }, context?.onArtifactMessage
-      ));
+      // A preparation list (runs) starts each item as its own run, at the same time.
+      const runContext = { ...browserContext, browserServiceTier };
+      if (Array.isArray(input.runs)) {
+        const list = await withEffectWaiting(() => executePreparationList(input, runContext, context?.onArtifactMessage));
+        // The reply waits for each started run; the first also stays the single continuation older readers use.
+        if (!("careerContinuations" in list)) return list;
+        return { ...list, ...(list.careerContinuations[0] ? { careerContinuation: list.careerContinuations[0] } : {}) };
+      }
+      const result = await withEffectWaiting(() => executeUseBrowser(input, runContext, context?.onArtifactMessage));
       if ("message" in result && result.message && input.action !== "run") context?.onArtifactMessage?.(result.message);
-      const operation = "operation" in result ? result.operation : undefined;
-      const pending = operation && ["running", "cancelling"].includes(operation.status) ? operation
-        : "operations" in result ? result.operations?.find(op => op.kind === "browser_run" && ["running", "cancelling"].includes(op.status)) : undefined;
-      return { ...result, ...(pending ? { careerContinuation: { kind: "browser_run", id: pending.id } } : {}) };
+      const pending = browserContinuation(result);
+      return { ...result, ...(pending ? { careerContinuation: pending } : {}) };
     },
   },
   write_email: {

@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { MuteButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,13 +68,25 @@ export function careerFormOptions(
     : [];
 }
 
-export function CareerFormField({
+/** A yes/no item (one box): laid out by CareerFormCheckboxRow rather than under its label. */
+export function isCareerFormCheckbox(item: CareerFormItem) {
+  return item.type === "checkbox" || item.type === "consent";
+}
+
+/**
+ * A yes/no item reads as one control: the box sits on the label's first line, left of the label, and the item's
+ * explanation hangs under the label, beside the box. Placed alone under the explanation, the box read as belonging to
+ * the next question. The label and the box share the id, so pressing the label toggles the box.
+ */
+export function CareerFormCheckboxRow({
   item,
   id,
   value,
   disabled,
   readOnly = false,
   onChange,
+  badge,
+  children,
 }: {
   item: CareerFormItem;
   id: string;
@@ -81,6 +94,71 @@ export function CareerFormField({
   disabled: boolean;
   readOnly?: boolean;
   onChange: (value: CareerFormValue) => void;
+  /** Shown after the label, such as the 필수 mark. */
+  badge?: ReactNode;
+  /** The item's explanation, shown under the label. */
+  children?: ReactNode;
+}) {
+  const content = getCareerFormContent(item);
+  const consentText =
+    typeof content.value === "string" && content.value ? content.value : "";
+  const describedBy = children || consentText ? `${id}-details` : undefined;
+  return (
+    <div className="flex items-start gap-3">
+      <CareerFormField
+        item={item}
+        id={id}
+        value={value}
+        disabled={disabled}
+        readOnly={readOnly}
+        onChange={onChange}
+        describedBy={describedBy}
+      />
+      <div className="min-w-0 flex-1 space-y-1">
+        <label
+          htmlFor={id}
+          className={cn(
+            "block text-sm font-medium text-neutral-primary",
+            !disabled && "cursor-pointer"
+          )}
+        >
+          {item.label}
+          {badge}
+        </label>
+        {describedBy ? (
+          <div id={describedBy} className="space-y-2">
+            {children}
+            {consentText ? (
+              <ChatAssistantContent
+                variant="career"
+                content={consentText}
+                renderEmailLinksAsText
+              />
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function CareerFormField({
+  item,
+  id,
+  value,
+  disabled,
+  readOnly = false,
+  onChange,
+  describedBy,
+}: {
+  item: CareerFormItem;
+  id: string;
+  value: CareerFormValue | undefined;
+  disabled: boolean;
+  readOnly?: boolean;
+  onChange: (value: CareerFormValue) => void;
+  /** The id of the text that explains this field (aria-describedby). */
+  describedBy?: string;
 }) {
   const t = useCareerT();
   const content = getCareerFormContent(item);
@@ -123,24 +201,18 @@ export function CareerFormField({
         />
       </>
     );
-  if (item.type === "checkbox" || item.type === "consent")
+  // Only the box: CareerFormCheckboxRow places it beside its label and shows the item's own text.
+  if (isCareerFormCheckbox(item))
     return (
-      <>
-        {typeof content.value === "string" && content.value ? (
-          <ChatAssistantContent
-            variant="career"
-            content={content.value}
-            renderEmailLinksAsText
-          />
-        ) : null}
-        <Checkbox
-          id={id}
-          disabled={disabled}
-          className={readOnly ? "disabled:opacity-100" : undefined}
-          checked={value === true}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-      </>
+      <Checkbox
+        id={id}
+        size="medium"
+        disabled={disabled}
+        className={cn("mt-px", readOnly && "disabled:opacity-100")}
+        checked={value === true}
+        onChange={(event) => onChange(event.target.checked)}
+        {...(describedBy ? { "aria-describedby": describedBy } : {})}
+      />
     );
   if (item.type === "select")
     return (
@@ -180,12 +252,14 @@ export function CareerFormField({
     );
   if (item.type === "multiselect")
     return (
+      // One option per line, its box before its own name: wrapped side by side, a box sat between two names. A name
+      // that wraps keeps its box on its first line (top-aligned, centred on that line), not in the middle.
       <div id={id} className="space-y-2">
         {careerFormOptions(item).map((option) => (
           <Checkbox
             key={option.id}
             disabled={disabled}
-            className={readOnly ? "disabled:opacity-100" : undefined}
+            className={cn("flex w-full items-start [&>input]:mt-[3px]", readOnly && "disabled:opacity-100")}
             label={option.label}
             checked={Array.isArray(value) && value.includes(option.id)}
             onChange={(event) => {
@@ -323,40 +397,54 @@ export function CareerFormView({
           .at(-1);
         const selected =
           response && findCareerFormAction(form, response.actionId, item.id);
+        const readOnly =
+          !form.positive && !form.negative && !item.positive && !item.negative;
+        const details =
+          item.description ||
+          typeof content.description === "string" ||
+          typeof content.reason === "string" ? (
+            <div className="space-y-2 whitespace-pre-wrap text-sm text-neutral-muted">
+              {item.description ??
+                (typeof content.description === "string"
+                  ? content.description
+                  : null)}
+              {typeof content.reason === "string" ? (
+                <p>{content.reason}</p>
+              ) : null}
+            </div>
+          ) : null;
         return (
           <div key={item.id} className="space-y-2">
-            <label
-              htmlFor={id}
-              className="block text-sm font-medium text-neutral-primary"
-            >
-              {item.label}
-            </label>
-            {item.description ||
-            typeof content.description === "string" ||
-            typeof content.reason === "string" ? (
-              <div className="space-y-2 whitespace-pre-wrap text-sm text-neutral-muted">
-                {item.description ??
-                  (typeof content.description === "string"
-                    ? content.description
-                    : null)}
-                {typeof content.reason === "string" ? (
-                  <p>{content.reason}</p>
-                ) : null}
-              </div>
-            ) : null}
-            <CareerFormField
-              item={item}
-              readOnly={
-                !form.positive &&
-                !form.negative &&
-                !item.positive &&
-                !item.negative
-              }
-              id={id}
-              disabled={disabled}
-              value={values[item.id]}
-              onChange={(value) => setValue(item.id, value)}
-            />
+            {isCareerFormCheckbox(item) ? (
+              <CareerFormCheckboxRow
+                item={item}
+                id={id}
+                value={values[item.id]}
+                disabled={disabled}
+                readOnly={readOnly}
+                onChange={(value) => setValue(item.id, value)}
+              >
+                {details}
+              </CareerFormCheckboxRow>
+            ) : (
+              <>
+                <label
+                  htmlFor={id}
+                  className="block text-sm font-medium text-neutral-primary"
+                >
+                  {item.label}
+                </label>
+                {details}
+                <CareerFormField
+                  item={item}
+                  readOnly={readOnly}
+                  id={id}
+                  disabled={disabled}
+                  value={values[item.id]}
+                  onChange={(value) => setValue(item.id, value)}
+                />
+              </>
+            )}
             {item.positive || item.negative
               ? actions(item.positive, item.negative, item.id)
               : null}

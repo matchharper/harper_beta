@@ -6,8 +6,9 @@ import { readFileSync } from "node:fs";
 
 // Execute the real turn, substituting external reads/provider/writer boundaries.
 // A response hydration failure must not strand an already delivered invocation.
-function fixture(reply = "Hello") {
+function fixture(reply = "Hello", readMessageIds?: number[]) {
   const events: string[] = [];
+  const finished: Record<string, unknown>[] = [];
   const providerMessages: any[][] = [];
   let profileReads = 0;
   const source = { id: 1, user_id: "owner", conversation_id: "conversation", role: "user", content: "hi", message_type: "chat", payload: {} };
@@ -46,13 +47,13 @@ function fixture(reply = "Hello") {
     normalizeTalentRecommendationBatchSize: () => 10, serializeOpportunityRun: () => null,
     buildCareerConversationPromptPlan: () => ({ isOnboardingActive: false, promptBlocks: [] }),
     prepareCareerAgentTurn: async () => ({ claimId: "claim", replyId: "message:1",
-      runtime: { abortSignal: undefined, options: {}, resolveStep: () => undefined },
+      runtime: { abortSignal: undefined, options: readMessageIds ? { inputInbox: { messageIds: () => readMessageIds, eventIds: () => [] } } : {}, resolveStep: () => undefined },
       getCompletionPayload: () => ({ replyId: "message:1" }),
       complete: async () => { events.push("completed"); }, release: async () => { events.push("released"); },
     }),
     createCareerAssistantMessageWriter: async () => ({ start: async () => null,
-      finish: async (content: string) => { events.push("persisted"); return { id: 2, content }; },
-      interrupt: async () => null, readPlan: () => [],
+      finish: async (content: string, _logs: string[], payload: Record<string, unknown>) => { events.push("persisted"); finished.push(payload); return { id: 2, content }; },
+      interrupt: async () => null, readPlan: () => [], readApplicationCheck: () => false,
     }),
     runCareerChatAssistantStream: async () => reply,
     runCareerChatAssistant: async (input: any) => { providerMessages.push(input.messages); return reply; },
@@ -67,19 +68,20 @@ function fixture(reply = "Hello") {
     fetchTalentContextsUpdatedAt: async () => { events.push("response-updated-at-read"); return null; },
     hydrateMockInterviewOffers: async (args: any) => { events.push("response-preview-read"); return args.messages; },
     extractPostingRoleIdsFromText: () => [],
+    readUnshownReviewFormIds: async () => [], withFormMarkers: identity,
     CareerReplyContinuation: class extends Error {},
   };
   const compiledModule = { exports: {} as typeof import("./chatTurn") };
   vm.runInNewContext(ts.transpileModule(readFileSync("src/lib/career/chatTurn.ts", "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { module: compiledModule, exports: compiledModule.exports, crypto: globalThis.crypto, Date,
+  }).outputText, { module: compiledModule, exports: compiledModule.exports, crypto: globalThis.crypto, Date, process: { env: { NODE_ENV: "test" } },
     console: { ...console, info() {} }, require: () => new Proxy({}, { get: (_, key) => dependencies[String(key)] }),
   });
   const args: any = { admin, userId: "owner", conversationId: "conversation", existingSourceMessage: source,
     initialConversation: { id: "conversation" }, initialSetting: setting, onLiveMessage() {},
     onArtifactMessage: () => events.push("delivered"), scheduleAfter() {},
   };
-  return { ...compiledModule.exports, args, events, providerMessages, source, profileReads: () => profileReads };
+  return { ...compiledModule.exports, args, events, finished, providerMessages, source, profileReads: () => profileReads };
 }
 
 test("execution-only turn persists and delivers the original reply without hydrating an unused response", async () => {
@@ -130,4 +132,16 @@ test("images that arrived with an email are shown with that email only", async (
   const messages = f.providerMessages.at(-1)!;
   assert.equal(JSON.stringify(messages.filter(message => message.careerImages).map(message => [message.content, message.careerImages])),
     JSON.stringify([["hi", [image]]]));
+});
+
+test("an empty reply is marked unprompted only when its turn read no message from the person", async () => {
+  for (const [ids, unprompted] of [[[], true], [[1], false], [undefined, false]] as const) {
+    const f = fixture("", ids as number[] | undefined);
+    await f.executeCareerChatTurn(f.args);
+    assert.equal(f.finished.length, 1);
+    assert.equal(f.finished[0].workUnprompted, unprompted ? true : undefined, JSON.stringify(ids));
+  }
+  const spoken = fixture("Hello", []);
+  await spoken.executeCareerChatTurn(spoken.args);
+  assert.equal(spoken.finished[0].workUnprompted, undefined, "a reply with text is never hidden");
 });

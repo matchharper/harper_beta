@@ -17,7 +17,7 @@ import { prepareFollowedCompanies, readPreparedFollowContext, shouldPrepareFollo
 import { withCareerBackgroundToolTrace } from "./toolTrace.server";
 import { readCompanyIntroContext } from "./companyIntro";
 import { getScheduledCareerModelOptions, isCareerDiscoveryRun, isScheduledCareerRun } from "./scheduledModel";
-import { CAREER_REPLY_UNSEEN_TRIGGER } from "./unseenReply";
+import { isCareerEmailNoticeRun } from "./unansweredForm";
 
 export async function readCareerBackgroundRun(admin: TalentAdminClient, runId: string) {
   const { data, error } = await (admin.from as any)("opportunity_discovery_run").select("*").eq("id", runId).single();
@@ -60,9 +60,9 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
     throw error;
   }
   const continuesChat = run.trigger === "conversation_completed" || run.trigger === "gmail_connected";
-  const unseenReply = run.trigger === CAREER_REPLY_UNSEEN_TRIGGER;
-  // Pending discovery events belong to their own runs, not to a notice about one reply.
-  if (!continuesChat && !unseenReply) {
+  const emailNotice = isCareerEmailNoticeRun(run);
+  // Pending discovery events belong to their own runs, not to a notice.
+  if (!continuesChat && !emailNotice) {
     const { admitDiscoveryEvents } = await import("../resources/discovery");
     await admitDiscoveryEvents(args.admin, args.userId, run.id);
     run = await readCareerBackgroundRun(args.admin, args.runId);
@@ -129,7 +129,7 @@ export async function processCareerBackgroundRun(args: { admin: TalentAdminClien
       admin: args.admin, userId: args.userId, conversationId: args.conversationId, userMessage: null,
       ...(run.trigger === "gmail_connected" ? { applicationEvent: GMAIL_CONNECTED_APPLICATION_EVENT } : {}),
       agentReplyId: invocation.replyId,
-      ...(isScheduledCareerRun(run) || unseenReply ? getScheduledCareerModelOptions() : {}),
+      ...(isScheduledCareerRun(run) || emailNotice ? getScheduledCareerModelOptions() : {}),
       backgroundInvocation: {
         runId: run.id,
         trigger: run.trigger,

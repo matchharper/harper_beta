@@ -161,3 +161,10 @@ test("the onboarding-completed reply is not shown its own work as another runnin
   const later = buildCareerConversationPromptPlan(early);
   assert.ok(later.promptBlocks.map(block => block.text).join("\n").includes("activeOpportunitySearchStatus: handed_off"));
 });
+
+test("a question asked while work runs is answered before waiting on that work", () => {
+  const main = buildCareerMainPrompt({ outputLanguage: "Korean", positionsTabLabel: "새 기회" });
+  // 11/27: "how is it going?" during an application batch was answered only after a five-minute browser wait.
+  assert.match(main, /When the person asks something while work is still running, such as how it is going, first answer in a sentence or two/);
+  assert.match(main, /a tool call that waits on running work can take minutes, and they should not wait for it to hear back/);
+});

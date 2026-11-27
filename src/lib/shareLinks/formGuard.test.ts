@@ -47,4 +47,32 @@ test("a web application's review form (tied to a browser session) gets the box t
   assert.equal(withProfileLinkBox(web).added, true);
   // A form about a role without a browser session or a company address (e.g. a résumé edit) does not.
   assert.equal(withProfileLinkBox({ ...web, relatedRefs: [{ type: "role", id: "r1" }] }).added, false);
+  // Asked once: the start form for its roles already offered the box, so its answer decides the link.
+  assert.equal(withProfileLinkBox(web, { startFormOffersLink: true }).added, false);
+  // A mail is still asked on its own form (Harper passes the link to write_email from that box).
+  assert.equal(withProfileLinkBox({ ...mailForm, relatedRefs: web.relatedRefs }, { startFormOffersLink: true }).added, true);
+});
+
+test("the start form of delegated applications gets the box: a review may never come", () => {
+  const start = {
+    kind: "form" as const,
+    title: "지원 시작",
+    items: [
+      { id: "submit_scope", label: "맡기는 범위", type: "select", content: { options: ["제출까지 맡기기", "제출 전에 한 번 보기"] } },
+      { id: "save_login", label: "로그인 기억하기", type: "checkbox", content: { value: true } },
+    ],
+    relatedRefs: [{ type: "role", id: "r1" }, { type: "role", id: "r2" }],
+  };
+  const guarded = withProfileLinkBox(start);
+  assert.equal(guarded.added, true);
+  assert.equal(guarded.form.items.at(-1)!.label, PROFILE_LINK_BOX_LABEL);
+  // Without roles it is not an application start.
+  assert.equal(withProfileLinkBox({ ...start, relatedRefs: [] }).added, false);
+  // A later revision of the start form keeps the box even when an earlier one had it.
+  assert.equal(withProfileLinkBox({ ...start, relatedRefs: [...start.relatedRefs, { type: "browser_session", id: "s1" }] },
+    { startFormOffersLink: true }).added, true);
+  // The postings list alone marks a start form.
+  const postingsOnly = { ...start, items: [{ id: "apply_postings", label: "지원할 공고", type: "multiselect",
+    content: { options: [{ id: "r1", label: "A사" }, { id: "r2", label: "B사" }], value: ["r1", "r2"] } }] };
+  assert.equal(withProfileLinkBox(postingsOnly).added, true);
 });

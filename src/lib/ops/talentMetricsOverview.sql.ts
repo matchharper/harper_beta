@@ -39,12 +39,15 @@ test_only_roles as materialized (
   where lower(coalesce(role.information ->> 'testOnly', 'false')) = 'true'
 )`;
 
-// 대신 지원: each application the talent confirmed for Harper to carry out (a work_effect), with the send or browser
-// run it was bound to. It is submitted when the Gmail send succeeded, or the browser run's report opens by
-// confirming the submission. 외부 연결 = a submitted application.
-// `submitted` and `notSubmitted` name the query parameters holding SUBMITTED_SENTENCE and NOT_SUBMITTED_SENTENCE.
-// Needs the included_users and test_only_roles CTEs before it.
-export const applicationCtes = (params: { submitted: string; notSubmitted: string }) => String.raw`
+/**
+ * 대신 지원: each application the talent confirmed for Harper to carry out (a work_effect), with the send or browser
+ * run it was bound to. It is submitted when the Gmail send succeeded, or the browser run's report opens by
+ * confirming the submission. Needs an `included_users` CTE before it. /ops/update-metrics reuses this so its daily
+ * 대신 지원 counts stay the same as here; each caller passes where its SUBMITTED_SENTENCE / NOT_SUBMITTED_SENTENCE
+ * parameters sit.
+ */
+export function confirmedApplicationCtes(sentence: { notSubmitted: string; submitted: string }) {
+  return String.raw`
 confirmed_applications as materialized (
   select
     effect.id,
@@ -75,11 +78,18 @@ applications as materialized (
       or (
         application.bound_kind = 'browser_run'
         and application.bound_status = 'completed'
-        and coalesce(application.sentence, '') ~* ${params.submitted}
-        and coalesce(application.sentence, '') !~* ${params.notSubmitted}
+        and coalesce(application.sentence, '') ~* ${sentence.submitted}
+        and coalesce(application.sentence, '') !~* ${sentence.notSubmitted}
       ) as submitted
   from confirmed_applications application
-),
+)`;
+}
+
+// 외부 연결 = a submitted application.
+// `submitted` and `notSubmitted` name the query parameters holding SUBMITTED_SENTENCE and NOT_SUBMITTED_SENTENCE.
+// Needs the included_users and test_only_roles CTEs before it.
+export const applicationCtes = (params: { submitted: string; notSubmitted: string }) =>
+  String.raw`${confirmedApplicationCtes(params)},
 external_connections as materialized (
   select id, user_id, finished_at as connected_at
   from applications

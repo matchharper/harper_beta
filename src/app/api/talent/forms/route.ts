@@ -10,6 +10,9 @@ import {
   readCareerFormResponses,
   respondToCareerForm,
 } from "@/lib/career/forms/server";
+import { classifyFormResponseError, failedPdfExport } from "@/lib/career/forms/responseError";
+import { recordPdfExport } from "@/lib/documents/pdfDiagnostics";
+import { formatToolError } from "@/lib/llm/toolError";
 
 const readInput = z.object({
   conversationId: z.string().uuid(),
@@ -58,6 +61,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// The client shows a reason for the code. The error text stays in the server log, and a PDF that could not be made
+// is also kept in the export log that ops and Harper's document tools read.
+async function refuse(error: unknown, userId: string) {
+  const { status, code, retryable } = classifyFormResponseError(error);
+  console.error("[CareerForms] form response not saved", { code, error: formatToolError(error) });
+  const pdf = failedPdfExport(error);
+  if (pdf) await recordPdfExport({ admin: getTalentSupabaseAdmin(), userId, ...pdf, outcome: "failed" });
+  return NextResponse.json({ code, retryable }, { status });
+}
+
 export async function POST(req: NextRequest) {
   const user = await getRequestUser(req);
   if (!user)
@@ -65,8 +78,7 @@ export async function POST(req: NextRequest) {
   const raw = await req.json().catch(() => null);
   const batch = Boolean(raw && Array.isArray(raw.responses));
   const parsed = (batch ? careerFormBatchInputSchema : careerFormResponseInputSchema).safeParse(raw);
-  if (!parsed.success)
-    return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+  if (!parsed.success) return refuse(parsed.error, user.id);
   try {
     const message = await (batch ? respondToCareerForms : respondToCareerForm)({
       admin: getTalentSupabaseAdmin(),
@@ -80,14 +92,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ message });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to save form response",
-      },
-      { status: 400 }
-    );
+    return refuse(error, user.id);
   }
 }

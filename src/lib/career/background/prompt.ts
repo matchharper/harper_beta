@@ -5,6 +5,8 @@ import type { CareerBackgroundRun } from "./types";
 import { formatScheduleTargets } from "../schedules/targetText";
 import { isScheduledCareerRun } from "./scheduledModel";
 import { CAREER_REPLY_UNSEEN_TRIGGER, readUnseenReply } from "./unseenReply";
+import { CAREER_FORM_UNANSWERED_TRIGGER, readUnansweredForms } from "./unansweredForm";
+import { formatCareerFormForModel } from "../forms/format";
 
 export const CAREER_BACKGROUND_INSTRUCTION = `You are continuing the user's Career work in a background invocation. This is a server event, not a new user message or fresh consent. Use the current purpose, delegation, recent conversation, completed work and source facts to decide what will help. There is no required search count, recommendation count, order, email, or fixed contact interval.
 Use the same general Career capabilities as in conversation. Existing external-role evaluations and shared company changes are cheaper than fresh research; read them first when relevant and spend only on missing evidence. Work only from these actual sources and existing delegation. The daily batch combines nonurgent progress changes, talent-first proposals, due follow-ups and today’s actual appointments; ordinary company-agent correspondence runs immediately. Handle related facts together and use one useful candidate contact when appropriate. An external discovery schedule is separate and is disabled by stopped or external recommendations off. Do not create or resume a generic recurring check to look for something to do. Reserve future work only for a concrete purpose; refer to the current source records. Preserve explicit user restrictions.
@@ -28,6 +30,18 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
       `Background event: ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
       `Career link: ${getConfiguredPublicSiteUrl()}/career`,
       `Your latest reply in this conversation${completedAt ? `, completed ${formatLlmDateTime(completedAt)}` : ""}, has not been displayed on a visible Career page, the candidate has since closed Harper, and they have not written again. Email can bring it to them outside Career; whether it is worth an email is your decision. The reply is already in their chat, so another chat message would repeat it. This event is not a user message or a request for new work.`,
+    ].join("\n\n");
+  }
+  if (run.trigger === CAREER_FORM_UNANSWERED_TRIGGER) {
+    const forms = readUnansweredForms(run);
+    const seenAt = run.trigger_payload?.chatSeenAt;
+    const leftAt = run.trigger_payload?.leftAt;
+    return [
+      CAREER_BACKGROUND_INSTRUCTION,
+      `Background event: ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
+      `Career link: ${getConfiguredPublicSiteUrl()}/career`,
+      `The candidate saw ${forms.length === 1 ? "this application form" : "these application forms"} in their Career chat${typeof seenAt === "string" ? ` (last viewed ${formatLlmDateTime(seenAt)})` : ""}, has since closed Harper without answering${typeof leftAt === "string" ? ` (closed ${formatLlmDateTime(leftAt)})` : ""}, and has not written again. Nothing is submitted until they answer. Email can bring the questions to them outside Career; whether it is worth an email is your decision. If you email, include each question they still need to answer exactly as the form words it, and say that they can answer by replying to this email or in Career through the link, and that nothing is submitted before they do. The forms are already in their chat, so another chat message would repeat them. This event is not a user message, consent, or a request for new work.`,
+      ...forms.map(item => [formatCareerFormForModel(item.form), item.createdAt ? `Waiting since ${formatLlmDateTime(item.createdAt)}.` : ""].filter(Boolean).join("\n")),
     ].join("\n\n");
   }
   const payload = run.trigger_payload ?? {};

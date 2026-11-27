@@ -14,6 +14,8 @@ import {
   type UpdateMetricsSignupRow,
 } from "@/lib/ops/updateMetrics";
 import { updateMetricPoints } from "@/components/ops/metrics/updateMetricPoints";
+import { confirmedApplicationCtes, OVERVIEW_APPLICATIONS_SQL } from "@/lib/ops/talentMetricsOverview.sql";
+import { UPDATE_METRICS_APPLICATIONS_SQL } from "@/lib/ops/updateMetrics.sql";
 
 const DAY = 24 * 60 * 60 * 1000;
 const day0 = kstMidnightMs("2026-11-20");
@@ -42,6 +44,7 @@ function signup(userId: string, offsetDays: number, overrides: Partial<UpdateMet
 const at = (offsetDays: number) => new Date(day0 + offsetDays * DAY).toISOString();
 
 const empty = {
+  applications: [],
   emails: [],
   jobsWithoutRoleUserIds: new Set<string>(),
   landing: [],
@@ -173,6 +176,95 @@ test("a chart marks only the changes that move it", () => {
     assert.ok(change.links.every((link) => link.url.startsWith("https://")), change.key);
     assert.equal(new Set(change.talentCharts).size, change.talentCharts.length, change.key);
   }
+});
+
+test("대신 지원 rows become confirmed and submitted counts and a success rate per confirmation day", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    applications: [
+      { confirmed: 4, day: "2026-11-20", submitted: 1 },
+      // Two rows of one day add up.
+      { confirmed: 2, day: "2026-11-21", submitted: 2 },
+      { confirmed: 3, day: "2026-11-21", submitted: 0 },
+      // Outside the days read: ignored.
+      { confirmed: 9, day: "2026-11-30", submitted: 9 },
+    ],
+    from: "2026-11-20",
+    nowMs,
+    to: "2026-11-23",
+  });
+  assert.deepEqual(result.metrics.applyConfirmed?.[0], { days: 1, kind: "count", value: 4 });
+  assert.deepEqual(result.metrics.applySubmitted?.[1], { days: 1, kind: "count", value: 2 });
+  assert.deepEqual(result.metrics.applySuccessRate?.[1], { denominator: 5, kind: "rate", numerator: 2 });
+  assert.equal(updateMetricChartValue(result.metrics.applySuccessRate?.[0]), 0.25);
+  // A day with no confirmation draws no rate, and the running day counts as the half that has passed.
+  assert.equal(updateMetricChartValue(result.metrics.applySuccessRate?.[2]), null);
+  assert.deepEqual(result.metrics.applyConfirmed?.[3], { days: 0.5, kind: "count", value: 0 });
+  assert.equal(result.metrics.applyConfirmed?.length, result.days.length);
+});
+
+test("a week of 대신 지원 pools its days like the /ops/metrics weekly bars", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    applications: [
+      { confirmed: 10, day: "2026-11-16", submitted: 4 },
+      { confirmed: 6, day: "2026-11-18", submitted: 4 },
+      { confirmed: 4, day: "2026-11-23", submitted: 3 },
+    ],
+    from: "2026-11-16",
+    nowMs: kstMidnightMs("2026-11-25"),
+    to: "2026-11-24",
+  });
+  const weeks = updateMetricPoints(result, { from: "2026-11-16", to: "2026-11-24" }, "week");
+  assert.equal(weeks[0]?.applyConfirmed, 16);
+  assert.equal(weeks[0]?.applySubmitted, 8);
+  assert.equal(weeks[0]?.applySuccessRate, 0.5);
+  assert.equal(weeks[1]?.applySuccessRate, 0.75);
+});
+
+test("대신 지원 daily SQL shares /ops/metrics' application rules with its own parameters", () => {
+  // Same fragment, only the sentence placeholders differ: update metrics passes them as $4/$5, /ops/metrics as $5/$6.
+  assert.ok(OVERVIEW_APPLICATIONS_SQL.includes(confirmedApplicationCtes({ notSubmitted: "$6", submitted: "$5" })));
+  assert.ok(UPDATE_METRICS_APPLICATIONS_SQL.includes(confirmedApplicationCtes({ notSubmitted: "$5", submitted: "$4" })));
+  assert.ok(!/\$6\b/.test(UPDATE_METRICS_APPLICATIONS_SQL));
+});
+
+test("대신 지원 changes mark only the 대신지원 성공률 chart and read its three metrics", () => {
+  const applyChanges = OPS_TRACKED_CHANGES.filter((change) => change.key.includes("-apply-"));
+  assert.deepEqual(
+    applyChanges.map((change) => [change.key, change.deployedOn]),
+    [
+      ["2026-11-28-apply-confirm-progress", "2026-11-28"],
+      ["2026-11-23-apply-batch", "2026-11-23"],
+      ["2026-11-18-apply-login-code", "2026-11-18"],
+    ]
+  );
+  for (const change of applyChanges) {
+    assert.deepEqual(change.talentCharts, ["applySuccess"], change.key);
+    assert.deepEqual(change.bars, ["applyConfirmed", "applySubmitted"], change.key);
+    assert.deepEqual(change.lines, ["applySuccessRate"], change.key);
+    assert.equal(change.primary, "applySuccessRate", change.key);
+    // Submitted is part of confirmed: stacking the two would count it twice.
+    assert.notEqual(change.stackBars, true, change.key);
+    assert.equal(changeMovesChart(change, "applySuccess"), true, change.key);
+    assert.equal(changeMovesChart(change, "applyDelegation"), false, change.key);
+  }
+  // Newest deploy first.
+  const deployed = OPS_TRACKED_CHANGES.map((change) => change.deployedOn);
+  assert.deepEqual(deployed, [...deployed].sort().reverse());
+});
+
+test("a change deployed after the last day read has no after period yet", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    applications: [{ confirmed: 4, day: "2026-11-22", submitted: 2 }],
+    from: "2026-10-30",
+    nowMs,
+    to: "2026-11-30",
+  });
+  const comparison = trackedChangeComparison(result, { deployedOn: "2026-11-27", primary: "applySuccessRate" });
+  assert.equal(comparison.after, null);
+  assert.equal(updateMetricPeriodValue(comparison.before), 0.5);
 });
 
 test("posting entrants count as applied for a 맡김 or their own 직접 지원, and as connected only when it reached the company", () => {

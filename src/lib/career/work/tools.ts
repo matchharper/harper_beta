@@ -26,6 +26,22 @@ const inputSchema = z.object({
   include_closed: z.boolean().optional(),
 });
 
+/**
+ * A start needs identity, instruction and a user source together, which the JSON schema cannot say. The database
+ * checks them only after the refs and refuses with one message for all three, and a start resent after a refused ref
+ * often dropped one of them (#120), so code names what is missing before the call.
+ */
+function missingStartValues(input: z.infer<typeof inputSchema>, sourceRefs: number[], delivered: number[]) {
+  const missing = [!input.identity?.trim() && "identity", !input.instruction?.trim() && "instruction", !sourceRefs.length && "source_refs"].filter(Boolean);
+  if (!missing.length) return null;
+  return [
+    `Work not started: ${missing.join(", ")} missing. Resend the same start with identity, instruction and source_refs all set, keeping its mode, target and refs.`,
+    `identity: a stable purpose + target name, the same for a repeated request. instruction: the purpose and constraints from the user's messages. source_refs: the exact IDs of the user messages that asked for this work (shown as "User message <id>").`,
+    sourceRefs.length ? "" : delivered.length ? `Omit source_refs to cite the user messages delivered to this execution (${delivered.join(", ")}).`
+      : "This execution received no user message, so source_refs must name them.",
+  ].filter(Boolean).join(" ");
+}
+
 export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
   manage_work: {
     name: "manage_work", channels: ["chat"],
@@ -75,6 +91,10 @@ export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
         return { work, modelOutput: formatWork(work) };
       }
       if (input.action === "start" && context.workId) throw new Error("Continue this work; independent work is delegated from the conversation.");
+      const delivered = context.userMessageIds ?? (context.userMessageId ? [Number(context.userMessageId)] : []);
+      const sourceRefs = input.source_refs ?? delivered;
+      const missing = input.action === "start" ? missingStartValues(input, sourceRefs, delivered) : null;
+      if (missing) throw new Error(missing);
       const waitingOn=input.action==="wait"&&input.waiting_on?.kind==="gmail_thread"
         ? await (await import("../emailWriting/sync")).prepareMailWait(scope,input.waiting_on) : input.waiting_on;
       const work = await workRpc(scope, input.action, { ...input,
@@ -83,7 +103,7 @@ export const CAREER_WORK_TOOLS: Record<string, TalentToolDefinition> = {
           (input.action === "wait" || input.action === "finish") && input.work_id === context.workId
             ? context.workRevision : undefined
         ),
-        source_refs: input.source_refs ?? context.userMessageIds ?? (context.userMessageId ? [Number(context.userMessageId)] : []),
+        source_refs: sourceRefs,
         caller_work_id: context.workId ?? null,
         claim_id:context.agentClaimId??null,
         origin_reply_id: context.resumeRequestId ?? null,
