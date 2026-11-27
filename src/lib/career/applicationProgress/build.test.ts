@@ -368,18 +368,20 @@ test("a Stop holds through Harper's turns on other things; asking about that app
   assert.equal(running.get(ROLE_A)?.failure, undefined);
   assert.equal(running.get(ROLE_A)?.steps[3].state, "current");
   assert.deepEqual(running.get(ROLE_B)?.failure, { reason: "stopped" });
-  // That turn ended (or is on hold) with nothing recorded for A, or a later turn runs on something else: the request was
-  // only that turn's, so the Stop holds again and the person can ask once more.
+  // The finishing turn handed the request to the next one, which started after it: still held, still under way.
+  assert.equal(byId(build(start, cut, [], { now: new Date(at(67)), turnStartedAt: at(66), requests: goOn })).get(ROLE_A)?.status, "waiting");
+  // That turn ended with nothing recorded for A, or a later turn runs on something else (or is on hold): no turn holds
+  // the request any more (the reader passes only held ones), so the Stop holds again and the person can ask once more.
   for (const extra of [{}, { waitingForReply: true }, { turnStartedAt: at(66) }]) {
-    const after = build(start, cut, [], { now: new Date(at(70)), requests: goOn, ...extra });
+    const after = build(start, cut, [], { now: new Date(at(70)), ...extra });
     assert.ok(stoppedAll(after), JSON.stringify(extra));
     assert.equal(careerApplicationPercent(byId(after).get(ROLE_A)!), 75, "its percentage holds through all of it");
   }
   assert.equal(careerApplicationPercent(running.get(ROLE_A)!), 75);
-  // A question about A ("A사는 왜 멈췄어?") is no different: under way while its turn runs, stopped again after it.
+  // A question about A ("A사는 왜 멈췄어?") is no different: under way while its turn holds it, stopped again after it.
   const question = [{ createdAt: at(80), roleIds: [ROLE_A] }];
   assert.equal(byId(build(start, cut, [], { now: new Date(at(81)), turnStartedAt: at(80), requests: question })).get(ROLE_A)?.status, "waiting");
-  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(120)), requests: question })));
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(120)) })));
 });
 
 test("a form the person's Stop closed unanswered stays to do, so the percentage never goes back", () => {

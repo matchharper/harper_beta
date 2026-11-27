@@ -55,15 +55,19 @@ export async function GET(req: NextRequest) {
   }));
   const invocations = Promise.resolve((admin.from as any)("talent_external_operations")
     .select(
-      "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
+      "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,source_message_id:request->>source_message_id,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
       { count: "exact" }
     )
     .eq("user_id", user.id)
     .eq("conversation_id", conversationId.data)
     .eq("kind", "career_invocation")
     .neq("status", "completed"));
-  const turnRows = invocations.then((result: { data?: { created_at?: string; cleanup?: boolean; cleanup_browser_session?: unknown;
-    activity?: { waitingForReply?: boolean } | null }[] | null }) => result.data ?? []);
+  type TurnRow = { created_at?: string; cleanup?: boolean; cleanup_browser_session?: unknown; source_message_id?: string | null;
+    input_message_ids?: unknown; activity?: { waitingForReply?: boolean } | null };
+  const turnRows = invocations.then((result: { data?: TurnRow[] | null }) => result.data ?? []);
+  // A Harper turn (not a cleanup), and one that is working (not on hold).
+  const turn = (row: TurnRow) => !row.cleanup && !row.cleanup_browser_session;
+  const working = (row: TurnRow) => turn(row) && !row.activity?.waitingForReply;
   const [forms, pending, work, completed, dependencies, applications] = await Promise.all([
     openForms,
     invocations,
@@ -98,15 +102,18 @@ export async function GET(req: NextRequest) {
           const form = parseCareerForm(row.payload);
           return form ? [{ ...form, createdAt: row.created_at ?? null }] : [];
         })),
-      // A turn that is working (not cleanup, not on hold) may still follow up a stopped run.
-      turnStartedAt: turnRows.then((rows) =>
-        rows.filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
-          .map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
+      // A working turn may still follow up a stopped run.
+      turnStartedAt: turnRows.then((rows) => rows.filter(working).map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
+      // The person's messages a Harper turn here still holds: the ones it was queued with or received, and the one it
+      // started from (the same ids a Stop ends). A message that came while a turn finished is handed to the next turn, so
+      // it is held all along, though that turn started after it. A turn on hold resumes by itself, so it holds them too.
+      turnMessageIds: turnRows.then((rows) => [...new Set(rows.filter(turn).flatMap((row) => [
+        ...(Array.isArray(row.input_message_ids) ? row.input_message_ids : []), ...(row.source_message_id ? [row.source_message_id] : [])])
+        .map(String))]),
       // A turn on hold (activity.ts: its checkpoint waits for a newer request handled first, or for browser_control,
       // which no tool creates today): a paused application then points to the chat instead of asking Harper again. The
       // hold names no application, so it is the whole conversation's.
-      waitingForReply: turnRows.then((rows) =>
-        rows.some((row) => !row.cleanup && !row.cleanup_browser_session && row.activity?.waitingForReply === true)),
+      waitingForReply: turnRows.then((rows) => rows.some((row) => turn(row) && row.activity?.waitingForReply === true)),
       // A Stop queues one cleanup per open browser; until it runs, that browser is as good as closed.
       closingBrowserSessionIds: turnRows.then((rows) => [...new Set(rows.flatMap((row) =>
         typeof row.cleanup_browser_session === "string" ? [row.cleanup_browser_session] : []))]),

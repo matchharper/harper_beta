@@ -25,7 +25,7 @@ function harness({
   closingSessions = [] as string[],
 } = {}) {
   const progressCalls: Array<{ userId: string; conversationId: string; openForms: unknown; turnStartedAt: unknown;
-    waitingForReply: unknown; closingBrowserSessionIds: unknown }> = [];
+    waitingForReply: unknown; closingBrowserSessionIds: unknown; turnMessageIds: unknown }> = [];
   const calls: Array<{
     table: string;
     columns?: string;
@@ -72,11 +72,11 @@ function harness({
         return {
           count: 3,
           data: [
-            { id: "active", input_message_ids: [40, 41, 42], delivered_input_message_ids: deliveredIds,
+            { id: "active", source_message_id: "40", input_message_ids: [40, 41, 42], delivered_input_message_ids: deliveredIds,
               delivered_event_ids: deliveredEventIds, activity: { logs: ["프로필 확인 중"], waitingForReply },
               ...(turnCreatedAt ? { created_at: turnCreatedAt } : {}) },
-            ...(parkedTurn ? [{ id: "waiting", activity: { waitingForReply: true } }] : []),
-            { id: "cleanup", cleanup: true },
+            ...(parkedTurn ? [{ id: "waiting", source_message_id: "39", activity: { waitingForReply: true } }] : []),
+            { id: "cleanup", cleanup: true, source_message_id: "38" },
             // A Stop's browser cleanups; one of them already waits on nothing and still names its browser.
             ...closingSessions.map((session, index) => ({ id: `browser-cleanup-${index}`, cleanup_browser_session: session,
               activity: { waitingForReply: true } })),
@@ -164,9 +164,10 @@ function harness({
       if (name === "@/lib/career/applicationProgress/read.server")
         return {
           readCareerApplicationProgress: async (args: { userId: string; conversationId: string; openForms: PromiseLike<unknown>; turnStartedAt: PromiseLike<unknown>;
-            waitingForReply: PromiseLike<unknown>; closingBrowserSessionIds: PromiseLike<unknown> }) => {
+            waitingForReply: PromiseLike<unknown>; closingBrowserSessionIds: PromiseLike<unknown>; turnMessageIds: PromiseLike<unknown> }) => {
             progressCalls.push({ userId: args.userId, conversationId: args.conversationId, openForms: await args.openForms, turnStartedAt: await args.turnStartedAt,
-              waitingForReply: await args.waitingForReply, closingBrowserSessionIds: await args.closingBrowserSessionIds });
+              waitingForReply: await args.waitingForReply, closingBrowserSessionIds: await args.closingBrowserSessionIds,
+              turnMessageIds: await args.turnMessageIds });
             if (progress === "fail") throw new Error("progress read failed");
             return [{ id: "role-1", status: "running" }];
           },
@@ -263,6 +264,17 @@ test("only a working turn holds a stopped run back from failing", async () => {
   const waiting = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", waitingForReply: true });
   await waiting.get();
   assert.equal(waiting.progressCalls[0].turnStartedAt, null);
+});
+
+test("the person's messages a Harper turn still holds reach the progress read: on hold too, never a cleanup's", async () => {
+  // The working turn's source and its queued and received input, and the source of the delegated turn on hold (it
+  // resumes by itself); not the Stop cleanup's.
+  const both = harness({ turnCreatedAt: "2026-11-04T00:00:00Z" });
+  await both.get();
+  assert.deepEqual(Array.from(both.progressCalls[0].turnMessageIds as string[]), ["40", "41", "42", "39"]);
+  const onlyWorking = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", parkedTurn: false });
+  await onlyWorking.get();
+  assert.deepEqual(Array.from(onlyWorking.progressCalls[0].turnMessageIds as string[]), ["40", "41", "42"]);
 });
 
 test("a turn on hold in the chat and a Stop's queued browser cleanups reach the progress read", async () => {
@@ -516,32 +528,82 @@ test("while an application is stopped, the person's messages naming it during th
       return query;
     },
   };
-  const read = (turnStartedAt: string | null) => readCareerApplicationProgress({ admin: admin as any, userId, conversationId,
-    openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt), now });
-  const byRole = new Map((await read("2026-11-26T09:10:00Z")).map((item) => [item.id, item]));
-  assert.equal(byRole.get(roleIds[0])?.failure, undefined, "asked to go on, and that turn runs");
+  // The turn now running holds 310 (it started from it) and 312 (received during it).
+  const read = (turnStartedAt: string | null, held: (string | number)[]) => readCareerApplicationProgress({ admin: admin as any,
+    userId, conversationId, openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt),
+    turnMessageIds: Promise.resolve(held), now });
+  const byRole = new Map((await read("2026-11-26T09:10:00Z", [310, "312"])).map((item) => [item.id, item]));
+  assert.equal(byRole.get(roleIds[0])?.failure, undefined, "asked to go on, and that turn holds it");
   assert.equal(byRole.get(roleIds[0])?.status, "waiting");
   assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "stopped" }, "that request was stopped too");
   assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "stopped" }, "a company mention is not this application");
 
-  // Read last, from the earliest Stop that still holds and the running turn's start: only the person's messages
-  // carrying a mention, a few columns.
+  // Read last: only the held messages since the earliest Stop that still holds, carrying a mention, a few columns.
   const request = calls.find((call) => call.filters.role === "user");
   assert.equal(calls.at(-1), request);
   assert.equal(request?.columns, "id,createdAt:created_at,content");
-  assert.deepEqual(request?.filters, { user_id: userId, conversation_id: conversationId, role: "user",
-    "created_at:gt": "2026-11-26T09:03:00Z", "created_at:gte": "2026-11-26T09:10:00Z", "content:like": "%HARPER_OPPORTUNITY_MENTIONS_V1%" });
+  assert.deepEqual(request?.filters, { user_id: userId, conversation_id: conversationId, role: "user", "id:in": ["310", "312"],
+    "created_at:gt": "2026-11-26T09:03:00Z", "content:like": "%HARPER_OPPORTUNITY_MENTIONS_V1%" });
   assert.ok(request?.limit && request.limit <= 50);
 
-  // That turn ended with nothing recorded for A: the Stop holds again, and no turn means nothing more to read.
+  // That turn ended with nothing recorded for A: the Stop holds again, and no held message means nothing more to read.
   calls.length = 0;
-  assert.deepEqual(new Map((await read(null)).map((item) => [item.id, item])).get(roleIds[0])?.failure, { reason: "stopped" });
+  assert.deepEqual(new Map((await read(null, [])).map((item) => [item.id, item])).get(roleIds[0])?.failure, { reason: "stopped" });
   assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
   // Nothing stopped, nothing more to read.
   stopped = false;
   calls.length = 0;
-  assert.ok((await read("2026-11-26T09:10:00Z")).every((item) => item.failure?.reason !== "stopped"));
+  assert.ok((await read("2026-11-26T09:10:00Z", [310, 312])).every((item) => item.failure?.reason !== "stopped"));
   assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
+});
+
+test("a go-on a finishing turn handed to the next one counts while that turn holds it, though that turn started after it", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleId = "00000000-0000-4000-8000-0000000000a1";
+  const mention = `A사 이어서 해 줘.\n\n[[HARPER_OPPORTUNITY_MENTIONS_V1:${encodeURIComponent(JSON.stringify([{ label: "A사 · 백엔드", roleId }]))}]]`;
+  // A Stop at 09:03 cut off A's submission. Turn T1 (09:20, about something else) was writing its last reply when the
+  // person sent "A사 이어서 해 줘" at 09:25; T1 finished without reading it and handed it to T2, created at 09:26.
+  const operations = [{ id: "00000000-0000-4000-8000-0000000000d1", kind: "browser_run", status: "failed", mode: "execute",
+    createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleId], sourceMessageId: "301" }];
+  const messages = [{ id: 320, createdAt: "2026-11-26T09:25:00Z", content: mention }];
+  type Row = Record<string, unknown>;
+  // The fake applies the id, time and content filters, as PostgREST would.
+  const admin = {
+    from(table: string) {
+      const filters: Record<string, unknown> = {};
+      const keep: ((row: Row) => boolean)[] = [];
+      const query: any = {
+        select() { return query; },
+        eq(column: string, value: unknown) { filters[column] = value; return query; },
+        in(column: string, values: unknown[]) {
+          if (column === "id") keep.push((row) => values.map(String).includes(String(row.id)));
+          return query;
+        },
+        gte(_: string, value: string) { keep.push((row) => Date.parse(String(row.createdAt)) >= Date.parse(value)); return query; },
+        gt(_: string, value: string) { keep.push((row) => Date.parse(String(row.createdAt)) > Date.parse(value)); return query; },
+        like(_: string, value: string) { keep.push((row) => String(row.content ?? "").includes(value.replaceAll("%", ""))); return query; },
+        not() { return query; }, order() { return query; }, limit() { return query; },
+        then(resolve: (value: unknown) => unknown) {
+          const rows: Row[] = table === "company_roles" ? [] : table === "talent_messages"
+            ? filters.message_type === "career_turn_stop" ? [{ createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301] }]
+              : filters.role === "user" ? messages : []
+            : filters.kind === "delegated_work" ? [] : operations;
+          return Promise.resolve(resolve({ data: rows.filter((row) => keep.every((test) => test(row))), error: null }));
+        },
+      };
+      return query;
+    },
+  };
+  const read = (turnStartedAt: string | null, held: number[]) => readCareerApplicationProgress({ admin: admin as any, userId,
+    conversationId, openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt), turnMessageIds: Promise.resolve(held),
+    now: new Date("2026-11-26T09:27:00Z") });
+  const statusOf = async (turnStartedAt: string | null, held: number[]) => (await read(turnStartedAt, held)).find((item) => item.id === roleId);
+  assert.equal((await statusOf("2026-11-26T09:20:00Z", [300, 320]))?.status, "waiting", "T1 holds it");
+  const duringT2 = await statusOf("2026-11-26T09:26:00Z", [320]);
+  assert.equal(duringT2?.failure, undefined, "T2 holds it and runs");
+  assert.equal(duringT2?.status, "waiting");
+  // A turn on something else that does not hold it is no go-on, however late it started.
+  assert.deepEqual((await statusOf("2026-11-26T09:21:00Z", [330]))?.failure, { reason: "stopped" });
 });
 
 test("a stopped application asked to go on stays while that turn runs: a day past its newest record, and past another's later stop", async () => {
@@ -589,8 +651,10 @@ test("a stopped application asked to go on stays while that turn runs: a day pas
       return query;
     },
   });
+  // While that turn runs it holds 310, the message it started from.
   const read = (operations: Row[], turnStartedAt: string | null) => readCareerApplicationProgress({ admin: fake(operations) as any,
-    userId, conversationId, openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt), now: new Date(hours(24 + 10 / 60)) });
+    userId, conversationId, openForms: Promise.resolve([]), turnStartedAt: Promise.resolve(turnStartedAt),
+    turnMessageIds: Promise.resolve(turnStartedAt ? [310] : []), now: new Date(hours(24 + 10 / 60)) });
   const statusOf = (list: CareerApplicationProgress[], id: string) => list.find((item) => item.id === id)?.status;
 
   assert.equal(statusOf(await read([runA], requests[0].createdAt), roleA), "waiting", "asked to go on, and that turn runs");
