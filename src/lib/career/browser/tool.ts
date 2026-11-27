@@ -30,7 +30,8 @@ import {
 import { careerTurnStopReason } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
 import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
-import { keepReceiptScreenshot } from "./receiptScreenshot";
+import { after } from "next/server";
+import { keepReceiptScreenshot, receiptScreenshotSettled } from "./receiptScreenshot";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 import { enableSavedLogin, forgetSavedLogin, readSavedLogin, savedLoginProfileId } from "./savedLogin";
 import { closedPostingBeforePreparation } from "./postingCheck";
@@ -211,6 +212,11 @@ const reference = (operation: ExternalOperation, key: string) =>
   typeof operation.provider_refs[key] === "string"
     ? (operation.provider_refs[key] as string)
     : undefined;
+/** This server may still be picturing the page the session's last run ended on (receiptScreenshot.ts); stop after it. */
+async function lastPageKept(session: ExternalOperation) {
+  const runId = reference(session, "current_execution_id");
+  if (runId) await receiptScreenshotSettled(runId);
+}
 
 async function presentBrowserSession(
   context: ExternalToolContext,
@@ -422,7 +428,9 @@ async function reconcileBrowserSession(
       parent.status === "closing"
     ) {
       const close = parent.result.requested_action === "close";
-      if (close)
+      if (close) {
+        // A picture of the page this run ended on, started when its receipt was saved, is kept before the browser stops.
+        await receiptScreenshotSettled(latest.id);
         await browserUseAgents.stop({
           sessionId:
             typeof providerRefs.session_id === "string"
@@ -433,6 +441,7 @@ async function reconcileBrowserSession(
               ? providerRefs.workspace_id
               : undefined,
         });
+      }
       await updateOperation(context, parent, {
         status: close ? "closed" : "human",
         provider_refs: providerRefs,
@@ -485,11 +494,13 @@ export async function refreshBrowserExecution(
       };
   // Two readers can see the same finished run (the chat that started it and the minute check). The first save wins;
   // the other uses that saved receipt instead of failing, and the session release is read again once.
+  let won = false;
   const latest = await updateOperation(context, execution, {
     status: remote.status,
     result,
   }).then((saved) => {
     // Only the reader whose save won pictures the page the run ended on, so it is taken once per run and never awaited.
+    won = true;
     keepReceiptScreenshot(context, saved);
     return saved;
   }).catch(async (error) => {
@@ -501,7 +512,39 @@ export async function refreshBrowserExecution(
   // The stage follows the receipt; a failed stage write never hides the run result.
   await markSubmittedApplications(context, latest).catch((error) =>
     console.error("[CareerBrowser] Failed to mark submitted application", { executionId: latest.id, error: error instanceof Error ? error.message : String(error) }));
+  if (won) releaseAfterConfirmedSubmission(context, latest);
   return latest;
+}
+
+/**
+ * A browser whose submission the site confirmed has nothing left to do, so it does not stay open for
+ * CAREER_BROWSER_KEEP_ALIVE_SECONDS: once the picture of its last page is kept, it is released like waiting work's
+ * browser. Only an idle session still on that run is released; a person's control, a newer run or a result that is
+ * not a confirmed submission keeps it. Nothing waits for it; keepAlive (after() in a request) lets it finish.
+ */
+export function releaseAfterConfirmedSubmission(
+  context: Pick<ExternalToolContext, "admin" | "userId">,
+  run: ExternalOperation,
+  keepAlive: (work: Promise<void>) => void = after
+) {
+  const sessionId = run.parent_id;
+  if (run.kind !== "browser_run" || run.request.mode !== "execute" || browserRunSubmission(run.result) !== "yes" || !sessionId) return;
+  const work = receiptScreenshotSettled(run.id).then(async () => {
+    const session = await readOperation(context, sessionId);
+    if (!session?.conversation_id || session.kind !== "browser_session" || session.status !== "idle"
+      || reference(session, "current_execution_id") !== run.id) return;
+    await executeUseBrowser({ action: "release", session_id: session.id }, {
+      admin: context.admin, userId: context.userId, conversationId: session.conversation_id,
+      requestId: `confirmed-submission:${run.id}`, deadlineAt: Date.now(),
+    });
+  }).catch((error) => console.warn("[CareerBrowser] Browser not released after a confirmed submission", {
+    executionId: run.id, error: error instanceof Error ? error.message : String(error),
+  }));
+  try {
+    keepAlive(work);
+  } catch {
+    // Outside a request (a script or a test) there is no response to outlive; the work runs on by itself.
+  }
 }
 
 /**
@@ -837,6 +880,7 @@ export async function executeUseBrowser(
     if (error) throw new Error(error.message);
     session = data.session;
     if (!data.claimed) return { session, modelOutput: formatBrowserToolResult([session]) };
+    await lastPageKept(session);
     await browserUseAgents.stop({ sessionId: reference(session, "session_id"), workspaceId: reference(session, "workspace_id") }, false);
     const { session_id: retiredSession, ...retainedRefs } = session.provider_refs;
     session = await updateOperation(context, session, { status: "idle", provider_refs: retainedRefs,
@@ -897,11 +941,13 @@ export async function executeUseBrowser(
           ),
         };
     }
-    if (input.action === "close")
+    if (input.action === "close") {
+      await lastPageKept(session);
       await browserUseAgents.stop({
         sessionId: reference(session, "session_id"),
         workspaceId: reference(session, "workspace_id"),
       });
+    }
     session = await updateOperation(context, session, {
       status: input.action === "close" ? "closed" : "human",
       result: {

@@ -1,7 +1,7 @@
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { executeUseBrowser, refreshBrowserExecution, observeBrowserSession, formatBrowserToolResult, formatBrowserSessionResult } from "./tool";
-import { browserUseAgents, BrowserUseHttpError } from "../simulation/browserUseAgents";
+import { browserUseAgents, BrowserUseHttpError, type SessionPageCapture } from "../simulation/browserUseAgents";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { ExternalOperation } from "../externalOperations/store";
 const userId = "00000000-0000-4000-8000-000000000001",
@@ -374,6 +374,52 @@ test("closing a browser handed to the person after its run finished stops it wit
   await executeUseBrowser({ action: "close", session_id: sessionId }, context);
   assert.equal(stopped, 1);
   assert.equal(rows[1].status, "completed");
+  assert.equal(rows[0].status, "closed");
+});
+/** A finished execute run whose receipt reports `submitted`, with the picture of its last page held until `finish`. */
+function finishedSubmission(t: { mock: typeof mock }, submitted: string) {
+  const fixed = fixture("running");
+  fixed.rows[1].request = { mode: "execute" };
+  const events: string[] = [];
+  let finish!: () => void;
+  t.mock.method(browserUseAgents, "captureSessionPage", () => new Promise<SessionPageCapture>((resolve) => {
+    finish = () => { events.push("picture"); resolve({ status: "unavailable", reason: "no_cdp_url" }); };
+  }));
+  t.mock.method(browserUseAgents, "status", async () => ({ status: "completed" }));
+  t.mock.method(browserUseAgents, "result", async () => ({ status: "completed", output: JSON.stringify({
+    summary: "Company A's form was sent.", evidence: [], needsUser: false, url: "https://company-a.example/done", submitted }) }));
+  t.mock.method(browserUseAgents, "stop", async () => { events.push("stop"); });
+  return { ...fixed, events, finish: () => finish() };
+}
+const settle = async (done: () => boolean) => {
+  for (let tick = 0; tick < 200 && !done(); tick++) await new Promise((resolve) => setImmediate(resolve));
+};
+test("a browser whose submission the site confirmed is released once the picture of its last page is kept", async (t) => {
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  const latest = await refreshBrowserExecution(context, structuredClone(rows[1]));
+  assert.equal(latest.status, "completed");
+  await settle(() => false);
+  assert.deepEqual(events, [], "the browser stays open while its last page is pictured");
+  finish();
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.last_execution_id, executionId);
+  assert.equal(rows[0].provider_refs.session_id, undefined);
+  assert.deepEqual(rows[1].provider_refs.receipt_screenshot, { status: "unavailable", reason: "no_cdp_url" });
+});
+test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
+  const { rows, context, events, finish } = finishedSubmission(t, "unclear");
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  await settle(() => false);
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.browser_availability, undefined);
+  const closing = executeUseBrowser({ action: "close", session_id: sessionId }, context);
+  await settle(() => false);
+  assert.deepEqual(events, [], "close waits for the picture");
+  finish();
+  await closing;
+  assert.deepEqual(events, ["picture", "stop"]);
   assert.equal(rows[0].status, "closed");
 });
 test("unknown dispatch cannot claim successful close or release its session for a competing run", async (t) => {

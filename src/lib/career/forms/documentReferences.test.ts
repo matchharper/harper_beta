@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { executeSuggestForm, respondToCareerForm } from "./server";
 import { getCareerFormContent } from "./schema";
+import { classifyFormResponseError } from "./responseError";
 
 const userId = "00000000-0000-4000-8000-000000000001";
 const conversationId = "00000000-0000-4000-8000-000000000002";
@@ -69,7 +70,12 @@ test("a document edited after presentation cannot silently become the approved a
   document.revision = 2;
   t.mock.method(globalThis, "fetch", async () => { throw new Error("Revision conflict must precede export"); });
   await assert.rejects(respondToCareerForm({ ...scope, input: { conversationId, formId: 42, revision: 1,
-    values: { resume: documentId }, requestId: "answer-2" } }), /Attachment revision changed/);
+    values: { resume: documentId }, requestId: "answer-2" } }), (error: unknown) => {
+    assert.match(String(error), /Attachment revision changed/);
+    // Pressing again cannot help: the person is told to choose the file again or let Harper know.
+    assert.deepEqual(classifyFormResponseError(error), { code: "file_unavailable", status: 422, retryable: false });
+    return true;
+  });
   assert.equal(rows.length, 1);
 });
 
