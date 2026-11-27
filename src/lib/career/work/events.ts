@@ -54,12 +54,14 @@ export async function readCareerEventContext(scope: WorkScope, events: CareerCon
       facts = [formatWork(work), String((row.result.output as { content?: string } | undefined)?.content ?? "")].filter(Boolean).join("\n");
     } else if (event.request.kind === "gmail_connected") {
       const { formatBrowserToolResult } = await import("../browser/tool");
-      facts = [
+      const { browserRunAwaitsEmailLink } = await import("../browser/submissionReceipt");
+      facts = (browserRunAwaitsEmailLink(row.result) ? [
+        "Gmail read access was connected while this application waited for a verification link the site sent by email.",
+        "Read only the newest message from that site that carries the link, then continue the application within the approval it already has: give the same browser the link to open in a new tab and return to the application. A browser that has closed needs a new mail.",
+      ] : [
         "Gmail read access was connected while this application waited at a screen for a one-time code the site sent by email.",
         "Read only the message that carries that code, then continue the application within the approval it already has. A screen that has closed needs a new code.",
-        "The rest of the inbox is reviewed separately later.",
-        formatBrowserToolResult([row]),
-      ].join("\n");
+      ]).concat("The rest of the inbox is reviewed separately later.", formatBrowserToolResult([row])).join("\n");
     } else if (event.request.kind === "browser_control") {
       const { readBrowserControlReturns } = await import("../browser/control");
       facts = await readBrowserControlReturns(scope, [{ session_id: row.id, revision: event.request.revision }]);

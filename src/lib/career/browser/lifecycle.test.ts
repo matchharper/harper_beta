@@ -362,6 +362,20 @@ test("close during attachment preparation revokes dispatch and closes only the o
   assert.equal(rows[0].status, "closed");
   assert.match(result.modelOutput, /User selected browser close/);
 });
+test("closing a browser handed to the person after its run finished stops it without cancelling the finished run", async (t) => {
+  const { rows, context } = fixture("completed");
+  rows[0].status = "human";
+  let stopped = 0;
+  t.mock.method(browserUseAgents, "cancelRun", async () => assert.fail("A finished run has nothing to cancel"));
+  t.mock.method(browserUseAgents, "stop", async (state: Parameters<typeof browserUseAgents.stop>[0]) => {
+    stopped++;
+    assert.equal(state.sessionId, remoteSession);
+  });
+  await executeUseBrowser({ action: "close", session_id: sessionId }, context);
+  assert.equal(stopped, 1);
+  assert.equal(rows[1].status, "completed");
+  assert.equal(rows[0].status, "closed");
+});
 test("unknown dispatch cannot claim successful close or release its session for a competing run", async (t) => {
   const { rows, context } = fixture("dispatching");
   t.mock.method(browserUseAgents, "stop", async () =>

@@ -1,6 +1,6 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { careerExecutionEnvironment } from "../executionEnvironment";
-import { browserRunAwaitsEmailCode } from "../browser/submissionReceipt";
+import { browserRunAwaitsEmailCode, browserRunAwaitsEmailLink } from "../browser/submissionReceipt";
 import { CAREER_BROWSER_KEEP_ALIVE_SECONDS } from "../browser/lifetime";
 import type { CareerAgentReplyJob } from "../agentReplyQueue";
 
@@ -16,7 +16,7 @@ const CODE_SCREEN_MS = (CAREER_BROWSER_KEEP_ALIVE_SECONDS + 5 * 60) * 1000;
 type GmailReview = { id: string; user_id: string; conversation_id: string | null; created_at: string };
 type BrowserRun = { id: string; conversation_id: string | null; request: Record<string, unknown>; result: Record<string, unknown> | null };
 
-/** Applications of the person's that stopped within the last few minutes at a screen waiting for an emailed code. */
+/** Applications of the person's that stopped within the last few minutes at a screen waiting for an emailed code or link. */
 async function applicationsAwaitingEmailCode(admin: TalentAdminClient, userId: string, now: number, conversationId?: string) {
   let query = (admin.from as any)("talent_external_operations").select("id,conversation_id,request,result")
     .eq("user_id", userId).eq("kind", "browser_run").eq("request->>execution_environment", careerExecutionEnvironment())
@@ -24,7 +24,8 @@ async function applicationsAwaitingEmailCode(admin: TalentAdminClient, userId: s
   if (conversationId) query = query.eq("conversation_id", conversationId);
   const { data, error } = await query.order("updated_at", { ascending: false }).limit(10);
   if (error) throw error;
-  return ((data ?? []) as BrowserRun[]).filter((run) => run.conversation_id && browserRunAwaitsEmailCode(run.result ?? {}));
+  return ((data ?? []) as BrowserRun[]).filter((run) => run.conversation_id
+    && (browserRunAwaitsEmailCode(run.result ?? {}) || browserRunAwaitsEmailLink(run.result ?? {})));
 }
 
 /** Whether the person is using this chat: a recent request of theirs is unfinished, the chat moved, a form waits for
@@ -106,9 +107,9 @@ export function scheduleLocalGmailReview(admin: TalentAdminClient, userId: strin
 }
 
 /**
- * Tells applications that stopped at a screen waiting for an emailed code, in the last few minutes, that Gmail is now
- * readable. The event goes into that chat's own turn, which can read the code and continue within the approval the
- * application already has; the inbox review itself still waits its turn.
+ * Tells applications that stopped at a screen waiting for an emailed code or verification link, in the last few minutes,
+ * that Gmail is now readable. The event goes into that chat's own turn, which can read the mail and continue within the
+ * approval the application already has; the inbox review itself still waits its turn.
  */
 export async function notifyApplicationAwaitingEmailCode(admin: TalentAdminClient, userId: string, options: {
   now?: number; publishInvocations?: (args: { admin: TalentAdminClient; userId: string; conversationId: string }) => Promise<unknown>;
