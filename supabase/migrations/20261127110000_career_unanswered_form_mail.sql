@@ -15,12 +15,17 @@
 --     it waiting (review 11/27: answering one form of three left the other two unmailed);
 --   * the candidate last viewed that chat, and closed every Harper page
 --     (career_pages_closed_v1), at least p_grace_seconds ago;
---   * no unseen reply there is one the unseen-reply email takes (admit_career_unseen_replies_v2:
---     the newest 'invocation:' reply after the candidate's latest message, which they saw,
---     at least p_reply_min_work_seconds after it, within p_reply_window_seconds). Then that
---     email covers this visit. Another unseen message (a quick second message of the same
---     reply, a background run's message) does not hold this one, so one of the two starts
---     and never both.
+--   * the unseen-reply email does not cover this departure: Harper's newest reply after the
+--     candidate's latest message is not one it takes (admit_career_unseen_replies_v2: the newest
+--     'invocation:' reply, unseen, at least p_reply_min_work_seconds after a message they saw,
+--     within p_reply_window_seconds), and no unseen-reply run started since the candidate left
+--     is still running or has emailed. One that ended without an email leaves the forms to this
+--     one. Another unseen message (a quick second message of the same reply, a background run's
+--     message) does not hold this one;
+--   * Harper is not working in that chat: no turn there is running, other than one parked for the
+--     candidate's answer or browser control (its reply could be one the unseen-reply email takes).
+--   So for one departure one of the two emails starts, not both. A reply Harper writes after this
+--   one started (a background result) is new and may still go by the unseen-reply email.
 -- One run lists every such form of the conversation. A form revision is listed in one
 -- run only, and a conversation gets at most one such run a day, so a form cannot be
 -- mailed again and again. The agent decides on and writes the email. Reopening Harper
@@ -126,14 +131,39 @@ begin
       and seen.seen_at > now() - make_interval(secs => p_window_seconds)
       -- Counted from leaving: a chat kept open for hours and closed just now waits p_grace_seconds more.
       and left_at.at <= now() - make_interval(secs => p_grace_seconds)
-      -- An unseen reply the unseen-reply email takes (the same rule as admit_career_unseen_replies_v2).
-      and not exists (select 1 from public.talent_messages r
-        where r.conversation_id=seen.conversation_id and r.user_id=seen.user_id and r.role='assistant'
-          and r.message_type='chat' and r.id>seen.message_id and r.id>last_input.id
-          and r.payload->>'careerTextReplyId' like 'invocation:%'
-          and seen.message_id>=last_input.id and latest.message_type is distinct from 'mail'
+      -- Harper's newest reply after the candidate's latest input is one the unseen-reply email takes (the rule of
+      -- admit_career_unseen_replies_v2, waiting out its grace too) and that email has not started for it yet.
+      and not exists (
+        select 1 from (
+          select r.id, r.created_at from public.talent_messages r
+          where r.conversation_id=seen.conversation_id and r.user_id=seen.user_id and r.role='assistant'
+            and r.message_type='chat' and r.id>last_input.id
+            and r.payload->>'careerTextReplyId' like 'invocation:%'
+          order by r.id desc limit 1
+        ) newest
+        where newest.id>seen.message_id and seen.message_id>=last_input.id
+          and latest.message_type is distinct from 'mail'
           and latest.created_at > now() - make_interval(secs => p_reply_window_seconds)
-          and r.created_at >= latest.created_at + make_interval(secs => p_reply_min_work_seconds))
+          and newest.created_at >= latest.created_at + make_interval(secs => p_reply_min_work_seconds)
+          and not exists (select 1 from public.opportunity_discovery_run d
+            where d.talent_id=seen.user_id and d.dedupe_key='career-reply-unseen:'||newest.id))
+      -- The unseen-reply email started after the candidate left: it covers this departure while it runs and once it
+      -- emailed, also after its reply window (review 11/27: otherwise the forms were emailed 3 hours later for the
+      -- same departure). One that ended without an email (4 of 18 so far) leaves the forms to this one.
+      and not exists (select 1 from public.opportunity_discovery_run d
+        where d.talent_id=seen.user_id and d.conversation_id=seen.conversation_id and d.trigger='career_reply_unseen'
+          and d.created_at >= left_at.at
+          and (d.status in ('queued', 'running', 'handed_off')
+            or exists (select 1 from public.talent_opportunity_delivery e
+              where e.discovery_run_id=d.id and e.status in ('queued', 'retry', 'sending', 'sent'))))
+      -- Harper is still working in this chat (a turn neither completed nor parked for the candidate's answer or
+      -- browser control, as the chat shows it): its reply may be one the unseen-reply email takes, so the forms wait
+      -- (review 11/27: an answered form starts a turn, and the other forms were emailed while it ran).
+      and not exists (select 1 from public.talent_external_operations i
+        where i.user_id=seen.user_id and i.conversation_id=seen.conversation_id and i.kind='career_invocation'
+          and i.status<>'completed'
+          and coalesce(i.request->>'cleanup', 'false')<>'true' and not i.request ? 'cleanup_browser_session'
+          and coalesce(i.result#>>'{activity,waitingForReply}', 'false')<>'true')
       and public.career_pages_closed_v1(seen.user_id, seen.seen_at)
       and not public.is_talent_test_account(seen.user_id)
       and not exists (select 1 from public.talent_users t where t.user_id=seen.user_id and t.deleted_at is not null)

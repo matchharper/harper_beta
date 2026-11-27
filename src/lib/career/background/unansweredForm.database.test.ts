@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { shownFormIds, withFormMarkers } from "../forms/replyFormMarkers";
 import { assertCareerSourceEventsCurrent, CareerSourceChangedError } from "../companies/server";
 import { admitUnansweredCareerForms, readUnansweredForms } from "./unansweredForm";
+import { admitUnseenCareerReplies } from "./unseenReply";
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const [user, other, tester] = [id(1), id(2), id(3)];
@@ -22,6 +23,7 @@ async function setup() {
     create table opportunity_discovery_run(id uuid primary key default gen_random_uuid(),talent_id uuid,conversation_id uuid,status text,trigger text,
       run_mode text,dedupe_key text unique,target_recommendation_count int,trigger_payload jsonb default '{}',coverage jsonb default '{}',
       completed_at timestamptz,updated_at timestamptz,created_at timestamptz default now(),error_message text);
+    create table talent_opportunity_delivery(id uuid primary key default gen_random_uuid(),discovery_run_id uuid,talent_id uuid,status text);
     create table talent_users(user_id uuid primary key,deleted_at timestamptz);
     create table talent_test_accounts(user_id uuid primary key);
     create function is_talent_test_account(p_user_id uuid) returns boolean language sql as
@@ -106,6 +108,20 @@ const admit = (db: PGlite, published: unknown[] = []) => admitUnansweredCareerFo
 const runs = async (db: PGlite) => (await db.query<any>("select * from opportunity_discovery_run where trigger='career_form_unanswered' order by created_at")).rows;
 const current = (db: PGlite, run: any) => scalar(db, "career_unanswered_forms_current_v1($1,$2,$3)", [run.talent_id, run.conversation_id,
   run.trigger_payload.unansweredForms.map((item: any) => ({ formId: item.formId, revision: item.revision }))]);
+const admitUnseen = (db: PGlite) => admitUnseenCareerReplies(rpcClient(db), async () => {});
+const triggers = async (db: PGlite) => (await db.query<{ trigger: string }>("select trigger from opportunity_discovery_run order by created_at")).rows.map(row => row.trigger);
+/** Moves every recorded time back, as if `minutes` passed with nothing else happening. */
+async function wait(db: PGlite, minutes: number) {
+  const shift = `make_interval(mins => ${minutes})`;
+  await db.exec(`update talent_messages set created_at = created_at - ${shift};
+    update career_conversation_seen set seen_at = seen_at - ${shift};
+    update career_page_presence set opened_at = opened_at - ${shift}, alive_at = alive_at - ${shift}, closed_at = closed_at - ${shift};
+    update opportunity_discovery_run set created_at = created_at - ${shift};`);
+}
+/** A turn of Harper's in this chat that has not completed; `activity` is what its progress last saved. */
+const turn = (db: PGlite, key: string, { request = {} as Record<string, unknown>, activity = {} as Record<string, unknown> } = {}) =>
+  db.query(`insert into talent_external_operations(user_id,conversation_id,kind,idempotency_key,status,request,result)
+    values ($1,$2,'career_invocation',$3,'running',$4,$5)`, [user, conversation, key, request, { activity }]);
 
 /** The candidate asked, Harper showed one form, the candidate viewed it at viewedMinutesAgo and closed Harper. */
 async function leftForm(db: PGlite, viewedMinutesAgo = 40) {
@@ -217,6 +233,8 @@ test("answering one form, or acting elsewhere in Career, leaves the other forms 
     await db.query(`insert into talent_messages(user_id,conversation_id,role,message_type,content,payload,created_at)
       values ($1,$2,'user','opportunity_feedback_note','Not for me','{}',now() - interval '79 minutes')`, [user, conversation]);
     const thanks = await message(db, "assistant", 78, { content: "Company A is done; Company B still waits.", payload: { careerTextReplyId: "invocation:b" } });
+    // The answer started a turn of Harper's, which ends with this reply.
+    await db.query("update talent_external_operations set status='completed' where kind='career_invocation'");
     await viewed(db, thanks, 75);
     await leave(db, page(1), 74);
     assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
@@ -309,6 +327,87 @@ test("a form not shown in chat, or a reply the candidate has not seen, is left t
     assert.deepEqual(await admit(revised), { admitted: 1, deferred: 0 });
     assert.deepEqual(readUnansweredForms((await runs(revised))[0]).map(item => [item.formId, item.revision]), [[saved.id, 2]]);
   } finally { await revised.close(); }
+});
+
+test("for one departure only one of the two emails starts, and the forms still get theirs when the other ends without an email", async () => {
+  // Review 11/27: once the candidate's message was 3 hours old the unseen-reply rule no longer matched, so the forms were
+  // emailed again for a departure the unseen-reply email had already taken.
+  for (const outcome of ["emailed", "running", "no email"] as const) {
+    const db = await setup();
+    try {
+      await message(db, "user", 70);
+      const saved = await form(db, 60);
+      const shown = await message(db, "assistant", 59, { shows: [saved.id], payload: { careerTextReplyId: "invocation:a" } });
+      await presence(db, page(1), false);
+      await viewed(db, shown, 55);
+      await leave(db, page(1), 50);
+      // 25 minutes of work after the candidate's message, never seen.
+      await message(db, "assistant", 45, { content: "Prepared B", payload: { careerTextReplyId: "invocation:a" } });
+      assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, `${outcome}: waits for the unseen-reply email`);
+      assert.deepEqual(await admitUnseen(db), { admitted: 1, deferred: 0 });
+      assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, `${outcome}: the unseen-reply email took this departure`);
+      const { rows: [unseen] } = await db.query<{ id: string }>("select id from opportunity_discovery_run where trigger='career_reply_unseen'");
+      if (outcome !== "running") await db.query("update opportunity_discovery_run set status='completed' where id=$1", [unseen.id]);
+      if (outcome === "emailed")
+        await db.query("insert into talent_opportunity_delivery(discovery_run_id,talent_id,status) values ($1,$2,'sent')", [unseen.id, user]);
+      for (let hour = 0; hour < 4; hour++) {
+        await admit(db);
+        await wait(db, 60);
+      }
+      assert.deepEqual(await triggers(db), outcome === "no email"
+        ? ["career_reply_unseen", "career_form_unanswered"] : ["career_reply_unseen"], outcome);
+    } finally { await db.close(); }
+  }
+});
+
+test("while Harper still works in the chat the forms wait, so its reply's email is the only one", async () => {
+  // Review 11/27: answering one form starts a turn; the other forms were emailed while it ran, and its reply then
+  // went by the unseen-reply email too.
+  const db = await setup();
+  try {
+    await message(db, "user", 65);
+    const first = await form(db, 45), second = await form(db, 45, { payload: { title: "Company B · Data Engineer" } });
+    const shown = await message(db, "assistant", 44, { shows: [first.id, second.id], payload: { careerTextReplyId: "invocation:a" } });
+    await presence(db, page(1), false);
+    await viewed(db, shown, 40);
+    const answer = await scalar(db, "write_career_form($1,$2,'respond',$3,1,null,$4,'Approved',$5)",
+      [user, conversation, first.id, { values: { salary: "Negotiable", start: "Next month" } }, "answer-first"]);
+    await ago(db, "talent_messages", `id=${answer.id}`, 35);
+    await viewed(db, answer.id, 35);
+    await leave(db, page(1), 34);
+    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "Harper is working on the answer");
+    await wait(db, 15);
+    // Harper's reply lands 50 minutes after the answer; the candidate has left.
+    await message(db, "assistant", 0, { content: "Submitted Company A", payload: { careerTextReplyId: "invocation:b" } });
+    await db.query("update talent_external_operations set status='completed' where kind='career_invocation'");
+    for (let step = 0; step < 12; step++) {
+      await wait(db, 15);
+      await admitUnseen(db);
+      await admit(db);
+      // Each run that starts emails the candidate and completes.
+      await db.query(`insert into talent_opportunity_delivery(discovery_run_id,talent_id,status)
+        select id,talent_id,'sent' from opportunity_discovery_run where status='handed_off'`);
+      await db.query("update opportunity_discovery_run set status='completed' where status='handed_off'");
+    }
+    assert.deepEqual(await triggers(db), ["career_reply_unseen"]);
+  } finally { await db.close(); }
+  for (const [what, parked] of [["parked for the candidate's answer", { activity: { waitingForReply: true } }],
+    ["a cleanup turn", { request: { cleanup: true } }], ["a browser cleanup turn", { request: { cleanup_browser_session: id(77) } }]] as const) {
+    const other = await setup();
+    try {
+      await leftForm(other);
+      await leave(other, page(1), 35);
+      await turn(other, `turn-${what}`, parked);
+      assert.deepEqual(await admit(other), { admitted: 1, deferred: 0 }, `${what} is not Harper working`);
+    } finally { await other.close(); }
+  }
+  const working = await setup();
+  try {
+    await leftForm(working);
+    await leave(working, page(1), 35);
+    await turn(working, "turn-working", { activity: { waitingForReply: false } });
+    assert.deepEqual(await admit(working), { admitted: 0, deferred: 0 }, "a running turn holds the email");
+  } finally { await working.close(); }
 });
 
 test("one email lists every waiting form of the conversation; a revision is listed once and a conversation gets one a day", async () => {
