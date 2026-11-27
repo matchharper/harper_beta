@@ -1,5 +1,5 @@
 import { effectReferenceProperties } from "../externalOperations/effects";
-import { CareerEffectWaiting, reserveWorkEffect, readBoundEffect, bindWorkEffect } from "../externalOperations/effects";
+import { CareerEffectWaiting, reserveWorkEffect, readBoundEffect, bindWorkEffect, unknownApplicationOutcome } from "../externalOperations/effects";
 import { TOOL_DESCRIPTIONS } from "@/lib/llm/toolDescriptions";
 import { z } from "zod";
 import { setTimeout as delay } from "node:timers/promises";
@@ -27,7 +27,7 @@ import {
   type ExternalOperation,
   type ExternalToolContext,
 } from "../externalOperations/store";
-import { careerTurnIsStopped } from "../turnCancellation.server";
+import { careerTurnStopReason } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
 import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
@@ -111,6 +111,10 @@ export const USE_BROWSER_TOOL = {
         type: "array", items: { type: "integer" },
         description: "Exact owned user-message IDs when known. Omit to use the current authenticated user message. Form IDs and browser IDs are not user-message references.",
       },
+      resubmit_confirmed_by: {
+        type: "integer",
+        description: "Execute only, after an earlier attempt at this application ended with an unknown outcome: the ID of the user's message, written after you told them it may have gone in, that asks to submit again. Never set it on your own judgment.",
+      },
     },
     required: ["action"],
     additionalProperties: false,
@@ -142,6 +146,7 @@ export const browserInputSchema = z.object({
   }).strict()).min(1).max(10).optional(),
   documents: z.array(attachmentRefSchema).optional(),
   authorization_refs: z.array(z.number().int().positive()).optional(),
+  resubmit_confirmed_by: z.number().int().positive().optional(),
 });
 const runOutputSchema = {
   type: "object",
@@ -722,6 +727,16 @@ export async function executePreparationList(
   };
 }
 
+/** What may happen next to an application this effect already sent to a browser. */
+function boundEffectRefusal(run: ExternalOperation) {
+  const sent = `Not started: this application was already sent as ${run.kind} ${run.id} (status ${run.status}).`;
+  if (browserRunSubmission(run.result) === "yes")
+    return `${sent} Its receipt says it was submitted. Report that receipt; do not submit again.`;
+  if (unknownApplicationOutcome(run))
+    return `${sent} Whether it reached the company is unknown. Do not submit again on your own judgment: tell the person the earlier attempt may have gone in and how they can check (the company's confirmation mail, the site's own list of applications). If they then ask to submit again, run execute once more with resubmit_confirmed_by set to that message's ID.`;
+  return `${sent} Read its receipt; do not submit through another route.`;
+}
+
 export async function executeUseBrowser(
   raw: unknown,
   context: ExternalToolContext,
@@ -885,9 +900,10 @@ export async function executeUseBrowser(
   }
   const overlap = await overlappingBrowserRun(context, input);
   if (overlap) return overlap;
-  const effect = input.mode === "execute" ? await reserveWorkEffect(context, input.effect_key, { task: input.task, url: input.url, documents: input.documents, authorization_refs: input.authorization_refs }) : undefined;
+  const effect = input.mode === "execute" ? await reserveWorkEffect(context, input.effect_key, { task: input.task, url: input.url, documents: input.documents, authorization_refs: input.authorization_refs },
+    { resubmitConfirmedBy: input.resubmit_confirmed_by }) : undefined;
   const existingEffect = await readBoundEffect(context, effect);
-  if (existingEffect) return { operation: existingEffect, modelOutput: `This effect was already dispatched as ${existingEffect.kind} ${existingEffect.id}; status ${existingEffect.status}. Read its receipt; do not submit through another route.` };
+  if (existingEffect) return { operation: existingEffect, modelOutput: boundEffectRefusal(existingEffect) };
   const authorization = await readAuthorizationMessages(
     context,
     input.authorization_refs ??
@@ -1083,7 +1099,8 @@ export async function executeUseBrowser(
     }
     // Dispatch can return just after Stop. Cancel the remote execution too,
     // retaining its real receipt without assuming that nothing was submitted.
-    if (context.signal?.aborted || await careerTurnIsStopped({ ...context, sourceMessageId: context.userMessageId })) {
+    // A revised work leaves its run going: the newer execution reads that receipt.
+    if (context.signal?.aborted || await careerTurnStopReason({ ...context, sourceMessageId: context.userMessageId }) === "stopped") {
       const runId = reference(active, "run_id");
       if (runId && ["running", "cancelling"].includes(active.status)) {
         await browserUseAgents.cancelRun(runId);

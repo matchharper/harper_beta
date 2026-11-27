@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CareerTurnCancelled, assertCareerTurnActive, cancelCareerTurnWork, watchCareerTurnCancellation } from "./turnCancellation.server";
+import { CareerTurnCancelled, assertCareerTurnActive, cancelCareerTurnWork, careerTurnStopReason, watchCareerTurnCancellation } from "./turnCancellation.server";
 import { formatTalentMessageContentForLlmPrompt } from "./opportunityFeedbackNote";
 import { CareerCapabilityRuntime } from "./capabilities/runtime";
 import { internalEvaluationBackend } from "./matching/internalScoring/backend";
@@ -67,6 +67,57 @@ test("another executor observes Stop during a provider call and releases its wat
     });
     assert.ok(monitor.signal.reason instanceof CareerTurnCancelled);
   } finally { monitor.dispose(); }
+});
+
+/** The delegated work row a work execution checks, alongside the fixture's tables. */
+function withWork(scope: ReturnType<typeof fixture>["scope"], work: { status: string; revision: number }) {
+  const rows = [{ id: "work", user_id: "owner", kind: "delegated_work", ...work }];
+  const base = scope.admin.from;
+  scope.admin.from = (table: string) => {
+    if (table !== "talent_external_operations") return base(table);
+    const filters: Array<(row: any) => boolean> = [];
+    const q: any = { select: () => q, eq: (key: string, v: any) => { filters.push(row => row[key] === v); return q; },
+      maybeSingle: async () => ({ data: rows.find(row => filters.every(filter => filter(row))) ?? null, error: null }) };
+    return q;
+  };
+  return { workScope: { ...scope, replyId: "invocation:old", workId: "work", workRevision: 3 }, work: rows[0] };
+}
+
+test("a revised work ends its stale execution at the next step without cutting off what is in flight", async () => {
+  // 11/27: a chat message gave the work a newer instruction while its browser was submitting; the old execution
+  // aborted mid-run, the provider run was cancelled and whether the application went in became unknown.
+  const { scope } = fixture();
+  const { workScope, work } = withWork(scope, { status: "running", revision: 3 });
+  assert.equal(await careerTurnStopReason(workScope), null);
+  const monitor = watchCareerTurnCancellation(workScope);
+  try {
+    work.revision = 4;
+    assert.equal(await careerTurnStopReason(workScope), "revised");
+    // Two polls pass: the action in flight keeps running.
+    await new Promise(resolve => setTimeout(resolve, 4500));
+    assert.equal(monitor.signal.aborted, false);
+    // The next step ends the stale execution, still without aborting what is in flight.
+    await assert.rejects(monitor.check(), (error: unknown) => error instanceof CareerTurnCancelled && error.reason === "revised");
+    assert.equal(monitor.signal.aborted, false);
+    // Cancelling the work still aborts at once.
+    work.status = "cancelled";
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Cancellation was not propagated")), 3000);
+      monitor.signal.addEventListener("abort", () => { clearTimeout(timeout); resolve(); }, { once: true });
+    });
+    assert.ok(monitor.signal.reason instanceof CareerTurnCancelled && monitor.signal.reason.reason === "stopped");
+  } finally { monitor.dispose(); }
+});
+
+test("a user Stop outranks a revision, and a waiting work may be revised freely", async () => {
+  const { scope, messages } = fixture();
+  const { workScope, work } = withWork(scope, { status: "running", revision: 4 });
+  assert.equal(await careerTurnStopReason(workScope), "revised");
+  messages[0].payload.careerTurnStopped = true;
+  assert.equal(await careerTurnStopReason(workScope), "stopped");
+  messages[0].payload.careerTurnStopped = false;
+  work.status = "waiting";
+  assert.equal(await careerTurnStopReason(workScope), null);
 });
 
 test("a failed cancellation read is an error, not a fabricated user Stop", async () => {

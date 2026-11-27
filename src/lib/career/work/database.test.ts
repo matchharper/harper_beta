@@ -45,6 +45,7 @@ async function setup() {
   await db.exec(await readFile("supabase/migrations/20261111093336_career_browser_optional_submission_source.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261117081425_career_checklist_item_responses.sql", "utf8"));
   await db.exec(await readFile("supabase/migrations/20261123100100_career_retry_unsubmitted_application.sql", "utf8"));
+  await db.exec(await readFile("supabase/migrations/20261127090000_career_release_unknown_application_effect.sql", "utf8"));
   return db;
 }
 const scalar = async (db: PGlite, sql: string, args: unknown[] = []) => (await db.query<{ result: any }>(`select ${sql} as result`, args)).rows[0].result;
@@ -551,6 +552,8 @@ test("only a finished application run that reported no submission releases its e
     const run = await create("browser_run", "run", session.id);
     await scalar(db, "bind_career_work_effect($1,$2,$3,$4,1,$5,1,'owner')", [user, conversation, w.id, effect.id, run.id]);
     const release = async () => (await db.query<{ released: boolean }>("select release_unsubmitted_career_effect_v1($1,$2,$3) released", [user, effect.id, run.id])).rows[0].released;
+    // Each run below reached Browser Use, as a real attempt does.
+    await db.query(`update talent_external_operations set provider_refs='{"run_id":"provider-run"}' where id=$1`, [run.id]);
     const setRun = (status: string, result: Record<string, unknown>, roleRefs: unknown = ["role-1"]) =>
       db.query("update talent_external_operations set status=$2,result=$3,request=jsonb_set(request,'{role_refs}',$4::jsonb) where id=$1", [run.id, status, result, JSON.stringify(roleRefs)]);
     const effectRow = async () => (await db.query<{ status: string; revision: number; result: unknown }>("select status,revision,result from talent_external_operations where id=$1", [effect.id])).rows[0];
@@ -578,6 +581,65 @@ test("only a finished application run that reported no submission releases its e
     await scalar(db, "bind_career_work_effect($1,$2,$3,$4,3,$5,1,'owner')", [user, conversation, w.id, effect.id, retry.id]);
     assert.equal((await effectRow()).status, "dispatching");
     const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.release_unsubmitted_career_effect_v1(uuid,uuid,uuid)','EXECUTE') allowed");
+    assert.equal(access.rows[0].allowed, false);
+  } finally { await db.close(); }
+});
+
+test("an attempt that never reached Browser Use releases its application; an unknown outcome waits for the person", async () => {
+  // 11/27: a cut-off submit left its effect bound, and every later submit of that application was refused for good.
+  const db = await setup();
+  try {
+    const source = await admit(db, "source");
+    const w = await work(db, "start", { identity: "unknown-outcome", instruction: "Apply", source_refs: [source.id] });
+    await scalar(db, "career_work_runtime($1,$2,$3,'reply','owner','claim')", [user, conversation, w.id]);
+    const create = (kind: string, key: string, parent = w.id) => scalar(db, "create_talent_external_operation($1,$2,$3,$4,$5,$6)", [user, conversation, kind, parent, key, { work_id: w.id, role_refs: ["role-1"] }]);
+    const session = await create("browser_session", "session");
+    const effectRow = async (id: string) => (await db.query<{ status: string; result: any }>("select status,result from talent_external_operations where id=$1", [id])).rows[0];
+    const bound = async (key: string, run: { status: string; result: Record<string, unknown>; dispatched: boolean }) => {
+      const effect = await create("work_effect", `submit-${key}`);
+      await db.query("update talent_external_operations set status='idle' where id=$1", [session.id]);
+      const attempt = await create("browser_run", `run-${key}`, session.id);
+      await scalar(db, "bind_career_work_effect($1,$2,$3,$4,1,$5,1,'owner')", [user, conversation, w.id, effect.id, attempt.id]);
+      await db.query("update talent_external_operations set status=$2,result=$3,provider_refs=$4,updated_at=now()-interval '1 minute' where id=$1",
+        [attempt.id, run.status, run.result, run.dispatched ? { run_id: `provider-${key}` } : {}]);
+      return { effect, attempt };
+    };
+    const unsubmitted = (effect: string, attempt: string) => scalar(db, "release_unsubmitted_career_effect_v1($1,$2,$3)", [user, effect, attempt]);
+    const confirmed = (effect: string, attempt: string, message: number) => scalar(db, "release_confirmed_career_effect_v1($1,$2,$3,$4)", [user, effect, attempt, message]);
+
+    // Never dispatched: nothing reached the company, so the same application may run again.
+    for (const [key, status] of [["reserved-closed", "cancelled"], ["preparing-failed", "failed"]] as const) {
+      const { effect, attempt } = await bound(key, { status, result: { submitted: "no" }, dispatched: false });
+      assert.equal(await unsubmitted(effect.id, attempt.id), true, `${status} before dispatch releases`);
+      assert.equal((await effectRow(effect.id)).status, "reserved");
+    }
+
+    // Cut off after dispatch: unknown, so it stays bound until the person answers afterwards.
+    const cut = await bound("cut-off", { status: "cancelled", result: { summary: "cancelled by user" }, dispatched: true });
+    // Bound before any new message: an input waiting for the work holds every new dispatch.
+    const sent = await bound("submitted", { status: "completed", result: { submitted: "yes" }, dispatched: true });
+    const unclear = await bound("unclear", { status: "completed", result: { submitted: "unclear" }, dispatched: true });
+    assert.equal(await unsubmitted(cut.effect.id, cut.attempt.id), false);
+    const before = await admit(db, "before");
+    await db.query("update talent_messages set created_at=now()-interval '2 minutes' where id=$1", [before.id]);
+    assert.equal(await confirmed(cut.effect.id, cut.attempt.id, before.id), false, "a message from before the attempt ended confirms nothing");
+    assert.equal((await effectRow(cut.effect.id)).status, "dispatching");
+    const after = await admit(db, "after");
+    assert.equal(await confirmed(cut.effect.id, cut.attempt.id, after.id), true, "the person asked again after the cut-off attempt");
+    const released = await effectRow(cut.effect.id);
+    assert.equal(released.status, "reserved");
+    assert.deepEqual(released.result, { released_from: cut.attempt.id, resubmit_confirmed_by: after.id });
+    assert.equal(await confirmed(cut.effect.id, cut.attempt.id, after.id), false, "a released effect is not released twice");
+
+    // A receipt that says submitted never releases, whatever the person says; neither does another person's message.
+    const later = await admit(db, "later");
+    assert.equal(await confirmed(sent.effect.id, sent.attempt.id, later.id), false, "a submitted receipt never releases");
+    // Another person's message, even in a conversation of theirs, confirms nothing here.
+    await db.query(`insert into talent_conversations values('00000000-0000-4000-8000-000000000009','${other}')`);
+    const stranger = (await db.query<{ id: number }>(`insert into talent_messages(user_id,conversation_id,role,content,payload) values('${other}','00000000-0000-4000-8000-000000000009','user','다시 내 줘','{}') returning id`)).rows[0];
+    assert.equal(await confirmed(unclear.effect.id, unclear.attempt.id, stranger.id), false, "another person's message confirms nothing");
+    assert.equal(await confirmed(unclear.effect.id, unclear.attempt.id, (await admit(db, "mine")).id), true, "an unclear receipt releases on the person's later word");
+    const access = await db.query<{ allowed: boolean }>("select has_function_privilege('authenticated','public.release_confirmed_career_effect_v1(uuid,uuid,uuid,bigint)','EXECUTE') allowed");
     assert.equal(access.rows[0].allowed, false);
   } finally { await db.close(); }
 });
