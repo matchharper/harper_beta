@@ -57,6 +57,20 @@ export function useCareerFormRevealer() {
   const context = useContext(Context);
   return {
     canReveal: (formId: number) => Boolean(context?.latest.has(formId)),
+    /**
+     * Its card can be seen now: at least half of it, or half of the conversation's view for a taller card. A card
+     * further up the conversation, or in a folded group, is not in view.
+     */
+    inView: (formId: number) => {
+      const card = context?.latest.get(formId)?.element.querySelector<HTMLElement>(`[data-career-form-id="${formId}"]`);
+      if (!card) return false;
+      const rect = card.getBoundingClientRect();
+      const view = card.closest("[data-career-timeline]")?.getBoundingClientRect();
+      const top = Math.max(view?.top ?? 0, 0);
+      const bottom = Math.min(view?.bottom ?? window.innerHeight, window.innerHeight);
+      const seen = Math.min(rect.bottom, bottom) - Math.max(rect.top, top);
+      return rect.height > 0 && seen > 0 && seen >= Math.min(rect.height, bottom - top) / 2;
+    },
     reveal: (formId: number) => context?.latest.get(formId)?.reveal(formId),
   };
 }

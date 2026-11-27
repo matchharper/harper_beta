@@ -74,9 +74,11 @@ test("the list is read from the work snapshot, and a snapshot without it has non
 });
 
 const keepOpen = () => undefined;
-function FormLocation({ formId }: { formId: number }) {
+/** Where the chat shows a form: its card's top in the 768px window, 200px tall (100: in view). */
+type Location = number | { formId: number; top: number };
+function FormLocation({ formId, top }: { formId: number; top: number }) {
   const { ref } = useCareerFormReference([formId], keepOpen);
-  return <div ref={ref}><div data-career-form-id={formId}>form {formId}</div></div>;
+  return <div ref={ref}><div data-career-form-id={formId} data-top={top}>form {formId}</div></div>;
 }
 
 async function mount() {
@@ -95,18 +97,25 @@ async function mount() {
   }
   let scrolled: Element | null = null;
   dom.window.HTMLElement.prototype.scrollIntoView = function () { scrolled = this; };
+  // Laid out like the page: a form card where its location puts it, everything else unmeasured.
+  dom.window.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+    const top = Number(this.getAttribute("data-top") ?? Number.NaN);
+    const [y, height] = Number.isFinite(top) ? [top, 200] : [0, 0];
+    return { top: y, bottom: y + height, left: 0, right: height ? 600 : 0, width: height ? 600 : 0, height, x: 0, y, toJSON() {} } as DOMRect;
+  };
   // The answer sheet is a dialog on wide screens.
   dom.window.matchMedia = ((query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {},
     addListener() {}, removeListener() {} })) as unknown as typeof dom.window.matchMedia;
   const root: Root = createRoot(dom.window.document.getElementById("root")!);
   const client = new QueryClient();
-  const render = (data: CareerOpenFormsSnapshot, onScreen: number[] = [], chat?: Chat) => {
+  const render = (data: CareerOpenFormsSnapshot, onScreen: Location[] = [], chat?: Chat) => {
     const panel = <CareerApplicationProgressPanel conversationId="conversation" />;
+    const locations = onScreen.map(location => typeof location === "number" ? { formId: location, top: 100 } : location);
     return act(async () => root.render(
       <QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}>
         <MessagesProvider locale="ko"><CareerOpenFormsSnapshotContext.Provider value={data}>
           <CareerFormReferenceProvider>
-            {onScreen.map(formId => <FormLocation key={formId} formId={formId} />)}
+            {locations.map(({ formId, top }) => <FormLocation key={formId} formId={formId} top={top} />)}
             {chat ? (
               <CareerChatPanelProvider value={{ user: null, messages: [], conversationId: "conversation", ...chat } as never}>
                 {panel}
@@ -291,27 +300,54 @@ test("답하기 takes the person to the form when it is on screen, and is absent
   } finally { await view.cleanup(); }
 });
 
-test("답하기 for a form older than the loaded history loads earlier messages until the form is on screen", async () => {
+test("답하기 for a form the chat shows out of view opens it in the sheet: the chat neither moves nor pages back", async t => {
+  const { supabase } = await import("@/lib/supabase");
+  t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }) as never);
+  let revision = 2;
+  t.mock.method(globalThis, "fetch", async () => Response.json({ form: { formId: 20, revision, kind: "form", state: "open",
+    title: "검토", items: [{ id: "why", label: "지원 동기", type: "textarea", content: "" }] }, responses: [] }));
   const view = await mount();
-  try {
-    let loads = 0;
-    const history = (hasOlderMessages: boolean): ChatHistory =>
-      ({ hasOlderMessages, loadingOlderMessages: false, onLoadOlderMessages: async () => { loads += 1; } });
-    // 39 newer messages pushed the form out of the 20 loaded: the button still shows because earlier pages exist.
-    await view.render(snapshot([needsAnswers]), [], history(true));
+  let loads = 0;
+  // Earlier history exists too: it is not paged through.
+  const history: ChatHistory = { hasOlderMessages: true, loadingOlderMessages: false, onLoadOlderMessages: async () => { loads += 1; } };
+  const sheet = () => view.document.querySelector('[role="dialog"]');
+  const answered = snapshot([{ ...needsAnswers, status: "waiting", action: undefined }]);
+  const answer = async () => {
     await view.click(view.toggle());
     await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
-    assert.equal(loads, 1, "one earlier page asked for");
-    assert.equal(view.scrolled(), null);
+    await view.settle();
+  };
+  try {
+    // 11/27: the question was a new revision of a card the chat showed 40 minutes up. The panel scrolled there instead
+    // of opening the sheet, and the chat stopped at the start card.
+    await view.render(snapshot([needsAnswers], [reviewForm(revision)]), [{ formId: 20, top: -3000 }], history);
+    await answer();
+    assert.ok(sheet()?.querySelector('[data-career-form-id="20"] textarea'), "answered in the sheet");
+    assert.equal(view.scrolled(), null, "the chat stays where the person left it");
+    assert.equal(loads, 0);
     assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
-    // That page brings the form into the timeline: the panel scrolls to it without another load.
-    await view.render(snapshot([needsAnswers]), [20], history(true));
+    await view.render(answered, [{ formId: 20, top: -3000 }], history);
+    assert.equal(sheet(), null);
+
+    // Only its last 50px show at the top of the view: still the sheet.
+    revision = 3;
+    await view.render(snapshot([needsAnswers], [reviewForm(revision)]), [{ formId: 20, top: -150 }], history);
+    await answer();
+    assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
+    assert.equal(view.scrolled(), null);
+    await view.render(answered, [{ formId: 20, top: -150 }], history);
+
+    // Most of it shows at the bottom of the view: the chat brings it up, and no sheet opens.
+    revision = 4;
+    await view.render(snapshot([needsAnswers], [reviewForm(revision)]), [{ formId: 20, top: 620 }], history);
+    await answer();
     assert.equal(view.scrolled()?.getAttribute("data-career-form-id"), "20");
-    assert.equal(loads, 1);
+    assert.equal(sheet(), null);
+    assert.equal(loads, 0);
   } finally { await view.cleanup(); }
 });
 
-test("a form no loaded page shows opens in a sheet to answer there: no earlier page, none left, or 25 pages loaded", async t => {
+test("a form no reply placed opens in a sheet to answer there, with or without earlier history, and closes once answered", async t => {
   const { supabase } = await import("@/lib/supabase");
   t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }) as never);
   const fetched: string[] = [];
@@ -322,8 +358,8 @@ test("a form no loaded page shows opens in a sheet to answer there: no earlier p
   });
   const view = await mount();
   let loads = 0;
-  const history = (hasOlderMessages: boolean, loadingOlderMessages = false): ChatHistory =>
-    ({ hasOlderMessages, loadingOlderMessages, onLoadOlderMessages: async () => { loads += 1; } });
+  const history = (hasOlderMessages: boolean): ChatHistory =>
+    ({ hasOlderMessages, loadingOlderMessages: false, onLoadOlderMessages: async () => { loads += 1; } });
   const sheet = () => view.document.querySelector('[role="dialog"]');
   const answered = snapshot([{ ...needsAnswers, status: "waiting", action: undefined }]);
   // Each time asked anew, as a new revision: an answered one never opens again.
@@ -331,46 +367,27 @@ test("a form no loaded page shows opens in a sheet to answer there: no earlier p
   const answer = async () => {
     await view.click(view.toggle());
     await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
+    await view.settle();
   };
   try {
-    // The whole history is loaded and the form is not in it (no reply placed it): the sheet, with the form itself.
+    // The whole history is loaded and the form is not in it: the sheet, with the form itself.
     await view.render(asked(), [], history(false));
     await answer();
-    await view.settle();
     assert.match(sheet()?.textContent ?? "", /B사 · 데이터 엔지니어 답하기/);
     assert.ok(sheet()?.querySelector('[data-career-form-id="20"] textarea'), "answered in the sheet");
     assert.match(fetched[0] ?? "", /formId=20/);
-    assert.equal(loads, 0);
     assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
     // Answered (no longer open): the sheet closes by itself.
     await view.render(answered, [], history(false));
     assert.equal(sheet(), null);
 
-    // The history ran out while looking for it: the sheet, not nothing.
+    // Earlier history exists: the sheet at once, without paging back to look for it (a form Harper saved without a
+    // reply is in no page).
     await view.render(asked(2), [], history(true));
     await answer();
-    assert.equal(loads, 1);
-    assert.equal(sheet(), null);
-    await view.render(asked(2), [], history(false));
-    await view.settle();
     assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
-    await view.render(answered, [], history(false));
-
-    // Earlier pages keep coming without it: 25 are loaded, then the sheet.
-    loads = 0;
-    await view.render(asked(3), [], history(true));
-    await answer();
-    for (let page = 0; page < 30 && loads < 25; page += 1) {
-      await view.render(asked(3), [], history(true, true));
-      await view.render(asked(3), [], history(true));
-    }
-    assert.equal(loads, 25);
-    assert.equal(sheet(), null);
-    await view.render(asked(3), [], history(true, true));
-    await view.render(asked(3), [], history(true));
-    await view.settle();
-    assert.equal(loads, 25, "no 26th page");
-    assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
+    assert.equal(loads, 0);
+    assert.equal(view.scrolled(), null);
   } finally { await view.cleanup(); }
 });
 

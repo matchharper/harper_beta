@@ -205,9 +205,6 @@ const stoppedLine = (app: CareerApplicationProgress, t: T) =>
       ? t("career.applicationProgress.stopped", "중단했어요")
       : t("career.applicationProgress.failed", "제출하지 못했어요");
 
-/** At most this many history pages (20 messages each) are loaded to reach a form from the panel. */
-const SEEK_PAGE_LIMIT = 25;
-
 const waitingLine = (t: T) => t("career.applicationProgress.waiting", "Harper가 다음 단계를 준비하는 중");
 
 /** The one status line under a row's name. */
@@ -473,7 +470,7 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, request, no
   const mention = mentionOf(app, t);
   const action = app.action;
   const answerFormId = action?.kind === "answer_form" ? action.formId : null;
-  // A form not on screen is loaded from earlier history, or opened in a sheet: the button is always there with a chat.
+  // A form not in view opens in a sheet: the button is always there with a chat.
   const formId = answerFormId !== null && (canReveal(answerFormId) || chat) ? answerFormId : null;
   // A site login waits in Harper's browser: open it where the timeline shows it.
   const openBrowser = useBrowserSessionOpener(action?.kind === "open_browser" ? action.sessionId : null);
@@ -649,44 +646,27 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
   const listId = useId();
   const now = useNow(applications.some(app => app.status === "running"
     || app.steps.some(step => step.subSteps?.some(sub => sub.state === "current" && sub.expiresAt))));
-  const { canReveal, reveal } = useCareerFormRevealer();
-  const chat = useOptionalCareerChatPanelContext();
+  const { canReveal, inView, reveal } = useCareerFormRevealer();
   const request = useApplicationRequest();
-  // The form a "답하기" asked for that is older than the loaded history: earlier pages load until it is on screen.
-  const [seeking, setSeeking] = useState<{ formId: number; name: string } | null>(null);
-  // A form no loaded page shows: it opens in a sheet, for the revision open then.
+  // A form not in view: it opens in a sheet, for the revision open then.
   const [sheet, setSheet] = useState<{ formId: number; name: string; revision: number } | null>(null);
   const sheetFor = (target: { formId: number; name: string }) => {
     const form = openForms.find(item => item.formId === target.formId);
     return form ? { ...target, revision: form.revision } : null;
   };
-  const pages = useRef(0);
-  const seekingOnScreen = seeking !== null && canReveal(seeking.formId);
-  useEffect(() => {
-    if (seeking === null) return;
-    if (seekingOnScreen) {
-      reveal(seeking.formId);
-      setSeeking(null);
-    } else if (!chat?.hasOlderMessages || pages.current >= SEEK_PAGE_LIMIT) {
-      // A page's forms register only after it renders: look once more, then answer it in the sheet, never nothing.
-      const timer = window.setTimeout(() => { setSeeking(null); setSheet(sheetFor(seeking)); }, 0);
-      return () => window.clearTimeout(timer);
-    } else if (!chat.loadingOlderMessages) {
-      pages.current += 1;
-      void chat.onLoadOlderMessages();
-    }
-    // reveal, chat and sheetFor are new every render; the search moves only with these values.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seeking, seekingOnScreen, chat?.hasOlderMessages, chat?.loadingOlderMessages]);
   // Shown while the revision the person opened is still open, whatever its row asks by then; answered or closed, it is
   // gone (a new revision is offered on the row again, not opened on the person).
   const openSheet = sheet && openForms.some(form => form.formId === sheet.formId && form.revision === sheet.revision) ? sheet : null;
+  // In view, the card is right there and the chat brings it up. Anywhere else (further up the chat, before the loaded
+  // history, or in no reply at all) it is answered in the sheet, and the chat stays where the person left it. 11/27: a
+  // new revision of a card the chat showed 40 minutes up was scrolled to instead, and the chat stopped at the start card.
   const answer = (formId: number, name: string) => {
     setExpanded(false);
-    if (canReveal(formId)) return reveal(formId);
-    if (!chat?.hasOlderMessages) return setSheet(sheetFor({ formId, name }));
-    pages.current = 0;
-    setSeeking({ formId, name });
+    if (inView(formId)) return reveal(formId);
+    const target = sheetFor({ formId, name });
+    if (target) return setSheet(target);
+    // Not in this poll's open forms (it may have just closed): shown where the chat has it, if it does.
+    if (canReveal(formId)) reveal(formId);
   };
   const counts = careerApplicationCounts(applications);
   return (
