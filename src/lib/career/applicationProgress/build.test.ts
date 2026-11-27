@@ -118,10 +118,32 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(states(waiting), "confirm:done fill:current review:todo submit:todo");
   assert.deepEqual(sub(waiting, "login"), { key: "login", state: "current", site: "원티드", at: at(8), step: "fill" });
 
-  // The provider stopped that browser: there is nothing to open, Harper has to start again.
+  // The provider stopped that browser (its idle timeout, ~10 minutes): nothing to open and nothing running, so the
+  // application stopped like a closed browser instead of showing Harper as preparing.
   const stopped = only(build(messages, [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun]));
   assert.equal(stopped.action, undefined);
-  assert.equal(stopped.status, "waiting");
+  assert.equal(stopped.status, "failed");
+  assert.equal(sub(stopped, "login")?.state, "failed");
+  assert.deepEqual(stopped.failure, { reason: "error" });
+
+  // The same after Harper handed over a finished preparation (the run itself does not say it needs the person).
+  const handoffStopped = only(build(messages, [session(SESSION, "human", { requestedAction: "handoff", browserAvailability: "stopped" }),
+    run("prepare", "completed", 6, 8)]));
+  assert.equal(handoffStopped.status, "failed");
+  assert.equal(sub(handoffStopped, "login")?.state, "failed");
+
+  // A restart after an earlier preparation finished: its login browser stopped, so the application stopped too.
+  const restarted = only(build(messages, [session("s-old", "idle"), run("prepare", "completed", 6, 8, { parentId: "s-old" }),
+    session(SESSION, "human", { browserAvailability: "stopped" }), run("prepare", "completed", 30, 32, { needsUser: true, url: "https://id.wanted.co.kr/login" })]));
+  assert.equal(states(restarted), "confirm:done fill:done review:todo submit:todo");
+  assert.equal(sub(restarted, "login")?.state, "failed");
+  assert.equal(restarted.status, "failed");
+  assert.deepEqual(restarted.failure, { reason: "not_submitted" });
+
+  // Harper drafted the review form while the login browser waited: that form is not a sign-in.
+  const drafted = only(build([...messages, form(2, 12), answer(2, 14)], [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun]));
+  assert.equal(sub(drafted, "login")?.state, "failed");
+  assert.equal(drafted.status, "failed");
 
   const resumed = only(build(messages, [session(SESSION, "running", { requestedAction: "resume" }), loginRun, run("prepare", "running", 20, 20)]));
   assert.equal(resumed.status, "running");

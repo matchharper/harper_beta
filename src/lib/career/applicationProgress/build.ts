@@ -186,8 +186,10 @@ const humanControl = (session?: SessionView) =>
   Boolean(session && (session.status === "human" || (session.status === "closing" && session.requestedAction === "handoff")));
 const runActive = (run: RunView) => ACTIVE_RUN.has(run.status);
 const runFailed = (run: RunView) => !runActive(run) && run.status !== "completed";
+/** Closed by Harper, or stopped by the provider (its idle timeout ends a browser nobody signed in to). */
+const browserGone = (session?: SessionView) => session?.status === "closed" || session?.browserAvailability === "stopped";
 /** The run left its browser with the person: that browser waits for them and nothing newer ran there. */
-const awaitingPerson = (run: RunView) => !runActive(run) && run.latestOnSession && humanControl(run.session);
+const awaitingPerson = (run: RunView) => !runActive(run) && run.latestOnSession && humanControl(run.session) && !browserGone(run.session);
 
 /** Groups the rows by application (role id, or opportunity id when a form has no role). */
 function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<string, ApplicationRecords> {
@@ -345,7 +347,7 @@ function loginSubStep(runs: RunView[], nextAfter: (at: string) => string | undef
   if (!episode) return undefined;
   const next = nextAfter(episode.createdAt);
   if (next) return subStep("login", "done", next, episode.site);
-  if (episode.session?.status === "closed") return subStep("login", "failed", episode.updatedAt, episode.site);
+  if (browserGone(episode.session)) return subStep("login", "failed", episode.updatedAt, episode.site);
   // Returned with Done in the viewer or an answer in chat: Harper continues from that page.
   return humanControl(episode.session) ? undefined : subStep("login", "done", episode.updatedAt, episode.site);
 }
@@ -396,11 +398,14 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const afterInFill = (at: string) => earliestTime([...prep.map((run) => run.createdAt), ...reviewForms.map((form) => form.createdAt),
     ...attempts.map((attempt) => attempt.createdAt)].filter((value) => time(value) > time(at)));
   const fillSubSteps: CareerApplicationSubStep[] = [];
-  const fillLogin = loginSubStep(prep, afterInFill, actions);
+  // Only a later browser run shows the login was passed; Harper may draft the review form while the browser waits.
+  const runAfterInFill = (at: string) => earliestTime([...prep.map((run) => run.createdAt), ...attempts.map((attempt) => attempt.createdAt)]
+    .filter((value) => time(value) > time(at)));
+  const fillLogin = loginSubStep(prep, runAfterInFill, actions);
   if (fillLogin) fillSubSteps.push(fillLogin);
   // A preparation that failed, or whose browser closed while it waited for a login, followed by another one.
   const prepRetry = prep.filter((run, index) => index > 0
-    && (runFailed(prep[index - 1]) || (prep[index - 1].needsUser && prep[index - 1].session?.status === "closed"))).at(-1);
+    && (runFailed(prep[index - 1]) || (prep[index - 1].needsUser && browserGone(prep[index - 1].session)))).at(-1);
   if (prepRetry) fillSubSteps.push(subStep("retry", "done", prepRetry.createdAt));
   const latestPrep = prep.at(-1);
   let fill: CareerApplicationStep;
@@ -462,7 +467,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     if (lastCode) {
       const next = nextAttempt(lastCode.createdAt);
       if (next || done) subSteps.push(subStep("verification_code", "done", next ?? done!.updatedAt, lastCode.site));
-      else if (lastCode.session?.status === "closed") subSteps.push(subStep("verification_code", "failed", lastCode.updatedAt, lastCode.site));
+      else if (browserGone(lastCode.session)) subSteps.push(subStep("verification_code", "failed", lastCode.updatedAt, lastCode.site));
       else {
         codeWaits = true;
         subSteps.push(subStep("verification_code", "current", lastCode.updatedAt, lastCode.site));
@@ -507,6 +512,11 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   } else if (submit.state === "failed" || fill.state === "failed") status = "failed";
   // A code Harper asked for in chat (no browser handed over, no turn running): the person sends it in the composer.
   else if (action || (codeInChat && !turnStartedAt)) status = "needs_you";
+  // A later preparation (a restart) whose login browser closed before the person signed in, with nothing after it.
+  else if (fillLogin?.state === "failed" && !attempts.length) {
+    status = "failed";
+    failure = { reason: "not_submitted" };
+  }
   else if (app.runs.some(runActive) || app.sends.some((send) => ACTIVE_SEND.has(send.status))) status = "running";
   else status = "waiting";
 
