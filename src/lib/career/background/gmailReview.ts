@@ -1,6 +1,7 @@
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import { careerExecutionEnvironment } from "../executionEnvironment";
 import { browserRunAwaitsEmailCode } from "../browser/submissionReceipt";
+import { CAREER_BROWSER_KEEP_ALIVE_SECONDS } from "../browser/lifetime";
 import type { CareerAgentReplyJob } from "../agentReplyQueue";
 
 /** The first inbox review after a Gmail connection waits until the chat has had no message for this long. */
@@ -9,8 +10,8 @@ const GMAIL_REVIEW_QUIET_MS = 10 * 60_000;
 const GMAIL_REVIEW_RECENT_MS = 60 * 60_000;
 /** After this the review starts even if the chat never went quiet. It still waits for the person's other Career work. */
 const GMAIL_REVIEW_MAX_WAIT_MS = 3 * 60 * 60_000;
-/** A code screen stays open only while its browser does, which closes 10 minutes after its last use. */
-const CODE_SCREEN_MS = 15 * 60_000;
+/** A code screen stays open only while its browser does, which closes CAREER_BROWSER_KEEP_ALIVE_SECONDS after its last use. */
+const CODE_SCREEN_MS = (CAREER_BROWSER_KEEP_ALIVE_SECONDS + 5 * 60) * 1000;
 
 type GmailReview = { id: string; user_id: string; conversation_id: string | null; created_at: string };
 type BrowserRun = { id: string; conversation_id: string | null; request: Record<string, unknown>; result: Record<string, unknown> | null };

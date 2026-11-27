@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
+import Module from "node:module";
 import test from "node:test";
 import { CAREER_WORK_TOOLS } from "./tools";
-import { resolveCareerChatTools } from "../llmTools";
+
+// The chat tool list reaches a server-only module on import; this test runs outside Next.js.
+const nodeModule = Module as typeof Module & { _load: (request: string, parent: unknown, isMain: boolean) => unknown };
+const originalLoad = nodeModule._load;
+nodeModule._load = function (request, parent, isMain) {
+  return request === "server-only" ? {} : originalLoad.call(this, request, parent, isMain);
+};
 
 const workId = "00000000-0000-4000-8000-000000000001";
 const otherWorkId = "00000000-0000-4000-8000-000000000002";
@@ -33,7 +40,8 @@ test("work outcome calls use only their observed execution revision and preserve
   }
 });
 
-test("the model-facing tool schema explains the revision default and required caller values", () => {
+test("the model-facing tool schema explains the revision default and required caller values", async () => {
+  const { resolveCareerChatTools } = await import("../llmTools");
   const tool = resolveCareerChatTools({ channel: "chat", isOnboardingDone: true }).tools
     .find(tool => tool.function.name === "manage_work")!;
   const schema = tool.function.parameters as any;

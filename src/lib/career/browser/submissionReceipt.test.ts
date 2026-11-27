@@ -29,6 +29,8 @@ function adminWith(rows: { id: string; saved_stage: string | null }[]) {
       select: () => query,
       eq: (key: string, value: unknown) => { filters[key] = value; return query; },
       in: (key: string, value: unknown) => { filters[key] = value; return query; },
+      order: () => query,
+      limit: () => query,
       maybeSingle: async () => ({ data: { id: filters.id, role_id: roleId }, error: null }),
       then: (resolve: (value: unknown) => void) => resolve({ data: rows, error: null }),
     };

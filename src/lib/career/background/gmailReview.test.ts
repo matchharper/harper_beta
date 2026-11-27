@@ -99,7 +99,7 @@ test("connecting Gmail tells only an application that stopped at an emailed code
     run("newer", "c1", 1, { submitted: "yes", verificationCode: "none" }),
     run("waiting", "c1", 3, { submitted: "no", verificationCode: "email" }),
     run("texted", "c2", 3, { submitted: "no", verificationCode: "phone" }),
-    run("expired", "c3", 20, { submitted: "no", verificationCode: "email" }),
+    run("expired", "c3", 40, { submitted: "no", verificationCode: "email" }),
   ] }, () => "invocation");
   const result = await notifyApplicationAwaitingEmailCode(admin, "u", { now: NOW, publishInvocations: async ({ conversationId }) => { published.push(conversationId); } });
   assert.deepEqual(result, { notified: 1 });

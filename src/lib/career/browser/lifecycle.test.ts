@@ -184,7 +184,7 @@ for (const replaceAttachments of [false, true]) {
       dispatched = true;
       assert.equal(workspaceId, rows[0].provider_refs.workspace_id);
       assert.equal(sessionId, remoteSession);
-      assert.equal(options.keepAlive, 600);
+      assert.equal(options.keepAlive, 1800);
       assert.equal(options.serviceTier, "default");
       // Stop at dispatch to test an unknown provider outcome.
       throw new Error("Provider response unavailable in this attachment test");

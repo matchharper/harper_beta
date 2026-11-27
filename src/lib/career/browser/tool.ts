@@ -33,9 +33,8 @@ import { browserRunSubmission, markSubmittedApplications } from "./submissionRec
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 import { enableSavedLogin, forgetSavedLogin, readSavedLogin, savedLoginProfileId } from "./savedLogin";
 import { closedPostingBeforePreparation } from "./postingCheck";
+import { CAREER_BROWSER_KEEP_ALIVE_SECONDS } from "./lifetime";
 
-// Allows a human to finish login/input before the provider releases the page.
-export const CAREER_BROWSER_KEEP_ALIVE_SECONDS = 600;
 
 export function browserHasHumanControl(session: ExternalOperation) {
   return session.status === "human" || (session.status === "closing" && session.result.requested_action === "handoff");
@@ -162,8 +161,8 @@ const runOutputSchema = {
     },
     verificationCode: {
       type: "string",
-      enum: ["email", "phone", "none"],
-      description: "Whether this run left a screen open that waits for a one-time verification code, and where the site sent it. email: sent to the applicant's email; phone: sent by text or call; none: no such screen is waiting.",
+      enum: ["email", "email_link", "phone", "none"],
+      description: "Whether this run left a screen open that waits for the applicant's verification, and how the site sent it. email: a one-time code sent to the applicant's email; email_link: a link sent to the applicant's email that has to be opened to verify; phone: a code sent by text or call; none: no such screen is waiting.",
     },
   },
   required: ["summary", "evidence", "needsUser", "url", "submitted", "verificationCode"],
@@ -194,7 +193,8 @@ const outputSchema = z.object({
   profileLink: z.string().optional(),
   // The run's receipt (yes/no/unclear), kept as given for the same reason; browserRunSubmission reads it.
   submitted: z.string().optional(),
-  // Where an open code screen's code went (email/phone/none), kept as given; browserRunAwaitsEmailCode reads it.
+  // How an open verification screen reaches the applicant (email/email_link/phone/none), kept as given;
+  // browserRunAwaitsEmailCode and browserRunAwaitsEmailLink read it.
   verificationCode: z.string().optional(),
 });
 /** Value maps of a career form answer (one form, or several answered together); undefined for a chat message. */
