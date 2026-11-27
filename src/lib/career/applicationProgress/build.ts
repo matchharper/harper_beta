@@ -73,6 +73,9 @@ export type ApplicationOpenForm = Pick<CareerForm, "formId" | "revision" | "kind
 
 export type ApplicationRoleRow = { roleId: string; companyName: string | null; title: string | null; ended: boolean };
 
+/** One of the person's chat messages, with the roles it names (its role mentions). */
+export type ApplicationRequestRow = { createdAt: string; roleIds: readonly string[] };
+
 export type CareerApplicationProgressInput = {
   now: Date;
   messages: readonly ApplicationMessageRow[];
@@ -88,6 +91,11 @@ export type CareerApplicationProgressInput = {
   waitingForReply?: boolean;
   /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */
   closingBrowserSessionIds?: readonly string[];
+  /**
+   * The person's messages after a Stop that name an application, leaving out those a Stop ended: asking about a
+   * stopped application (the panel's "이어서 하기" names it) picks it up again. Harper's turn alone does not.
+   */
+  requests?: readonly ApplicationRequestRow[];
 };
 
 export const CAREER_APPLICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -435,18 +443,23 @@ function verificationSubStep(key: "verification_code" | "email_link", last: RunV
   return { sub: subStep(key, "current", last.updatedAt, last.site, closesAt(last)), waits: last, inChat: !handed };
 }
 
-type BuildContext = Pick<CareerApplicationProgressInput, "now" | "turnStartedAt" | "waitingForReply">;
+type BuildContext = Pick<CareerApplicationProgressInput, "now" | "turnStartedAt" | "waitingForReply" | "requests">;
+/** stoppedSince: when the person stopped it, while that holds. */
+type Built = { progress: CareerApplicationProgress; stoppedSince?: string };
 
-function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined, context: BuildContext): CareerApplicationProgress | undefined {
+function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined, context: BuildContext): Built | undefined {
   const { turnStartedAt } = context;
   const updatedAt = updatedAtOf(app);
   if (!updatedAt) return undefined;
   const actions: Candidate[] = [];
   let failure: CareerApplicationProgress["failure"];
+  const works = [...app.runs, ...app.sends];
   const followedUp = (stoppedAt: string) => Boolean(turnStartedAt) && time(stoppedAt) >= time(turnStartedAt);
-  // Something happened after a Stop: a form, an answer, or Harper's next turn (the person asked it to go on).
-  const movedSince = (at: string) => app.forms.some((form) => form.open || (form.answer && time(form.answer.at) > time(at)))
-    || (Boolean(turnStartedAt) && time(turnStartedAt) > time(at));
+  // Something happened for this application after a Stop: a newer run or send (not stopped itself), a form, an answer,
+  // or the person's request about it. Harper's turn alone is not: it may be about anything else and leaves no trace here.
+  const movedSince = (at: string) => works.some((work) => !work.stoppedAt && time(work.createdAt) > time(at))
+    || app.forms.some((form) => form.open || (form.answer && time(form.answer.at) > time(at)))
+    || Boolean(context.requests?.some((request) => time(request.createdAt) > time(at) && request.roleIds.includes(app.id)));
   // Work a Stop cut off failed by the person's choice: once something follows, Harper carries on with that step.
   const resumedAfterStop = (work: { stoppedAt?: string }) => Boolean(work.stoppedAt && movedSince(work.stoppedAt));
   const prep = app.runs.filter((run) => run.mode === "prepare");
@@ -456,7 +469,6 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     ...app.sends.map((send) => ({ send, createdAt: send.createdAt, updatedAt: send.updatedAt })),
   ].sort(byCreated);
   const submitStart = attempts[0]?.createdAt;
-  const works = [...app.runs, ...app.sends];
   const newestWork = [...works].sort(byCreated).at(-1);
   const firstWork = earliestTime(works.map((work) => work.createdAt));
   const lastWork = latestTime(works.map((work) => work.updatedAt));
@@ -594,7 +606,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   if (lost?.run.sessionId && browserExpired(lost.run.session) && !turnStartedAt)
     actions.push({ action: { kind: "reopen_browser", sessionId: lost.run.sessionId }, at: lost.run.updatedAt });
   // Stopped by the person: a Stop ended the request of the newest work, or the login browser it waited on was closed
-  // (in the viewer, or by a Stop's cleanup). It holds until something newer: a form, an answer, or Harper's next turn.
+  // (in the viewer, or by a Stop's cleanup). It holds until something follows for this application (movedSince).
   const stopFrom = newestWork?.stoppedAt ?? (lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined);
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
@@ -622,7 +634,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     action = { kind: context.waitingForReply ? "reply_in_chat" : "continue" };
   }
 
-  return {
+  const progress: CareerApplicationProgress = {
     id: app.id,
     kind: app.kind,
     companyName: role?.companyName ?? null,
@@ -635,26 +647,38 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     ...(submittedAt ? { submittedAt } : {}),
     ...(liveBrowser ? { browserSessionId: liveBrowser } : {}),
   };
+  return { progress, ...(failure?.reason === "stopped" && stopFrom ? { stoppedSince: stopFrom } : {}) };
 }
 
 const STATUS_ORDER: Record<CareerApplicationStatus, number> = { needs_you: 0, running: 1, waiting: 2, submitted: 3, failed: 3, closed: 3 };
 
-/**
- * Applications of this conversation whose newest record is within 7 days, leaving out those finished more than 24
- * hours ago. Needs-you first, then running, waiting and finished, each newest first; at most CAREER_APPLICATION_LIMIT.
- */
-export function buildCareerApplicationProgress(input: CareerApplicationProgressInput): CareerApplicationProgress[] {
+/** Applications of this conversation whose newest record is within 7 days, leaving out those finished more than 24 hours ago. */
+function buildShown(input: CareerApplicationProgressInput): Built[] {
   const now = input.now.getTime();
   const roles = new Map((input.roles ?? []).map((role) => [role.roleId, role]));
   return [...collect(input).values()]
     .flatMap((app) => {
-      const progress = buildOne(app, roles.get(app.id), input);
-      return progress ? [progress] : [];
+      const built = buildOne(app, roles.get(app.id), input);
+      return built ? [built] : [];
     })
-    .filter((progress) => {
+    .filter(({ progress }) => {
       const updated = time(progress.updatedAt);
       return updated >= now - CAREER_APPLICATION_WINDOW_MS && (STATUS_ORDER[progress.status] < 3 || updated >= now - FINISHED_WINDOW_MS);
-    })
+    });
+}
+
+/**
+ * When the earliest application the person stopped was stopped, if one is: read.server.ts reads the person's requests
+ * since then (CareerApplicationProgressInput.requests) only while this is set.
+ */
+export function careerApplicationStoppedSince(input: CareerApplicationProgressInput): string | undefined {
+  return earliestTime(buildShown(input).map((built) => built.stoppedSince));
+}
+
+/** The shown applications: needs-you first, then running, waiting and finished, each newest first; at most CAREER_APPLICATION_LIMIT. */
+export function buildCareerApplicationProgress(input: CareerApplicationProgressInput): CareerApplicationProgress[] {
+  return buildShown(input)
+    .map((built) => built.progress)
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || time(b.updatedAt) - time(a.updatedAt) || a.id.localeCompare(b.id))
     .slice(0, CAREER_APPLICATION_LIMIT);
 }

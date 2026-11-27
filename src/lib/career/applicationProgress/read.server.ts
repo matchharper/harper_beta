@@ -2,13 +2,16 @@ import {
   buildCareerApplicationProgress,
   careerApplicationRoleIds,
   careerApplicationStopRefs,
+  careerApplicationStoppedSince,
   CAREER_APPLICATION_WINDOW_MS,
   type ApplicationMessageRow,
   type ApplicationOpenForm,
   type ApplicationOperationRow,
+  type ApplicationRequestRow,
   type ApplicationRoleRow,
 } from "./build";
 import type { CareerApplicationProgress } from "./types";
+import { extractCareerOpportunityMentions } from "@/lib/career/opportunityMentionText";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 
 type Result = { data: unknown; error: { message?: string } | null };
@@ -18,6 +21,9 @@ const MESSAGE_LIMIT = 400;
 const OPERATION_LIMIT = 300;
 /** The person's Stops in one conversation's week: one row per press. */
 const STOP_LIMIT = 100;
+/** The person's messages naming an opportunity since a Stop, found by the chat's mention marker (opportunityMentionText.ts). */
+const REQUEST_LIMIT = 50;
+const MENTION_MARKER = "HARPER_OPPORTUNITY_MENTIONS_V1";
 
 /** Role statuses that mean the posting takes no applications (the same set as browser/postingCheck.ts). */
 const ENDED_ROLE_STATUSES = new Set(["archived", "closed", "deleted", "ended", "expired", "inactive"]);
@@ -39,7 +45,9 @@ const rows = <T>(result: Result, what: string): T[] => {
  * reads whether the delegated work behind each application's newest run or send was cancelled. A run or send is
  * stopped when a Stop of the person's ended its request (the Stop's own record lists that message) or its work was
  * cancelled. The careerTurnStopped flag on the message is not read: Harper's cancellation of a pending request
- * (manage_work) sets it too. At most five small queries; throws on a failed read so the caller can leave the list empty.
+ * (manage_work) sets it too. Only while an application is stopped, last, reads the person's messages since that name
+ * one: asking about it picks it up again. At most six small queries; throws on a failed read so the caller can leave
+ * the list empty.
  */
 export async function readCareerApplicationProgress(args: {
   admin: Pick<TalentAdminClient, "from">;
@@ -145,5 +153,25 @@ export async function readCareerApplicationProgress(args: {
     const stoppedAt = latest(bySource ? stoppedSources.get(row.sourceMessageId!) : undefined, byWork ? cancelledWorks.get(row.workId!) : undefined);
     return { ...row, stopped: true, ...(stoppedAt ? { stoppedAt } : {}) };
   });
-  return buildCareerApplicationProgress({ ...input, operations: operationsWithStops, roles });
+  const built = { ...input, operations: operationsWithStops, roles };
+  const stoppedSince = careerApplicationStoppedSince(built);
+  if (!stoppedSince) return buildCareerApplicationProgress(built);
+  // The person's messages since that name an opportunity; one a later Stop ended asked for nothing that went on.
+  const requests: ApplicationRequestRow[] = rows<{ id: number | string; createdAt: string; content?: string | null }>(
+    await db.from("talent_messages")
+      .select("id,createdAt:created_at,content")
+      .eq("user_id", args.userId)
+      .eq("conversation_id", args.conversationId)
+      .eq("role", "user")
+      .gt("created_at", stoppedSince)
+      .like("content", `%${MENTION_MARKER}%`)
+      .order("id", { ascending: false })
+      .limit(REQUEST_LIMIT),
+    "Application requests")
+    .filter((row) => !stoppedSources.has(String(row.id)))
+    .map((row) => ({ createdAt: row.createdAt, roleIds: extractCareerOpportunityMentions(row.content ?? "")
+      // A company or a /jobs posting is not an application here; a role is.
+      .filter((mention) => !mention.targetKind).map((mention) => mention.roleId) }))
+    .filter((request) => request.roleIds.length > 0);
+  return buildCareerApplicationProgress({ ...built, requests });
 }

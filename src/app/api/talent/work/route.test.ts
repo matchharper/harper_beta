@@ -376,7 +376,7 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
           if (call.filters.message_type === "career_turn_stop")
             return [{ createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301] }, { createdAt: "2026-11-26T08:00:00Z", sourceMessageIds: null }];
           // The flag alone, as both the person's Stop and Harper's cancellation leave it.
-          return call.columns.startsWith("id,") ? [{ id: 301, stopped: true }, { id: 302, stopped: true }] : [];
+          return call.columns.includes("careerTurnStopped") ? [{ id: 301, stopped: true }, { id: 302, stopped: true }] : [];
         }
         if (call.filters.kind === "delegated_work") return [{ id: works[0], status: "cancelled" }, { id: works[1], status: "running" }];
         return operations;
@@ -386,6 +386,8 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
         eq(column: string, value: unknown) { call.filters[column] = value; return query; },
         in(column: string, values: unknown[]) { call.filters[`${column}:in`] = values; return query; },
         gte(column: string, value: unknown) { call.filters[`${column}:gte`] = value; return query; },
+        gt() { return query; },
+        like() { return query; },
         not() { return query; },
         order() { return query; },
         limit(value: number) { call.limit = value; return query; },
@@ -414,4 +416,72 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
   assert.equal(work?.columns, "id,status,updatedAt:updated_at");
   assert.deepEqual(work?.filters, { user_id: userId, conversation_id: conversationId, kind: "delegated_work", "id:in": works });
   assert.equal(work?.limit, 2);
+});
+
+test("while an application is stopped, the person's messages naming it since then pick it up again, unless a Stop ended them", async () => {
+  const userId = "00000000-0000-4000-8000-0000000000f1";
+  const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
+  const now = new Date("2026-11-26T10:00:00Z");
+  const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
+  const mention = (text: string, mentions: unknown[]) =>
+    `${text}\n\n[[HARPER_OPPORTUNITY_MENTIONS_V1:${encodeURIComponent(JSON.stringify(mentions))}]]`;
+  // One Stop at 09:03 cut off all three submissions. The person then asked to go on with A (the panel's message names
+  // its role) and with B, but stopped that B request too (the 09:13 Stop lists it); C was named only as a company.
+  const operations = roleIds.map((roleId, index) => ({ id: `00000000-0000-4000-8000-0000000000d${index}`, kind: "browser_run",
+    status: "failed", mode: "execute", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleId],
+    sourceMessageId: String(301 + index) }));
+  const stops = [{ createdAt: "2026-11-26T09:13:00Z", sourceMessageIds: [311] }, { createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301, 302, 303] }];
+  const requests = [
+    { id: 312, createdAt: "2026-11-26T09:14:00Z", content: mention("C 회사 어때?", [{ label: "C사", roleId: roleIds[2], targetKind: "company" }]) },
+    { id: 311, createdAt: "2026-11-26T09:12:00Z", content: mention("B사 · 디자이너 진행을 이어서 해 줘.", [{ label: "B사 · 디자이너", roleId: roleIds[1] }]) },
+    { id: 310, createdAt: "2026-11-26T09:10:00Z", content: mention("A사 · 백엔드 진행을 이어서 해 줘.", [{ label: "A사 · 백엔드", roleId: roleIds[0] }]) },
+  ];
+  let stopped = true;
+  const admin = {
+    from(table: string) {
+      const call = { table, columns: "", filters: {} as Record<string, unknown>, limit: undefined as number | undefined };
+      calls.push(call);
+      const result = () => {
+        if (table === "company_roles") return [];
+        if (table === "talent_messages")
+          return call.filters.message_type === "career_turn_stop" ? (stopped ? stops : []) : call.filters.role === "user" ? requests : [];
+        return operations.map((row) => (stopped ? row : { ...row, sourceMessageId: null }));
+      };
+      const query: any = {
+        select(columns: string) { call.columns = columns; return query; },
+        eq(column: string, value: unknown) { call.filters[column] = value; return query; },
+        in(column: string, values: unknown[]) { call.filters[`${column}:in`] = values; return query; },
+        gte(column: string, value: unknown) { call.filters[`${column}:gte`] = value; return query; },
+        gt(column: string, value: unknown) { call.filters[`${column}:gt`] = value; return query; },
+        like(column: string, value: unknown) { call.filters[`${column}:like`] = value; return query; },
+        not() { return query; },
+        order() { return query; },
+        limit(value: number) { call.limit = value; return query; },
+        then(resolve: (value: unknown) => unknown) { return Promise.resolve(resolve({ data: result(), error: null })); },
+      };
+      return query;
+    },
+  };
+  const read = () => readCareerApplicationProgress({ admin: admin as any, userId, conversationId, openForms: Promise.resolve([]),
+    turnStartedAt: Promise.resolve(null), now });
+  const byRole = new Map((await read()).map((item) => [item.id, item]));
+  assert.equal(byRole.get(roleIds[0])?.failure, undefined, "asked to go on");
+  assert.equal(byRole.get(roleIds[0])?.status, "needs_you");
+  assert.deepEqual(byRole.get(roleIds[0])?.action, { kind: "continue" });
+  assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "stopped" }, "that request was stopped too");
+  assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "stopped" }, "a company mention is not this application");
+
+  // Read last, from the earliest Stop that still holds: only the person's messages carrying a mention, a few columns.
+  const request = calls.find((call) => call.filters.role === "user");
+  assert.equal(calls.at(-1), request);
+  assert.equal(request?.columns, "id,createdAt:created_at,content");
+  assert.deepEqual(request?.filters, { user_id: userId, conversation_id: conversationId, role: "user",
+    "created_at:gt": "2026-11-26T09:03:00Z", "content:like": "%HARPER_OPPORTUNITY_MENTIONS_V1%" });
+  assert.ok(request?.limit && request.limit <= 50);
+
+  // Nothing stopped, nothing more to read.
+  stopped = false;
+  calls.length = 0;
+  assert.ok((await read()).every((item) => item.failure?.reason !== "stopped"));
+  assert.equal(calls.filter((call) => call.filters.role === "user").length, 0);
 });

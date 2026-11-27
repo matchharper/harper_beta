@@ -7,6 +7,7 @@ import {
   type ApplicationMessageRow,
   type ApplicationOpenForm,
   type ApplicationOperationRow,
+  type ApplicationRequestRow,
   type ApplicationRoleRow,
 } from "./build";
 import { careerApplicationCounts, careerApplicationPercent, type CareerApplicationProgress } from "./types";
@@ -58,9 +59,11 @@ const run = (mode: "prepare" | "execute", status: string, created: number, updat
 });
 
 function build(messages: ApplicationMessageRow[], operations: ApplicationOperationRow[], openForms: ApplicationOpenForm[] = [],
-  extra: { roles?: ApplicationRoleRow[]; now?: Date; turnStartedAt?: string; waitingForReply?: boolean; closingBrowserSessionIds?: string[] } = {}) {
+  extra: { roles?: ApplicationRoleRow[]; now?: Date; turnStartedAt?: string; waitingForReply?: boolean; closingBrowserSessionIds?: string[];
+    requests?: ApplicationRequestRow[] } = {}) {
   return buildCareerApplicationProgress({ now: extra.now ?? NOW, messages, operations, openForms, roles: extra.roles ?? roles,
-    turnStartedAt: extra.turnStartedAt, waitingForReply: extra.waitingForReply, closingBrowserSessionIds: extra.closingBrowserSessionIds });
+    turnStartedAt: extra.turnStartedAt, waitingForReply: extra.waitingForReply, closingBrowserSessionIds: extra.closingBrowserSessionIds,
+    requests: extra.requests });
 }
 const only = (list: CareerApplicationProgress[]) => {
   assert.equal(list.length, 1);
@@ -284,12 +287,13 @@ test("a Stop reads as stopped, not as a question or a failure, until something n
   assert.equal(stopped.status, "failed");
   assert.deepEqual(stopped.failure, { reason: "stopped" });
   assert.deepEqual(stopped.action, { kind: "continue" });
-  // Anything newer clears it: another run, Harper's next turn, or a new question.
+  // Anything newer for it clears it: another run, a new question, or the person's request about it.
   const resumed = only(build(start, [...cut, run("execute", "running", 40, 40)]));
   assert.equal(resumed.status, "running");
   assert.equal(resumed.failure, undefined);
-  // The person asked Harper to go on (its turn started after the Stop): it carries on with that step, nothing failed.
-  const continued = only(build(start, cut, [], { turnStartedAt: at(30) }));
+  // The person asked Harper to go on (a message naming it, its turn running): it carries on with that step, nothing failed.
+  const goOn = { turnStartedAt: at(30), requests: [{ createdAt: at(30), roleIds: [ROLE_A] }] };
+  const continued = only(build(start, cut, [], goOn));
   assert.equal(continued.status, "waiting");
   assert.equal(continued.failure, undefined);
   assert.equal(states(continued), "confirm:done fill:done review:skipped submit:current");
@@ -298,7 +302,7 @@ test("a Stop reads as stopped, not as a question or a failure, until something n
   const prepStopped = only(build(start, cutPrep));
   assert.equal(prepStopped.status, "failed");
   assert.deepEqual(prepStopped.failure, { reason: "stopped" });
-  const prepContinued = only(build(start, cutPrep, [], { turnStartedAt: at(30) }));
+  const prepContinued = only(build(start, cutPrep, [], goOn));
   assert.equal(prepContinued.status, "waiting");
   assert.equal(states(prepContinued), "confirm:done fill:current review:todo submit:todo");
   const asked = only(build([...start, form(3, 35)], cut, [openForm(3, REVIEW_ITEMS)]));
@@ -307,6 +311,44 @@ test("a Stop reads as stopped, not as a question or a failure, until something n
   // A Stop on a request that already submitted changes nothing.
   assert.equal(only(build(start, [session(SESSION, "idle"), { ...run("execute", "completed", 20, 22, { submitted: "yes" }), stopped: true }])).status,
     "submitted");
+});
+
+test("a Stop holds through Harper's turns on other things; asking about that application picks it up again", () => {
+  const start = [form(1, 0, [ROLE_A, ROLE_B]), answer(1, 5, { submitScope: "submit" })];
+  // One Stop cut off A's submission and B's preparation.
+  const cut = [session(SESSION, "idle"), run("prepare", "completed", 6, 10), { ...run("execute", "failed", 20, 22), stopped: true },
+    session(SESSION_2, "idle", { roleRefs: [ROLE_B] }), { ...run("prepare", "failed", 6, 22, { parentId: SESSION_2, roleRefs: [ROLE_B] }), stopped: true }];
+  const byId = (list: CareerApplicationProgress[]) => new Map(list.map((item) => [item.id, item]));
+  const stoppedAll = (list: CareerApplicationProgress[]) => list.length === 2 && list.every((item) =>
+    item.status === "failed" && item.failure?.reason === "stopped" && item.action?.kind === "continue");
+  // The person asks something else at 00:60: nothing is recorded for either application, during that turn or after.
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(60)) })));
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(61)), turnStartedAt: at(60) })), "an unrelated turn is not a go-on");
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(63)) })));
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(70)), waitingForReply: true })));
+  // A message from before the Stop asked for nothing after it.
+  assert.ok(stoppedAll(build(start, cut, [], { now: new Date(at(70)), requests: [{ createdAt: at(21), roleIds: [ROLE_A, ROLE_B] }] })));
+
+  // "이어서 하기" on A at 00:64 names A only.
+  const goOn = [{ createdAt: at(64), roleIds: [ROLE_A] }];
+  const running = byId(build(start, cut, [], { now: new Date(at(65)), turnStartedAt: at(64), requests: goOn }));
+  assert.equal(running.get(ROLE_A)?.status, "waiting");
+  assert.equal(running.get(ROLE_A)?.failure, undefined);
+  assert.equal(running.get(ROLE_A)?.steps[3].state, "current");
+  assert.deepEqual(running.get(ROLE_B)?.failure, { reason: "stopped" });
+  // Harper asked something in chat and waits for the reply: A points there, not at another "이어서 하기".
+  const parked = byId(build(start, cut, [], { now: new Date(at(70)), waitingForReply: true, requests: goOn }));
+  assert.equal(parked.get(ROLE_A)?.status, "needs_you");
+  assert.deepEqual(parked.get(ROLE_A)?.action, { kind: "reply_in_chat" });
+  assert.equal(parked.get(ROLE_A)?.failure, undefined);
+  assert.deepEqual(parked.get(ROLE_B)?.failure, { reason: "stopped" });
+  // The turn ended and nothing followed: A paused (not stopped again), the person can ask once more.
+  const ended = byId(build(start, cut, [], { now: new Date(at(70)), requests: goOn }));
+  assert.equal(ended.get(ROLE_A)?.status, "needs_you");
+  assert.deepEqual(ended.get(ROLE_A)?.action, { kind: "continue" });
+  assert.equal(ended.get(ROLE_A)?.failure, undefined);
+  // Its percentage holds through all of it.
+  for (const list of [running, parked, ended]) assert.equal(careerApplicationPercent(list.get(ROLE_A)!), 75);
 });
 
 test("the cancelled-work lookup names only the work behind each application's newest run or send", () => {
