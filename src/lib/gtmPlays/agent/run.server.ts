@@ -1361,7 +1361,8 @@ function searchOptionsOf(settings: AgentSettings) {
   return budgetOptions({
     turnedOn: job ? Object.keys(sources).filter((id) => sources[id].enabled) : [],
     layoffSearch: tuning.layoffSearch && settings.channels.layoff.enabled,
-    goalSearches: goalSearchesOn(settings.channels),
+    // 링크드인 최신 글 (treg) needs its switch and the treg key (the same key as the email lookup's).
+    goalSearches: goalSearchesOn(settings.channels, { vendorSearch: settings.signals.freshPosts && Boolean(vendorToken()) }),
   }).filter((option) => job || option.search !== EXPLORE_SOURCE);
 }
 

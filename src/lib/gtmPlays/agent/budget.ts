@@ -122,7 +122,11 @@ export function budgetOptionOf(
   const owners = person.searchQuery ? (queryOwners.get(budgetQueryKey(person.searchQuery)) ?? []).filter((id) => searched.has(id)) : [];
   const goals = owners.map(goalSearchOf).filter((item): item is NonNullable<typeof item> => Boolean(item));
   const fits = (aim: string) => (aim === "hiring" ? person.giverKind === "hiring_leader" : person.intent === aim);
-  const goal = goals.find((item) => fits(item.aim)) ?? (goals.length && goals.length === owners.length ? goals[0] : null);
+  // A job seeker's goal search (링크드인 최신 글) shares its people's aim with the place's own search: it claims a person
+  // only when no place search logged the same query (otherwise the place's, as before).
+  const placeToo = owners.some((id) => !goalSearchOf(id));
+  const claims = (item: (typeof goals)[number]) => fits(item.aim) && !(item.aim === "job" && placeToo);
+  const goal = goals.find(claims) ?? (goals.length && goals.length === owners.length ? goals[0] : null);
   if (goal) return goal.id;
   if (person.method === "layoff_company" && searched.has(person.source)) return `${person.source}${LAYOFF_OPTION_SUFFIX}`;
   if (searched.has(person.source) && person.source !== EXPLORE_SOURCE) return person.source;
