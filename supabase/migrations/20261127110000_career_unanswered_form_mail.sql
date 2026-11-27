@@ -22,8 +22,9 @@
 --     is still running or has emailed. One that ended without an email leaves the forms to this
 --     one. Another unseen message (a quick second message of the same reply, a background run's
 --     message) does not hold this one;
---   * Harper is not working in that chat: no turn there is running, other than one parked for the
---     candidate's answer or browser control (its reply could be one the unseen-reply email takes).
+--   * Harper is not working in that chat: no turn there (other than a cleanup) is unfinished, also
+--     one on hold behind a newer request, which resumes by itself (its reply could be one the
+--     unseen-reply email takes).
 --   So for one departure one of the two emails starts, not both. A reply Harper writes after this
 --   one started (a background result) is new and may still go by the unseen-reply email.
 -- One run lists every such form of the conversation. A form revision is listed in one
@@ -156,14 +157,14 @@ begin
           and (d.status in ('queued', 'running', 'handed_off')
             or exists (select 1 from public.talent_opportunity_delivery e
               where e.discovery_run_id=d.id and e.status in ('queued', 'retry', 'sending', 'sent'))))
-      -- Harper is still working in this chat (a turn neither completed nor parked for the candidate's answer or
-      -- browser control, as the chat shows it): its reply may be one the unseen-reply email takes, so the forms wait
-      -- (review 11/27: an answered form starts a turn, and the other forms were emailed while it ran).
+      -- Harper is still working in this chat (a turn not completed, other than a cleanup): its reply may be one the
+      -- unseen-reply email takes, so the forms wait (review 11/27: an answered form starts a turn, and the other forms
+      -- were emailed while it ran). A turn on hold (activity.waitingForReply) waits only for a newer request of the
+      -- candidate's to be handled first and then resumes by itself, never for their answer, so it holds them too.
       and not exists (select 1 from public.talent_external_operations i
         where i.user_id=seen.user_id and i.conversation_id=seen.conversation_id and i.kind='career_invocation'
           and i.status<>'completed'
-          and coalesce(i.request->>'cleanup', 'false')<>'true' and not i.request ? 'cleanup_browser_session'
-          and coalesce(i.result#>>'{activity,waitingForReply}', 'false')<>'true')
+          and coalesce(i.request->>'cleanup', 'false')<>'true' and not i.request ? 'cleanup_browser_session')
       and public.career_pages_closed_v1(seen.user_id, seen.seen_at)
       and not public.is_talent_test_account(seen.user_id)
       and not exists (select 1 from public.talent_users t where t.user_id=seen.user_id and t.deleted_at is not null)

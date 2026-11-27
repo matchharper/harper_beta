@@ -391,8 +391,8 @@ test("while Harper still works in the chat the forms wait, so its reply's email 
     }
     assert.deepEqual(await triggers(db), ["career_reply_unseen"]);
   } finally { await db.close(); }
-  for (const [what, parked] of [["parked for the candidate's answer", { activity: { waitingForReply: true } }],
-    ["a cleanup turn", { request: { cleanup: true } }], ["a browser cleanup turn", { request: { cleanup_browser_session: id(77) } }]] as const) {
+  for (const [what, parked] of [["a cleanup turn", { request: { cleanup: true } }],
+    ["a browser cleanup turn", { request: { cleanup_browser_session: id(77) } }]] as const) {
     const other = await setup();
     try {
       await leftForm(other);
@@ -401,13 +401,40 @@ test("while Harper still works in the chat the forms wait, so its reply's email 
       assert.deepEqual(await admit(other), { admitted: 1, deferred: 0 }, `${what} is not Harper working`);
     } finally { await other.close(); }
   }
-  const working = await setup();
+  // A running turn holds the email; so does one on hold behind a newer request, which resumes by itself.
+  for (const [what, activity] of [["a running turn", { waitingForReply: false }], ["a turn on hold", { waitingForReply: true }]] as const) {
+    const working = await setup();
+    try {
+      await leftForm(working);
+      await leave(working, page(1), 35);
+      await turn(working, `turn-${what}`, { activity });
+      assert.deepEqual(await admit(working), { admitted: 0, deferred: 0 }, `${what} holds the email`);
+    } finally { await working.close(); }
+  }
+});
+
+test("a delegated turn on hold behind a newer request keeps the forms waiting, so its result's email is the only one", async () => {
+  // Review 11/27: the newer request's turn ended with a reply the candidate saw; the held turn then resumed, and its
+  // result turn wrote a reply they did not see. While it was on hold the forms were emailed, then that reply was too.
+  const db = await setup();
   try {
-    await leftForm(working);
-    await leave(working, page(1), 35);
-    await turn(working, "turn-working", { activity: { waitingForReply: false } });
-    assert.deepEqual(await admit(working), { admitted: 0, deferred: 0 }, "a running turn holds the email");
-  } finally { await working.close(); }
+    await leftForm(db);
+    await leave(db, page(1), 35);
+    await turn(db, "held-child", { request: { work_id: id(91) }, activity: { waitingForReply: true } });
+    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "the held turn is Harper working");
+    // It resumed and finished; its result turn wrote a reply the candidate has not seen.
+    await db.query("update talent_external_operations set status='completed' where kind='career_invocation'");
+    await message(db, "assistant", 30, { content: "Company A is done.", payload: { careerTextReplyId: "invocation:result" } });
+    for (let step = 0; step < 12; step++) {
+      await wait(db, 15);
+      await admitUnseen(db);
+      await admit(db);
+      await db.query(`insert into talent_opportunity_delivery(discovery_run_id,talent_id,status)
+        select id,talent_id,'sent' from opportunity_discovery_run where status='handed_off'`);
+      await db.query("update opportunity_discovery_run set status='completed' where status='handed_off'");
+    }
+    assert.deepEqual(await triggers(db), ["career_reply_unseen"]);
+  } finally { await db.close(); }
 });
 
 test("one email lists every waiting form of the conversation; a revision is listed once and a conversation gets one a day", async () => {
