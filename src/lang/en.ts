@@ -644,6 +644,8 @@ export const en = {
     "career.applicationProgress.answer_label": "Answer for {name}",
     "career.applicationProgress.open_browser": "Open browser",
     "career.applicationProgress.open_browser_label": "Open the browser for {name}",
+    "career.applicationProgress.view_browser": "View",
+    "career.applicationProgress.view_browser_label": "Watch the browser for {name}",
     "career.applicationProgress.ask.code": "Needs the email verification code",
     "career.applicationProgress.ask.confirm": "Answer the confirmation form",
     "career.applicationProgress.ask.default": "Needs your check",

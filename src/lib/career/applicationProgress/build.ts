@@ -501,6 +501,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   }
 
   const steps = [confirm, fill, review, submit];
+  const liveBrowser = [...app.runs].reverse().find((run) => run.sessionId && run.session && !browserGone(run.session));
   const action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;
   if (submit.state === "done") status = "submitted";
@@ -530,6 +531,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     ...((status === "failed" || status === "closed") && failure ? { failure } : {}),
     updatedAt: iso(updatedAt),
     ...(submittedAt ? { submittedAt } : {}),
+    ...(liveBrowser?.sessionId ? { browserSessionId: liveBrowser.sessionId } : {}),
   };
 }
 

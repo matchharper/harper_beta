@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerOpenForms, type CareerOpenFormsSnapshot } from "@/hooks/career/useCareerOpenForms";
@@ -16,7 +16,7 @@ import { formatChatDateDividerLabel } from "@/lib/chat/dateDivider";
 import { cn } from "@/lib/utils";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 import { useCareerFormRevealer } from "./CareerFormReferenceProvider";
-import { useBrowserSessionOpener } from "../BrowserSessionDock";
+import { BrowserSessionDock, useBrowserSessionOpener } from "../BrowserSessionDock";
 import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 
 type T = ReturnType<typeof useCareerT>;
@@ -324,6 +324,8 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
   const formId = answerFormId !== null && (canReveal(answerFormId) || chat?.hasOlderMessages) ? answerFormId : null;
   // A site login waits in Harper's browser: open it where the timeline shows it.
   const openBrowser = useBrowserSessionOpener(app.action?.kind === "open_browser" ? app.action.sessionId : null);
+  // The row stands for the application's open browser (its card no longer floats), so it can still be watched.
+  const viewBrowser = useBrowserSessionOpener(openBrowser ? null : app.browserSessionId ?? null);
   return (
     <li className="border-t border-stroke-subtle first:border-t-0">
       <div className="flex items-center gap-2 py-2">
@@ -368,6 +370,16 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, loc
           >
             {t("career.applicationProgress.open_browser", "브라우저 열기")}
           </MuteButton>
+        ) : viewBrowser ? (
+          <MuteButton
+            size="sm"
+            variant="default"
+            aria-label={t("career.applicationProgress.view_browser_label", "{name} 브라우저 보기", { values: { name } })}
+            className="shrink-0"
+            onClick={() => { viewBrowser(); onAnswered(); }}
+          >
+            {t("career.applicationProgress.view_browser", "보기")}
+          </MuteButton>
         ) : null}
       </div>
       <CareerAnimatedRegion open={open}>
@@ -388,6 +400,17 @@ function Count({ children, emphasis = false }: { children: ReactNode; emphasis?:
       {children}
     </span>
   );
+}
+
+/**
+ * The browser dock above the composer, minus the browsers the panel's rows stand for: an application's browser is
+ * opened from its row ("브라우저 열기", "보기") instead of floating as one more card over the others.
+ */
+export function CareerApplicationBrowserDock({ conversationId }: { conversationId?: string | null }) {
+  const applications = careerApplicationsOf(useCareerOpenForms(conversationId).data);
+  const key = applications.map(app => app.browserSessionId).filter(Boolean).join(" ");
+  const claimed = useMemo(() => new Set(key ? key.split(" ") : []), [key]);
+  return <BrowserSessionDock claimedSessionIds={claimed} />;
 }
 
 /**

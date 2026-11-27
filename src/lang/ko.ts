@@ -662,6 +662,8 @@ export const ko = {
     "career.applicationProgress.answer_label": "{name} 답하기",
     "career.applicationProgress.open_browser": "브라우저 열기",
     "career.applicationProgress.open_browser_label": "{name} 브라우저 열기",
+    "career.applicationProgress.view_browser": "보기",
+    "career.applicationProgress.view_browser_label": "{name} 브라우저 보기",
     "career.applicationProgress.ask.code": "메일 인증 코드가 필요해요",
     "career.applicationProgress.ask.confirm": "지원 확인 폼에 답해 주세요",
     "career.applicationProgress.ask.default": "확인이 필요해요",

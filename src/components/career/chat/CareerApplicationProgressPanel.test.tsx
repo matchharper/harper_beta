@@ -204,7 +204,7 @@ test("sub-steps that wait on the person and Harper between steps read plainly", 
       step("review", "todo"), step("submit", "todo")],
   };
   const waiting: CareerApplicationProgress = {
-    id: "role-f", companyName: "F사", title: "iOS", status: "waiting", updatedAt: ago(1),
+    id: "role-f", companyName: "F사", title: "iOS", status: "waiting", updatedAt: ago(1), browserSessionId: "session-f",
     steps: [step("confirm", "done"), step("fill", "done"), step("review", "current"), step("submit", "todo")],
   };
   try {
@@ -218,6 +218,8 @@ test("sub-steps that wait on the person and Harper between steps read plainly", 
     const sub = loginRow.querySelector("ol > li ul > li");
     assert.equal(sub?.textContent, "원티드 로그인 (답 필요)로그인하면 이어서 채워요");
     assert.match(view.row("F사")!.textContent ?? "", /Harper가 다음 단계를 준비하는 중/);
+    // Its open browser has no "보기" either when no browser dock is there to open it in.
+    assert.equal(view.row("F사")!.querySelectorAll("button").length, 1);
   } finally { await view.cleanup(); }
 });
 

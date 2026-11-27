@@ -22,6 +22,7 @@ import { PreviewUI } from "./chat/elements/DocumentPreviewCards";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useCareerT } from "@/i18n/useCareerT";
 import { useBrowserSessionPlacement } from "./useBrowserSessionPlacement";
+import { cn } from "@/lib/utils";
 import type { CareerMessage } from "./types";
 import {
   BrowserSessionView,
@@ -276,7 +277,11 @@ export function BrowserSessionAnchor({ sessionId, source = "reference" }: {
   );
 }
 
-export function BrowserSessionDock() {
+/**
+ * claimedSessionIds: browsers another surface already stands for (the application progress panel's rows). Their
+ * docked card is not floated until the person opens one from there; inline cards in the timeline stay.
+ */
+export function BrowserSessionDock({ claimedSessionIds }: { claimedSessionIds?: ReadonlySet<string> } = {}) {
   const dock = useContext(BrowserDockContext);
   if (!dock) return null;
   return (
@@ -287,6 +292,7 @@ export function BrowserSessionDock() {
       onSelect={dock.select}
       onChanged={dock.refresh}
       anchors={dock.anchors}
+      claimedSessionIds={claimedSessionIds}
     />
   );
 }
@@ -298,6 +304,7 @@ export function BrowserSessionDockView({
   onChanged,
   anchors,
   preview = false,
+  claimedSessionIds,
 }: {
   views: BrowserSessionViewData[];
   selectedId: string | null;
@@ -305,24 +312,30 @@ export function BrowserSessionDockView({
   onChanged?: () => Promise<unknown>;
   anchors?: ReadonlyMap<string, HTMLElement>;
   preview?: boolean;
+  claimedSessionIds?: ReadonlySet<string>;
 }) {
   const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const layout =
     dock?.closest<HTMLElement>("[data-career-chat-layout]") ??
     dock?.parentElement;
+  const live = views.filter(view => view.session.status !== "closed" && view.browserAvailability !== "stopped");
+  // Only cards that can float take a slot in the stack, so a claimed one leaves no gap.
+  const floating = live.filter(view => !claimedSessionIds?.has(view.session.id));
 
   return (
     <>
       <div ref={setDock} className="absolute right-0 top-0 h-0 w-0" />
       {dock &&
         layout &&
-        views.filter(view => view.session.status !== "closed" && view.browserAvailability !== "stopped").map((view, index) => {
+        live.map((view) => {
           const inlineAnchor = anchors?.get(view.session.id) ?? null;
+          const claimed = Boolean(claimedSessionIds?.has(view.session.id));
           return createPortal(
             <BrowserSessionFloatingPanel
               view={view}
-              depth={index}
+              depth={claimed ? 0 : floating.indexOf(view)}
               count={views.length}
+              claimed={claimed}
               expanded={selectedId === view.session.id}
               preview={preview}
               onExpand={(open) => onSelect(open ? view.session.id : null)}
@@ -343,11 +356,14 @@ function BrowserSessionFloatingPanel({
   dock,
   layout,
   inlineAnchor,
+  claimed = false,
   ...props
 }: Parameters<typeof BrowserPopup>[0] & {
   dock: HTMLElement;
   layout: HTMLElement;
   inlineAnchor: HTMLElement | null;
+  /** The progress panel's row stands for this browser: it floats only once opened from there. */
+  claimed?: boolean;
 }) {
   const t = useCareerT();
   const [content, setContent] = useState<HTMLDivElement | null>(null);
@@ -374,6 +390,8 @@ function BrowserSessionFloatingPanel({
     collapsed: human ? !fullScreen : !props.expanded,
     fullScreen,
   });
+  // Kept mounted (the live viewer must not reconnect), only out of sight and out of reach.
+  const hidden = claimed && !props.expanded && !inline;
   return (
     <Dialog open onOpenChange={() => { if (human) setMinimizedControlRevision(props.view.session.revision); props.onExpand(false); }} modal={false}>
       <DialogPanelContent
@@ -384,8 +402,12 @@ function BrowserSessionFloatingPanel({
         onInteractOutside={(event) => event.preventDefault()}
         aria-describedby={undefined}
         popover={fullScreen ? "manual" : undefined}
-        data-browser-placement={fullScreen ? "fullscreen" : inline ? "inline" : "dock"}
-        className="m-0 border-0 p-0 overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none"
+        data-browser-placement={fullScreen ? "fullscreen" : inline ? "inline" : hidden ? "claimed" : "dock"}
+        aria-hidden={hidden || undefined}
+        className={cn(
+          "m-0 border-0 p-0 overflow-y-auto rounded-modal shadow-(--shadow-modal) outline-none",
+          hidden && "invisible pointer-events-none"
+        )}
       >
         <DialogTitle className="sr-only">
           {t("career.browser.title", "지원 브라우저")}

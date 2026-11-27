@@ -59,6 +59,11 @@ export type CareerApplicationProgress = {
   /** The newest record time for this application. ISO 8601. */
   updatedAt: string;
   submittedAt?: string;
+  /**
+   * The application's browser that is still open (its newest run's, not closed or stopped by the provider). The
+   * panel row stands for it, so the composer does not float a second card for the same application.
+   */
+  browserSessionId?: string;
 };
 
 export const CAREER_APPLICATION_STEP_KEYS: readonly CareerApplicationStepKey[] = ["confirm", "fill", "review", "submit"];

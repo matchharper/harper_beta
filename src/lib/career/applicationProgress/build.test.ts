@@ -117,6 +117,8 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.deepEqual(waiting.action, { kind: "open_browser", sessionId: SESSION });
   assert.equal(states(waiting), "confirm:done fill:current review:todo submit:todo");
   assert.deepEqual(sub(waiting, "login"), { key: "login", state: "current", site: "원티드", at: at(8), step: "fill" });
+  // The row stands for that open browser, so the composer does not float its card as well.
+  assert.equal(waiting.browserSessionId, SESSION);
 
   // The provider stopped that browser (its idle timeout, ~10 minutes): nothing to open and nothing running, so the
   // application stopped like a closed browser instead of showing Harper as preparing.
@@ -125,6 +127,7 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(stopped.status, "failed");
   assert.equal(sub(stopped, "login")?.state, "failed");
   assert.deepEqual(stopped.failure, { reason: "error" });
+  assert.equal(stopped.browserSessionId, undefined);
 
   // The same after Harper handed over a finished preparation (the run itself does not say it needs the person).
   const handoffStopped = only(build(messages, [session(SESSION, "human", { requestedAction: "handoff", browserAvailability: "stopped" }),
@@ -139,6 +142,8 @@ test("a login site waits for the person in the browser, then continues", () => {
   assert.equal(sub(restarted, "login")?.state, "failed");
   assert.equal(restarted.status, "failed");
   assert.deepEqual(restarted.failure, { reason: "not_submitted" });
+  // The newest browser stopped; the earlier one is still open, so it is the application's browser.
+  assert.equal(restarted.browserSessionId, "s-old");
 
   // Harper drafted the review form while the login browser waited: that form is not a sign-in.
   const drafted = only(build([...messages, form(2, 12), answer(2, 14)], [session(SESSION, "human", { browserAvailability: "stopped" }), loginRun]));
