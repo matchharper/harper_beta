@@ -354,20 +354,22 @@ test("progress reads narrow queries: this conversation, the last 7 days, selecte
   await assert.rejects(read(), /Application operations unavailable/);
 });
 
-test("only the person's own Stop reads as stopped: its Stop record or a cancelled work, not Harper's own cancellation", async () => {
+test("only the person's own Stop reads as stopped: its Stop record or a work it cancelled, not Harper's own cancellation", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
   const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2",
-    "00000000-0000-4000-8000-0000000000a3", "00000000-0000-4000-8000-0000000000a4"];
-  const works = ["00000000-0000-4000-8000-0000000000e2", "00000000-0000-4000-8000-0000000000e3"];
+    "00000000-0000-4000-8000-0000000000a3", "00000000-0000-4000-8000-0000000000a4", "00000000-0000-4000-8000-0000000000a5"];
+  const works = ["00000000-0000-4000-8000-0000000000e2", "00000000-0000-4000-8000-0000000000e3", "00000000-0000-4000-8000-0000000000e4"];
   const now = new Date("2026-11-26T10:00:00Z");
   const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
   // One failed submission per role. A's request was ended by the person's Stop (its record lists that message). B's
   // pending request was cancelled by Harper (manage_work, cancel_career_pending_reply): the same careerTurnStopped flag
-  // on its message, but no Stop record. C's delegated work was cancelled. D's request is still going (its work runs).
+  // on its message, but no Stop record. C's delegated work was cancelled by the person's Stop (its note). D's request is
+  // still going (its work runs). E's work was cancelled by Harper (manage_work cancel, its own note; no Stop record).
   const run = (index: number, extra: Record<string, unknown>) => ({ id: `00000000-0000-4000-8000-0000000000d${index}`, kind: "browser_run",
     status: "failed", mode: "execute", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleIds[index]], ...extra });
   const operations = [run(0, { sourceMessageId: "301" }), run(1, { sourceMessageId: "302" }),
-    run(2, { sourceMessageId: "303", workId: works[0] }), run(3, { sourceMessageId: "304", workId: works[1] })];
+    run(2, { sourceMessageId: "303", workId: works[0] }), run(3, { sourceMessageId: "304", workId: works[1] }),
+    run(4, { sourceMessageId: "305", workId: works[2] })];
   const admin = {
     from(table: string) {
       const call = { table, columns: "", filters: {} as Record<string, unknown>, limit: undefined as number | undefined };
@@ -380,7 +382,9 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
           // The flag alone, as both the person's Stop and Harper's cancellation leave it.
           return call.columns.includes("careerTurnStopped") ? [{ id: 301, stopped: true }, { id: 302, stopped: true }] : [];
         }
-        if (call.filters.kind === "delegated_work") return [{ id: works[0], status: "cancelled" }, { id: works[1], status: "running" }];
+        if (call.filters.kind === "delegated_work")
+          return [{ id: works[0], status: "cancelled", note: "User stopped the conversation work" }, { id: works[1], status: "running" },
+            { id: works[2], status: "cancelled", note: "Posting closed; stopping this application" }];
         return operations;
       };
       const query: any = {
@@ -405,6 +409,7 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
   assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "error" }, "Harper cancelled it; the person did not stop it");
   assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "stopped" });
   assert.deepEqual(byRole.get(roleIds[3])?.failure, { reason: "error" });
+  assert.deepEqual(byRole.get(roleIds[4])?.failure, { reason: "error" }, "Harper cancelled that work; the person did not stop it");
 
   // The person's Stops of this conversation's week, only their time and the requests each ended.
   const stops = calls.find((call) => call.filters.message_type === "career_turn_stop");
@@ -413,11 +418,11 @@ test("only the person's own Stop reads as stopped: its Stop record or a cancelle
     "created_at:gte": "2026-11-19T10:00:00.000Z" });
   assert.ok(stops?.limit && stops.limit <= 100);
   assert.equal(calls.filter((call) => call.columns.includes("careerTurnStopped")).length, 0, "the flag is not read");
-  // The work behind each application's newest run, by id.
+  // The work behind each application's newest run, by id, with the note its cancellation left.
   const work = calls.find((call) => call.filters.kind === "delegated_work");
-  assert.equal(work?.columns, "id,status,updatedAt:updated_at");
+  assert.equal(work?.columns, "id,status,note:result->>note,updatedAt:updated_at");
   assert.deepEqual(work?.filters, { user_id: userId, conversation_id: conversationId, kind: "delegated_work", "id:in": works });
-  assert.equal(work?.limit, 2);
+  assert.equal(work?.limit, 3);
 });
 
 test("while an application is stopped, the person's messages naming it since then pick it up again, unless a Stop ended them", async () => {

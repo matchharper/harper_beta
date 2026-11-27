@@ -4,6 +4,7 @@ import {
   careerApplicationStopRefs,
   careerApplicationStoppedSince,
   CAREER_APPLICATION_WINDOW_MS,
+  CAREER_STOP_REASON,
   type ApplicationMessageRow,
   type ApplicationOpenForm,
   type ApplicationOperationRow,
@@ -42,10 +43,10 @@ const rows = <T>(result: Result, what: string): T[] => {
  * Reads the durable records of this conversation's applications for the polled work status: forms with their
  * answers, browser runs and sessions, sends, and the person's Stops, each limited to the last 7 days and to the JSON
  * paths the builder reads (form items and run reports can be hundreds of KB). Then, together, names the roles and
- * reads whether the delegated work behind each application's newest run or send was cancelled. A run or send is
- * stopped when a Stop of the person's ended its request (the Stop's own record lists that message) or its work was
- * cancelled. The careerTurnStopped flag on the message is not read: Harper's cancellation of a pending request
- * (manage_work) sets it too. Only while an application is stopped, last, reads the person's messages since that name
+ * reads whether the person's Stop cancelled the delegated work behind each application's newest run or send. A run or
+ * send is stopped when a Stop of the person's ended its request (the Stop's own record lists that message) or cancelled
+ * its work (the Stop's note on it). The careerTurnStopped flag on the message is not read, nor is any cancelled work
+ * taken as a Stop: Harper's own cancellations (of a pending request, or of a work with manage_work) leave them too. Only while an application is stopped, last, reads the person's messages since that name
  * one: asking about it picks it up again. At most six small queries; throws on a failed read so the caller can leave
  * the list empty.
  */
@@ -123,7 +124,7 @@ export async function readCareerApplicationProgress(args: {
       : none,
     workIds.length
       ? db.from("talent_external_operations")
-        .select("id,status,updatedAt:updated_at")
+        .select("id,status,note:result->>note,updatedAt:updated_at")
         .eq("user_id", args.userId)
         .eq("conversation_id", args.conversationId)
         .eq("kind", "delegated_work")
@@ -139,13 +140,14 @@ export async function readCareerApplicationProgress(args: {
       title: role.name?.trim() || null,
       ended: role.is_expired === true || ENDED_ROLE_STATUSES.has(String(role.status ?? "").toLowerCase()),
     }));
-  // Each request a Stop ended, with that Stop's time; each cancelled work, with its cancellation's.
+  // Each request a Stop ended, with that Stop's time; each work a Stop cancelled, with its cancellation's.
   const stoppedSources = new Map<string, string | undefined>();
   for (const stop of rows<{ createdAt?: string | null; sourceMessageIds?: unknown }>(stops, "Application stops"))
     for (const id of Array.isArray(stop.sourceMessageIds) ? stop.sourceMessageIds : [])
       stoppedSources.set(String(id), latest(stoppedSources.get(String(id)), stop.createdAt));
-  const cancelledWorks = new Map(rows<{ id: string; status?: string | null; updatedAt?: string | null }>(workRows, "Application work")
-    .filter((row) => row.status === "cancelled").map((row) => [row.id, row.updatedAt ?? undefined]));
+  const cancelledWorks = new Map(rows<{ id: string; status?: string | null; note?: string | null; updatedAt?: string | null }>(
+    workRows, "Application work")
+    .filter((row) => row.status === "cancelled" && row.note === CAREER_STOP_REASON).map((row) => [row.id, row.updatedAt ?? undefined]));
   const operationsWithStops = input.operations.map((row) => {
     const bySource = Boolean(row.sourceMessageId && stoppedSources.has(row.sourceMessageId));
     const byWork = Boolean(row.workId && cancelledWorks.has(row.workId));

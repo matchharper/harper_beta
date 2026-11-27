@@ -62,9 +62,9 @@ export type ApplicationOperationRow = {
   /** browser_run and email_send: the person's message, and the delegated work, it was started for. */
   sourceMessageId?: string | null;
   workId?: string | null;
-  /** Set by read.server.ts: the person's Stop ended the request of that message, or that work was cancelled. */
+  /** Set by read.server.ts: the person's Stop ended the request of that message, or cancelled that work. */
   stopped?: boolean | null;
-  /** When that Stop or cancellation happened, when known; else the row's own last update stands for it. */
+  /** When that Stop happened, when known; else the row's own last update stands for it. */
   stoppedAt?: string | null;
 };
 
@@ -119,8 +119,12 @@ const ACTIVE_SEND = new Set(["reserved", "preparing", "dispatching"]);
 const INPUT_TYPES = new Set(["text", "textarea", "change", "select", "multiselect", "checkbox", "consent", "document"]);
 /** Items of the start form of delegated applications (handbooks/application.ts, shareLinks/formGuard.ts). */
 const START_ITEMS = new Set(["submit_scope", "save_login", "apply_postings"]);
-/** The reason stop_career_conversation gives the forms it closes (Harper's own resolve gives another). */
-const STOP_REASON = "User stopped the conversation work";
+/**
+ * What stop_career_conversation writes on what it ends: the reason of each form it closes, and the note of each
+ * delegated work it cancels. Harper's own resolve ("Handled in the conversation") and manage_work cancel (a note of its
+ * own) write others.
+ */
+export const CAREER_STOP_REASON = "User stopped the conversation work";
 
 const time = (value?: string | null) => (value ? Date.parse(value) : Number.NaN);
 const iso = (value: string) => {
@@ -292,7 +296,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
         || (answer && (present(answer.submitScope) || present(answer.saveLogin) || present(answer.postings)))),
       ...(answer ? { answer: { at: answer.createdAt, negative: Boolean(answer.actionId && answer.actionId === answer.negativeActionId) } } : {}),
       ...(resolution ? { resolvedAt: resolution.createdAt } : {}),
-      ...(resolution && !answer && resolution.reason === STOP_REASON ? { closedByStop: true } : {}),
+      ...(resolution && !answer && resolution.reason === CAREER_STOP_REASON ? { closedByStop: true } : {}),
     };
     // A posting the person took out of the start form's list is not applied to: that form does not track it.
     const kept = answer && !view.answer?.negative && Array.isArray(answer.postings) ? new Set(answer.postings) : undefined;
@@ -375,7 +379,8 @@ export function careerApplicationRoleIds(input: Omit<CareerApplicationProgressIn
 
 /**
  * The delegated work behind each application's newest run or send, inside the read window: read.server.ts reads
- * whether it was cancelled and marks those rows stopped. (The person's Stops it reads directly: each names its requests.)
+ * whether the person's Stop cancelled it and marks those rows stopped. (The person's Stops it reads directly: each
+ * names its requests.)
  */
 export function careerApplicationStopRefs(input: Omit<CareerApplicationProgressInput, "roles">) {
   const newest = new Set(inWindow(input).flatMap((app) => [...app.runs, ...app.sends].sort(byCreated).slice(-1).map((work) => work.id)));
