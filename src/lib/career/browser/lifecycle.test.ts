@@ -210,6 +210,26 @@ for (const replaceAttachments of [false, true]) {
     assert.equal(repeated.message?.id, result.message?.id);
   });
 }
+test("a sign-in for an existing account goes through a sign-in method, not an account finder or a sign-up entry", async (t) => {
+  const { rows, context } = fixture("reserved");
+  rows[0].status = "idle";
+  rows[0].provider_refs.workspace_id = remoteSession;
+  let sent = "";
+  t.mock.method(console, "error", () => {});
+  t.mock.method(browserUseAgents, "upload", async () => []);
+  t.mock.method(browserUseAgents, "createRun", async (task: string) => {
+    sent = task;
+    // Only the instructions matter here: stop at dispatch.
+    throw new Error("Provider response unavailable in this instruction test");
+  });
+  await executeUseBrowser({ action: "run", session_id: sessionId,
+    task: "Candidate has an existing account on the job site. Open its application." }, context).catch(() => undefined);
+  // 11/27: told "existing account", the browser took a site's "Find existing account" entry (a phone-number account
+  // finder) instead of a sign-in method, and handed that screen to the person, whose sign-in then found no account.
+  assert.match(sent, /An existing account signs in through the sign-in method the task names, else the site's own email or ID sign-in, else hand over at the method choice/);
+  assert.match(sent, /entries that find or recover an account \(find account or ID, reset password\), sign up or are for business accounts are not its sign-in entry/);
+});
+
 test("run delivers the browser card before waiting and returns the observation to the same tool call", async (t) => {
   const { rows, context } = fixture("reserved");
   rows[0].status = "idle";
