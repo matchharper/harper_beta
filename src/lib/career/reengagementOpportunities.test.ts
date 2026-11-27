@@ -40,11 +40,23 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
       INSERT INTO talent_external_evaluations VALUES('${id(900)}','${id(1)}',md5('5')::uuid,'{"fit":{"mutualFit":1,"candidateInterest":1,"companyInterest":1}}','2026-11-01','new assessment','{}');
       UPDATE external_recommendation_runs SET evaluation_ids=ARRAY(SELECT id FROM talent_external_evaluations) WHERE id='${id(101)}';
     `);
+    // Same wrapping as prod public.execute_raw_sql (#83): the function appends
+    // LIMIT/OFFSET itself, so a query that already ends in LIMIT is a syntax error.
+    const rawSql = async (args: any) => {
+      try {
+        const { rows } = await db.query<{ result: unknown }>(
+          `SELECT COALESCE(jsonb_agg(t), '[]'::jsonb) AS result FROM (${args.sql_query} LIMIT ${args.limit_num} OFFSET ${args.offset_num}) t`
+        );
+        return { data: rows.map((row) => row.result), error: null };
+      } catch (error) {
+        return { data: null, error: { message: (error as Error).message } };
+      }
+    };
     const admin = {
       rpc: async (name: string, args: any) =>
         name === "career_opportunity_list_revision"
           ? { data: "revision-1", error: null }
-          : { data: (await db.query(args.sql_query)).rows, error: null },
+          : rawSql(args),
       from: (table: string) => ({
         select: () => ({
           in: async (_key: string, ids: string[]) => ({
@@ -113,6 +125,21 @@ test("return context reads real SQL: matching-wide top ten, exclusions, latest a
       historical,
       /not a new search or a current evaluation reference/
     );
+    // More than ten historical candidates: the raw-SQL page keeps the top ten
+    // in stored-fit order, and the total still counts every candidate.
+    await db.exec(`INSERT INTO talent_external_fit
+      SELECT '${id(1)}',md5(i::text)::uuid,'{}',jsonb_build_object('score',60-i),'2026-10-27' FROM generate_series(8,18) g(i);`);
+    const page = await readCareerReengagementOpportunities({
+      admin,
+      userId: id(1),
+      blockedCompanies: [],
+    });
+    assert.match(page, /Historical candidates: showing 10 of 13/);
+    assert.match(
+      page,
+      /Allowed \/ Role 6\n[\s\S]*Allowed \/ Role 7\n[\s\S]*Allowed \/ Role 8\n[\s\S]*Allowed \/ Role 15\n/
+    );
+    assert.doesNotMatch(page, /Allowed \/ Role 1[678]\n/);
   } finally {
     await db.close();
   }
