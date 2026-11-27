@@ -30,6 +30,7 @@ import {
 import { careerTurnStopReason } from "../turnCancellation.server";
 import { listBrowserSessions } from "./sessionIndex";
 import { browserRunSubmission, markSubmittedApplications } from "./submissionReceipt";
+import { keepReceiptScreenshot } from "./receiptScreenshot";
 import { BROWSER_PROFILE_LINK_PARAMETER, browserProfileLinkSchema } from "@/lib/shareLinks/browserParam";
 import { enableSavedLogin, forgetSavedLogin, readSavedLogin, savedLoginProfileId } from "./savedLogin";
 import { closedPostingBeforePreparation } from "./postingCheck";
@@ -487,6 +488,10 @@ export async function refreshBrowserExecution(
   const latest = await updateOperation(context, execution, {
     status: remote.status,
     result,
+  }).then((saved) => {
+    // Only the reader whose save won pictures the page the run ended on, so it is taken once per run and never awaited.
+    keepReceiptScreenshot(context, saved);
+    return saved;
   }).catch(async (error) => {
     const stored = await readOperation(context, execution.id);
     if (stored && browserUseTerminal(stored.status)) return stored;

@@ -35,6 +35,81 @@ function viewerUrl(liveUrl: string | null | undefined, interactive: boolean) {
   return url.toString();
 }
 
+/** A page capture runs after its run's receipt is saved; this caps it so nothing that started it waits long. */
+export const SESSION_PAGE_CAPTURE_MS = 15_000;
+
+/** What captureSessionPage found. It never carries the browser's CDP address, which controls the whole browser. */
+export type SessionPageCapture =
+  | { status: "captured"; jpeg: Buffer; pageUrl: string; capturedAt: string }
+  | {
+      status: "unavailable";
+      reason:
+        | "provider_error"
+        | "no_active_browser"
+        | "no_cdp_url"
+        | "cdp_discovery_failed"
+        | "connect_failed"
+        | "no_page"
+        | "screenshot_failed"
+        | "timeout";
+    };
+
+/** The parts of a playwright-core CDP connection a capture uses. */
+type CapturePage = {
+  url(): string;
+  screenshot(options: { type: "jpeg"; quality: number; scale: "css"; caret: "initial"; timeout: number }): Promise<Buffer>;
+};
+export type CaptureBrowser = { contexts(): { pages(): CapturePage[] }[]; close(): Promise<void> };
+export type ConnectOverCdp = (socketUrl: string, timeout: number) => Promise<CaptureBrowser>;
+
+/**
+ * Attaches to a live provider browser. noDefaults leaves its download, focus and media settings as the agent and the
+ * person left them. For a browser reached over CDP, close() drops only this connection, not the browser or its pages.
+ */
+const connectOverCdp: ConnectOverCdp = async (socketUrl, timeout) =>
+  (await import("playwright-core")).chromium.connectOverCDP(socketUrl, { timeout, noDefaults: true });
+
+function urlWithProtocol(value: unknown, protocols: string[]) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value.trim());
+    return protocols.includes(url.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The browser's CDP socket. An HTTPS address is a discovery endpoint, resolved as browserUseCloud.mjs does: its
+ * /json/version names the socket. The API key is not sent there and a redirect is refused.
+ */
+async function cdpSocket(endpoint: URL, signal: AbortSignal) {
+  if (endpoint.protocol === "wss:") return endpoint.toString();
+  const discovery = new URL(endpoint);
+  discovery.pathname = discovery.pathname.replace(/\/$/, "") + "/json/version";
+  const response = await fetch(discovery, { signal, redirect: "error", cache: "no-store" });
+  if (!response.ok) return null;
+  const body = (await response.json()) as { webSocketDebuggerUrl?: unknown } | null;
+  return urlWithProtocol(body?.webSocketDebuggerUrl, ["wss:"])?.toString() ?? null;
+}
+
+function samePage(open: string, wanted: string) {
+  try {
+    return new URL(open).href === new URL(wanted).href;
+  } catch {
+    return open === wanted;
+  }
+}
+
+/** The call's value, or null when it throws or rejects. */
+async function orNull<T>(call: () => T | Promise<T>) {
+  try {
+    return await call();
+  } catch {
+    return null;
+  }
+}
+
 /** V4 transport. Never retry POST /runs: an ambiguous response can already be applying. */
 export const browserUseAgents = {
   async request(
@@ -224,6 +299,70 @@ export const browserUseAgents = {
       availability: observed > 0 && allStopped ? "stopped" as const : "unknown" as const,
       liveUrl: null,
     };
+  },
+  /**
+   * A viewport JPEG of a page in an agent session's live browser: the open page at pageUrl, else the most recent web
+   * page. It attaches over CDP and then only disconnects, leaving the browser and its pages as they were. It never
+   * throws: whatever stops it, including SESSION_PAGE_CAPTURE_MS passing, comes back as a reason.
+   */
+  async captureSessionPage(sessionId: string, pageUrl?: string, connect: ConnectOverCdp = connectOverCdp): Promise<SessionPageCapture> {
+    type Reason = Extract<SessionPageCapture, { status: "unavailable" }>["reason"];
+    const unavailable = (reason: Reason) => ({ status: "unavailable", reason }) as const;
+    const deadline = Date.now() + SESSION_PAGE_CAPTURE_MS;
+    const left = () => Math.max(1, deadline - Date.now());
+    const timeUp = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<SessionPageCapture>((resolve) => {
+      timer = setTimeout(() => {
+        timeUp.abort();
+        resolve(unavailable("timeout"));
+      }, SESSION_PAGE_CAPTURE_MS);
+    });
+    const capture = async (): Promise<SessionPageCapture> => {
+      const listed = await orNull(async () => {
+        // Listed as inspectSessionBrowser lists them; the active browser is the session's live one.
+        for (let pageNumber = 1; ; pageNumber++) {
+          const page = z.object({
+            items: z.array(z.object({ status: z.string(), cdpUrl: z.unknown().optional() })),
+            totalItems: z.number(),
+          }).parse(await this.request(
+            `/browsers?agentSessionId=${uuid.parse(sessionId)}&pageSize=100&pageNumber=${pageNumber}`
+          ));
+          const active = page.items.find((item) => item.status === "active");
+          if (active || pageNumber * 100 >= page.totalItems) return { active };
+        }
+      });
+      if (!listed) return unavailable("provider_error");
+      if (!listed.active) return unavailable("no_active_browser");
+      const endpoint = urlWithProtocol(listed.active.cdpUrl, ["https:", "wss:"]);
+      if (!endpoint) return unavailable("no_cdp_url");
+      const socket = await orNull(() => cdpSocket(endpoint, timeUp.signal));
+      if (timeUp.signal.aborted) return unavailable("timeout");
+      if (!socket) return unavailable("cdp_discovery_failed");
+      const browser = await orNull(() => connect(socket, left()));
+      if (!browser) return unavailable("connect_failed");
+      try {
+        // A connection that arrives after the time is up is dropped unused.
+        if (timeUp.signal.aborted) return unavailable("timeout");
+        const pages = browser.contexts().flatMap((context) => context.pages());
+        const page = (pageUrl ? pages.find((open) => samePage(open.url(), pageUrl)) : undefined)
+          ?? pages.filter((open) => /^https?:\/\//i.test(open.url())).at(-1);
+        if (!page) return unavailable("no_page");
+        // caret "initial" adds no style to the page; scale "css" keeps one pixel per CSS pixel.
+        const jpeg = await page.screenshot({ type: "jpeg", quality: 70, scale: "css", caret: "initial", timeout: left() });
+        return { status: "captured", jpeg, pageUrl: page.url(), capturedAt: new Date().toISOString() };
+      } catch {
+        return unavailable("screenshot_failed");
+      } finally {
+        // Not awaited, so a slow disconnect never turns a taken picture into a timeout.
+        void orNull(() => browser.close());
+      }
+    };
+    try {
+      return await Promise.race([capture(), timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
   },
   async result(runId: string) {
     return runSchema.parse(await this.request(`/runs/${uuid.parse(runId)}`));
