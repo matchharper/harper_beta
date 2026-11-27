@@ -22,7 +22,10 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-anon-key";
 const load = async () => ({
   ...(await import("./CareerApplicationProgressPanel")),
   ...(await import("@/hooks/career/useCareerOpenForms")),
+  ...(await import("../CareerChatPanelContext")),
 });
+/** The chat history the panel can page through, as the chat panel provides it. */
+type ChatHistory = { hasOlderMessages: boolean; loadingOlderMessages: boolean; onLoadOlderMessages: () => Promise<void> };
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const step = (key: CareerApplicationStepKey, state: CareerApplicationStepState, extra: Partial<CareerApplicationStep> = {}) =>
@@ -60,7 +63,7 @@ function FormLocation({ formId }: { formId: number }) {
 }
 
 async function mount() {
-  const { CareerApplicationProgressPanel, CareerOpenFormsSnapshotContext } = await load();
+  const { CareerApplicationProgressPanel, CareerOpenFormsSnapshotContext, CareerChatPanelProvider } = await load();
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost/career", pretendToBeVisual: true });
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
@@ -74,15 +77,22 @@ async function mount() {
   dom.window.HTMLElement.prototype.scrollIntoView = function () { scrolled = this; };
   const root: Root = createRoot(dom.window.document.getElementById("root")!);
   const client = new QueryClient();
-  const render = (data: CareerOpenFormsSnapshot, onScreen: number[] = []) => act(async () => root.render(
-    <QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}>
-      <MessagesProvider locale="ko"><CareerOpenFormsSnapshotContext.Provider value={data}>
-        <CareerFormReferenceProvider>
-          {onScreen.map(formId => <FormLocation key={formId} formId={formId} />)}
-          <CareerApplicationProgressPanel conversationId="conversation" />
-        </CareerFormReferenceProvider>
-      </CareerOpenFormsSnapshotContext.Provider></MessagesProvider>
-    </RouterContext.Provider></QueryClientProvider>));
+  const render = (data: CareerOpenFormsSnapshot, onScreen: number[] = [], history?: ChatHistory) => {
+    const panel = <CareerApplicationProgressPanel conversationId="conversation" />;
+    return act(async () => root.render(
+      <QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}>
+        <MessagesProvider locale="ko"><CareerOpenFormsSnapshotContext.Provider value={data}>
+          <CareerFormReferenceProvider>
+            {onScreen.map(formId => <FormLocation key={formId} formId={formId} />)}
+            {history ? (
+              <CareerChatPanelProvider value={{ user: null, messages: [], conversationId: "conversation", ...history } as never}>
+                {panel}
+              </CareerChatPanelProvider>
+            ) : panel}
+          </CareerFormReferenceProvider>
+        </CareerOpenFormsSnapshotContext.Provider></MessagesProvider>
+      </RouterContext.Provider></QueryClientProvider>));
+  };
   const document = dom.window.document;
   const click = (element: Element | null | undefined) => act(async () => {
     assert.ok(element, "element to click");
@@ -224,6 +234,30 @@ test("답하기 takes the person to the form when it is on screen, and is absent
     assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
 
     await view.render(snapshot([needsAnswers]), []);
+    await view.click(view.toggle());
+    assert.equal(view.row("B사")!.querySelector('button[aria-label$="답하기"]'), null);
+  } finally { await view.cleanup(); }
+});
+
+test("답하기 for a form older than the loaded history loads earlier messages until the form is on screen", async () => {
+  const view = await mount();
+  try {
+    let loads = 0;
+    const history = (hasOlderMessages: boolean): ChatHistory =>
+      ({ hasOlderMessages, loadingOlderMessages: false, onLoadOlderMessages: async () => { loads += 1; } });
+    // 39 newer messages pushed the form out of the 20 loaded: the button still shows because earlier pages exist.
+    await view.render(snapshot([needsAnswers]), [], history(true));
+    await view.click(view.toggle());
+    await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
+    assert.equal(loads, 1, "one earlier page asked for");
+    assert.equal(view.scrolled(), null);
+    assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
+    // That page brings the form into the timeline: the panel scrolls to it without another load.
+    await view.render(snapshot([needsAnswers]), [20], history(true));
+    assert.equal(view.scrolled()?.getAttribute("data-career-form-id"), "20");
+    assert.equal(loads, 1);
+    // No earlier page left and the form not on screen: no button.
+    await view.render(snapshot([needsAnswers]), [], history(false));
     await view.click(view.toggle());
     assert.equal(view.row("B사")!.querySelector('button[aria-label$="답하기"]'), null);
   } finally { await view.cleanup(); }

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { MuteButton } from "@/components/ui/button";
 import { useCareerOpenForms, type CareerOpenFormsSnapshot } from "@/hooks/career/useCareerOpenForms";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 import { useCareerFormRevealer } from "./CareerFormReferenceProvider";
 import { useBrowserSessionOpener } from "../BrowserSessionDock";
+import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 
 type T = ReturnType<typeof useCareerT>;
 type Locale = "ko" | "en";
@@ -133,6 +134,9 @@ const stoppedLine = (app: CareerApplicationProgress, t: T) =>
   app.status === "closed" || app.failure?.reason === "closed"
     ? t("career.applicationProgress.closed", "마감된 공고예요")
     : t("career.applicationProgress.failed", "제출하지 못했어요");
+
+/** At most this many history pages (20 messages each) are loaded to reach a form from the panel. */
+const SEEK_PAGE_LIMIT = 25;
 
 const waitingLine = (t: T) => t("career.applicationProgress.waiting", "Harper가 다음 단계를 준비하는 중");
 
@@ -300,20 +304,24 @@ function Segments({ steps }: { steps: CareerApplicationStep[] }) {
   );
 }
 
-function ApplicationRow({ app, open, onToggle, onAnswered, now, t, locale }: {
+function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, now, t, locale }: {
   app: CareerApplicationProgress;
   open: boolean;
   onToggle: () => void;
+  onAnswer: (formId: number) => void;
   onAnswered: () => void;
   now: number;
   t: T;
   locale: Locale;
 }) {
   const stepsId = useId();
-  const { canReveal, reveal } = useCareerFormRevealer();
+  const { canReveal } = useCareerFormRevealer();
+  const chat = useOptionalCareerChatPanelContext();
   const name = applicationName(app, t);
   const line = statusLine(app, now, t, locale);
-  const formId = app.action?.kind === "answer_form" && canReveal(app.action.formId) ? app.action.formId : null;
+  const answerFormId = app.action?.kind === "answer_form" ? app.action.formId : null;
+  // A form older than the loaded history is not on screen yet: the panel loads earlier messages until it is.
+  const formId = answerFormId !== null && (canReveal(answerFormId) || chat?.hasOlderMessages) ? answerFormId : null;
   // A site login waits in Harper's browser: open it where the timeline shows it.
   const openBrowser = useBrowserSessionOpener(app.action?.kind === "open_browser" ? app.action.sessionId : null);
   return (
@@ -346,7 +354,7 @@ function ApplicationRow({ app, open, onToggle, onAnswered, now, t, locale }: {
             variant="dark"
             aria-label={t("career.applicationProgress.answer_label", "{name} 답하기", { values: { name } })}
             className="shrink-0 border-action bg-action text-on-inverse hover:border-action-strong hover:bg-action-strong active:border-action-strong active:bg-action-strong"
-            onClick={() => { reveal(formId); onAnswered(); }}
+            onClick={() => onAnswer(formId)}
           >
             {t("career.applicationProgress.answer", "답하기")}
           </MuteButton>
@@ -395,6 +403,31 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
   const [openId, setOpenId] = useState<string | null>(null);
   const listId = useId();
   const now = useNow(applications.some(app => app.status === "running"));
+  const { canReveal, reveal } = useCareerFormRevealer();
+  const chat = useOptionalCareerChatPanelContext();
+  // The form a "답하기" asked for that is older than the loaded history: earlier pages load until it is on screen.
+  const [seeking, setSeeking] = useState<number | null>(null);
+  const pages = useRef(0);
+  const seekingOnScreen = seeking !== null && canReveal(seeking);
+  useEffect(() => {
+    if (seeking === null) return;
+    if (seekingOnScreen) reveal(seeking);
+    if (seekingOnScreen || !chat?.hasOlderMessages || pages.current >= SEEK_PAGE_LIMIT) {
+      // The search ends on what the timeline mounted: a form's location registers only after it renders.
+      setSeeking(null);
+    } else if (!chat.loadingOlderMessages) {
+      pages.current += 1;
+      void chat.onLoadOlderMessages();
+    }
+    // reveal and chat are new objects every render; the search moves only with these values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seeking, seekingOnScreen, chat?.hasOlderMessages, chat?.loadingOlderMessages]);
+  const answer = (formId: number) => {
+    setExpanded(false);
+    if (canReveal(formId)) return reveal(formId);
+    pages.current = 0;
+    setSeeking(formId);
+  };
   if (!applications.length) return null;
   const counts = careerApplicationCounts(applications);
   return (
@@ -434,6 +467,7 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
                 app={app}
                 open={openId === app.id}
                 onToggle={() => setOpenId(current => (current === app.id ? null : app.id))}
+                onAnswer={answer}
                 onAnswered={() => setExpanded(false)}
                 now={now}
                 t={t}
