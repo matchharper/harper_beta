@@ -117,21 +117,15 @@ export function BrowserSessionView({
                 )}
               </MuteButton>
             ) : null}
-            {!closed && view && !collapsed ? (
+            {/* A card that folds has the chevron alone: an X beside it only folded too, and read as Stop. */}
+            {!onExpand && !closed && view && !collapsed ? (
               <MuteButton
                 type="button"
                 variant="transparent"
                 size="sm"
                 disabled={busy}
-                onClick={onExpand ?? (() => setPendingAction("close"))}
-                aria-label={
-                  onExpand
-                    ? t(
-                        "career.application.browser.collapse",
-                        "브라우저 화면 축소"
-                      )
-                    : t("career.browser.close", "닫기")
-                }
+                onClick={() => setPendingAction("close")}
+                aria-label={t("career.browser.close", "닫기")}
               >
                 <X className="size-4" />
               </MuteButton>
