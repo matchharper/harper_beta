@@ -642,6 +642,8 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
   const { locale } = useMessages();
   const forms = useCareerOpenForms(conversationId);
   const applications = careerApplicationsOf(forms.data);
+  // Every poll lists them, also when its progress read failed and the list above came back empty.
+  const openForms = forms.data?.forms ?? [];
   const [expanded, setExpanded] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const listId = useId();
@@ -652,8 +654,12 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
   const request = useApplicationRequest();
   // The form a "답하기" asked for that is older than the loaded history: earlier pages load until it is on screen.
   const [seeking, setSeeking] = useState<{ formId: number; name: string } | null>(null);
-  // A form no loaded page shows: it opens in a sheet.
-  const [sheet, setSheet] = useState<{ formId: number; name: string } | null>(null);
+  // A form no loaded page shows: it opens in a sheet, for the revision open then.
+  const [sheet, setSheet] = useState<{ formId: number; name: string; revision: number } | null>(null);
+  const sheetFor = (target: { formId: number; name: string }) => {
+    const form = openForms.find(item => item.formId === target.formId);
+    return form ? { ...target, revision: form.revision } : null;
+  };
   const pages = useRef(0);
   const seekingOnScreen = seeking !== null && canReveal(seeking.formId);
   useEffect(() => {
@@ -663,76 +669,80 @@ export function CareerApplicationProgressPanel({ conversationId }: { conversatio
       setSeeking(null);
     } else if (!chat?.hasOlderMessages || pages.current >= SEEK_PAGE_LIMIT) {
       // A page's forms register only after it renders: look once more, then answer it in the sheet, never nothing.
-      const timer = window.setTimeout(() => { setSeeking(null); setSheet(seeking); }, 0);
+      const timer = window.setTimeout(() => { setSeeking(null); setSheet(sheetFor(seeking)); }, 0);
       return () => window.clearTimeout(timer);
     } else if (!chat.loadingOlderMessages) {
       pages.current += 1;
       void chat.onLoadOlderMessages();
     }
-    // reveal and chat are new objects every render; the search moves only with these values.
+    // reveal, chat and sheetFor are new every render; the search moves only with these values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seeking, seekingOnScreen, chat?.hasOlderMessages, chat?.loadingOlderMessages]);
-  // Answered (or no longer asked): the sheet closes by itself.
-  const sheetAsked = sheet !== null && applications.some(app => app.action?.kind === "answer_form" && app.action.formId === sheet.formId);
-  useEffect(() => { if (sheet && !sheetAsked) setSheet(null); }, [sheet, sheetAsked]);
+  // Shown while the revision the person opened is still open, whatever its row asks by then; answered or closed, it is
+  // gone (a new revision is offered on the row again, not opened on the person).
+  const openSheet = sheet && openForms.some(form => form.formId === sheet.formId && form.revision === sheet.revision) ? sheet : null;
   const answer = (formId: number, name: string) => {
     setExpanded(false);
     if (canReveal(formId)) return reveal(formId);
-    if (!chat?.hasOlderMessages) return setSheet({ formId, name });
+    if (!chat?.hasOlderMessages) return setSheet(sheetFor({ formId, name }));
     pages.current = 0;
     setSeeking({ formId, name });
   };
-  if (!applications.length) return null;
   const counts = careerApplicationCounts(applications);
   return (
-    <section
-      aria-label={t("career.applicationProgress.label", "지원 진행")}
-      className="career-glass career-work-surface mb-2 overflow-hidden"
-      data-career-application-progress=""
-    >
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-controls={expanded ? listId : undefined}
-        onClick={() => setExpanded(value => !value)}
-        className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
-      >
-        <span aria-live="polite" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-          <span className="whitespace-nowrap text-[13px] font-medium leading-5 text-neutral-primary">
-            {t("career.applicationProgress.summary.total", "지원 {count}건", { values: { count: counts.total } })}
-          </span>
-          {counts.submitted ? <Count>{t("career.applicationProgress.summary.submitted", "제출 {count}", { values: { count: counts.submitted } })}</Count> : null}
-          {counts.needsYou ? <Count emphasis>{t("career.applicationProgress.summary.needs_you", "답 필요 {count}", { values: { count: counts.needsYou } })}</Count> : null}
-          {counts.inProgress ? <Count>{t("career.applicationProgress.summary.in_progress", "진행 중 {count}", { values: { count: counts.inProgress } })}</Count> : null}
-          {counts.stopped ? <Count>{t("career.applicationProgress.summary.stopped", "멈춤 {count}", { values: { count: counts.stopped } })}</Count> : null}
-        </span>
-        <span className="flex shrink-0 items-center gap-0.5 text-[12px] leading-5 text-neutral-muted">
-          {expanded ? t("career.applicationProgress.collapse", "접기") : t("career.applicationProgress.expand", "펼치기")}
-          {expanded ? <ChevronDown aria-hidden="true" className="size-3.5" /> : <ChevronUp aria-hidden="true" className="size-3.5" />}
-        </span>
-      </button>
-      <CareerAnimatedRegion open={expanded}>
-        {/* Its own scroll keeps the composer and the chat usable on short phone screens. */}
-        <div id={listId} className="max-h-[min(340px,40dvh)] overflow-y-auto overscroll-contain md:max-h-[min(440px,50dvh)] border-t border-stroke-subtle px-3">
-          <ul aria-label={t("career.applicationProgress.list", "지원 목록")}>
-            {applications.map(app => (
-              <ApplicationRow
-                key={app.id}
-                app={app}
-                open={openId === app.id}
-                onToggle={() => setOpenId(current => (current === app.id ? null : app.id))}
-                onAnswer={answer}
-                onAnswered={() => setExpanded(false)}
-                request={request}
-                now={now}
-                t={t}
-                locale={locale}
-              />
-            ))}
-          </ul>
-        </div>
-      </CareerAnimatedRegion>
-      {sheet ? <ApplicationFormSheet form={sheet} onClose={() => setSheet(null)} t={t} /> : null}
-    </section>
+    <>
+      {applications.length ? (
+        <section
+          aria-label={t("career.applicationProgress.label", "지원 진행")}
+          className="career-glass career-work-surface mb-2 overflow-hidden"
+          data-career-application-progress=""
+        >
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={expanded ? listId : undefined}
+            onClick={() => setExpanded(value => !value)}
+            className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-ring"
+          >
+            <span aria-live="polite" className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              <span className="whitespace-nowrap text-[13px] font-medium leading-5 text-neutral-primary">
+                {t("career.applicationProgress.summary.total", "지원 {count}건", { values: { count: counts.total } })}
+              </span>
+              {counts.submitted ? <Count>{t("career.applicationProgress.summary.submitted", "제출 {count}", { values: { count: counts.submitted } })}</Count> : null}
+              {counts.needsYou ? <Count emphasis>{t("career.applicationProgress.summary.needs_you", "답 필요 {count}", { values: { count: counts.needsYou } })}</Count> : null}
+              {counts.inProgress ? <Count>{t("career.applicationProgress.summary.in_progress", "진행 중 {count}", { values: { count: counts.inProgress } })}</Count> : null}
+              {counts.stopped ? <Count>{t("career.applicationProgress.summary.stopped", "멈춤 {count}", { values: { count: counts.stopped } })}</Count> : null}
+            </span>
+            <span className="flex shrink-0 items-center gap-0.5 text-[12px] leading-5 text-neutral-muted">
+              {expanded ? t("career.applicationProgress.collapse", "접기") : t("career.applicationProgress.expand", "펼치기")}
+              {expanded ? <ChevronDown aria-hidden="true" className="size-3.5" /> : <ChevronUp aria-hidden="true" className="size-3.5" />}
+            </span>
+          </button>
+          <CareerAnimatedRegion open={expanded}>
+            {/* Its own scroll keeps the composer and the chat usable on short phone screens. */}
+            <div id={listId} className="max-h-[min(340px,40dvh)] overflow-y-auto overscroll-contain md:max-h-[min(440px,50dvh)] border-t border-stroke-subtle px-3">
+              <ul aria-label={t("career.applicationProgress.list", "지원 목록")}>
+                {applications.map(app => (
+                  <ApplicationRow
+                    key={app.id}
+                    app={app}
+                    open={openId === app.id}
+                    onToggle={() => setOpenId(current => (current === app.id ? null : app.id))}
+                    onAnswer={answer}
+                    onAnswered={() => setExpanded(false)}
+                    request={request}
+                    now={now}
+                    t={t}
+                    locale={locale}
+                  />
+                ))}
+              </ul>
+            </div>
+          </CareerAnimatedRegion>
+        </section>
+      ) : null}
+      {/* Outside the list, so a poll without applications does not take the form from under the person's typing. */}
+      {openSheet ? <ApplicationFormSheet form={openSheet} onClose={() => setSheet(null)} t={t} /> : null}
+    </>
   );
 }

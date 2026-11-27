@@ -8,6 +8,7 @@ import { RouterContext } from "next/dist/shared/lib/router-context.shared-runtim
 import type { NextRouter } from "next/router";
 import { MessagesProvider } from "@/i18n/useMessage";
 import type { CareerOpenFormsSnapshot } from "@/hooks/career/useCareerOpenForms";
+import { parseCareerForm, type CareerForm } from "@/lib/career/forms/schema";
 import type {
   CareerApplicationProgress,
   CareerApplicationStep,
@@ -58,9 +59,12 @@ const filling: CareerApplicationProgress = {
   id: "role-c", companyName: "C사", title: "ML 엔지니어", status: "running", updatedAt: ago(0),
   steps: [step("confirm", "done"), step("fill", "current", { at: ago(2) }), step("review", "todo"), step("submit", "todo")],
 };
-const snapshot = (applications?: CareerApplicationProgress[]) =>
-  ({ forms: [], pending: 0, latestMessageId: 1, completionCursor: null, activities: [],
+const snapshot = (applications?: CareerApplicationProgress[], forms: CareerForm[] = []) =>
+  ({ forms, pending: 0, latestMessageId: 1, completionCursor: null, activities: [],
     ...(applications ? { applications } : {}) }) as CareerOpenFormsSnapshot;
+/** B's review form as the work poll lists it while open. */
+const reviewForm = (revision = 1) => parseCareerForm({ formId: 20, revision, kind: "form", state: "open", title: "검토",
+  items: [{ id: "why", label: "지원 동기", type: "textarea", content: "" }] })!;
 
 test("the list is read from the work snapshot, and a snapshot without it has none", async () => {
   const { careerApplicationsOf } = await load();
@@ -322,13 +326,15 @@ test("a form no loaded page shows opens in a sheet to answer there: no earlier p
     ({ hasOlderMessages, loadingOlderMessages, onLoadOlderMessages: async () => { loads += 1; } });
   const sheet = () => view.document.querySelector('[role="dialog"]');
   const answered = snapshot([{ ...needsAnswers, status: "waiting", action: undefined }]);
+  // Each time asked anew, as a new revision: an answered one never opens again.
+  const asked = (revision = 1) => snapshot([needsAnswers], [reviewForm(revision)]);
   const answer = async () => {
     await view.click(view.toggle());
     await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
   };
   try {
     // The whole history is loaded and the form is not in it (no reply placed it): the sheet, with the form itself.
-    await view.render(snapshot([needsAnswers]), [], history(false));
+    await view.render(asked(), [], history(false));
     await answer();
     await view.settle();
     assert.match(sheet()?.textContent ?? "", /B사 · 데이터 엔지니어 답하기/);
@@ -336,35 +342,65 @@ test("a form no loaded page shows opens in a sheet to answer there: no earlier p
     assert.match(fetched[0] ?? "", /formId=20/);
     assert.equal(loads, 0);
     assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
-    // Answered (no longer asked): the sheet closes by itself.
+    // Answered (no longer open): the sheet closes by itself.
     await view.render(answered, [], history(false));
     assert.equal(sheet(), null);
 
     // The history ran out while looking for it: the sheet, not nothing.
-    await view.render(snapshot([needsAnswers]), [], history(true));
+    await view.render(asked(2), [], history(true));
     await answer();
     assert.equal(loads, 1);
     assert.equal(sheet(), null);
-    await view.render(snapshot([needsAnswers]), [], history(false));
+    await view.render(asked(2), [], history(false));
     await view.settle();
     assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
     await view.render(answered, [], history(false));
 
     // Earlier pages keep coming without it: 25 are loaded, then the sheet.
     loads = 0;
-    await view.render(snapshot([needsAnswers]), [], history(true));
+    await view.render(asked(3), [], history(true));
     await answer();
     for (let page = 0; page < 30 && loads < 25; page += 1) {
-      await view.render(snapshot([needsAnswers]), [], history(true, true));
-      await view.render(snapshot([needsAnswers]), [], history(true));
+      await view.render(asked(3), [], history(true, true));
+      await view.render(asked(3), [], history(true));
     }
     assert.equal(loads, 25);
     assert.equal(sheet(), null);
-    await view.render(snapshot([needsAnswers]), [], history(true, true));
-    await view.render(snapshot([needsAnswers]), [], history(true));
+    await view.render(asked(3), [], history(true, true));
+    await view.render(asked(3), [], history(true));
     await view.settle();
     assert.equal(loads, 25, "no 26th page");
     assert.ok(sheet()?.querySelector('[data-career-form-id="20"]'));
+  } finally { await view.cleanup(); }
+});
+
+test("the answer sheet stays while its form is open: an empty poll or a newer action on its row does not close it", async t => {
+  const { supabase } = await import("@/lib/supabase");
+  t.mock.method(supabase.auth, "getSession", async () => ({ data: { session: { access_token: "fixture" } }, error: null }) as never);
+  t.mock.method(globalThis, "fetch", async () => Response.json({ form: { formId: 20, revision: 1, kind: "form", state: "open",
+    title: "검토", items: [{ id: "why", label: "지원 동기", type: "textarea", content: "" }] }, responses: [] }));
+  const view = await mount();
+  const history: ChatHistory = { hasOlderMessages: false, loadingOlderMessages: false, onLoadOlderMessages: async () => undefined };
+  const sheet = () => view.document.querySelector('[role="dialog"]');
+  try {
+    await view.render(snapshot([needsAnswers], [reviewForm()]), [], history);
+    await view.click(view.toggle());
+    await view.click(view.row("B사")!.querySelector('button[aria-label="B사 · 데이터 엔지니어 답하기"]'));
+    await view.settle();
+    const field = sheet()?.querySelector<HTMLTextAreaElement>('[data-career-form-id="20"] textarea');
+    assert.ok(field, "the person is typing here");
+    // A poll whose progress read failed lists no applications, though the form is still open.
+    await view.render(snapshot([], [reviewForm()]), [], history);
+    assert.equal(sheet()?.querySelector("textarea"), field, "still open, the same field");
+    // The row now asks for a login in a newer browser; the form is still open.
+    await view.render(snapshot([{ ...needsAnswers, action: { kind: "open_browser", sessionId: "session-b" } }], [reviewForm()]), [], history);
+    assert.equal(sheet()?.querySelector("textarea"), field);
+    // Answered: the form is no longer open, and the sheet closes.
+    await view.render(snapshot([{ ...needsAnswers, status: "waiting", action: undefined }]), [], history);
+    assert.equal(sheet(), null);
+    // Asked again in a new revision: the row offers it; the sheet does not open by itself.
+    await view.render(snapshot([needsAnswers], [reviewForm(2)]), [], history);
+    assert.equal(sheet(), null);
   } finally { await view.cleanup(); }
 });
 
