@@ -225,6 +225,63 @@ test("approving with a required answer empty names it once, then sends the same 
   }
 });
 
+test("each box sits on its own line before its own name: a yes/no item with its explanation under the name, postings one per line", async t => {
+  const dom = installFormDom(t);
+  const form: CareerForm = { formId: 85, revision: 1, kind: "form", state: "open", title: "지원 시작",
+    items: [{ id: "apply_postings", label: "지원할 공고", type: "multiselect",
+      content: { value: ["a", "b"], options: [{ id: "a", label: "A사 · 백엔드 엔지니어 · 원티드" }, { id: "b", label: "B사 · ML 엔지니어" }] } },
+    { id: "save_login", label: "다음 지원에도 로그인 유지", type: "checkbox", content: { value: true },
+      description: "로그인이 유효한 동안 같은 사이트에 다시 로그인하지 않아도 돼요." },
+    { id: "profile_link", label: "Harper 후보 요약 링크 넣기", type: "checkbox", content: "", required: true,
+      description: "회사가 가입 없이 볼 수 있는 요약 링크를 지원서에 넣어요." },
+    { id: "salary", label: "희망 연봉", type: "text", content: "" }],
+    positive: { id: "start-85", label: "시작", message: "시작해줘" } };
+  t.mock.method(globalThis, "fetch", async () => Response.json({ form, responses: [] }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const root = createRoot(dom.window.document.getElementById("root")!);
+  const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  const document = dom.window.document;
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><RouterContext.Provider value={{ locale: "ko", query: {} } as NextRouter}><MessagesProvider locale="ko">
+      <CareerChatPanelProvider value={{ conversationId: "conversation", user: { id: "user" } } as CareerChatPanelContextValue}>
+        <CareerInlineForms formIds={[85]} />
+      </CareerChatPanelProvider>
+    </MessagesProvider></RouterContext.Provider></QueryClientProvider>));
+    await settle();
+    // A posting list gives one line per posting: side by side, a box sat between two names.
+    const postings = [...document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"]:not([id])')];
+    assert.deepEqual(postings.map(box => box.closest("label")!.textContent), ["A사 · 백엔드 엔지니어 · 원티드", "B사 · ML 엔지니어"]);
+    for (const box of postings) {
+      const row = box.closest("label")!.className.split(/\s+/);
+      assert.ok(row.includes("flex") && row.includes("w-full") && !row.includes("inline-flex"), "each posting has a line of its own");
+    }
+    const boxes = [...document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"][id]')];
+    assert.equal(boxes.length, 2);
+    const labelOf = (box: HTMLInputElement) => document.querySelector<HTMLLabelElement>(`label[for="${box.id}"]`)!;
+    assert.deepEqual(boxes.map(box => labelOf(box).textContent), ["다음 지원에도 로그인 유지", "Harper 후보 요약 링크 넣기필수"]);
+    for (const box of boxes) {
+      const label = labelOf(box);
+      // Compared as a yes/no: a failing comparison of two DOM nodes prints the whole page and runs out of memory.
+      assert.ok(label.parentElement!.parentElement === box.parentElement, "the box and its own label share one row");
+      assert.ok(box.compareDocumentPosition(label) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING, "the box comes before its label");
+      const explanation = document.getElementById(box.getAttribute("aria-describedby")!)!;
+      assert.ok(explanation.parentElement === label.parentElement, "the explanation hangs under the label, beside the box");
+    }
+    assert.match(document.getElementById(boxes[0].getAttribute("aria-describedby")!)!.textContent!, /다시 로그인하지 않아도/);
+    assert.equal(boxes[0].checked, true, "an item Harper offers checked stays checked");
+    assert.equal(boxes[1].checked, false);
+    await act(async () => labelOf(boxes[1]).click());
+    assert.equal(document.querySelectorAll<HTMLInputElement>('[data-career-form-id="85"] input[type="checkbox"][id]')[1].checked, true,
+      "pressing the label checks its box");
+    const salary = document.querySelector<HTMLInputElement>('[data-career-form-id="85"] input:not([type])')
+      ?? document.querySelector<HTMLInputElement>('[data-career-form-id="85"] input[type="text"]')!;
+    assert.ok(labelOf(salary as HTMLInputElement).compareDocumentPosition(salary) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
+      "other answers keep their label above the field");
+  } finally {
+    await act(async () => root.unmount()); client.clear();
+  }
+});
+
 test("each checklist row submits alone, retains its check after reload and leaves siblings available", async t => {
   const dom = installFormDom(t);
   const form: CareerForm = {

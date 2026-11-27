@@ -7,7 +7,7 @@ import { Radio } from "@/components/ui/radio";
 import { useCareerApi } from "@/hooks/career/useCareerApi";
 import { useOptionalCareerChatPanelContext } from "../CareerChatPanelContext";
 import { useCareerT } from "@/i18n/useCareerT";
-import { CareerFormField } from "./CareerFormCard";
+import { CareerFormCheckboxRow, CareerFormField, isCareerFormCheckbox } from "./CareerFormCard";
 import { CareerChecklistRows } from "./CareerChecklistRows";
 import { useApplicationComposerDraft } from "./useApplicationComposerDraft";
 import { formatCareerDocumentLink } from "@/lib/career/documentLinks";
@@ -290,13 +290,20 @@ export function CareerInlineForms({ formIds, grouped = false, origin, onOriginCh
             {checklist ? <CareerChecklistRows key={form.revision} form={form} responses={recorded}
               unavailable={!conversationId || !!form.hidden || queries[formIds.indexOf(form.formId)].isError}
               apply={(itemId, actionId, requestId) => submitChecklistRow(form, itemId, actionId, requestId)} />
-              : form.items.map(item => <div key={item.id} className="space-y-2">
-              <label htmlFor={`${id}-${form.formId}-${item.id}`} className="block text-sm font-medium">{item.label}
-                {item.required && <span className="ml-1.5 text-xs font-normal text-critical">{t("career.forms.required", "필수")}</span>}</label>
-              {item.description && <p className="text-sm text-neutral-muted whitespace-pre-wrap">{item.description}</p>}
-              <CareerFormField item={item} id={`${id}-${form.formId}-${item.id}`} value={values[item.id]} disabled={disabled} readOnly={current.state !== "open"}
-                onChange={value => update(form, { ...values, [item.id]: value }, draft?.actionId)} />
-            </div>)}
+              : form.items.map(item => {
+              const fieldId = `${id}-${form.formId}-${item.id}`;
+              const required = item.required && <span className="ml-1.5 text-xs font-normal text-critical">{t("career.forms.required", "필수")}</span>;
+              const description = item.description && <p className="text-sm text-neutral-muted whitespace-pre-wrap">{item.description}</p>;
+              const field = { item, id: fieldId, value: values[item.id], disabled, readOnly: current.state !== "open",
+                onChange: (value: CareerFormValue) => update(form, { ...values, [item.id]: value }, draft?.actionId) };
+              return isCareerFormCheckbox(item)
+                ? <CareerFormCheckboxRow key={item.id} {...field} badge={required}>{description}</CareerFormCheckboxRow>
+                : <div key={item.id} className="space-y-2">
+                  <label htmlFor={fieldId} className="block text-sm font-medium">{item.label}{required}</label>
+                  {description}
+                  <CareerFormField {...field} />
+                </div>;
+            })}
             {current.state !== "open" && selectedAction && <p className="text-sm">{actions.find(action => action?.id === selectedAction)?.label}</p>}
             {current.state === "open" && actions.length > 0 && <div className="flex flex-wrap gap-4">
               {actions.map(action => grouped
