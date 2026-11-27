@@ -17,6 +17,8 @@ const older = reviewForm(1, "Review your A application", [
   { id: "visa", type: "select", label: "Do you require visa sponsorship? *", content: { options: [{ id: "y", label: "Yes" }, { id: "n", label: "No" }] } },
   { id: "salary", type: "text", label: "Salary expectation", content: {} },
   { id: "terms", type: "checkbox", label: "I agree to the privacy policy", content: { value: true } },
+  // A consent belongs to the company it was given to (sensitive information is asked per company).
+  { id: "sensitive", type: "consent", label: "민감정보(보훈·장애) 처리 동의", content: {} },
 ]);
 const newer = reviewForm(2, "Review your B application", [
   { id: "salary", type: "text", label: "Salary expectation (required)", content: {} },
@@ -38,7 +40,7 @@ function adminFor(rows: unknown[]) {
 const rows = [
   response(5, declined, { visa: "Needs a permit" }, "hold"),
   response(4, newer, { salary: "$120,000", manager: "Kim", military: "군필" }),
-  response(3, older, { visa: "n", salary: "$100,000", terms: true }),
+  response(3, older, { visa: "n", salary: "$100,000", terms: true, sensitive: true }),
 ];
 const run = (query?: string) => executeSuggestForm({ admin: adminFor(rows), userId: "user", conversationId: "conversation",
   input: { action: "answers", ...(query ? { query } : {}) } }) as Promise<{ modelOutput: string; answers: { label: string; answer: string }[] }>;
@@ -53,7 +55,7 @@ test("answers returns the newest confirmed answer per question without consent b
   ]);
   assert.match(result.modelOutput, /grant no consent or approval/);
   assert.match(result.modelOutput, /form 2 "Review your B application", 2026-11-14 10:00/);
-  assert.doesNotMatch(result.modelOutput, /privacy policy|Needs a permit/);
+  assert.doesNotMatch(result.modelOutput, /privacy policy|민감정보|Needs a permit/);
 });
 
 test("answers query matches Latin words from a word start and Korean words anywhere", async () => {

@@ -249,7 +249,7 @@ export async function listCareerForms(
 const ANSWER_RESPONSES = 30;
 const ANSWER_ITEMS = 40;
 const ANSWER_PREVIEW = 300;
-const NOT_REUSABLE = new Set(["checkbox", "document", "markdown", "change"]);
+const NOT_REUSABLE = new Set(["checkbox", "consent", "document", "markdown", "change"]);
 
 function answerLabel(item: CareerFormItem, value: CareerFormValue | undefined) {
   if (value === undefined || value === null || NOT_REUSABLE.has(item.type)) return null;
