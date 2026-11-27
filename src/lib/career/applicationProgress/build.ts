@@ -90,8 +90,10 @@ export type CareerApplicationProgressInput = {
    */
   turnStartedAt?: string | null;
   /**
-   * A Harper turn here is on hold in the chat: its checkpoint waits for a newer request of the person's first
-   * (CareerEffectWaiting). It names no application and is not a question Harper asked, so it is the conversation's.
+   * A Harper turn here is on hold: activity.ts marks a turn whose checkpoint waits for career_input (CareerEffectWaiting:
+   * a newer request of the person's is handled first) or for browser_control. No tool creates a browser_control wait
+   * today (the runtime keeps only the continuation kinds listed in capabilities/runtime.ts), so in practice it is the
+   * first. Either way it names no application and is not a question Harper asked, so it is the conversation's.
    */
   waitingForReply?: boolean;
   /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */

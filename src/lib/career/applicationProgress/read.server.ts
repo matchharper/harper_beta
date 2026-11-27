@@ -62,7 +62,10 @@ export async function readCareerApplicationProgress(args: {
   openForms: PromiseLike<ApplicationOpenForm[]>;
   /** When Harper's running turn here started (null when none runs), from the route's own invocation read. */
   turnStartedAt: PromiseLike<string | null>;
-  /** Whether a Harper turn here is on hold in the chat (it names no application and asks nothing), from the same read. */
+  /**
+   * Whether a Harper turn here is on hold (CareerApplicationProgressInput.waitingForReply: it names no application and
+   * asks nothing), from the same read.
+   */
   waitingForReply?: PromiseLike<boolean>;
   /** Browsers a Stop queued to close (pending cleanup invocations), from the same read. */
   closingBrowserSessionIds?: PromiseLike<readonly string[]>;

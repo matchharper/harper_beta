@@ -102,8 +102,9 @@ export async function GET(req: NextRequest) {
       turnStartedAt: turnRows.then((rows) =>
         rows.filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
           .map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
-      // A turn on hold behind a newer request: a paused application then points to the chat instead of asking Harper
-      // again. The hold names no application, so it is the whole conversation's.
+      // A turn on hold (activity.ts: its checkpoint waits for a newer request handled first, or for browser_control,
+      // which no tool creates today): a paused application then points to the chat instead of asking Harper again. The
+      // hold names no application, so it is the whole conversation's.
       waitingForReply: turnRows.then((rows) =>
         rows.some((row) => !row.cleanup && !row.cleanup_browser_session && row.activity?.waitingForReply === true)),
       // A Stop queues one cleanup per open browser; until it runs, that browser is as good as closed.

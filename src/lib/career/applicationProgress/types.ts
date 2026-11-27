@@ -46,7 +46,8 @@ export type CareerApplicationStep = {
  * What the person can do now. answer_form reveals that form in the chat; open_browser opens that browser session;
  * reopen_browser asks Harper in chat to open again the login browser that closed while it waited; continue asks Harper
  * in chat to go on (nothing moves the application, or the person stopped it); reply_in_chat: nothing moves it while a
- * Harper turn in this chat is on hold, so the panel points to the chat (the hold names no application and no question).
+ * Harper turn in this chat is on hold (CareerApplicationProgressInput.waitingForReply), so the panel points to the chat;
+ * the hold names no application and no question, and the row claims neither.
  */
 export type CareerApplicationAction =
   | { kind: "answer_form"; formId: number }
