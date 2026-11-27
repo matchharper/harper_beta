@@ -9,7 +9,7 @@ export const CAREER_REPLY_UNSEEN_GRACE_SECONDS = 30 * 60;
 export const CAREER_REPLY_UNSEEN_MIN_WORK_SECONDS = 3 * 60;
 /** Only recent candidate messages; an older thread is not waiting on this reply.
  * Covers the work time plus the unseen wait. */
-const CAREER_REPLY_UNSEEN_WINDOW_SECONDS = 3 * 60 * 60;
+export const CAREER_REPLY_UNSEEN_WINDOW_SECONDS = 3 * 60 * 60;
 
 type UnseenReply = { messageId: number; sourceMessageId: number; completedAt?: string };
 

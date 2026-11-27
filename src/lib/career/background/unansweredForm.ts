@@ -2,10 +2,11 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { CareerAgentReplyJob } from "../agentReplyQueue";
 import { parseCareerForm, type CareerForm } from "../forms/schema";
 import type { CareerBackgroundRun } from "./types";
-import { CAREER_REPLY_UNSEEN_TRIGGER } from "./unseenReply";
+import { CAREER_REPLY_UNSEEN_MIN_WORK_SECONDS, CAREER_REPLY_UNSEEN_TRIGGER, CAREER_REPLY_UNSEEN_WINDOW_SECONDS } from "./unseenReply";
 
 export const CAREER_FORM_UNANSWERED_TRIGGER = "career_form_unanswered";
-/** How long the forms have waited since the candidate's chat last displayed them before the email is considered. */
+/** How long the forms have waited since the candidate's chat last displayed them, and since they left Harper, before the
+ * email is considered. */
 export const CAREER_FORM_UNANSWERED_GRACE_SECONDS = 30 * 60;
 /** Only forms from the last day; an older open form is left to the opportunity page and re-engagement. */
 const CAREER_FORM_UNANSWERED_WINDOW_SECONDS = 24 * 60 * 60;
@@ -30,7 +31,8 @@ export function readUnansweredForms(run: { trigger_payload?: unknown }): Unanswe
 }
 
 /** Wakes the Career agent once for a conversation whose application forms the candidate saw and left unanswered
- * after closing every Harper page. A form revision is listed once, and a conversation gets at most one a day. */
+ * after closing every Harper page. A form revision is listed once, and a conversation gets at most one a day. A visit
+ * the unseen-reply email takes is left to it, by that email's own rule (unseenReply.ts). */
 export async function admitUnansweredCareerForms(
   admin: TalentAdminClient,
   publish: (job: CareerAgentReplyJob) => Promise<unknown> = async job => (await import("../agentReplyQueue")).enqueueCareerAgentReply(job),
@@ -38,6 +40,8 @@ export async function admitUnansweredCareerForms(
   const { data, error } = await (admin.rpc as any)("admit_career_unanswered_forms_v1", {
     p_grace_seconds: CAREER_FORM_UNANSWERED_GRACE_SECONDS,
     p_window_seconds: CAREER_FORM_UNANSWERED_WINDOW_SECONDS,
+    p_reply_min_work_seconds: CAREER_REPLY_UNSEEN_MIN_WORK_SECONDS,
+    p_reply_window_seconds: CAREER_REPLY_UNSEEN_WINDOW_SECONDS,
     p_limit: 20,
   });
   if (error) throw error;

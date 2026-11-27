@@ -68,10 +68,11 @@ async function revise(db: PGlite, formId: number, expectedRevision: number, minu
 }
 /** A chat message; a Harper reply places the forms in `shows` with the marker line chat turns write. */
 async function message(db: PGlite, from: "user" | "assistant", minutesAgo: number,
-  { talent = user, conv = conversation, shows = [] as number[], content = "" }: Chat & { shows?: number[]; content?: string } = {}) {
+  { talent = user, conv = conversation, shows = [] as number[], content = "", payload = {} as Record<string, unknown> }:
+    Chat & { shows?: number[]; content?: string; payload?: Record<string, unknown> } = {}) {
   const text = content || (from === "user" ? "Please apply" : withFormMarkers("Here is the review", shows));
   const { rows: [row] } = await db.query<{ id: number }>(`insert into talent_messages(user_id,conversation_id,role,message_type,content,payload,created_at)
-    values ($1,$2,$3,'chat',$4,'{}',now() - make_interval(mins => $5)) returning id`, [talent, conv, from, text, minutesAgo]);
+    values ($1,$2,$3,'chat',$4,$5,now() - make_interval(mins => $6)) returning id`, [talent, conv, from, text, payload, minutesAgo]);
   return row.id;
 }
 /** The candidate's visible chat displayed messageId, last at minutesAgo. */
@@ -82,6 +83,12 @@ async function viewed(db: PGlite, messageId: number, minutesAgo: number, { talen
 const page = (n: number) => id(100 + n);
 const presence = (db: PGlite, pageId: string, closed: boolean, talent = user) =>
   scalar(db, "mark_career_page_presence_v1($1,$2,$3)", [talent, pageId, closed]);
+/** The candidate closed that Harper page minutesAgo; it last reported then. */
+async function leave(db: PGlite, pageId: string, minutesAgo = 31, talent = user) {
+  await presence(db, pageId, true, talent);
+  await db.query("update career_page_presence set closed_at = now() - make_interval(mins => $1), alive_at = now() - make_interval(mins => $1) where page_id = $2",
+    [minutesAgo, pageId]);
+}
 /** Calls functions as PostgREST does: a scalar function returns its value, a set returns rows. */
 const rpcClient = (db: PGlite) => ({
   rpc: async (name: string, args: Record<string, unknown>) => {
@@ -115,7 +122,7 @@ test("a seen application form left unanswered after Harper closed wakes the agen
   try {
     const { request, saved } = await leftForm(db);
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "the page is still open");
-    await presence(db, page(1), true);
+    await leave(db, page(1));
     const published: unknown[] = [];
     assert.deepEqual(await admit(db, published), { admitted: 1, deferred: 0 });
     const [run] = await runs(db);
@@ -132,6 +139,8 @@ test("a seen application form left unanswered after Harper closed wakes the agen
     assert.deepEqual(listed.form.items.map(item => item.label), ["Expected salary", "Earliest start date"]);
     assert.equal(new Date(run.trigger_payload.chatSeenAt).getTime(),
       new Date(await scalar(db, "(select seen_at from career_conversation_seen)")).getTime());
+    assert.equal(new Date(run.trigger_payload.leftAt).getTime(),
+      new Date(await scalar(db, "(select closed_at from career_page_presence)")).getTime());
     assert.equal(await current(db, run), true);
     await skipCheck(db, run);
 
@@ -144,13 +153,14 @@ test("a seen application form left unanswered after Harper closed wakes the agen
   } finally { await db.close(); }
 });
 
-test("the form waits 30 minutes after the candidate last viewed it, and only forms from the last day count", async () => {
+test("the form waits 30 minutes after the candidate last viewed it and left Harper, and only forms from the last day count", async () => {
   const db = await setup();
   try {
     const { reply } = await leftForm(db, 10);
-    await presence(db, page(1), true);
-    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "viewed 10 minutes ago");
+    await leave(db, page(1), 10);
+    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "viewed and left 10 minutes ago");
     await viewed(db, reply, 31);
+    await leave(db, page(1), 31);
     assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
 
     // Another candidate looks again at a form from a day and a half ago and leaves.
@@ -159,7 +169,7 @@ test("the form waits 30 minutes after the candidate last viewed it, and only for
     const shown = await message(db, "assistant", 36 * 60, { talent: other, conv: otherConversation, shows: [old.id] });
     await presence(db, page(3), false, other);
     await viewed(db, shown, 40, { talent: other, conv: otherConversation });
-    await presence(db, page(3), true, other);
+    await leave(db, page(3), 40, other);
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "the form is older than a day");
   } finally { await db.close(); }
 });
@@ -168,7 +178,7 @@ test("a newer candidate message or an answer ends the reason to email", async ()
   const db = await setup();
   try {
     const { saved } = await leftForm(db);
-    await presence(db, page(1), true);
+    await leave(db, page(1));
     const listed = [{ formId: saved.id, revision: 1 }];
     const isCurrent = (forms: unknown) => scalar(db, "career_unanswered_forms_current_v1($1,$2,$3)", [user, conversation, forms]);
     assert.equal(await isCurrent(listed), true);
@@ -181,7 +191,7 @@ test("a newer candidate message or an answer ends the reason to email", async ()
   const answered = await setup();
   try {
     const { saved } = await leftForm(answered);
-    await presence(answered, page(1), true);
+    await leave(answered, page(1));
     assert.deepEqual(await admit(answered), { admitted: 1, deferred: 0 });
     const [run] = await runs(answered);
     await scalar(answered, "write_career_form($1,$2,'respond',$3,1,null,$4,'Approved',$5)",
@@ -189,6 +199,56 @@ test("a newer candidate message or an answer ends the reason to email", async ()
     assert.equal(await current(answered, run), false, "answered in Career");
     await assert.rejects(skipCheck(answered, run), CareerSourceChangedError, "run start and email send skip it");
   } finally { await answered.close(); }
+});
+
+test("answering one form, or acting elsewhere in Career, leaves the other forms waiting for the email", async () => {
+  // Review 11/27: a form answer is saved as the candidate's message, so answering one of three forms used to stop the
+  // email for the other two for good.
+  const db = await setup();
+  try {
+    await message(db, "user", 120);
+    const first = await form(db, 90), second = await form(db, 90, { payload: { title: "Company B · Data Engineer" } });
+    const reply = await message(db, "assistant", 89, { shows: [first.id, second.id], payload: { careerTextReplyId: "invocation:a" } });
+    await presence(db, page(1), false);
+    await viewed(db, reply, 85);
+    await scalar(db, "write_career_form($1,$2,'respond',$3,1,null,$4,'Approved',$5)",
+      [user, conversation, first.id, { values: { salary: "Negotiable", start: "Next month" } }, "answer-first"]);
+    await ago(db, "talent_messages", "message_type='career_form_response'", 80);
+    await db.query(`insert into talent_messages(user_id,conversation_id,role,message_type,content,payload,created_at)
+      values ($1,$2,'user','opportunity_feedback_note','Not for me','{}',now() - interval '79 minutes')`, [user, conversation]);
+    const thanks = await message(db, "assistant", 78, { content: "Company A is done; Company B still waits.", payload: { careerTextReplyId: "invocation:b" } });
+    await viewed(db, thanks, 75);
+    await leave(db, page(1), 74);
+    assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
+    const [run] = await runs(db);
+    assert.deepEqual(readUnansweredForms(run).map(item => [item.formId, item.revision]), [[second.id, 1]], "the answered form is not listed");
+    assert.equal(await current(db, run), true);
+    await message(db, "user", 10, { content: "I'll do Company B tomorrow" });
+    assert.equal(await current(db, run), false, "the candidate wrote again");
+  } finally { await db.close(); }
+});
+
+test("a chat kept open for hours and closed just now waits 30 minutes from the close", async () => {
+  // Review 11/27: the wait was counted from the last view, so this email started at the close.
+  const db = await setup();
+  try {
+    await message(db, "user", 180);
+    const saved = await form(db, 170);
+    const reply = await message(db, "assistant", 169, { shows: [saved.id] });
+    await presence(db, page(1), false);
+    await viewed(db, reply, 120);
+    // The page keeps reporting that it is open until it closes now.
+    await presence(db, page(1), false);
+    await presence(db, page(1), true);
+    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "closed just now");
+    await leave(db, page(1), 29);
+    assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "closed 29 minutes ago");
+    await leave(db, page(1), 31);
+    assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
+    const [run] = await runs(db);
+    assert.ok(Date.parse(run.trigger_payload.leftAt) - Date.parse(run.trigger_payload.chatSeenAt) > 80 * 60_000,
+      "the agent hears when the candidate left, not only when they last viewed the chat");
+  } finally { await db.close(); }
 });
 
 test("a form not shown in chat, or a reply the candidate has not seen, is left to the unseen-reply email", async () => {
@@ -200,35 +260,52 @@ test("a form not shown in chat, or a reply the candidate has not seen, is left t
     const held = await message(db, "assistant", 58, { content: `The Company A review [[form:${saved.id}]] comes later.\n\n[[forms:[${saved.id * 10},${saved.id + 100}]]]` });
     await presence(db, page(1), false);
     await viewed(db, held, 55);
-    await presence(db, page(1), true);
+    await leave(db, page(1), 54);
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "seen, but the form was not placed");
     // The reply that places it arrived after the candidate left.
     const shown = await message(db, "assistant", 50, { shows: [saved.id] });
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "an unseen reply");
     await presence(db, page(2), false);
     await viewed(db, shown, 40);
-    await presence(db, page(2), true);
+    await leave(db, page(2));
     assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 }, "the candidate saw it placed and left");
   } finally { await db.close(); }
   const later = await setup();
   try {
-    // The form was seen, but a newer Harper reply is still unseen.
+    // The form was seen, but a newer reply of Harper's work, 25 minutes after the candidate's message, is still
+    // unseen: the unseen-reply email takes it.
     await leftForm(later);
-    await message(later, "assistant", 45);
-    await presence(later, page(1), true);
+    await message(later, "assistant", 45, { content: "Prepared B", payload: { careerTextReplyId: "invocation:b" } });
+    await leave(later, page(1));
     assert.deepEqual(await admit(later), { admitted: 0, deferred: 0 });
   } finally { await later.close(); }
+  for (const [what, minutesAfter, replyId] of [["a quick second message of the same reply", 1, "invocation:a"],
+    ["a background run's message", 20, `background:${id(999)}`]] as const) {
+    // The unseen-reply email does not take these (review 11/27: then neither email started).
+    const db = await setup();
+    try {
+      const request = 62;
+      await message(db, "user", request);
+      const saved = await form(db, 61);
+      const shown = await message(db, "assistant", 61, { shows: [saved.id], payload: { careerTextReplyId: "invocation:a" } });
+      await presence(db, page(1), false);
+      await viewed(db, shown, 61);
+      await message(db, "assistant", request - minutesAfter, { content: "One more note", payload: { careerTextReplyId: replyId } });
+      await leave(db, page(1), 35);
+      assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 }, what);
+    } finally { await db.close(); }
+  }
   const revised = await setup();
   try {
     // Harper revised the form after the candidate last looked, without placing it again.
     const { saved, reply } = await leftForm(revised, 45);
     await revise(revised, saved.id, 1, 40);
-    await presence(revised, page(1), true);
+    await leave(revised, page(1), 44);
     assert.deepEqual(await admit(revised), { admitted: 0, deferred: 0 }, "the new revision was saved after the last view");
     // The chat shows the newest revision where the reply placed the form.
     await presence(revised, page(2), false);
     await viewed(revised, reply, 35);
-    await presence(revised, page(2), true);
+    await leave(revised, page(2));
     assert.deepEqual(await admit(revised), { admitted: 1, deferred: 0 });
     assert.deepEqual(readUnansweredForms((await runs(revised))[0]).map(item => [item.formId, item.revision]), [[saved.id, 2]]);
   } finally { await revised.close(); }
@@ -245,7 +322,7 @@ test("one email lists every waiting form of the conversation; a revision is list
     const reply = await message(db, "assistant", 60, { shows: [first.id, second.id, suggestion.id, plain.id] });
     await presence(db, page(1), false);
     await viewed(db, reply, 55);
-    await presence(db, page(1), true);
+    await leave(db, page(1), 54);
     assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
     const [run] = await runs(db);
     assert.deepEqual(readUnansweredForms(run).map(item => [item.formId, item.revision]), [[first.id, 1], [second.id, 1]],
@@ -256,7 +333,7 @@ test("one email lists every waiting form of the conversation; a revision is list
     await revise(db, first.id, 1, 50);
     await presence(db, page(2), false);
     await viewed(db, reply, 35);
-    await presence(db, page(2), true);
+    await leave(db, page(2));
     assert.equal(await current(db, run), false, "the listed revision changed");
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 }, "one email a day per conversation");
 
@@ -280,7 +357,7 @@ test("test accounts, deleted accounts and another candidate's open page; only se
       const reply = await message(db, "assistant", 59, { talent, conv, shows: [saved.id] });
       await presence(db, page(talent === tester ? 4 : 5), false, talent);
       await viewed(db, reply, 40, { talent, conv });
-      await presence(db, page(talent === tester ? 4 : 5), true, talent);
+      await leave(db, page(talent === tester ? 4 : 5), 31, talent);
     }
     await db.query("update talent_users set deleted_at = now() where user_id = $1", [other]);
     assert.deepEqual(await admit(db), { admitted: 0, deferred: 0 });
@@ -290,7 +367,7 @@ test("test accounts, deleted accounts and another candidate's open page; only se
     assert.deepEqual(await admit(db), { admitted: 1, deferred: 0 });
     assert.equal((await runs(db))[0].talent_id, other);
 
-    for (const signature of ["admit_career_unanswered_forms_v1(integer,integer,integer)", "career_unanswered_forms_current_v1(uuid,uuid,jsonb)",
+    for (const signature of ["admit_career_unanswered_forms_v1(integer,integer,integer,integer,integer)", "career_unanswered_forms_current_v1(uuid,uuid,jsonb)",
       "career_reply_shows_form_v1(text,bigint)", "mark_career_page_presence_v1(uuid,uuid,boolean)"]) {
       for (const dbRole of ["anon", "authenticated"])
         assert.equal(await scalar(db, "has_function_privilege($1,$2,'EXECUTE')", [dbRole, signature]), false, `${dbRole} ${signature}`);

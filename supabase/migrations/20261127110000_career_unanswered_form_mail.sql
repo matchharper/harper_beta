@@ -7,14 +7,20 @@
 -- candidate viewed and then left with open application forms (kind form, linked to a
 -- role or opportunity, as read_open_career_forms reads them). A form counts when:
 --   * a chat reply that the candidate's visible chat displayed places the form (its
---     [[form:id]] line), the chat was displayed again after this revision was saved (the
---     placed form always shows its newest revision), and nothing newer from Harper is left
---     unseen there (an unseen reply is the unseen-reply email's case, so the two never
---     both start);
+--     [[form:id]] line), and the chat was displayed again after this revision was saved
+--     (the placed form always shows its newest revision);
 --   * it is the open revision, created in the last p_window_seconds;
---   * the candidate has written nothing in that conversation since it;
---   * the candidate last viewed that chat at least p_grace_seconds ago and has since
---     closed every Harper page (career_pages_closed_v1).
+--   * the candidate has written nothing in that conversation since it: no chat message,
+--     email reply or call. Answering another form, or another action in Career, leaves
+--     it waiting (review 11/27: answering one form of three left the other two unmailed);
+--   * the candidate last viewed that chat, and closed every Harper page
+--     (career_pages_closed_v1), at least p_grace_seconds ago;
+--   * no unseen reply there is one the unseen-reply email takes (admit_career_unseen_replies_v2:
+--     the newest 'invocation:' reply after the candidate's latest message, which they saw,
+--     at least p_reply_min_work_seconds after it, within p_reply_window_seconds). Then that
+--     email covers this visit. Another unseen message (a quick second message of the same
+--     reply, a background run's message) does not hold this one, so one of the two starts
+--     and never both.
 -- One run lists every such form of the conversation. A form revision is listed in one
 -- run only, and a conversation gets at most one such run a day, so a form cannot be
 -- mailed again and again. The agent decides on and writes the email. Reopening Harper
@@ -22,7 +28,8 @@
 -- career_unanswered_forms_current_v1.
 
 -- Execution boundaries (run start, email send) re-read this before acting. False once a
--- listed form was answered, revised or closed, the candidate wrote again, or Harper is open.
+-- listed form was answered, revised or closed, the candidate wrote again (a chat message,
+-- email reply or call), or Harper is open.
 create or replace function public.career_unanswered_forms_current_v1(p_user uuid, p_conversation uuid, p_forms jsonb)
 returns boolean language sql stable security invoker set search_path='' as $$
   with listed as (
@@ -41,6 +48,7 @@ returns boolean language sql stable security invoker set search_path='' as $$
       where public.read_career_form_status(p_user, p_conversation, revisions.form_id, revisions.revision)<>'open')
     and not exists (select 1 from public.talent_messages m
       where m.conversation_id=p_conversation and m.user_id=p_user and m.role='user'
+        and m.message_type in ('chat', 'mail', 'call_transcript')
         and m.id>(select min(revisions.id) from revisions))
     and public.career_pages_closed_v1(p_user, (select min(revisions.created_at) from revisions))
 $$;
@@ -55,19 +63,30 @@ returns boolean language sql immutable security invoker set search_path='' as $$
 $$;
 
 create or replace function public.admit_career_unanswered_forms_v1(
-  p_grace_seconds integer, p_window_seconds integer, p_limit integer default 20)
+  p_grace_seconds integer, p_window_seconds integer, p_reply_min_work_seconds integer, p_reply_window_seconds integer,
+  p_limit integer default 20)
 returns setof public.opportunity_discovery_run language plpgsql security invoker set search_path='' as $$
 declare candidate record; run public.opportunity_discovery_run; run_id uuid;
 begin
   if not pg_try_advisory_xact_lock(hashtextextended('career_form_unanswered_scan', 0)) then return; end if;
   for candidate in
-    select seen.user_id, seen.conversation_id, seen.seen_at, forms.items, forms.newest,
+    select seen.user_id, seen.conversation_id, seen.seen_at, forms.items, forms.newest, left_at.at as left_at,
       coalesce(last_input.id, 0) as source_id
     from public.career_conversation_seen seen
     cross join lateral (
-      select max(u.id) as id from public.talent_messages u
+      -- id: the newest message of the candidate, the agent's input cursor; words: their newest chat message,
+      -- email reply or call.
+      select max(u.id) as id, max(u.id) filter (where u.message_type in ('chat', 'mail', 'call_transcript')) as words
+      from public.talent_messages u
       where u.conversation_id=seen.conversation_id and u.user_id=seen.user_id and u.role='user'
     ) last_input
+    left join lateral (
+      select u.message_type, u.created_at from public.talent_messages u where u.id=last_input.id
+    ) latest on true
+    -- When the candidate left Harper: the last report of any of their pages.
+    cross join lateral (
+      select max(coalesce(p.closed_at, p.alive_at)) as at from public.career_page_presence p where p.user_id=seen.user_id
+    ) left_at
     cross join lateral (
       select jsonb_agg(jsonb_build_object('formId', waiting.form_id, 'revision', waiting.revision,
           'messageId', waiting.id, 'createdAt', waiting.created_at, 'form', waiting.payload) order by waiting.id) as items,
@@ -80,7 +99,7 @@ begin
           and (f.payload->'relatedRefs' @> '[{"type":"role"}]' or f.payload->'relatedRefs' @> '[{"type":"opportunity"}]')
           and f.created_at > now() - make_interval(secs => p_window_seconds)
           and f.created_at <= now() - make_interval(secs => p_grace_seconds)
-          and f.id > coalesce(last_input.id, 0)
+          and f.id > coalesce(last_input.words, 0)
           -- Shown: a reply that the visible chat displayed places this form, and the chat was displayed after
           -- this revision was saved. A form held for a bundled review is not shown yet. A reply placing the form
           -- comes after its first revision (formId).
@@ -105,9 +124,16 @@ begin
       -- keeps the scan to recently viewed conversations.
       and seen.seen_at <= now() - make_interval(secs => p_grace_seconds)
       and seen.seen_at > now() - make_interval(secs => p_window_seconds)
+      -- Counted from leaving: a chat kept open for hours and closed just now waits p_grace_seconds more.
+      and left_at.at <= now() - make_interval(secs => p_grace_seconds)
+      -- An unseen reply the unseen-reply email takes (the same rule as admit_career_unseen_replies_v2).
       and not exists (select 1 from public.talent_messages r
         where r.conversation_id=seen.conversation_id and r.user_id=seen.user_id and r.role='assistant'
-          and r.message_type='chat' and r.id>seen.message_id and r.payload->>'hidden' is distinct from 'true')
+          and r.message_type='chat' and r.id>seen.message_id and r.id>last_input.id
+          and r.payload->>'careerTextReplyId' like 'invocation:%'
+          and seen.message_id>=last_input.id and latest.message_type is distinct from 'mail'
+          and latest.created_at > now() - make_interval(secs => p_reply_window_seconds)
+          and r.created_at >= latest.created_at + make_interval(secs => p_reply_min_work_seconds))
       and public.career_pages_closed_v1(seen.user_id, seen.seen_at)
       and not public.is_talent_test_account(seen.user_id)
       and not exists (select 1 from public.talent_users t where t.user_id=seen.user_id and t.deleted_at is not null)
@@ -126,7 +152,7 @@ begin
       jsonb_build_object('runContract', 'career_agent_v1',
         -- A notice about waiting forms is not a discovery run; keep the periodic cadence unchanged.
         'cadencePolicy', jsonb_build_object('affectsBaseCadence', false),
-        'unansweredForms', candidate.items, 'chatSeenAt', candidate.seen_at,
+        'unansweredForms', candidate.items, 'chatSeenAt', candidate.seen_at, 'leftAt', candidate.left_at,
         'agentInvocation', jsonb_build_object('replyId', 'background:'||run_id,
           'sourceMessageCursor', candidate.source_id, 'acceptedAt', now())))
     returning * into run;
@@ -160,9 +186,9 @@ end $$;
 
 revoke all on function public.career_unanswered_forms_current_v1(uuid, uuid, jsonb) from public, anon, authenticated;
 revoke all on function public.career_reply_shows_form_v1(text, bigint) from public, anon, authenticated;
-revoke all on function public.admit_career_unanswered_forms_v1(integer, integer, integer) from public, anon, authenticated;
+revoke all on function public.admit_career_unanswered_forms_v1(integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.mark_career_page_presence_v1(uuid, uuid, boolean) from public, anon, authenticated;
 grant execute on function public.career_unanswered_forms_current_v1(uuid, uuid, jsonb) to service_role;
 grant execute on function public.career_reply_shows_form_v1(text, bigint) to service_role;
-grant execute on function public.admit_career_unanswered_forms_v1(integer, integer, integer) to service_role;
+grant execute on function public.admit_career_unanswered_forms_v1(integer, integer, integer, integer, integer) to service_role;
 grant execute on function public.mark_career_page_presence_v1(uuid, uuid, boolean) to service_role;

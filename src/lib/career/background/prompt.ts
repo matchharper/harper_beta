@@ -35,11 +35,12 @@ export function renderCareerBackgroundInvocation(run: CareerBackgroundRun) {
   if (run.trigger === CAREER_FORM_UNANSWERED_TRIGGER) {
     const forms = readUnansweredForms(run);
     const seenAt = run.trigger_payload?.chatSeenAt;
+    const leftAt = run.trigger_payload?.leftAt;
     return [
       CAREER_BACKGROUND_INSTRUCTION,
       `Background event: ${run.trigger}; observed ${formatLlmDateTime(run.created_at)} (${PROMPT_TIME_ZONE}).`,
       `Career link: ${getConfiguredPublicSiteUrl()}/career`,
-      `The candidate saw ${forms.length === 1 ? "this application form" : "these application forms"} in their Career chat${typeof seenAt === "string" ? ` (last viewed ${formatLlmDateTime(seenAt)})` : ""}, has since closed Harper without answering, and has not written again. Nothing is submitted until they answer. Email can bring the questions to them outside Career; whether it is worth an email is your decision. If you email, include each question they still need to answer exactly as the form words it, and say that they can answer by replying to this email or in Career through the link, and that nothing is submitted before they do. The forms are already in their chat, so another chat message would repeat them. This event is not a user message, consent, or a request for new work.`,
+      `The candidate saw ${forms.length === 1 ? "this application form" : "these application forms"} in their Career chat${typeof seenAt === "string" ? ` (last viewed ${formatLlmDateTime(seenAt)})` : ""}, has since closed Harper without answering${typeof leftAt === "string" ? ` (closed ${formatLlmDateTime(leftAt)})` : ""}, and has not written again. Nothing is submitted until they answer. Email can bring the questions to them outside Career; whether it is worth an email is your decision. If you email, include each question they still need to answer exactly as the form words it, and say that they can answer by replying to this email or in Career through the link, and that nothing is submitted before they do. The forms are already in their chat, so another chat message would repeat them. This event is not a user message, consent, or a request for new work.`,
       ...forms.map(item => [formatCareerFormForModel(item.form), item.createdAt ? `Waiting since ${formatLlmDateTime(item.createdAt)}.` : ""].filter(Boolean).join("\n")),
     ].join("\n\n");
   }

@@ -100,7 +100,9 @@ LLM이 긴 요약을 통째로 다시 쓰면 내용이 줄거나 어긋나는 �
   - 효과는 `/ops/update-metrics`의 '메일 받은 뒤 행동'에 있는 '안 본 답장 메일'(기간 안에 보낸 메일 수, 검토한 답장 수)에서 본다. 이 메일도 같은 섹션의 행동 비율에 함께 들어간다.
   - [migration](../supabase/migrations/20261123150000_career_reply_unseen_email.sql) · [닫힘 조건 migration](../supabase/migrations/20261124120000_career_reply_unseen_after_close.sql) · [스캔](../src/lib/career/background/unseenReply.ts) · [본 기록](../src/hooks/career/useCareerSeenReceipt.ts) · [열림·닫힘 기록](../src/hooks/career/useCareerPagePresence.ts) · [지표](../src/lib/ops/emailActionMetrics.sql.ts)
 - **답하지 않은 지원 질문 메일 — 2026-11-27 (로컬).** 11/19~25 지원 폼 557개 중 279개가 답을 받지 못했고 그중 130개는 사람이 돌아오지 않았다. 안 본 답장 메일은 본 폼을 다루지 않는다.
-  - 채팅 답이 놓은(`[[form:id]]`) 지원 폼(공고·기회에 연결된 form)을 사람이 보고, 답하지 않은 채 Harper를 모두 닫으면 30분 뒤 대화당 한 번 `career_form_unanswered` 실행을 만든다(`admit_career_unanswered_forms_v1`). 그 폼 revision이 저장된 뒤 채팅이 다시 보였을 때만 본 것으로 센다. 같은 폼 revision은 한 번만, 대화마다 하루 한 번만, 하루 안에 저장된 폼만 본다. 아직 안 본 Harper 답이 있으면 안 본 답장 메일이 맡아서 두 메일이 함께 시작하지 않는다. 테스트 계정은 제외한다.
+  - 채팅 답이 놓은(`[[form:id]]`) 지원 폼(공고·기회에 연결된 form)을 사람이 보고, 답하지 않은 채 Harper를 모두 닫으면 닫은 때부터 30분 뒤 대화당 한 번 `career_form_unanswered` 실행을 만든다(`admit_career_unanswered_forms_v1`). 그 폼 revision이 저장된 뒤 채팅이 다시 보였을 때만 본 것으로 센다. 같은 폼 revision은 한 번만, 대화마다 하루 한 번만, 하루 안에 저장된 폼만 본다. 테스트 계정은 제외한다.
+  - 폼 뒤에 사람이 채팅·메일 답장·통화로 말했으면 보내지 않는다. 다른 폼에 답하거나 Career에서 다른 일을 한 것은 말한 것으로 세지 않는다(리뷰 11/27: 폼 3개 중 하나에 답하면 나머지 둘이 메일을 받지 못했다).
+  - 안 본 답장 메일이 맡을 안 본 답(사람의 마지막 메시지 뒤 3분 넘게 일한 `invocation:` 답, 안 본 답장 메일과 같은 규칙)이 있으면 그 메일에 맡긴다. 같은 답의 빠른 두 번째 메시지나 배경 실행 메시지처럼 안 본 답장 메일이 맡지 않는 것은 이 메일을 막지 않아서, 두 메일 중 하나는 시작하고 둘이 함께 시작하지는 않는다.
   - 원본 Career agent가 메일을 보낼지와 내용을 정한다. 보내면 남은 질문을 폼 문구 그대로 담고, 메일에 답하거나 Career 링크로 답하면 되며 답하기 전에는 아무것도 제출되지 않는다고 쓴다. 채팅 메시지는 쓰지 않는다. 모델은 정기 실행과 같다.
   - Harper를 다시 열면 실행을 취소하고, 실행 시작과 메일 발송 직전에 `career_unanswered_forms_current_v1`로 폼에 답했거나 폼이 바뀌었거나 사람이 다시 썼는지 확인한다. 정기 탐색 주기를 미루지 않고 대기 중인 탐색 사건을 가져가지 않는다.
   - [migration](../supabase/migrations/20261127110000_career_unanswered_form_mail.sql) · [스캔](../src/lib/career/background/unansweredForm.ts)

@@ -6,6 +6,7 @@ import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { CAREER_BACKGROUND_INSTRUCTION, renderCareerBackgroundInvocation } from "./prompt";
 import { admitUnansweredCareerForms, CAREER_FORM_UNANSWERED_GRACE_SECONDS, isCareerEmailNoticeRun, readUnansweredForms } from "./unansweredForm";
+import { CAREER_REPLY_UNSEEN_MIN_WORK_SECONDS, CAREER_REPLY_UNSEEN_WINDOW_SECONDS } from "./unseenReply";
 
 const form = (formId: number, revision: number, items: unknown[], title = "Company A · Backend Engineer") => ({
   formId, revision, kind: "form", title, presentationDeferred: true, relatedRefs: [{ type: "role", id: "role-a" }], items,
@@ -18,6 +19,7 @@ const run = (id: string, unansweredForms: unknown[]) => ({
   trigger: "career_form_unanswered", created_at: "2026-11-27T03:00:00Z",
   trigger_payload: {
     runContract: "career_agent_v1", cadencePolicy: { affectsBaseCadence: false }, unansweredForms, chatSeenAt: "2026-11-27T02:20:00Z",
+    leftAt: "2026-11-27T02:25:00Z",
     agentInvocation: { replyId: `background:${id}`, sourceMessageCursor: 7, acceptedAt: "2026-11-27T03:00:00Z" },
   },
 });
@@ -34,6 +36,7 @@ test("the background event gives the agent each waiting form as saved and leaves
     "Form 12, revision 2 (form)", "Company B · Data Engineer", visa.label, "References: role role-a"])
     assert.ok(rendered.includes(text), text);
   assert.ok(rendered.includes(`last viewed ${formatLlmDateTime("2026-11-27T02:20:00Z")}`));
+  assert.ok(rendered.includes(`closed Harper without answering (closed ${formatLlmDateTime("2026-11-27T02:25:00Z")})`));
   assert.ok(rendered.includes(`Waiting since ${formatLlmDateTime("2026-11-27T02:00:00Z")}.`));
   assert.match(rendered, /saw these application forms in their Career chat/);
   assert.match(rendered, /whether it is worth an email is your decision/);
@@ -62,7 +65,7 @@ test("only listed forms whose saved snapshot is that exact revision are read bac
   assert.deepEqual(readUnansweredForms({ trigger_payload: null }), []);
 });
 
-test("the scan asks for forms left 30 minutes within the last day and hands each run to the agent queue", async () => {
+test("the scan asks for forms left 30 minutes within the last day, by the unseen-reply email's rule, and hands each run to the agent queue", async () => {
   assert.equal(CAREER_FORM_UNANSWERED_GRACE_SECONDS, 30 * 60);
   const calls: unknown[] = [];
   const admin = { rpc: async (name: string, args: unknown) => {
@@ -74,7 +77,9 @@ test("the scan asks for forms left 30 minutes within the last day and hands each
     published.push(job);
     if (job.backgroundRunId === "run-e") throw new Error("queue unavailable");
   });
-  assert.deepEqual(calls, [["admit_career_unanswered_forms_v1", { p_grace_seconds: 30 * 60, p_window_seconds: 24 * 60 * 60, p_limit: 20 }]]);
+  // The unseen-reply email's own work minimum and window decide which unseen reply it takes; this email leaves those.
+  assert.deepEqual(calls, [["admit_career_unanswered_forms_v1", { p_grace_seconds: 30 * 60, p_window_seconds: 24 * 60 * 60,
+    p_reply_min_work_seconds: CAREER_REPLY_UNSEEN_MIN_WORK_SECONDS, p_reply_window_seconds: CAREER_REPLY_UNSEEN_WINDOW_SECONDS, p_limit: 20 }]]);
   assert.deepEqual(published, ["run-d", "run-e"].map(id => ({ userId: "talent-a", conversationId: "conversation-a", backgroundRunId: id, replyId: `background:${id}` })));
   assert.deepEqual(result, { admitted: 2, deferred: 1 }, "a failed handoff stays durable for background recovery");
   await assert.rejects(admitUnansweredCareerForms({ rpc: async () => ({ data: null, error: new Error("scan failed") }) } as any, async () => {}), /scan failed/);
