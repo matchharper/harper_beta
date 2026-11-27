@@ -1,11 +1,13 @@
 import type { CareerPostOnboardingContext } from "@/lib/career/prompts/types";
 import {
   OFFICIAL_JOBS_ONBOARDING_INTENT_EVENT_TYPE,
+  OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM,
   normalizeOfficialJobsCompanyName,
   normalizeOfficialJobsRoleTitle,
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { OFFICIAL_JOBS_ONESCREEN_ENTRY_DOMAIN } from "@/lib/officialJobs/oneScreen";
 import { parseIntentSource } from "@/lib/gtmPlays/agent/signupMove";
 import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
@@ -78,6 +80,65 @@ type CareerEntrySourceArgs = {
   includePostingDetails?: boolean;
 };
 
+type CareerEntryEvent = Pick<TalentActivityEventRow, "created_at" | "source">;
+
+const CAREER_SIGNUP_LOG_TYPE = "career_signup_completed";
+
+/** The /jobs posting in a sign-up's landing path (/career?source=official_jobs&job_slug=…); null for any other page. */
+export function parseOfficialJobSignupLandingSlug(landingPath: unknown) {
+  if (typeof landingPath !== "string" || !landingPath.trim()) return null;
+  try {
+    const params = new URL(landingPath, "https://matchharper.com").searchParams;
+    if (params.get("source") !== OFFICIAL_JOBS_LANDING_SOURCE) return null;
+    return params.get(OFFICIAL_JOBS_ONBOARDING_JOB_SLUG_PARAM)?.trim().slice(0, 240) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The entry record is written when the signup form is finished (finalize_career_entry). Until then the posting the
+ * account was made from is only in the sign-up log's landing path, so Harper's contact with someone who left the form
+ * unfinished starts from it too (Shaun 11/27: they got a generic mail that never named the posting).
+ */
+async function fetchUnfinishedSignupEntry(args: CareerEntrySourceArgs): Promise<CareerEntryEvent | null> {
+  // Unfinished = the form was never submitted and onboarding is not marked done (an older entry may lack the receipt).
+  const [{ data: submitted, error: submittedError }, { data: setting, error: settingError }] = await Promise.all([
+    args.admin
+      .from("talent_messages")
+      .select("id")
+      .eq("user_id", args.userId)
+      .eq("message_type", "profile_submit")
+      .limit(1),
+    args.admin
+      .from("talent_setting")
+      .select("is_onboarding_done")
+      .eq("user_id", args.userId)
+      .maybeSingle(),
+  ]);
+  if (submittedError || settingError || (submitted?.length ?? 0) > 0 || setting?.is_onboarding_done) return null;
+
+  const { data: signup, error } = await args.admin
+    .from("logs")
+    .select("created_at, meta_data")
+    .eq("user_id", args.userId)
+    .eq("type", CAREER_SIGNUP_LOG_TYPE)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn("[PostOnboardingContext] Failed to load the sign-up landing page", {
+      error: error.message,
+      userId: args.userId,
+    });
+    return null;
+  }
+  const slug = parseOfficialJobSignupLandingSlug(getRecordString(signup?.meta_data, "landingPath"));
+  return slug && signup?.created_at
+    ? { created_at: signup.created_at, source: `${OFFICIAL_JOBS_ONBOARDING_SOURCE_PREFIX}${slug}` }
+    : null;
+}
+
 type CareerEntryPosting = Pick<OfficialJobRow, "company_name" | "role_id" | "role_title" | "is_published" | "updated_at">
   & Partial<Pick<OfficialJobRow, "role_description_markdown" | "short_description" | "location" | "compensation">>;
 
@@ -92,8 +153,11 @@ export async function fetchCareerEntrySource(args: CareerEntrySourceArgs & { inc
   const fromOneScreen = Boolean(
     intentEvent?.changed_domains?.includes(OFFICIAL_JOBS_ONESCREEN_ENTRY_DOMAIN)
   );
-  const opportunityContext = intentEvent && args.includeOpportunity !== false
-    ? await readEntryOpportunity(args, intentEvent)
+  const entryEvent: CareerEntryEvent | null = args.includeOpportunity === false
+    ? null
+    : intentEvent ?? (await fetchUnfinishedSignupEntry(args));
+  const opportunityContext = entryEvent
+    ? await readEntryOpportunity(args, entryEvent)
     : null;
   return {
     intentSummary: intentEvent?.summary ?? null,
@@ -116,7 +180,7 @@ export async function fetchCareerPostOnboardingContext(args: CareerEntrySourceAr
 
 async function readEntryOpportunity(
   args: CareerEntrySourceArgs,
-  intentEvent: TalentActivityEventRow
+  intentEvent: CareerEntryEvent
 ): Promise<CareerPostOnboardingContext | null> {
   let slug = parseOfficialJobSignupSourceSlug(intentEvent.source);
   let legacyEvent: Awaited<

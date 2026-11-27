@@ -5,6 +5,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import {
   fetchCareerEntrySource,
   fetchCareerPostOnboardingContext,
+  parseOfficialJobSignupLandingSlug,
   parseOfficialJobSignupSourceSlug,
 } from "./postOnboardingContext";
 
@@ -352,4 +353,41 @@ test("a linked Role whose posting hides the company is named by its real company
   const text = buildCareerPostOnboardingContextSection({ context, factsOnly: true });
   assert.match(text, /Company: "?VESSL AI/);
   assert.doesNotMatch(text, /GPU Cloud Startup/);
+});
+
+test("a sign-up that left the form unfinished starts from the posting in its landing path", async () => {
+  const { admin, calls } = createFakeAdmin({
+    talent_activity_events: { list: [] },
+    talent_messages: { list: [] },
+    talent_setting: { single: { is_onboarding_done: false } },
+    logs: { single: { created_at: "2026-11-19T21:02:00Z", meta_data: { landingPath: "/career?source=official_jobs&job=Software+Engineer%2C+AI+Agents&job_slug=blockit-ai-agents&job_role_id=role-123" } } },
+    official_jobs: { single: { company_name: "Blockit", role_id: "role-123", role_title: "Software Engineer, AI Agents", is_published: true, updated_at: "2026-11-14T01:00:00Z" } },
+    company_roles: { single: { expires_at: null, information: {}, is_expired: false, source_type: "internal", status: "active", company: { company_name: "Blockit" } } },
+  });
+  const source = await fetchCareerEntrySource({ admin, conversationId: "conversation-1", userId: "talent-1" });
+  assert.equal(source.opportunityContext?.entryOpportunity?.roleTitle, "Software Engineer, AI Agents");
+  assert.equal(source.opportunityContext?.entryOpportunity?.verifiedActiveRoleId, "role-123");
+  // Not an entry record: nothing reads it as what the candidate agreed to.
+  assert.equal(source.intentSummary, null);
+  assert.ok(calls.some((call) => call.table === "official_jobs" && call.operation === "eq" && call.args[1] === "blockit-ai-agents"));
+});
+
+test("the landing path is not read once the form was submitted or onboarding is done", async () => {
+  const landing = { single: { created_at: "2026-11-19T21:02:00Z", meta_data: { landingPath: "/career?source=official_jobs&job_slug=blockit-ai-agents" } } };
+  for (const state of [
+    { talent_messages: { list: [{ id: 1 }] }, talent_setting: { single: { is_onboarding_done: false } } },
+    { talent_messages: { list: [] }, talent_setting: { single: { is_onboarding_done: true } } },
+  ]) {
+    const { admin, calls } = createFakeAdmin({ talent_activity_events: { list: [] }, logs: landing, ...state });
+    const context = await fetchCareerPostOnboardingContext({ admin, conversationId: "conversation-1", userId: "talent-1" });
+    assert.equal(context, null);
+    assert.equal(calls.some((call) => call.table === "official_jobs"), false);
+  }
+});
+
+test("only a /jobs landing path names an entry posting", () => {
+  assert.equal(parseOfficialJobSignupLandingSlug("/career?source=official_jobs&job_slug=acme-pm"), "acme-pm");
+  assert.equal(parseOfficialJobSignupLandingSlug("/career?gtm=1&job_slug=acme-pm"), null);
+  assert.equal(parseOfficialJobSignupLandingSlug("/career"), null);
+  assert.equal(parseOfficialJobSignupLandingSlug(null), null);
 });
