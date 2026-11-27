@@ -557,6 +557,9 @@ ${args.gmailCapability === "not_connected"
     : buildCareerPostOnboardingContextSection({
         context: args.postOnboardingContext,
         factsOnly: usesCareerMain,
+        // Harper's first message and the person's first replies start from the roles prepared for their posting.
+        includePrepared: Boolean(args.includePostOnboardingConversationGuide) ||
+          (args.userChatTurnCount ?? Infinity) <= EARLY_USER_MESSAGE_COUNT,
         toolNames: capabilities
           ? [...capabilities.eligibleNames]
           : normalizedToolNames,

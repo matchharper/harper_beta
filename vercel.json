@@ -169,6 +169,10 @@
     {
       "path": "/api/internal/gtm-agent/daily-report",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/internal/official-jobs/prepared-roles",
+      "schedule": "0 18 * * *"
     }
   ]
 }

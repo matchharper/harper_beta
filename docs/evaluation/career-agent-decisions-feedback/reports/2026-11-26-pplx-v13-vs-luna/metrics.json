@@ -1,0 +1,74 @@
+{
+  "pairs": 554,
+  "cases": 65,
+  "talents": 55,
+  "storedProduction": {
+    "note": "Scores production stored for these roles (rank formula of today applied to the stored fit)",
+    "scoredRoles": 360,
+    "pairAccuracy": 0.5135379061371841,
+    "currentEvaluator": "external-fit-questions-v11-company-itself:openai:gpt-6-luna",
+    "currentEvaluatorPairs": 181,
+    "currentEvaluatorAccuracy": 0.4419889502762431
+  },
+  "arms": {
+    "pplx_v13": {
+      "model": "perplexity/pplx-decider-v1.3:free",
+      "batches": 109,
+      "receipts": 109,
+      "failedCalls": 0,
+      "retriedCalls": 0,
+      "roleErrors": 0,
+      "scoredRoles": 360,
+      "tiedPairs": 0,
+      "pairAccuracy": 0.5740072202166066,
+      "currentEvaluatorSubsetAccuracy": 0.6022099447513812,
+      "deltaVsStoredProduction": {
+        "point": 0.060469314079422465,
+        "ci95": [
+          -0.02012072434607646,
+          0.12244897959183673
+        ]
+      },
+      "latencyMs": {
+        "p50": 770,
+        "p95": 1601,
+        "mean": 868
+      },
+      "inputTokens": 874667,
+      "costUsd": 0
+    },
+    "luna": {
+      "model": "gpt-6-luna",
+      "batches": 109,
+      "receipts": 109,
+      "failedCalls": 0,
+      "retriedCalls": 0,
+      "roleErrors": 0,
+      "scoredRoles": 360,
+      "tiedPairs": 0,
+      "pairAccuracy": 0.5324909747292419,
+      "currentEvaluatorSubsetAccuracy": 0.5082872928176796,
+      "deltaVsStoredProduction": {
+        "point": 0.01895306859205781,
+        "ci95": [
+          -0.07333333333333333,
+          0.09615384615384616
+        ]
+      },
+      "latencyMs": {
+        "p50": 313,
+        "p95": 592,
+        "mean": 351
+      },
+      "inputTokens": 957047,
+      "costUsd": 0.07910496499999997
+    }
+  },
+  "pplxMinusLuna": {
+    "point": 0.041516245487364656,
+    "ci95": [
+      -0.03632478632478633,
+      0.11382113821138211
+    ]
+  }
+}

@@ -174,3 +174,31 @@ test("a chart marks only the changes that move it", () => {
     assert.equal(new Set(change.talentCharts).size, change.talentCharts.length, change.key);
   }
 });
+
+test("posting entrants count as applied for a 맡김 or their own 직접 지원, and as connected only when it reached the company", () => {
+  const result = buildOpsUpdateMetrics({
+    ...empty,
+    from: "2026-11-20",
+    jobsUserIds: new Set(["a", "b", "c", "d"]),
+    jobsWithoutRoleUserIds: new Set(["a", "b", "c"]),
+    nowMs: day0 + 12 * DAY,
+    signups: [
+      // Applied directly on day 2: applied, not connected.
+      signup("a", 0.1, { appliedAt: at(2), onboardingSubmittedAt: at(0.2) }),
+      // 대신 지원 submitted on day 3.
+      signup("b", 0.2, { appliedAt: at(1), connectedAt: at(3), onboardingSubmittedAt: at(0.3) }),
+      // Applied on day 9: too late. Never finished the form.
+      signup("c", 0.3, { appliedAt: at(9) }),
+      // A role posting, never finished the form, connected by a mail reply on day 4.
+      signup("d", 0.4, { appliedAt: at(4), connectedAt: at(4) }),
+      // Not from a posting.
+      signup("e", 0.5, { appliedAt: at(1), connectedAt: at(1) }),
+    ],
+    to: "2026-11-20",
+  });
+  assert.deepEqual(result.metrics.jobsWithoutRoleApplied7d?.[0], { denominator: 3, kind: "rate", numerator: 2 });
+  assert.deepEqual(result.metrics.jobsWithoutRoleConnected7d?.[0], { denominator: 3, kind: "rate", numerator: 1 });
+  assert.deepEqual(result.metrics.jobsUnfinishedSignups?.[0], { days: 1, kind: "count", value: 2 });
+  assert.deepEqual(result.metrics.jobsUnfinishedApplied7d?.[0], { denominator: 2, kind: "rate", numerator: 1 });
+  assert.deepEqual(result.metrics.jobsUnfinishedConnected7d?.[0], { denominator: 2, kind: "rate", numerator: 1 });
+});

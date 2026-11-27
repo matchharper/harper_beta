@@ -6,6 +6,7 @@ Reusable evaluations live in the task directories below. Each task README owns i
 - [Career conversation versions](career-conversation-version/README.md): general text conversation styles.
 - [Career agent autonomy](career-agent-autonomy/README.md): general Career agent behavior.
 - [Career opportunity discovery](career-opportunity-discovery/README.md): live company discovery from personal goals, original evidence, persistent opportunities and the product UI; contrasting goals and transfer cases without supplied employer answers.
+- [드림 컴퍼니와 원하는 기회를 얻는 카드](career-dream-opportunity/README.md): 가상 프로필 네 개와 검토자용 기준 출력 v1. 실제 사용자 반응·공유·행동 가치와 사실성을 나누어 볼 평가 설계이며 제품 모델 실행과 20명 파일럿은 미실행이다.
 - [Career conversation quality](career-conversation-quality/README.md) includes [six first conversations](career-conversation-quality/reports/2026-11-16-notion-first-six-v10.md), the actual replies before and after changes, verified public sources, and the [six-conversation cost and quality comparison](career-conversation-quality/reports/2026-11-17-six-dialogue-efficiency.md). Earlier cases cover ongoing conversations, company comparisons and scheduled messages.
 
 Keep source fixtures synthetic or de-identified. Save exact provider inputs, outputs and manifests in each task's ignored `runs/`, with owner-only permissions. Human review of the full conversation decides qualitative success; test keyword counts are not conversational quality gates. Do not mutate a frozen dataset for a new prompt run. All other registered tasks are discoverable by their directory README.
@@ -17,6 +18,10 @@ This index was absent in the existing checkout and HEAD and was added with the o
 - [Career onboarding continuation](career-onboarding-continuation/README.md): direct web continuation, entry opportunity and first search probes.
 
 - [Career context completeness](career-context-coverage/README.md): compact list coverage and paired scheduled-run tool-use measurements.
+
+- [Career agent Decisions 채점](career-agent-decisions-feedback/README.md): 11월 Career agent 추천의 👍·👎 쌍과 운영이 저장한 채점 입력 그대로, Decisions 모델 비교.
+
+- [Career 회사 scoring](career-company-scoring/README.md): 한 사람에게 맞는 수준의 회사와 일만 비슷한 회사를 평가기가 가르는지 운영 입력 그대로 잰다(AUC). 2026-11-26 평가 모델을 luna에서 terra로 바꾼 근거.
 
 - [정기 탐색 미발송 재생](career-scheduled-no-send/README.md): 11/22 20시 뒤 미발송으로 끝난 운영 정기 run 15개를 고정해 prompt·context 수정 전후를 비교.
 

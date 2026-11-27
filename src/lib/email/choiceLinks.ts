@@ -34,8 +34,10 @@ export function careerEmailChoiceHref(args: {
   recipient: string;
   replyTo?: string | null;
   subject: string;
+  /** Whether the recipient's mailbox opens a prefilled reply, when the sender looked it up (replyComposeMx.ts). */
+  opensCompose?: boolean;
 }) {
-  const replyTo = opensReplyCompose(args.recipient) ? args.replyTo : null;
+  const replyTo = (args.opensCompose ?? opensReplyCompose(args.recipient)) ? args.replyTo : null;
   return (choice: CareerChoice) =>
     (replyTo && choiceMailtoHref({ replyTo, subject: args.subject, choice })) ||
     careerChatDraftUrl(choice.value, signEmailChoiceDraft(args.talentId, choice.value));

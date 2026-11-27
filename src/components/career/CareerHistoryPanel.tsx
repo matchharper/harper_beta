@@ -3,6 +3,7 @@ import ProgressOpportunityList from "./history/ProgressOpportunityList";
 import { useOpportunityStatusChange } from "@/hooks/career/useOpportunityStatusChange";
 import { useEventCallback } from "@/hooks/useEventCallback";
 import type { CareerInternalOpportunityDecisionAction } from "@/lib/career/internalOpportunityDecision";
+import { isPostingRoleId } from "@/lib/career/postingLinks";
 import {
   ArrowLeft,
   ArrowRight,
@@ -953,6 +954,22 @@ const CareerHistoryPanel = () => {
     retry: false,
     refetchOnWindowFocus: false,
   });
+  // A posting that is not one of this person's opportunities (one Harper named in an email, say) opens its posting
+  // page, which reads any posting, instead of "not found".
+  const requestedPostingNotTheirs =
+    detailQuery.isSuccess &&
+    detailQuery.data === null &&
+    !requestedOpportunity &&
+    isPostingRoleId(requestedRoleId);
+  useEffect(() => {
+    if (!requestedPostingNotTheirs || !requestedRoleId) return;
+    updateHistoryLocation(activeTab, activeSavedStatus, {
+      companyDbId: null,
+      mode: "replace",
+      postingRoleId: requestedRoleId,
+      roleId: null,
+    });
+  }, [activeSavedStatus, activeTab, requestedPostingNotTheirs, requestedRoleId, updateHistoryLocation]);
   // A listed opportunity already has everything but its activity timeline.
   const timelineOpportunity =
     requestedOpportunity && !requestedOpportunity.activityTimelineLoaded
@@ -1582,7 +1599,7 @@ const CareerHistoryPanel = () => {
     ) : null;
 
   const missingDetail =
-    detailQuery.isSuccess && detailQuery.data === null && !requestedOpportunity;
+    detailQuery.isSuccess && detailQuery.data === null && !requestedOpportunity && !requestedPostingNotTheirs;
   if (requestedRoleId && (!requestedOpportunity || missingDetail)) {
     return (
       <section className="space-y-4" aria-busy={detailQuery.isFetching}>
@@ -1622,7 +1639,8 @@ const CareerHistoryPanel = () => {
     );
   }
 
-  if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError && process.env.NODE_ENV !== "development") {
+  // A posting or company page opened by link shows even before this person has any opportunity.
+  if (activeTab === "new" && !hasKnownHistoryOpportunities && !historyUpdateError && !requestedPostingRoleId && companyDetailCompanyDbId === null && process.env.NODE_ENV !== "development") {
     return (
       <div className="flex min-h-full flex-col">
         {historyNavigation}
