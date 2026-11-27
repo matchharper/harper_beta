@@ -1012,6 +1012,8 @@ export async function executeUseBrowser(
     active = data.operation;
     session = data.session;
   }
+  // Why an approved candidate summary link was left out, so Harper does not report it as added.
+  let profileLinkNote: string | null = null;
   try {
     // Re-observing an existing run has the same cancellation boundary as a
     // freshly dispatched run. Never detach and leave that remote agent running.
@@ -1057,6 +1059,7 @@ export async function executeUseBrowser(
     const profileLink = linkRequest
       ? await (await import("@/lib/shareLinks/site.server")).prepareSiteProfileLink({ talentId: context.userId, operationId: active.id, profileLink: linkRequest })
       : null;
+    profileLinkNote = profileLink && !profileLink.instruction ? profileLink.note : null;
     const task = [
       // The mode rule comes first so the task text written for this run cannot override it.
       input.mode === "prepare" ? PREPARATION_RULE
@@ -1191,6 +1194,6 @@ export async function executeUseBrowser(
     session,
     operation: active,
     message,
-    modelOutput: formatBrowserToolResult([session, active]),
+    modelOutput: [formatBrowserToolResult([session, active]), profileLinkNote].filter(Boolean).join("\n\n"),
   };
 }
