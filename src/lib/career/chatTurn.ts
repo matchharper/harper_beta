@@ -1516,12 +1516,16 @@ async function runCareerChatTurnImpl(args: RunCareerChatTurnArgs, returnResult =
     // delegated work. A second writer without that execution transcript/tools
     // would invent a new account of what happened.
     const agentTurn = capabilityTurn?.getCompletionPayload();
+    // Woken only by execution updates (no message from the person was read):
+    // when it also showed nothing, the chat need not draw an empty reply.
+    const readMessageIds = capabilityTurn?.runtime.options.inputInbox?.messageIds();
     const row = args.adapter
       ? await args.adapter.persistAssistant({ content: "", notices: Array.from(pendingProcessClosureNotices.values()), agentTurn })
       : await messageWriter?.finish("", thinkingLogs, {
           ...(args.assistantMessagePayload as Record<string, unknown> ?? {}),
           ...(sourceModel ? { careerTextChatModel: sourceModel.model } : {}),
           ...(agentTurn ? { agentTurn } : {}),
+          ...(readMessageIds && !readMessageIds.length ? { workUnprompted: true } : {}),
         }, delegatedEvents);
     if (row && !args.adapter) onArtifactMessage(toTalentMessageResponse(row));
     await capabilityTurn?.complete();

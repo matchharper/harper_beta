@@ -267,3 +267,31 @@ test("an application check stays on the reply's latest part and survives a reloa
     activities: [{ id: "a", startedAt: at(1), logs: ["지원 정보 확인 중..."], applicationCheck: true }] });
   assert.equal(reloaded.find(row => row.workReplyId)?.workApplicationCheck, true);
 });
+
+test("a reply woken only by execution updates that showed nothing leaves no row", () => {
+  const at = (second: number) => `2026-11-05T00:00:0${second}Z`;
+  const reply = { ...source, id: 3, content: "위 9개가 폼에서 기다리고 있어요.", role: "assistant" as const, createdAt: at(2), workReplyId: "invocation:b", workPending: false };
+  const stored = (payload: Record<string, unknown>, content = "") => toUiMessage(toTalentMessageResponse({ id: 4, user_id: "owner",
+    conversation_id: "conversation", role: "assistant", content, message_type: "chat", created_at: at(4),
+    payload: { careerTextReplyId: "invocation:c", workStartedAt: at(3), workCompletedAt: at(4), workPending: false, ...payload } }));
+  const toolOnly = [{ id: "tool:0", kind: "tool", text: "지원 상태를 확인하고 있어요.", createdAt: at(3) }];
+  const silent = stored({ workUnprompted: true, workEvents: toolOnly });
+  assert.equal(silent.workUnprompted, true);
+  const replies = (row: CareerMessage, snapshot?: Parameters<ReturnType<typeof createCareerTurnProjection>>[1]) =>
+    createCareerTurnProjection()([source, reply, row], snapshot).filter(message => message.workReplyId === "invocation:c");
+  assert.deepEqual(replies(silent), [], "no empty reply with only tool lines");
+  assert.deepEqual(replies(stored({ workUnprompted: true, workEvents: [] })), []);
+  // A later message from the person that this reply did not read does not bring it back.
+  assert.deepEqual(createCareerTurnProjection()([source, reply, { ...source, id: 5, createdAt: at(3) }, silent])
+    .filter(message => message.workReplyId === "invocation:c"), []);
+
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: toolOnly }, "확인했어요.")).length, 1, "text stays");
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: [...toolOnly, { id: "message:1", kind: "message", text: "제출했어요.", createdAt: at(3) }] })).length, 1, "progress text stays");
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: toolOnly, workPlan: [{ id: "p1", text: "제출", status: "done" }] })).length, 1, "a checklist stays");
+  assert.equal(replies(stored({ workEvents: toolOnly })).length, 1, "a reply to the person's own message stays even when empty");
+  const card = { ...browser, id: 6, createdAt: at(3), artifactReplyId: "invocation:c" };
+  assert.equal(createCareerTurnProjection()([source, reply, card, silent]).filter(message => message.workReplyId === "invocation:c").length, 1, "a card stays");
+  const runningSnapshot = { latestMessageId: 4, activeInvocationIds: ["c"], activities: [{ id: "c", startedAt: at(3), logs: ["지원 상태를 확인하고 있어요."] }] };
+  const live = { ...silent, messageType: "career_turn_activity", workPending: true, workUnprompted: undefined };
+  assert.equal(replies(live, runningSnapshot).length, 1, "the running work still shows until it ends");
+});

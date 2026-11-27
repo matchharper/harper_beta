@@ -85,6 +85,7 @@ export const toUiMessage = (message: {
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
   workApplicationCheck?: boolean;
+  workUnprompted?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
@@ -101,6 +102,7 @@ export const toUiMessage = (message: {
   workPlan: message.workPlan,
   // Omitted when false, so the projection's merge keeps an earlier snapshot's flag.
   ...(message.workApplicationCheck ? { workApplicationCheck: true } : {}),
+  ...(message.workUnprompted ? { workUnprompted: true } : {}),
   workFinalEvent: message.workFinalEvent,
   workReplyId: message.workReplyId,
   workStartedAt: message.workStartedAt,
