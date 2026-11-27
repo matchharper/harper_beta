@@ -6,6 +6,7 @@ import { toTalentMessageResponse } from "@/lib/talentOnboarding/models";
 import { toUiMessage } from "./careerHelpers";
 import { latestChoiceMessageIndex, choiceRepliesByMessageId } from "@/lib/career/latestChoiceMessage";
 import { createCareerMessageMerger } from "./careerMessageMerge";
+import { projectCareerWorkActivity } from "@/lib/career/work/activity";
 
 const source: CareerMessage = { id: 1, role: "user", content: "확인해줘", createdAt: "2026-11-05T00:00:00Z", messageType: "chat" };
 const activity: CareerMessage = { id: 2, role: "assistant", content: "", createdAt: "2026-11-05T00:00:01Z", messageType: "career_turn_activity", workReplyId: "invocation:a", workPending: true, workEvents: [{ id: "message:0", kind: "message", text: "확인할게요." }] };
@@ -266,4 +267,48 @@ test("an application check stays on the reply's latest part and survives a reloa
   const reloaded = createCareerTurnProjection()([source], { latestMessageId: 1, activeInvocationIds: ["a"],
     activities: [{ id: "a", startedAt: at(1), logs: ["지원 정보 확인 중..."], applicationCheck: true }] });
   assert.equal(reloaded.find(row => row.workReplyId)?.workApplicationCheck, true);
+});
+
+test("a reply woken only by execution updates that showed nothing leaves no row", () => {
+  const at = (second: number) => `2026-11-05T00:00:0${second}Z`;
+  const reply = { ...source, id: 3, content: "위 9개가 폼에서 기다리고 있어요.", role: "assistant" as const, createdAt: at(2), workReplyId: "invocation:b", workPending: false };
+  const stored = (payload: Record<string, unknown>, content = "") => toUiMessage(toTalentMessageResponse({ id: 4, user_id: "owner",
+    conversation_id: "conversation", role: "assistant", content, message_type: "chat", created_at: at(4),
+    payload: { careerTextReplyId: "invocation:c", workStartedAt: at(3), workCompletedAt: at(4), workPending: false, ...payload } }));
+  const toolOnly = [{ id: "tool:0", kind: "tool", text: "지원 상태를 확인하고 있어요.", createdAt: at(3) }];
+  const silent = stored({ workUnprompted: true, workEvents: toolOnly });
+  assert.equal(silent.workUnprompted, true);
+  const replies = (row: CareerMessage, snapshot?: Parameters<ReturnType<typeof createCareerTurnProjection>>[1]) =>
+    createCareerTurnProjection()([source, reply, row], snapshot).filter(message => message.workReplyId === "invocation:c");
+  assert.deepEqual(replies(silent), [], "no empty reply with only tool lines");
+  assert.deepEqual(replies(stored({ workUnprompted: true, workEvents: [] })), []);
+  // A later message from the person that this reply did not read does not bring it back.
+  assert.deepEqual(createCareerTurnProjection()([source, reply, { ...source, id: 5, createdAt: at(3) }, silent])
+    .filter(message => message.workReplyId === "invocation:c"), []);
+
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: toolOnly }, "확인했어요.")).length, 1, "text stays");
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: [...toolOnly, { id: "message:1", kind: "message", text: "제출했어요.", createdAt: at(3) }] })).length, 1, "progress text stays");
+  assert.equal(replies(stored({ workUnprompted: true, workEvents: toolOnly, workPlan: [{ id: "p1", text: "제출", status: "done" }] })).length, 1, "a checklist stays");
+  assert.equal(replies(stored({ workEvents: toolOnly })).length, 1, "a reply to the person's own message stays even when empty");
+  const card = { ...browser, id: 6, createdAt: at(3), artifactReplyId: "invocation:c" };
+  assert.equal(createCareerTurnProjection()([source, reply, card, silent]).filter(message => message.workReplyId === "invocation:c").length, 1, "a card stays");
+  const runningSnapshot = { latestMessageId: 4, activeInvocationIds: ["c"], activities: [{ id: "c", startedAt: at(3), logs: ["지원 상태를 확인하고 있어요."] }] };
+  const live = { ...silent, messageType: "career_turn_activity", workPending: true, workUnprompted: undefined };
+  assert.equal(replies(live, runningSnapshot).length, 1, "the running work still shows until it ends");
+});
+
+test("a reply claimed at once stays below its question when the server clock reads a little earlier than the database", () => {
+  // 11/27: the question was stored at .564360 by the database; the server claimed its turn and stamped .540. The open
+  // chat kept that start for the finished reply and showed the answer above "어떻게 돼 가?"; a reload showed it below.
+  const question = { ...source, id: 339, content: "어떻게 돼 가?", createdAt: "2026-11-27T12:54:41.564360+00:00" };
+  const running = projectCareerWorkActivity({ id: "a", created_at: question.createdAt,
+    result: { activity: { logs: ["지원 정보 확인 중"], startedAt: "2026-11-27T12:54:41.540Z" } } });
+  const project = createCareerTurnProjection();
+  const during = { latestMessageId: 339, activeInvocationIds: ["a"], pendingInputMessageIds: [], activities: running };
+  assert.equal(project(projectCareerInputDelivery([question], during), during)[0].id, question.id, "nothing of the reply above the question while it runs");
+  const final = { ...activity, id: 340, messageType: "chat", content: "네 건이 제출됐어요.", workPending: false, workEvents: [],
+    createdAt: "2026-11-27T12:59:50.271655+00:00", workStartedAt: "2026-11-27T12:54:41.564Z", workCompletedAt: "2026-11-27T12:59:50.192Z" };
+  const done = { latestMessageId: 340, activeInvocationIds: [], pendingInputMessageIds: [], activities: [] };
+  assert.deepEqual(project(projectCareerInputDelivery([question, final], done), done).map(row => row.id), [339, 340]);
+  assert.deepEqual(createCareerTurnProjection()([question, final], done).map(row => row.id), [339, 340], "the same as a reload");
 });

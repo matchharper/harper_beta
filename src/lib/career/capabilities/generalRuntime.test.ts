@@ -177,3 +177,19 @@ test("a browser wait checkpoints the same provider transcript even when new inpu
   assert.deepEqual(saved[0].waitFor, [{ kind: "browser_run", id: "run-a" }]);
   assert.deepEqual(observed, [], "browser completion must not create an independent invocation");
 });
+
+test("a preparation list makes the reply wait for every browser it started", async () => {
+  const saved: any[] = [];
+  const runtime = make({ checkpoint: async checkpoint => { saved.push(checkpoint); } });
+  const step = runtime.resolveStep(false);
+  await runtime.recordResult("use_browser", {
+    careerContinuation: { kind: "browser_run", id: "run-a" },
+    careerContinuations: [{ kind: "browser_run", id: "run-a" }, { kind: "browser_run", id: "run-b" }, { kind: "external_capacity", id: "cap-c" }],
+  }, step, {}, "call-1");
+  await assert.rejects(runtime.beforeCompletion(step, { transport: "chat", messages: [] }), CareerReplyContinuation);
+  assert.deepEqual(saved[0].waitFor, [
+    { kind: "browser_run", id: "run-a", toolCallId: "call-1" },
+    { kind: "browser_run", id: "run-b", toolCallId: "call-1" },
+    { kind: "external_capacity", id: "cap-c", toolCallId: "call-1" },
+  ]);
+});

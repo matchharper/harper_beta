@@ -1,8 +1,9 @@
 /**
- * Tool calls of one reply that run at the same time. Only preparation runs of use_browser qualify: they read an
- * application form without filling, uploading or submitting, so two of them in different browsers for different roles
- * cannot affect each other. A group never mixes in another tool, an execute run, a saved-login run, a run with
+ * Tool calls of one reply that run at the same time. Only preparation runs of use_browser qualify: they fill an
+ * application form with the facts they are given but never upload, check consents, verify or submit, so two of them
+ * in different browsers for different roles cannot affect each other. A group never mixes in another tool, an execute run, a saved-login run, a run with
  * documents, a second run on the same browser or a second run for the same role; those run one after another as before.
+ * A call with a preparation list (use_browser runs) is one preparation that holds every role in its list.
  */
 type ToolCall = { name: string; input: unknown };
 type Preparation = { session?: string; roles: string[]; key: string };
@@ -14,9 +15,12 @@ function preparationRun(call: ToolCall): Preparation | null {
   if (input.save_login !== undefined && input.save_login !== false) return null;
   if (input.documents !== undefined) return null;
   if (input.session_id !== undefined && typeof input.session_id !== "string") return null;
-  const roles = input.role_refs ?? [];
-  if (!Array.isArray(roles) || roles.some((role) => typeof role !== "string")) return null;
-  return { session: input.session_id as string | undefined, roles: roles as string[], key: JSON.stringify(input) };
+  // A preparation list (runs) counts every role it prepares.
+  const list = input.runs ?? [];
+  if (!Array.isArray(list) || list.some((run) => !run || typeof run !== "object" || Array.isArray(run))) return null;
+  const roles = [input.role_refs ?? [], ...list.map((run) => (run as Record<string, unknown>).role_refs ?? [])];
+  if (roles.some((group) => !Array.isArray(group) || group.some((role) => typeof role !== "string"))) return null;
+  return { session: input.session_id as string | undefined, roles: (roles as string[][]).flat(), key: JSON.stringify(input) };
 }
 
 function fitsWith(group: Preparation[], run: Preparation) {

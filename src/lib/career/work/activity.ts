@@ -26,7 +26,11 @@ export function projectCareerWorkActivity(row: {
       ...(readCareerTurnPlan(row.result?.activity?.plan)?.length ? { plan: readCareerTurnPlan(row.result?.activity?.plan) } : {}),
       ...(row.result?.activity?.applicationCheck === true ? { applicationCheck: true } : {}),
       ...(row.created_at ? { createdAt: row.created_at } : {}),
-      ...(row.result?.activity?.startedAt ? { startedAt: row.result.activity.startedAt } : {}),
+      // The app server stamps startedAt; the database stamped the invocation together with the message that started it.
+      // A turn claimed at once can read a few milliseconds earlier than that message when the server clock runs behind,
+      // and the chat then placed the finished reply above the question it answers (11/27). It cannot start before it existed.
+      ...(row.result?.activity?.startedAt ? { startedAt: row.created_at && Date.parse(row.created_at) > Date.parse(row.result.activity.startedAt)
+        ? row.created_at : row.result.activity.startedAt } : {}),
       logs: Array.isArray(logs)
         ? logs.filter((log): log is string => typeof log === "string")
         : [],

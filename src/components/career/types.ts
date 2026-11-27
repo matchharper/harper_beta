@@ -523,6 +523,8 @@ export type CareerMessage = {
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
   workApplicationCheck?: boolean;
+  /** An empty final reply to a turn that read no message from the person. */
+  workUnprompted?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;
@@ -572,6 +574,8 @@ export type CareerMessagePayload = {
   workEvents?: CareerTurnEvent[];
   workPlan?: CareerTurnPlanItem[];
   workApplicationCheck?: boolean;
+  /** An empty final reply to a turn that read no message from the person. */
+  workUnprompted?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workSegmentId?: string;

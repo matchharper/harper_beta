@@ -151,6 +151,16 @@ export async function assertCareerSourceEventsCurrent(args: { admin: TalentAdmin
     if (error) throw new Error(error.message);
     if (!data) throw new CareerSourceChangedError();
   }
+  const unansweredForms = (args.run.trigger_payload as any)?.unansweredForms;
+  if (Array.isArray(unansweredForms)) {
+    // Answering, a new revision, writing again or opening Harper ends the reason to email these forms.
+    const { data, error } = await db(args.admin).rpc('career_unanswered_forms_current_v1', {
+      p_user: args.run.talent_id, p_conversation: (args.run as { conversation_id?: string | null }).conversation_id,
+      p_forms: unansweredForms.map((item: { formId?: unknown; revision?: unknown } | null) => ({ formId: item?.formId, revision: item?.revision })),
+    });
+    if (error) throw new Error(error.message);
+    if (!data) throw new CareerSourceChangedError();
+  }
   if ((args.run.trigger_payload as any)?.companyIntroCandidateId) {
     const { data, error } = await db(args.admin).rpc('career_company_intro_is_current', {
       p_run: args.run.id, p_talent: args.run.talent_id,

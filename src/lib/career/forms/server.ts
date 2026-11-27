@@ -28,6 +28,7 @@ import {
   formatCareerFormForModel,
   formatCareerFormResponseForModel,
 } from "./format";
+import { CareerFormError, selectedFileError } from "./responseError";
 
 type Admin = ReturnType<typeof getTalentSupabaseAdmin>;
 type Scope = { admin: Admin; userId: string; conversationId: string };
@@ -165,7 +166,7 @@ async function assertDocumentOwnership(scope: Scope, documentIds: string[]) {
     .eq("is_deleted", false)
     .in("id", ids);
   if (error) throw new Error(error.message);
-  if ((data?.length ?? 0) !== ids.length) throw new Error("Document not found");
+  if ((data?.length ?? 0) !== ids.length) throw new CareerFormError("file_unavailable", "Document not found");
   return data!;
 }
 
@@ -187,7 +188,7 @@ export async function readCareerForm(
     .maybeSingle();
   if (error) throw new Error(error.message);
   const form = parseCareerForm(data?.payload);
-  if (!data || !form || form.hidden) throw new Error("Form not found");
+  if (!data || !form || form.hidden) throw new CareerFormError("form_changed", "Form not found");
   const state = await (scope.admin.rpc as any)("read_career_form_status", {
     p_user_id: scope.userId, p_conversation_id: scope.conversationId,
     p_form_id: form.formId, p_revision: form.revision,
@@ -249,7 +250,7 @@ export async function listCareerForms(
 const ANSWER_RESPONSES = 30;
 const ANSWER_ITEMS = 40;
 const ANSWER_PREVIEW = 300;
-const NOT_REUSABLE = new Set(["checkbox", "document", "markdown", "change"]);
+const NOT_REUSABLE = new Set(["checkbox", "consent", "document", "markdown", "change"]);
 
 function answerLabel(item: CareerFormItem, value: CareerFormValue | undefined) {
   if (value === undefined || value === null || NOT_REUSABLE.has(item.type)) return null;
@@ -438,10 +439,21 @@ export async function executeSuggestForm(
   }
   if (input.action === "update" && (!input.formId || !input.expectedRevision))
     throw new Error("formId and expectedRevision are required for update");
-  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts).
-  const { withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
-  const guarded = withProfileLinkBox(input.form);
+  // #1 후보자 링크: an application mail's form always offers the link box (shareLinks/formGuard.ts), asked once when a
+  // start form for the same roles already offered it.
+  const { looksLikeWebApplicationReview, withProfileLinkBox } = await import("@/lib/shareLinks/formGuard");
+  const reviewRoles = looksLikeWebApplicationReview(input.form)
+    ? (input.form.relatedRefs ?? []).filter(ref => ref.type === "role").map(ref => String(ref.id)) : [];
+  const startFormOffersLink = reviewRoles.length > 0
+    && await (await import("@/lib/shareLinks/approvedLink.server")).startFormOffersProfileLink(args, reviewRoles);
+  const guarded = withProfileLinkBox(input.form, { startFormOffersLink });
   input.form = guarded.form;
+  // #13·#25 같은 질문 반복: a new application form starts with the user's earlier answers to the same questions
+  // (forms/prefill.ts). An update is saved as the writer sent it, so an answer it cleared stays cleared.
+  const prefill = input.action === "create"
+    ? await (await import("./prefill")).prefillFromEarlierAnswers(input.form, { answers: () => readCareerFormAnswers(args), questionKey })
+    : { form: input.form, note: "" };
+  input.form = prefill.form;
   const row = await writeForm(args, {
     p_action: input.action,
     p_form_id: input.formId ?? null,
@@ -464,6 +476,7 @@ export async function executeSuggestForm(
           ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
           : "Saved; not displayed.",
       guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). For a web application code follows this box at use_browser(mode=execute) (link it to the role with relatedRefs); for a mail, if the user keeps it checked, pass profile_link (company name and posting title) to write_email, and again on every retried send." : "",
+      prefill.note,
       formatCareerFormForModel(form),
     ].filter(Boolean).join("\n"),
   };
@@ -480,26 +493,26 @@ function validateResponse(
   }
 ) {
   if (input.itemId && !form.items.some((item) => item.id === input.itemId))
-    throw new Error("Form item not found");
+    throw new CareerFormError("invalid_answer", "Form item not found");
   if (input.actionId) {
     if (!findCareerFormAction(form, input.actionId, input.itemId))
-      throw new Error("Form action not found");
+      throw new CareerFormError("invalid_answer", "Form action not found");
   }
-  if (form.kind === "form" && input.itemId) throw new Error("Submit the whole form together");
+  if (form.kind === "form" && input.itemId) throw new CareerFormError("invalid_answer", "Submit the whole form together");
   for (const id of Object.keys(input.values)) {
     if (
       !form.items.some((item) => item.id === id) ||
       (input.itemId && id !== input.itemId)
     )
-      throw new Error("Form item not found");
+      throw new CareerFormError("invalid_answer", "Form item not found");
     const item = form.items.find(item => item.id === id)!;
     const value = input.values[id];
-    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new Error("Checkbox value must be boolean");
+    if ((item.type === "checkbox" || item.type === "consent") && typeof value !== "boolean") throw new CareerFormError("invalid_answer", "Checkbox value must be boolean");
     if (["select", "multiselect"].includes(item.type)) {
       const options = getCareerFormContent(item).options;
       const ids = new Set((Array.isArray(options) ? options : []).map(option => typeof option === "string" ? option : option?.id));
-      if (item.type === "select" && (typeof value !== "string" || (value !== "" && !ids.has(value)))) throw new Error("Unknown selected option");
-      if (item.type === "multiselect" && (!Array.isArray(value) || value.some(selected => !ids.has(selected)))) throw new Error("Unknown selected option");
+      if (item.type === "select" && (typeof value !== "string" || (value !== "" && !ids.has(value)))) throw new CareerFormError("invalid_answer", "Unknown selected option");
+      if (item.type === "multiselect" && (!Array.isArray(value) || value.some(selected => !ids.has(selected)))) throw new CareerFormError("invalid_answer", "Unknown selected option");
     }
   }
 }
@@ -530,19 +543,19 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     formId: input.formId,
     revision: input.revision,
   });
-  if (form.state !== "open") throw new Error("Form changed or closed; review the current form");
+  if (form.state !== "open") throw new CareerFormError("form_changed", "Form changed or closed; review the current form");
   if (isCareerActionChecklist(form)) {
     const answer = input.answers?.[0];
     const item = form.items.find(row => row.id === answer?.itemId);
     if (args.batch || input.answers?.length !== 1 || !answer || !item?.positive ||
       answer.actionId !== item.positive.id || answer.skipped || answer.message !== undefined ||
       Object.keys(answer.values).length)
-      throw new Error("Choose the action on one checklist item");
+      throw new CareerFormError("invalid_answer", "Choose the action on one checklist item");
   }
   let answers: CareerSuggestionAnswer[] | undefined;
   if (form.kind === "suggestion" && !args.batch) {
     if (!input.answers?.length)
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "At least one suggestion answer is required"
       );
     if (
@@ -552,30 +565,30 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
       input.skipped !== undefined ||
       Object.keys(input.values).length
     )
-      throw new Error("A suggestion batch cannot include a separate response");
+      throw new CareerFormError("invalid_answer", "A suggestion batch cannot include a separate response");
     const ids = new Set(input.answers.map((answer) => answer.itemId));
     // Partial answers wake only the linked work; duplicate or foreign IDs are invalid.
     if (
       ids.size !== input.answers.length ||
       input.answers.some(answer => !form.items.some(item => item.id === answer.itemId))
     )
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "Each submitted answer must identify a distinct current form item"
       );
     for (const answer of input.answers) {
-      if (!answer.actionId && answer.message === undefined && !answer.skipped && !Object.keys(answer.values).length) throw new Error("Answer content required");
+      if (!answer.actionId && answer.message === undefined && !answer.skipped && !Object.keys(answer.values).length) throw new CareerFormError("invalid_answer", "Answer content required");
       validateResponse(form, answer);
     }
     answers = input.answers;
   } else {
     if (input.answers)
-      throw new Error(
+      throw new CareerFormError("invalid_answer",
         "Review forms use a saved action, not a suggestion batch"
       );
     validateResponse({ ...form, kind: "form" }, input);
   }
   const submitted = answers ?? [input];
-  await assertDocumentOwnership(
+  const documents = await assertDocumentOwnership(
     args,
     submitted.flatMap((answer) =>
       form.items.flatMap((item) =>
@@ -612,7 +625,9 @@ export async function prepareCareerFormResponse(args: Scope & { input: unknown; 
     const [file] = await prepareAttachments({ ...args, requestId: input.requestId }, [{ document_id: documentId,
       ...(documentId === content.documentId && typeof content.revision === "number" ? { revision: content.revision } : {}),
       ...(documentId === content.documentId && typeof content.snapshot_id === "string" ? { snapshot_id: content.snapshot_id } : {}),
-    }]);
+    }]).catch((cause: unknown) => {
+      throw selectedFileError(cause, { documentId, revision: documents.find(row => row.id === documentId)!.revision });
+    });
     if (!file.snapshotId) throw new Error("Selected file could not be pinned");
     selectedFiles.push({ itemId: item.id, documentId, revision: file.revision ?? null, snapshotId: file.snapshotId, fileName: file.name });
   }

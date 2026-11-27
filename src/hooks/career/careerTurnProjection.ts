@@ -31,6 +31,16 @@ function isLiveActivity(message?: CareerMessage) {
     String(message.id).startsWith("live:");
 }
 
+/** Woken only by execution updates, the reply ended without text, progress text,
+ * a card or a checklist. Its tool lines alone would draw an empty reply nobody asked for. */
+function isSilentReply(message: CareerMessage) {
+  return message.workUnprompted === true && message.messageType === "chat" &&
+    !message.workPending && !message.typing && !message.content.trim() && !message.workFinalEvent &&
+    !message.workArtifacts?.length && !message.workPlan?.length && !message.workApplicationCheck &&
+    !message.workBackgroundLogs?.length && !message.careerForm && !message.browserSession &&
+    (message.workEvents ?? []).every(event => event.kind === "tool");
+}
+
 /** Reconcile each reply through independent polling and final-row arrival.
  * Public output is then partitioned at user inputs, preserving chronology.
  */
@@ -146,6 +156,7 @@ export function createCareerTurnProjection() {
     const inputs = messages.filter(message => message.role === "user" && !message.inputPending);
     return bundled.flatMap(message => {
       if (!message.workReplyId) return [message];
+      if (isSilentReply(message)) return [];
       const start = message.workStartedAt ?? message.createdAt;
       const end = message.workPending ? undefined : message.workCompletedAt ?? finalTimes.get(message.workReplyId) ?? message.createdAt;
       const boundaries = inputs.filter(input => Date.parse(input.createdAt) > Date.parse(start) &&

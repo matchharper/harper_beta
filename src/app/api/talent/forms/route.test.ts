@@ -12,6 +12,9 @@ import {
 } from "@/lib/career/forms/schema";
 import * as formServer from "@/lib/career/forms/server";
 import * as formBatch from "@/lib/career/forms/batch";
+import * as responseError from "@/lib/career/forms/responseError";
+import { formatToolError } from "@/lib/llm/toolError";
+import { PdfRenderError } from "@/lib/resumes/pdfError";
 import { formatTalentMessageContentForLlmPrompt } from "@/lib/career/opportunityFeedbackNote";
 
 const conversationId = "11111111-1111-4111-8111-111111111111";
@@ -64,10 +67,12 @@ const answers: CareerSuggestionAnswer[] = [
 ];
 
 // Actual endpoint, schemas, persistence projection and LLM-input formatter run.
-// Only authentication and database transport are fixture-backed.
-function harness(savedForm = form, anonymous = false) {
+// Only authentication and database transport are fixture-backed; `replaced` swaps a module to inject a failure.
+function harness(savedForm = form, anonymous = false, replaced: Record<string, unknown> = {}) {
   const messages = new Map<string, any>();
   const continuations: (() => Promise<void>)[] = [];
+  const logged: unknown[][] = [];
+  const pdfExports: unknown[] = [];
   const row = {
     id: 42,
     user_id: "owner",
@@ -140,6 +145,10 @@ function harness(savedForm = form, anonymous = false) {
     "@/lib/career/forms/schema": { careerFormBatchInputSchema, careerFormResponseInputSchema },
     "@/lib/career/forms/batch": formBatch,
     "@/lib/career/forms/server": formServer,
+    "@/lib/career/forms/responseError": responseError,
+    "@/lib/documents/pdfDiagnostics": { recordPdfExport: async (input: object) => { pdfExports.push({ ...input }); } },
+    "@/lib/llm/toolError": { formatToolError },
+    ...replaced,
   };
   const loaded = {
     exports: {} as {
@@ -160,7 +169,7 @@ function harness(savedForm = form, anonymous = false) {
   vm.runInNewContext(source, {
     module: loaded,
     exports: loaded.exports,
-    console,
+    console: Object.assign(Object.create(console), { error: (...args: unknown[]) => { logged.push(args); } }),
     require: (name: string) => {
       if (!(name in dependencies))
         throw new Error(`Unexpected dependency: ${name}`);
@@ -168,11 +177,16 @@ function harness(savedForm = form, anonymous = false) {
     },
   });
   return {
+    admin,
     messages,
     continuations,
+    logged,
+    pdfExports,
     post: (body: unknown) => loaded.exports.POST({ json: async () => body }),
   };
 }
+// The route builds its bodies in its own context; a copy compares as plain values.
+const reply = ({ status, body }: { status: number; body: any }) => ({ status, body: { ...body } });
 const batch = () => ({
   conversationId,
   formId: form.formId,
@@ -230,11 +244,16 @@ test("duplicate, mixed or invalid item responses never write", async () => {
       ),
     },
     { ...batch(), itemId: "question", message: "separate reply" },
+  ];
+  // Not the form the person sees: another revision or another conversation.
+  const stale = [
     { ...batch(), revision: 99 },
     { ...batch(), conversationId: "22222222-2222-4222-8222-222222222222" },
   ];
   for (const input of invalid)
-    assert.equal((await app.post(input)).status, 400);
+    assert.deepEqual(reply(await app.post(input)), { status: 422, body: { code: "invalid_answer", retryable: false } });
+  for (const input of stale)
+    assert.deepEqual(reply(await app.post(input)), { status: 409, body: { code: "form_changed", retryable: false } });
   assert.equal(app.messages.size, 0);
   assert.equal((await harness(form, true).post(batch())).status, 401);
 });
@@ -304,7 +323,7 @@ test("a checklist button admits only its own action to the conversation", async 
     { ...input, answers: [{ ...resume, skipped: true }] },
     { ...input, answers: [{ ...resume, actionId: "search" }] },
     { conversationId, requestId: "whole", responses: [{ formId: form.formId, revision: form.revision, values: {} }] },
-  ]) assert.equal((await app.post(invalid)).status, 400);
+  ]) assert.deepEqual(reply(await app.post(invalid)), { status: 422, body: { code: "invalid_answer", retryable: false } });
   assert.equal(app.messages.size, 0);
   const result = await app.post(input);
   assert.equal(result.status, 200);
@@ -313,4 +332,30 @@ test("a checklist button admits only its own action to the conversation", async 
   assert.match(transcript, /이 공고에 맞게 이력서를 검토해줘/);
   assert.doesNotMatch(transcript, /공개 채용 담당자를 찾아줘/);
   assert.deepEqual(result.body.message.formResponse.answers, [resume]);
+});
+
+test("a refused answer gives the client only its reason; the error text stays in the server log", async () => {
+  const app = harness();
+  const invented = await app.post({ ...batch(), answers: answers.map(a => a.itemId === "accept" ? { ...a, actionId: "invented" } : a) });
+  assert.deepEqual(reply(invented), { status: 422, body: { code: "invalid_answer", retryable: false } });
+  assert.match(JSON.stringify(app.logged), /Form action not found/);
+  const broken = harness(form, false, { "@/lib/career/forms/server": { ...formServer,
+    respondToCareerForm: async () => { throw new Error("connection reset while writing talent_messages"); } } });
+  assert.deepEqual(reply(await broken.post(batch())), { status: 500, body: { code: "unexpected", retryable: true } });
+  assert.match(JSON.stringify(broken.logged), /connection reset while writing talent_messages/);
+  assert.equal(broken.continuations.length, 0);
+  assert.deepEqual([...app.pdfExports, ...broken.pdfExports], []);
+});
+
+test("a chosen Harper-made document that cannot be made into a PDF is refused as unavailable and kept in the export log", async () => {
+  const file = { documentId: "33333333-3333-4333-8333-333333333333", revision: 3 };
+  const cause = new PdfRenderError("PDF rendering is not configured.", { stage: "configuration", pdfReceived: false });
+  const app = harness(form, false, { "@/lib/career/forms/batch": {
+    respondToCareerForms: async () => { throw responseError.selectedFileError(cause, file); } } });
+  const result = await app.post({ conversationId, requestId: "approve-all",
+    responses: [{ formId: form.formId, revision: form.revision, actionId: "send", values: {} }] });
+  assert.deepEqual(reply(result), { status: 503, body: { code: "file_render_unavailable", retryable: false } });
+  assert.deepEqual(app.pdfExports, [{ admin: app.admin, userId: "owner", ...file, error: cause, outcome: "failed" }]);
+  assert.match(JSON.stringify(app.logged), /not configured/);
+  assert.equal(app.continuations.length, 0);
 });

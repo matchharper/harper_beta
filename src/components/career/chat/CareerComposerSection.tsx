@@ -1,6 +1,5 @@
 import { useShallow } from "zustand/react/shallow";
 import { InternalCallAnswersSlot } from "./InternalCallAnswers";
-import { BrowserSessionDock } from "../BrowserSessionDock";
 import { CareerAnimatedRegion } from "../CareerAnimatedRegion";
 import { CareerDailyExternalStatus } from "../CareerDailyExternalRecommendations";
 import React, {
@@ -62,6 +61,7 @@ import { useChatComposerTokens } from "@/hooks/chat/useChatComposerTokens";
 import type { CareerOpportunityMention } from "@/lib/career/opportunityMentionText";
 import type { ChatComposerToken } from "@/lib/chat/composerTokens";
 import { CareerQueuedMessageList } from "./CareerQueuedMessageList";
+import { CareerApplicationBrowserDock, CareerApplicationProgressPanel } from "./CareerApplicationProgressPanel";
 import type { CareerConversationStarterId } from "@/lib/career/prompts/conversationStarters";
 import {
   toCareerPendingActionReference,
@@ -1274,8 +1274,9 @@ const CareerComposerContent = React.memo(function CareerComposerContent({
       className="career-composer-section shrink-0 px-4 pb-3 pt-2 md:px-5 md:pb-7 md:pt-0"
     >
       <div className="career-composer-width relative mx-auto w-full">
-        <BrowserSessionDock />
+        <CareerApplicationBrowserDock conversationId={conversationId} />
         <CareerDailyExternalStatus />
+        <CareerApplicationProgressPanel conversationId={conversationId} />
         <InternalCallAnswersSlot>
           {initialOpportunitySearchStatus ? (
             <CareerInitialOpportunitySearchStatus

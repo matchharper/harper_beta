@@ -11,6 +11,9 @@ test("browser control and termination require confirmation; dismissal and foldin
     url: "http://localhost",
     pretendToBeVisual: true,
   });
+  // The confirmation modal asks for the screen width.
+  dom.window.matchMedia = ((query: string) => ({ matches: false, media: query, onchange: null,
+    addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false })) as never;
   const previous = new Map<string, PropertyDescriptor | undefined>();
   for (const [key, value] of Object.entries({
     window: dom.window,
@@ -123,16 +126,19 @@ test("browser control and termination require confirmation; dismissal and foldin
         folds += 1;
       })
     );
-    const foldX = dom.window.document.querySelector<HTMLButtonElement>(
-      'button[aria-label="브라우저 화면 축소"]:not([aria-expanded])'
-    )!;
-    await act(async () => foldX.click());
+    // A card that folds keeps one header control, the chevron: a second X there only folded too, and read as Stop.
+    const headerControls = [...dom.window.document.querySelectorAll<HTMLButtonElement>(
+      'button[aria-label="브라우저 화면 축소"], button[aria-label="닫기"]'
+    )];
+    assert.equal(headerControls.length, 1, "no X beside the chevron");
+    assert.equal(headerControls[0].getAttribute("aria-expanded"), "true");
+    await act(async () => headerControls[0].click());
     assert.equal(folds, 1);
     assert.equal(dialog(), null);
     assert.deepEqual(
       actions,
       ["handoff", "close"],
-      "the dock X still only folds the viewer"
+      "the chevron only folds the viewer"
     );
     assert.equal(dom.window.document.querySelector("iframe"), iframe);
     const stop = [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "중단하기")!;
@@ -167,8 +173,11 @@ test("browser control and termination require confirmation; dismissal and foldin
     assert.equal(actions.at(-1), "resume");
     assert.equal(dialog(), null, "Done returns control without another confirmation");
     await act(async () => render(undefined, "human", null));
-    await clickText("완료");
-    assert.equal(actions.at(-1), "resume", "An expired browser must still allow returning control");
+    assert.equal(
+      [...dom.window.document.querySelectorAll("button")].find(button => button.textContent === "완료"),
+      undefined,
+      "A stopped browser has nothing to finish: its closed notice offers a reopen (BrowserSessionCard.test.tsx)"
+    );
     const count = actions.length;
     await act(async () => render(undefined, "human", "https://example.test/viewer", true));
     await clickText("중단하기");

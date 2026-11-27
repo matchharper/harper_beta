@@ -149,6 +149,8 @@ export type TalentMessageResponse = {
   workPlan?: CareerTurnPlanItem[];
   /** This reply read an application form; the screen may offer Gmail during the wait. */
   workApplicationCheck?: boolean;
+  /** An empty final reply to a turn that read no message from the person. */
+  workUnprompted?: boolean;
   workFinalEvent?: CareerTurnEvent;
   workReplyId?: string;
   workStartedAt?: string;
@@ -221,6 +223,7 @@ export function toTalentMessageResponse(
     workEvents: Array.isArray(payload.workEvents) ? readCareerTurnEvents(payload.workEvents) : undefined,
     workPlan: readCareerTurnPlan(payload.workPlan),
     ...(payload.workApplicationCheck === true ? { workApplicationCheck: true } : {}),
+    ...(payload.workUnprompted === true ? { workUnprompted: true } : {}),
     workReplyId: typeof payload.careerTextReplyId === "string" ? payload.careerTextReplyId : undefined,
     workStartedAt: typeof payload.workStartedAt === "string" ? payload.workStartedAt : undefined,
     workCompletedAt: typeof payload.workCompletedAt === "string" ? payload.workCompletedAt : undefined,

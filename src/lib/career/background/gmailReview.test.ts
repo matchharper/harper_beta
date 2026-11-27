@@ -99,11 +99,25 @@ test("connecting Gmail tells only an application that stopped at an emailed code
     run("newer", "c1", 1, { submitted: "yes", verificationCode: "none" }),
     run("waiting", "c1", 3, { submitted: "no", verificationCode: "email" }),
     run("texted", "c2", 3, { submitted: "no", verificationCode: "phone" }),
-    run("expired", "c3", 20, { submitted: "no", verificationCode: "email" }),
+    run("expired", "c3", 40, { submitted: "no", verificationCode: "email" }),
   ] }, () => "invocation");
   const result = await notifyApplicationAwaitingEmailCode(admin, "u", { now: NOW, publishInvocations: async ({ conversationId }) => { published.push(conversationId); } });
   assert.deepEqual(result, { notified: 1 });
   assert.deepEqual(rpcs, [{ name: "queue_career_event", args: {
     p_user_id: "u", p_conversation_id: "c1", p_source: 41, p_kind: "gmail_connected", p_reference: "waiting", p_revision: 0 } }]);
+  assert.deepEqual(published, ["c1"]);
+});
+
+test("connecting Gmail also tells an application that waits for an emailed verification link", async () => {
+  const run = (id: string, conversation: string, minutes: number, result: Record<string, unknown>) => ({ id, user_id: "u", conversation_id: conversation,
+    kind: "browser_run", request: { execution_environment: "production", source_message_id: 41 }, result, updated_at: ago(minutes) });
+  const published: string[] = [];
+  const { admin, rpcs } = fakeAdmin({ talent_external_operations: [
+    run("linked", "c1", 3, { submitted: "no", verificationCode: "email_link" }),
+    run("sent", "c2", 3, { submitted: "yes", verificationCode: "email_link" }),
+  ] }, () => "invocation");
+  const result = await notifyApplicationAwaitingEmailCode(admin, "u", { now: NOW, publishInvocations: async ({ conversationId }) => { published.push(conversationId); } });
+  assert.deepEqual(result, { notified: 1 });
+  assert.deepEqual(rpcs.map((call: any) => call.args.p_reference), ["linked"]);
   assert.deepEqual(published, ["c1"]);
 });

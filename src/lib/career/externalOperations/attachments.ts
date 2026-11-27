@@ -3,7 +3,7 @@ import { z } from "zod";
 import { fetchTalentDocument } from "@/lib/talentOnboarding/documentStore";
 import { TALENT_RESUME_BUCKET } from "@/lib/talentOnboarding/models";
 import { GENERATED_RESUME_ORIGIN } from "@/lib/resumes/schema";
-import { exportResume } from "@/lib/resumes/export";
+import { exportResume, ResumeExportError } from "@/lib/resumes/export";
 import { createPdfArtifactCache } from "@/lib/resumes/pdfCache";
 import { RESUME_RENDER_VERSION } from "@/lib/resumes/template";
 import { AUTHORED_DOCUMENT_ORIGIN } from "@/lib/documents/authoring";
@@ -24,6 +24,8 @@ export async function prepareAttachments(
   context: Pick<ExternalToolContext, "admin" | "userId"> & Partial<Pick<ExternalToolContext, "conversationId" | "requestId" | "workId" | "userMessageId">>,
   references: AttachmentRef[]
 ) {
+  // A file that is gone (404) or is no longer the one chosen (422) needs another choice, not another press; the form
+  // route shows it so (forms/responseError.ts). A failed download stays a plain error that may pass on a retry.
   const attachments = [];
   for (const reference of references) {
     const read = () =>
@@ -33,16 +35,16 @@ export async function prepareAttachments(
         documentId: reference.document_id,
       });
     const doc = await read();
-    if (!doc) throw new Error("Attachment unavailable");
+    if (!doc) throw new ResumeExportError(404, "Attachment unavailable");
     if (reference.snapshot_id) {
       const pinned = await readPinnedAttachment(context, reference.snapshot_id);
       if (pinned.documentId !== doc.id || (reference.revision !== undefined && pinned.revision !== reference.revision))
-        throw new Error("Attachment snapshot does not match the selected document revision");
+        throw new ResumeExportError(422, "Attachment snapshot does not match the selected document revision");
       attachments.push(pinned);
       continue;
     }
     if (reference.revision !== undefined && reference.revision !== doc.revision)
-      throw new Error("Attachment revision changed");
+      throw new ResumeExportError(422, "Attachment revision changed");
     const fingerprint = documentFingerprint(doc);
     let bytes: Buffer;
     const generated =
@@ -67,7 +69,7 @@ export async function prepareAttachments(
         })
       ).pdf;
     else {
-      if (!doc.storage_path) throw new Error("Attachment file unavailable");
+      if (!doc.storage_path) throw new ResumeExportError(404, "Attachment file unavailable");
       const { data, error } = await context.admin.storage
         .from(TALENT_RESUME_BUCKET)
         .download(doc.storage_path);
@@ -76,8 +78,8 @@ export async function prepareAttachments(
     }
     const latest = await read();
     if (!latest || documentFingerprint(latest) !== fingerprint)
-      throw new Error("Attachment changed during export");
-    if (!bytes.length) throw new Error("Attachment is empty");
+      throw new ResumeExportError(422, "Attachment changed during export");
+    if (!bytes.length) throw new ResumeExportError(404, "Attachment is empty");
     const declaredMimeType = doc.content_type?.trim().toLowerCase();
     const genericMimeType = !declaredMimeType || ["application/octet-stream", "binary/octet-stream"].includes(declaredMimeType);
     const mimeType = generated || (genericMimeType && bytes.subarray(0, 5).toString("ascii") === "%PDF-")

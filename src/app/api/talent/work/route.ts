@@ -5,6 +5,7 @@ import { getTalentSupabaseAdmin } from "@/lib/talentOnboarding/admin";
 import { z } from "zod";
 import { parseCareerForm } from "@/lib/career/forms/schema";
 import { projectCareerWorkActivity } from "@/lib/career/work/activity";
+import { readCareerApplicationProgress } from "@/lib/career/applicationProgress/read.server";
 
 /** Small conversation projection; private execution transcripts never leave the server. */
 export async function GET(req: NextRequest) {
@@ -47,26 +48,38 @@ export async function GET(req: NextRequest) {
     .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const [forms, pending, work, completed, dependencies] = await Promise.all([
-    (admin.rpc as any)("read_open_career_forms", {
-      p_user_id: user.id,
-      p_conversation_id: conversationId.data,
-    }),
-    (admin.from as any)("talent_external_operations")
-      .select(
-        "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
-        { count: "exact" }
-      )
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId.data)
-      .eq("kind", "career_invocation")
-      .neq("status", "completed"),
-    (admin.from as any)("talent_external_operations")
-      .select("id,request->>origin_reply_id", { count: "exact" })
-      .eq("user_id", user.id)
-      .eq("conversation_id", conversationId.data)
-      .eq("kind", "delegated_work")
-      .not("status", "in", "(completed,cancelled)"),
+  // The open forms and the running turns are read once and also feed the application progress.
+  const openForms = Promise.resolve((admin.rpc as any)("read_open_career_forms", {
+    p_user_id: user.id,
+    p_conversation_id: conversationId.data,
+  }));
+  const invocations = Promise.resolve((admin.from as any)("talent_external_operations")
+    .select(
+      "id,parent_id,created_at,request->cleanup,request->cleanup_browser_session,source_message_id:request->>source_message_id,input_message_ids:request->input_message_ids,delivered_input_message_ids:provider_refs->input_message_ids,delivered_event_ids:provider_refs->event_ids,result->activity,result->>last_error",
+      { count: "exact" }
+    )
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId.data)
+    .eq("kind", "career_invocation")
+    .neq("status", "completed"));
+  type TurnRow = { created_at?: string; cleanup?: boolean; cleanup_browser_session?: unknown; source_message_id?: string | null;
+    input_message_ids?: unknown; activity?: { waitingForReply?: boolean } | null };
+  const turnRows = invocations.then((result: { data?: TurnRow[] | null }) => result.data ?? []);
+  // A Harper turn (not a cleanup), and one that is working (not on hold).
+  const turn = (row: TurnRow) => !row.cleanup && !row.cleanup_browser_session;
+  const working = (row: TurnRow) => turn(row) && !row.activity?.waitingForReply;
+  // Live delegated works: a change to one (manage_work update) adds the person's message to its source_refs, and its
+  // next turn starts from its first source, so the work itself holds that message.
+  const liveWork = Promise.resolve((admin.from as any)("talent_external_operations")
+    .select("id,request->>origin_reply_id,source_refs:request->source_refs", { count: "exact" })
+    .eq("user_id", user.id)
+    .eq("conversation_id", conversationId.data)
+    .eq("kind", "delegated_work")
+    .not("status", "in", "(completed,cancelled)"));
+  const [forms, pending, work, completed, dependencies, applications] = await Promise.all([
+    openForms,
+    invocations,
+    liveWork,
     (admin.from as any)("talent_external_operations")
       .select("id,updated_at")
       .eq("user_id", user.id)
@@ -82,6 +95,39 @@ export async function GET(req: NextRequest) {
     (admin.from as any)("talent_external_operations").select("id", { count: "exact", head: true })
       .eq("user_id", user.id).eq("conversation_id", conversationId.data)
       .or("and(kind.eq.career_dependency,status.eq.reserved),and(kind.eq.browser_session,status.eq.human)"),
+    // The progress panel is an addition: a failed read leaves it empty and never fails the work status.
+    readCareerApplicationProgress({
+      admin,
+      userId: user.id,
+      conversationId: conversationId.data,
+      openForms: openForms.then((result: { data?: { payload: unknown; created_at?: string }[] | null; error?: unknown }) =>
+        result.error ? [] : (result.data ?? []).flatMap((row) => {
+          const form = parseCareerForm(row.payload);
+          return form ? [{ ...form, createdAt: row.created_at ?? null }] : [];
+        })),
+      // A working turn may still follow up a stopped run.
+      turnStartedAt: turnRows.then((rows) => rows.filter(working).map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
+      // The person's messages Harper here still holds, the same ids a Stop ends: each turn's queued or received input and
+      // the message it started from, and each live delegated work's sources. A message that came while a turn finished is
+      // handed to the next turn, so it is held all along, though that turn started after it. A turn on hold resumes by
+      // itself, so it holds them too.
+      turnMessageIds: Promise.all([turnRows, liveWork.then((result: { data?: { source_refs?: unknown }[] | null }) => result.data ?? [])])
+        .then(([rows, works]) => [...new Set([
+          ...rows.filter(turn).flatMap((row) => [
+            ...(Array.isArray(row.input_message_ids) ? row.input_message_ids : []), ...(row.source_message_id ? [row.source_message_id] : [])]),
+          ...works.flatMap((row) => Array.isArray(row.source_refs) ? row.source_refs : []),
+        ].map(String))]),
+      // A turn on hold (activity.ts: its checkpoint waits for a newer request handled first, or for browser_control,
+      // which no tool creates today): a paused application then points to the chat instead of asking Harper again. The
+      // hold names no application, so it is the whole conversation's.
+      waitingForReply: turnRows.then((rows) => rows.some((row) => turn(row) && row.activity?.waitingForReply === true)),
+      // A Stop queues one cleanup per open browser; until it runs, that browser is as good as closed.
+      closingBrowserSessionIds: turnRows.then((rows) => [...new Set(rows.flatMap((row) =>
+        typeof row.cleanup_browser_session === "string" ? [row.cleanup_browser_session] : []))]),
+    }).catch((error: unknown) => {
+      console.error("[career-work] Application progress unavailable", error instanceof Error ? error.message : String(error));
+      return [];
+    }),
   ]);
   if (
     dependencies.error ||
@@ -164,5 +210,6 @@ export async function GET(req: NextRequest) {
     retrying: (pending.data ?? []).some((row: { last_error?: string }) =>
       Boolean(row.last_error)
     ),
+    applications,
   });
 }

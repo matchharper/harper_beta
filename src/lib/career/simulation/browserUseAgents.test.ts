@@ -1,6 +1,6 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { browserUseAgents } from "./browserUseAgents";
+import { browserUseAgents, SESSION_PAGE_CAPTURE_MS, type CaptureBrowser } from "./browserUseAgents";
 const workspace = "00000000-0000-4000-8000-000000000001";
 const run = "00000000-0000-4000-8000-000000000002";
 const session = "00000000-0000-4000-8000-000000000003";
@@ -179,4 +179,162 @@ test("ambiguous creation has no retry or secret-bearing provider body in error",
     }
   );
   assert.equal(calls, 1);
+});
+
+const completePage = "https://company-a.example/apply/complete";
+const socket = "wss://live.cdp.example/devtools/browser/fixture";
+
+/** Fakes the provider's browser listing for the session, and the CDP discovery endpoint when one is given. */
+function provider(t: TestContext, browsers: () => unknown[], discovery?: (url: URL, init: RequestInit) => Response) {
+  const listed: URL[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL, init: RequestInit = {}) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/api/v4/browsers") {
+      listed.push(url);
+      return Response.json({ items: browsers(), totalItems: browsers().length });
+    }
+    assert.ok(discovery, `no request expected to ${url.host}`);
+    return discovery(url, init);
+  });
+  return listed;
+}
+
+/** A fake CDP connection holding pages at these URLs, and what a capture did with it. */
+function cdpBrowser(urls: string[], shoot: () => Promise<Buffer> = async () => Buffer.from([0xff, 0xd8, 0xff])) {
+  const seen = { shots: [] as { url: string; options: Record<string, unknown> }[], disconnects: 0, pagesClosed: 0 };
+  const pages = urls.map((url) => ({
+    url: () => url,
+    screenshot: async (options: Record<string, unknown>) => {
+      seen.shots.push({ url, options });
+      return shoot();
+    },
+    close: async () => { seen.pagesClosed++; },
+  }));
+  const browser: CaptureBrowser = { contexts: () => [{ pages: () => pages }], close: async () => { seen.disconnects++; } };
+  return { seen, browser };
+}
+
+const noConnection = async (): Promise<CaptureBrowser> => assert.fail("must not connect");
+
+test("page capture attaches to the session's active browser over CDP, pictures the run's page and only disconnects", async (t) => {
+  const listed = provider(t, () => [
+    { status: "stopped", cdpUrl: "https://stale.cdp.example" },
+    { status: "active", liveUrl: "https://live.browser-use.com/session/fixture", cdpUrl: "https://live.cdp.example/" },
+  ], (url, init) => {
+    assert.equal(url.href, "https://live.cdp.example/json/version");
+    // The discovery endpoint gets no API key, and a redirect cannot send the connection elsewhere.
+    assert.equal(init.headers, undefined);
+    assert.equal(init.redirect, "error");
+    return Response.json({ webSocketDebuggerUrl: socket });
+  });
+  const { seen, browser } = cdpBrowser(["about:blank", completePage, "https://company-a.example/careers"]);
+  const connections: { url: string; timeout: number }[] = [];
+  const capture = await browserUseAgents.captureSessionPage(session, completePage, async (url, timeout) => {
+    connections.push({ url, timeout });
+    return browser;
+  });
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].searchParams.get("agentSessionId"), session);
+  assert.deepEqual(connections.map((connection) => connection.url), [socket]);
+  assert.ok(connections[0].timeout > 0 && connections[0].timeout <= SESSION_PAGE_CAPTURE_MS);
+  assert.ok(capture.status === "captured");
+  // The result names the page, never the browser's control address.
+  assert.deepEqual(Object.keys(capture).sort(), ["capturedAt", "jpeg", "pageUrl", "status"]);
+  assert.deepEqual(capture.jpeg, Buffer.from([0xff, 0xd8, 0xff]));
+  assert.equal(capture.pageUrl, completePage);
+  assert.ok(!Number.isNaN(Date.parse(capture.capturedAt)));
+  assert.deepEqual(seen.shots.map((shot) => shot.url), [completePage]);
+  const { timeout, ...options } = seen.shots[0].options;
+  assert.deepEqual(options, { type: "jpeg", quality: 70, scale: "css", caret: "initial" });
+  assert.ok(Number(timeout) > 0 && Number(timeout) <= SESSION_PAGE_CAPTURE_MS);
+  assert.equal(seen.disconnects, 1);
+  assert.equal(seen.pagesClosed, 0);
+});
+
+test("without the run's page open, capture pictures the most recent web page; a wss address needs no discovery", async (t) => {
+  const listed = provider(t, () => [{ status: "active", cdpUrl: socket }]);
+  const { seen, browser } = cdpBrowser(["https://company-a.example/first", "https://company-a.example/latest", "about:blank"]);
+  const connections: string[] = [];
+  const capture = await browserUseAgents.captureSessionPage(session, "https://company-a.example/closed-tab", async (url) => {
+    connections.push(url);
+    return browser;
+  });
+  assert.equal(listed.length, 1);
+  assert.deepEqual(connections, [socket]);
+  assert.ok(capture.status === "captured");
+  assert.equal(capture.pageUrl, "https://company-a.example/latest");
+  assert.deepEqual(seen.shots.map((shot) => shot.url), ["https://company-a.example/latest"]);
+  assert.equal(seen.disconnects, 1);
+});
+
+test("an active browser without a secure CDP address is unavailable and nothing connects", async (t) => {
+  let cdpUrl: unknown;
+  provider(t, () => [{ status: "active", liveUrl: "https://live.browser-use.com/session/fixture", ...(cdpUrl === undefined ? {} : { cdpUrl }) }]);
+  for (cdpUrl of [undefined, null, "", "not a url", 42, "http://live.cdp.example", "ws://live.cdp.example/devtools"])
+    assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, noConnection),
+      { status: "unavailable", reason: "no_cdp_url" });
+});
+
+test("a session whose browsers are all stopped has nothing to picture, after every listing page is read", async (t) => {
+  const stopped = Array.from({ length: 101 }, () => ({ status: "stopped", cdpUrl: socket }));
+  const pages: number[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    const pageNumber = Number(new URL(input).searchParams.get("pageNumber"));
+    pages.push(pageNumber);
+    return Response.json({ items: stopped.slice((pageNumber - 1) * 100, pageNumber * 100), totalItems: stopped.length });
+  });
+  assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, noConnection),
+    { status: "unavailable", reason: "no_active_browser" });
+  assert.deepEqual(pages, [1, 2]);
+});
+
+test("a capture still connecting when its limit passes is a timeout, and the late connection is dropped unused", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  provider(t, () => [{ status: "active", cdpUrl: socket }]);
+  const { seen, browser } = cdpBrowser([completePage]);
+  let connect!: (value: CaptureBrowser) => void;
+  let asked!: () => void;
+  const connecting = new Promise<void>((resolve) => { asked = resolve; });
+  const pending = browserUseAgents.captureSessionPage(session, completePage, () => {
+    asked();
+    return new Promise((resolve) => { connect = resolve; });
+  });
+  await connecting;
+  t.mock.timers.tick(SESSION_PAGE_CAPTURE_MS);
+  assert.deepEqual(await pending, { status: "unavailable", reason: "timeout" });
+  connect(browser);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(seen.disconnects, 1);
+  assert.deepEqual(seen.shots, []);
+});
+
+test("listing, discovery, connection, page and screenshot failures each come back as a reason, never a throw", async (t) => {
+  let listing = () => new Response("fixture-secret", { status: 503 });
+  let discovery = () => Response.json({});
+  t.mock.method(globalThis, "fetch", async (input: string | URL) =>
+    new URL(String(input)).pathname === "/api/v4/browsers" ? listing() : discovery());
+  const unavailable = (reason: string) => ({ status: "unavailable", reason });
+  assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, noConnection), unavailable("provider_error"));
+  assert.deepEqual(await browserUseAgents.captureSessionPage("not-a-session", completePage, noConnection), unavailable("provider_error"));
+  listing = () => Response.json({ items: [{ status: "active", cdpUrl: "https://live.cdp.example" }], totalItems: 1 });
+  for (discovery of [
+    () => new Response(null, { status: 404 }),
+    () => Response.json({ webSocketDebuggerUrl: "ws://live.cdp.example/devtools/browser/fixture" }),
+    () => Response.json({}),
+  ])
+    assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, noConnection), unavailable("cdp_discovery_failed"));
+  discovery = () => Response.json({ webSocketDebuggerUrl: socket });
+  assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, async () => { throw new Error("refused"); }),
+    unavailable("connect_failed"));
+  const blank = cdpBrowser(["about:blank"]);
+  assert.deepEqual(await browserUseAgents.captureSessionPage(session, undefined, async () => blank.browser), unavailable("no_page"));
+  assert.equal(blank.seen.disconnects, 1);
+  const failing = cdpBrowser([completePage], async () => { throw new Error("Target closed"); });
+  assert.deepEqual(await browserUseAgents.captureSessionPage(session, completePage, async () => failing.browser),
+    unavailable("screenshot_failed"));
+  assert.equal(failing.seen.disconnects, 1);
+  // A disconnect that throws does not undo a picture already taken.
+  const closing = cdpBrowser([completePage]);
+  closing.browser.close = () => { throw new Error("already disconnected"); };
+  assert.equal((await browserUseAgents.captureSessionPage(session, completePage, async () => closing.browser)).status, "captured");
 });

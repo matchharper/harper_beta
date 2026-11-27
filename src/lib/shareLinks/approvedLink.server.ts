@@ -2,7 +2,7 @@ import type { z } from "zod";
 import { parseCareerFormResponse, parseCareerForm, type CareerForm, type CareerFormResponse } from "@/lib/career/forms/schema";
 import type { ExternalToolContext } from "@/lib/career/externalOperations/store";
 import type { browserProfileLinkSchema } from "./browserParam";
-import { PROFILE_LINK_BOX_LABEL } from "./formGuard";
+import { looksLikeApplicationStart, PROFILE_LINK_BOX_LABEL } from "./formGuard";
 
 type ProfileLink = z.infer<typeof browserProfileLinkSchema>;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,10 +26,37 @@ export function responsesIn(payload: unknown): CareerFormResponse[] {
   });
 }
 
+/** How many of a role's newest forms are searched for the box: a start form, then a few review revisions. */
+const FORMS_PER_ROLE = 10;
+
+/** The role's forms in this conversation, newest first (each revision is its own row). */
+async function roleForms(context: Pick<ExternalToolContext, "admin" | "userId" | "conversationId">, roleId: string) {
+  const { data, error } = await (context.admin.from("talent_messages") as any).select("id,payload")
+    .eq("user_id", context.userId).eq("conversation_id", context.conversationId).eq("message_type", "career_form")
+    .contains("payload", { relatedRefs: [{ type: "role", id: roleId }] }).order("id", { ascending: false }).limit(FORMS_PER_ROLE);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { payload: unknown }[]).flatMap((row) => {
+    const form = parseCareerForm(row.payload);
+    return form ? [form] : [];
+  });
+}
+
+/**
+ * Whether a start form of delegated applications for one of these roles already offers the box. Its answer then
+ * decides the link, so a later review form of the same web application does not ask again.
+ */
+export async function startFormOffersProfileLink(context: Pick<ExternalToolContext, "admin" | "userId" | "conversationId">,
+  roleRefs: string[]): Promise<boolean> {
+  for (const roleId of roleRefs.filter((id) => UUID.test(id)))
+    if ((await roleForms(context, roleId)).some((form) => looksLikeApplicationStart(form) && profileLinkItem(form))) return true;
+  return false;
+}
+
 /**
  * Whether the person keeps the box checked for this application: their answer on the form that approved it, else the
- * box as the newest review form for the role holds it (its last answer, or its initial value when they approved in
- * chat without answering the form). null when no reviewed form for these roles has the box.
+ * box as the newest form for the role that has it holds it (its last answer, or its initial value when they approved
+ * in chat without answering the form). A review form without the box (one asking only new questions after the start
+ * form) leaves the choice to the start form. null when no form for these roles has the box.
  */
 export async function approvedProfileLinkChoice(context: Pick<ExternalToolContext, "admin" | "userId" | "conversationId">,
   args: { roleRefs: string[]; authorization: { payload: unknown }[] }): Promise<{ include: boolean; roleId: string } | null> {
@@ -42,11 +69,7 @@ export async function approvedProfileLinkChoice(context: Pick<ExternalToolContex
       if (item && roleId) return { include: response.values[item.id] === true, roleId };
     }
   for (const roleId of roles) {
-    const { data, error } = await (context.admin.from("talent_messages") as any).select("id,payload")
-      .eq("user_id", context.userId).eq("conversation_id", context.conversationId).eq("message_type", "career_form")
-      .contains("payload", { relatedRefs: [{ type: "role", id: roleId }] }).order("id", { ascending: false }).limit(1).maybeSingle();
-    if (error) throw new Error(error.message);
-    const form = parseCareerForm(data?.payload);
+    const form = (await roleForms(context, roleId)).find((candidate) => profileLinkItem(candidate));
     const item = form && profileLinkItem(form);
     if (!form || !item) continue;
     const answered = await (context.admin.from("talent_messages") as any).select("payload")

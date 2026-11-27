@@ -5,8 +5,8 @@
 
 import { OPERATIONAL_OPPORTUNITY_FEEDBACK_REASON } from "@/lib/career/opportunityFeedbackSignals";
 import { CAREER_REPLY_UNSEEN_TRIGGER } from "@/lib/career/background/unseenReply";
+import { applicationCtes, confirmedApplicationCtes } from "@/lib/ops/talentMetricsOverview.sql";
 import { TALENT_MESSAGE_TYPE_OPEN_POSITION_RECOMMENDATION_REQUEST } from "@/lib/talentOnboarding/onboarding";
-import { applicationCtes } from "@/lib/ops/talentMetricsOverview.sql";
 
 /** How long after an email an action still counts as a response to it. */
 export const EMAIL_ACTION_WINDOW_HOURS = 72;
@@ -411,6 +411,25 @@ select
   count(sent.run_id) filter (where ${ACTED_AFTER("runs.talent_id", "sent.sent_at")})::int as "acted"
 from runs
 left join sent on sent.run_id = runs.id
+group by 1
+order by 1
+`;
+
+/**
+ * 대신 지원 the talent confirmed in [$1, $2), per KST day of the confirmation, and how many were submitted. The
+ * application rules are /ops/metrics' own (confirmedApplicationCtes), so the days of a week add up to that week's
+ * '대신지원 성공률' bars. $4 / $5: SUBMITTED_SENTENCE / NOT_SUBMITTED_SENTENCE (talentMetricsOverview.server.ts).
+ */
+export const UPDATE_METRICS_APPLICATIONS_SQL = String.raw`
+with ${BASE_CTES},
+${confirmedApplicationCtes({ notSubmitted: "$5", submitted: "$4" })}
+select
+  to_char(application.confirmed_at at time zone 'Asia/Seoul', 'YYYY-MM-DD') as "day",
+  count(*)::int as "confirmed",
+  count(*) filter (where application.submitted)::int as "submitted"
+from applications application
+where application.confirmed_at >= $1::timestamptz
+  and application.confirmed_at < $2::timestamptz
 group by 1
 order by 1
 `;
