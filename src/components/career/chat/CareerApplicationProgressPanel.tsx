@@ -44,9 +44,14 @@ function stepNumber(app: CareerApplicationProgress) {
 }
 /** Stopped by the person (Stop, or closing the browser it waited on): said plainly, not as an error. */
 const stoppedByPerson = (app: CareerApplicationProgress) => app.status === "failed" && app.failure?.reason === "stopped";
-/** The sub-step under way: the current step's, else the newest current one (a login still open in a finished step). */
-const activeSub = (app: CareerApplicationProgress) =>
-  currentSub(currentStep(app)) ?? subStepsOf(app).filter(sub => sub.state === "current").at(-1);
+/**
+ * The sub-step under way: the current step's. Only with no step under way, the newest current one (a login still open
+ * in a finished step, while Harper goes on from the page the person returned); a submission is not that login.
+ */
+const activeSub = (app: CareerApplicationProgress) => {
+  const step = currentStep(app);
+  return step ? currentSub(step) : subStepsOf(app).filter(sub => sub.state === "current").at(-1);
+};
 
 /** The sub-step the person is asked about (a login, a code, a link or a new question), when the ask is one. */
 function askedSub(app: CareerApplicationProgress) {

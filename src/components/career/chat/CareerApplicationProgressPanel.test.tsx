@@ -246,6 +246,29 @@ test("sub-steps that wait on the person and Harper between steps read plainly", 
   } finally { await view.cleanup(); }
 });
 
+test("a running row's line is the step under way, not a login an earlier step still shows as open", async () => {
+  const view = await mount();
+  // The submission runs on the browser the person signed in to while filling: that login reads current until a run
+  // there finishes without them, but the row is submitting.
+  const submitting: CareerApplicationProgress = {
+    id: "role-g", companyName: "G사", title: "데이터 분석가", status: "running", updatedAt: ago(0),
+    steps: [step("confirm", "done"), step("fill", "done", { subSteps: [{ key: "login", state: "current", site: "원티드", at: ago(3) }] }),
+      step("review", "skipped"), step("submit", "current", { at: ago(3) })],
+  };
+  // No step under way: Harper goes on from the page the person returned, so the open login is the line.
+  const returned: CareerApplicationProgress = {
+    id: "role-h", companyName: "H사", title: "QA", status: "waiting", updatedAt: ago(1),
+    steps: [step("confirm", "done"), step("fill", "done", { subSteps: [{ key: "login", state: "current", site: "원티드", at: ago(1) }] }),
+      step("review", "done"), step("submit", "todo")],
+  };
+  try {
+    await view.render(snapshot([submitting, returned]));
+    await view.click(view.toggle());
+    assert.match(view.row("G사")!.textContent ?? "", /G사 · 데이터 분석가제출 중 · 3분째/);
+    assert.match(view.row("H사")!.textContent ?? "", /H사 · QA원티드 로그인하는 중/);
+  } finally { await view.cleanup(); }
+});
+
 test("답하기 takes the person to the form when it is on screen, and is absent when it is not", async () => {
   const view = await mount();
   try {
