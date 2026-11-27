@@ -303,13 +303,13 @@ async function readEntryOpportunity(
   };
 }
 
-/** The prepared Roles that are still open, with the public /jobs page of each Harper-connected one that has a page. */
+/** The prepared Roles that are still open. */
 async function readPreparedForPosting(
   args: CareerEntrySourceArgs,
   officialJobId: string
 ): Promise<PreparedForPosting | null> {
   const { data, error } = await (args.admin.from(OFFICIAL_JOB_PREPARED_ROLES_TABLE as never) as any)
-    .select("role_id, kind, rank, reason, prepared_at, role:company_roles(name, status, is_expired, expires_at, source_type, external_jd_url, location_text, information, company:company_workspace(company_name))")
+    .select("role_id, kind, rank, reason, prepared_at, role:company_roles(name, status, is_expired, expires_at, source_type, location_text, information, company:company_workspace(company_name))")
     .eq("official_job_id", officialJobId)
     .order("rank", { ascending: true });
   if (error) {
@@ -320,19 +320,5 @@ async function readPreparedForPosting(
     });
     return null;
   }
-  const rows = (data ?? []) as PreparedRoleRead[];
-  const harperRoleIds = rows.filter((row) => row.kind === "harper").map((row) => row.role_id);
-  const harperPostingPaths = new Map<string, string>();
-  if (harperRoleIds.length) {
-    const { data: pages } = await args.admin
-      .from("official_jobs")
-      .select("slug, role_id")
-      .in("role_id", harperRoleIds)
-      .eq("is_published", true);
-    for (const page of pages ?? []) {
-      if (page.role_id && page.slug && !harperPostingPaths.has(page.role_id))
-        harperPostingPaths.set(page.role_id, `/jobs/${encodeURIComponent(page.slug)}`);
-    }
-  }
-  return livePreparedRoles(rows, { harperPostingPaths });
+  return livePreparedRoles((data ?? []) as PreparedRoleRead[]);
 }

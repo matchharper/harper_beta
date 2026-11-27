@@ -69,7 +69,6 @@ export type PreparedRoleRead = {
     is_expired: boolean | null;
     expires_at: string | null;
     source_type: string | null;
-    external_jd_url: string | null;
     location_text: string | null;
     information: unknown;
     company: { company_name: string | null } | null;
@@ -78,8 +77,8 @@ export type PreparedRoleRead = {
 
 export type PreparedForPosting = {
   preparedAt: string;
-  harperRoles: Array<{ roleId: string; companyName: string; roleTitle: string; reason: string | null; postingPath?: string }>;
-  publicPostings: Array<{ roleId: string; companyName: string; roleTitle: string; location: string | null; url: string | null }>;
+  harperRoles: Array<{ roleId: string; companyName: string; roleTitle: string; reason: string | null }>;
+  publicPostings: Array<{ roleId: string; companyName: string; roleTitle: string; location: string | null }>;
 };
 
 function isTestOnly(information: unknown) {
@@ -94,7 +93,7 @@ function isTestOnly(information: unknown) {
  */
 export function livePreparedRoles(
   rows: readonly PreparedRoleRead[],
-  args: { nowMs?: number; harperPostingPaths?: ReadonlyMap<string, string> } = {}
+  args: { nowMs?: number } = {}
 ): PreparedForPosting | null {
   const nowMs = args.nowMs ?? Date.now();
   const ordered = [...rows].sort((a, b) => a.rank - b.rank);
@@ -111,11 +110,7 @@ export function livePreparedRoles(
       if (!isOfficialJobFollowUpRoleAvailable({
         expiresAt: role.expires_at, isExpired: Boolean(role.is_expired), status: String(role.status ?? ""), nowMs,
       })) continue;
-      const postingPath = args.harperPostingPaths?.get(row.role_id);
-      harperRoles.push({
-        roleId: row.role_id, companyName, roleTitle, reason: oneLine(row.reason, REASON_CHARS) || null,
-        ...(postingPath ? { postingPath } : {}),
-      });
+      harperRoles.push({ roleId: row.role_id, companyName, roleTitle, reason: oneLine(row.reason, REASON_CHARS) || null });
     } else if (row.kind === "public") {
       if (sourceType !== "external" || publicPostings.length >= PREPARED_PUBLIC_POSTINGS_SHOWN) continue;
       const expiresMs = role.expires_at ? Date.parse(role.expires_at) : NaN;
@@ -124,7 +119,6 @@ export function livePreparedRoles(
       publicPostings.push({
         roleId: row.role_id, companyName, roleTitle,
         location: oneLine(role.location_text, 120) || null,
-        url: oneLine(role.external_jd_url, 600) || null,
       });
     }
   }

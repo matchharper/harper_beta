@@ -67,7 +67,7 @@ test("one build's rows rank each kind on its own and keep a Role once", () => {
 
 test("reading back leaves out Roles that closed since the build and test Roles", () => {
   const role = (over: Partial<NonNullable<PreparedRoleRead["role"]>>) => ({
-    name: "Engineer", status: "active", is_expired: false, expires_at: null, source_type: "external", external_jd_url: null,
+    name: "Engineer", status: "active", is_expired: false, expires_at: null, source_type: "external",
     location_text: null, information: {}, company: { company_name: "Co" }, ...over,
   });
   const at = "2026-11-26T18:00:00Z";

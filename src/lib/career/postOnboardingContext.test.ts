@@ -398,7 +398,7 @@ test("only a /jobs landing path names an entry posting", () => {
 
 const preparedRole = (over: Record<string, unknown>) => ({
   name: "Software Engineer, Agent", status: "active", is_expired: false, expires_at: null, source_type: "internal",
-  external_jd_url: null, location_text: "Seoul", information: {}, company: { company_name: "Company A" }, ...over,
+  location_text: "Seoul", information: {}, company: { company_name: "Company A" }, ...over,
 });
 
 test("a posting with no Harper Role brings the roles prepared for it that are still open", async () => {
@@ -406,14 +406,12 @@ test("a posting with no Harper Role brings the roles prepared for it that are st
     talent_activity_events: { list: [{ conversation_id: "conversation-1", created_at: "2026-11-27T01:00:00Z", event_type: "official_jobs_signup_intent", source: "official_jobs_onboarding:ai-agents-seoul" }] },
     official_jobs: {
       single: { id: "job-1", company_name: "High-Growth AI Startups", role_title: "Software Engineer, AI Agents", role_id: null, is_published: true, updated_at: "2026-11-20T01:00:00Z" },
-      // The Harper-connected Role's own public /jobs page.
-      list: [{ slug: "company-a-agent-engineer", role_id: "11111111-1111-4111-8111-111111111111" }],
     },
     official_job_prepared_roles: {
       list: [
         { role_id: "11111111-1111-4111-8111-111111111111", kind: "harper", rank: 0, reason: "같은 에이전트 엔지니어 자리예요", prepared_at: "2026-11-26T18:00:00Z", role: preparedRole({}) },
         { role_id: "22222222-2222-4222-8222-222222222222", kind: "harper", rank: 1, reason: "closed since", prepared_at: "2026-11-26T18:00:00Z", role: preparedRole({ status: "ended", company: { company_name: "Company B" } }) },
-        { role_id: "33333333-3333-4333-8333-333333333333", kind: "public", rank: 0, reason: null, prepared_at: "2026-11-26T18:00:00Z", role: preparedRole({ source_type: "external", name: "AI Engineer", external_jd_url: "https://jobs.example.com/1", company: { company_name: "Company C" } }) },
+        { role_id: "33333333-3333-4333-8333-333333333333", kind: "public", rank: 0, reason: null, prepared_at: "2026-11-26T18:00:00Z", role: preparedRole({ source_type: "external", name: "AI Engineer", company: { company_name: "Company C" } }) },
         { role_id: "44444444-4444-4444-8444-444444444444", kind: "public", rank: 1, reason: null, prepared_at: "2026-11-26T18:00:00Z", role: preparedRole({ source_type: "external", is_expired: true, company: { company_name: "Company D" } }) },
       ],
     },
@@ -422,16 +420,16 @@ test("a posting with no Harper Role brings the roles prepared for it that are st
   const prepared = context?.entryOpportunity?.preparedForPosting;
   assert.deepEqual(prepared?.harperRoles, [{
     roleId: "11111111-1111-4111-8111-111111111111", companyName: "Company A", roleTitle: "Software Engineer, Agent",
-    reason: "같은 에이전트 엔지니어 자리예요", postingPath: "/jobs/company-a-agent-engineer",
+    reason: "같은 에이전트 엔지니어 자리예요",
   }]);
-  assert.deepEqual(prepared?.publicPostings.map((posting) => [posting.companyName, posting.url]), [["Company C", "https://jobs.example.com/1"]]);
+  assert.deepEqual(prepared?.publicPostings.map((posting) => posting.companyName), ["Company C"]);
 
   const { buildCareerPostOnboardingContextSection } = await import("./prompts/postOnboardingGuide");
   const facts = buildCareerPostOnboardingContextSection({ context, factsOnly: true, includePrepared: true });
   assert.match(facts, /No Harper Role is behind this posting/);
   assert.match(facts, /Prepared for this posting on .* \(chosen for the posting, not for this candidate/);
-  assert.match(facts, /Company: "Company A"; Role: "Software Engineer, Agent"; roleId: "11111111-1111-4111-8111-111111111111"; public posting: \/jobs\/company-a-agent-engineer; close because: "같은 에이전트 엔지니어 자리예요"/);
-  assert.match(facts, /Company: "Company C"; Role: "AI Engineer"; Location: "Seoul"; roleId: "33333333-3333-4333-8333-333333333333"; link: https:\/\/jobs.example.com\/1/);
+  assert.match(facts, /Company: "Company A"; Role: "Software Engineer, Agent"; roleId: "11111111-1111-4111-8111-111111111111"; close because: "같은 에이전트 엔지니어 자리예요"/);
+  assert.match(facts, /Company: "Company C"; Role: "AI Engineer"; Location: "Seoul"; roleId: "33333333-3333-4333-8333-333333333333"$/m);
   assert.doesNotMatch(facts, /Company B|Company D/);
 
   const withTools = buildCareerPostOnboardingContextSection({ context, includePrepared: true, toolNames: ["apply_to_internal_role"] });
