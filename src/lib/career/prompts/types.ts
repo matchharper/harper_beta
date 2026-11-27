@@ -1,3 +1,5 @@
+import type { PreparedForPosting } from "@/lib/officialJobs/preparedRoles";
+
 export type CareerPromptProfile = {
   current_location?: string | null;
   resume_file_name?: string | null;
@@ -39,6 +41,11 @@ export type CareerPostOnboardingContext = {
      * which says what the candidate agreed to there and what Harper already sent.
      */
     oneScreenRecord?: string;
+    /**
+     * For a posting with no Harper Role behind it: the Harper-connected Roles close to it and public postings like
+     * it, prepared once a day and still open (officialJobs/preparedRoles.ts).
+     */
+    preparedForPosting?: PreparedForPosting;
   } | null;
 };
 

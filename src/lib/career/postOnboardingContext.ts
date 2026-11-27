@@ -7,6 +7,12 @@ import {
   type OfficialJobRow,
 } from "@/lib/officialJobs";
 import { isOfficialJobFollowUpRoleAvailable } from "@/lib/officialJobs/followUpAvailability";
+import {
+  OFFICIAL_JOB_PREPARED_ROLES_TABLE,
+  livePreparedRoles,
+  type PreparedForPosting,
+  type PreparedRoleRead,
+} from "@/lib/officialJobs/preparedRoles";
 import { OFFICIAL_JOBS_LANDING_SOURCE } from "@/lib/officialJobs/landingLogs";
 import { OFFICIAL_JOBS_ONESCREEN_ENTRY_DOMAIN } from "@/lib/officialJobs/oneScreen";
 import { parseIntentSource } from "@/lib/gtmPlays/agent/signupMove";
@@ -139,7 +145,7 @@ async function fetchUnfinishedSignupEntry(args: CareerEntrySourceArgs): Promise<
     : null;
 }
 
-type CareerEntryPosting = Pick<OfficialJobRow, "company_name" | "role_id" | "role_title" | "is_published" | "updated_at">
+type CareerEntryPosting = Pick<OfficialJobRow, "id" | "company_name" | "role_id" | "role_title" | "is_published" | "updated_at">
   & Partial<Pick<OfficialJobRow, "role_description_markdown" | "short_description" | "location" | "compensation">>;
 
 /** A conversation-bound event records the entry. Older events require a lookup of the original click. */
@@ -202,9 +208,9 @@ async function readEntryOpportunity(
 
   const postings = args.admin.from("official_jobs");
   const source = args.includePostingDetails
-    ? await postings.select("company_name, role_id, role_title, is_published, role_description_markdown, short_description, location, compensation, updated_at")
+    ? await postings.select("id, company_name, role_id, role_title, is_published, role_description_markdown, short_description, location, compensation, updated_at")
         .eq("slug", slug).maybeSingle()
-    : await postings.select("company_name, role_id, role_title, is_published, updated_at")
+    : await postings.select("id, company_name, role_id, role_title, is_published, updated_at")
         .eq("slug", slug).maybeSingle();
   const job: CareerEntryPosting | null = source.data;
   const jobError = source.error;
@@ -263,6 +269,11 @@ async function readEntryOpportunity(
     }
   }
 
+  // A published posting with no Harper Role behind it has Roles prepared for it once a day (officialJobs/preparedRoles.ts).
+  const preparedForPosting = job?.id && !mappedRoleId && job.is_published === true
+    ? await readPreparedForPosting(args, job.id)
+    : null;
+
   return {
     entryOpportunity: {
       companyName: roleCompanyName || companyName || null,
@@ -287,6 +298,41 @@ async function readEntryOpportunity(
               : {}),
           }
         : {}),
+      ...(preparedForPosting ? { preparedForPosting } : {}),
     },
   };
+}
+
+/** The prepared Roles that are still open, with the public /jobs page of each Harper-connected one that has a page. */
+async function readPreparedForPosting(
+  args: CareerEntrySourceArgs,
+  officialJobId: string
+): Promise<PreparedForPosting | null> {
+  const { data, error } = await (args.admin.from(OFFICIAL_JOB_PREPARED_ROLES_TABLE as never) as any)
+    .select("role_id, kind, rank, reason, prepared_at, role:company_roles(name, status, is_expired, expires_at, source_type, external_jd_url, location_text, information, company:company_workspace(company_name))")
+    .eq("official_job_id", officialJobId)
+    .order("rank", { ascending: true });
+  if (error) {
+    console.warn("[PostOnboardingContext] Failed to load prepared roles", {
+      error: error.message,
+      officialJobId,
+      userId: args.userId,
+    });
+    return null;
+  }
+  const rows = (data ?? []) as PreparedRoleRead[];
+  const harperRoleIds = rows.filter((row) => row.kind === "harper").map((row) => row.role_id);
+  const harperPostingPaths = new Map<string, string>();
+  if (harperRoleIds.length) {
+    const { data: pages } = await args.admin
+      .from("official_jobs")
+      .select("slug, role_id")
+      .in("role_id", harperRoleIds)
+      .eq("is_published", true);
+    for (const page of pages ?? []) {
+      if (page.role_id && page.slug && !harperPostingPaths.has(page.role_id))
+        harperPostingPaths.set(page.role_id, `/jobs/${encodeURIComponent(page.slug)}`);
+    }
+  }
+  return livePreparedRoles(rows, { harperPostingPaths });
 }
