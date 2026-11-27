@@ -454,7 +454,7 @@ test("a paused application is continued, and a closed login reopened, with the p
   } finally { await view.cleanup(); }
 });
 
-test("a turn waiting on the person points to Harper's newest message, and a Stop reads as the person's own choice", async () => {
+test("a Harper turn on hold in the chat points to its newest message without saying what it waits for, and a Stop reads as the person's own choice", async () => {
   const view = await mount();
   const scroller = view.document.createElement("div");
   scroller.innerHTML = '<div data-career-message-role="assistant">first</div><div data-career-message-role="user">me</div>'
@@ -466,16 +466,27 @@ test("a turn waiting on the person points to Harper's newest message, and a Stop
     action: { kind: "reply_in_chat" },
     steps: [step("confirm", "done"), step("fill", "current", { at: ago(12) }), step("review", "todo"), step("submit", "todo")],
   };
+  // The hold is the conversation's (a turn waits behind a newer request) and names no application: every paused row has it.
+  const alsoPaused: CareerApplicationProgress = { ...asking, id: "role-k", companyName: "K사", title: "QA",
+    steps: [step("confirm", "done"), step("fill", "done"), step("review", "todo"), step("submit", "todo")] };
   const stopped: CareerApplicationProgress = {
     id: "role-j", companyName: "J사", title: "PM", status: "failed", updatedAt: ago(10), failure: { reason: "stopped" },
     action: { kind: "continue" },
     steps: [step("confirm", "done"), step("fill", "done"), step("review", "skipped"), step("submit", "failed", { at: ago(10) })],
   };
   try {
-    await view.render(snapshot([asking, stopped]), [], chat);
+    await view.render(snapshot([asking, alsoPaused, stopped]), [], chat);
     await view.click(view.toggle());
-    assert.match(view.row("I사")!.textContent ?? "", /I사 · 디자이너Harper가 채팅에서 답을 기다려요/);
-    await view.click(view.row("I사")!.querySelector('button[aria-label="I사 · 디자이너 채팅에서 답하기"]'));
+    // Nothing moves either one: each says so, and neither claims Harper waits for the person's answer about it.
+    assert.match(view.row("I사")!.textContent ?? "", /I사 · 디자이너진행이 멈췄어요/);
+    assert.match(view.row("K사")!.textContent ?? "", /K사 · QA진행이 멈췄어요/);
+    await view.click(view.row("K사")!.querySelector("button"));
+    const detail = [...view.row("K사")!.querySelectorAll("ol > li")].map(item => item.textContent ?? "")[2];
+    assert.match(detail, /^내 답 확인.+ 이후 진행된 일이 없어요\. Harper가 채팅에서 물어본 게 있으면 채팅에서 답해 주세요\.$/);
+    assert.doesNotMatch(view.panel()!.textContent ?? "", /답을 기다려요|채팅에서 답하기/);
+    const viewChat = view.row("I사")!.querySelector('button[aria-label="I사 · 디자이너 채팅 보기"]');
+    assert.equal(viewChat?.textContent, "채팅 보기");
+    await view.click(viewChat);
     assert.equal(view.scrolled()?.textContent, "newest");
     assert.equal(view.toggle()?.getAttribute("aria-expanded"), "false");
 

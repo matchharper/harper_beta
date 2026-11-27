@@ -265,8 +265,8 @@ test("only a working turn holds a stopped run back from failing", async () => {
   assert.equal(waiting.progressCalls[0].turnStartedAt, null);
 });
 
-test("a turn parked on the person's reply and a Stop's queued browser cleanups reach the progress read", async () => {
-  // A turn waiting for the person's reply in chat: a paused application points there.
+test("a turn on hold in the chat and a Stop's queued browser cleanups reach the progress read", async () => {
+  // A turn on hold behind a newer request: a paused application points to the chat.
   const parked = harness({ turnCreatedAt: "2026-11-04T00:00:00Z", waitingForReply: true });
   await parked.get();
   assert.equal(parked.progressCalls[0].waitingForReply, true);

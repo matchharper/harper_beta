@@ -160,13 +160,13 @@ function askLine(step: CareerApplicationStep | undefined, sub: CareerApplication
 }
 
 const pausedLine = (t: T) => t("career.applicationProgress.paused", "진행이 멈췄어요");
-const replyLine = (t: T) => t("career.applicationProgress.reply_in_chat", "Harper가 채팅에서 답을 기다려요");
 
 /** A needs-you row's line: what its action asks. */
 function needsYouLine(app: CareerApplicationProgress, asked: CareerApplicationSubStep | undefined, t: T) {
   switch (app.action?.kind) {
-    case "continue": return pausedLine(t);
-    case "reply_in_chat": return replyLine(t);
+    // A Harper turn on hold in the chat names no application and no question: the row says only that nothing moves.
+    case "continue":
+    case "reply_in_chat": return pausedLine(t);
     case "reopen_browser": return t("career.applicationProgress.ask.login_closed", "{site} 로그인 창이 닫혔어요", { values: { site: siteName(asked, t) } });
     default: return askLine(currentStep(app), asked, t);
   }
@@ -288,7 +288,6 @@ function mainDetail(step: CareerApplicationStep, app: CareerApplicationProgress,
   // Nothing moves it any more: said once, at the step it is on (a step not started yet when the last one finished).
   if (app.status === "needs_you" && (app.action?.kind === "continue" || app.action?.kind === "reply_in_chat")) {
     if (step !== app.steps[stepNumber(app) - 1]) return null;
-    if (app.action.kind === "reply_in_chat") return replyLine(t);
     const time = formatChatDateDividerLabel(app.updatedAt, locale);
     return time
       ? t("career.applicationProgress.paused_detail", "{time} 이후 진행된 일이 없어요. Harper가 채팅에서 물어본 게 있으면 채팅에서 답해 주세요.", { values: { time } })
@@ -443,7 +442,7 @@ const reopenText = (name: string, t: T) =>
 const continueText = (name: string, t: T) =>
   t("career.applicationProgress.continue_message", "{name} 진행을 이어서 해 줘.", { values: { name } });
 
-/** Shows Harper's newest message, where a question it waits on is. */
+/** Shows Harper's newest message, the chat's latest word while a turn there is on hold. */
 function scrollToHarperReply(scroller: HTMLElement | null | undefined) {
   const replies = (scroller ?? document).querySelectorAll<HTMLElement>('[data-career-message-role="assistant"]');
   const latest = replies[replies.length - 1];
@@ -484,6 +483,7 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, request, no
   const asks = Boolean(mention && request.available);
   const reopen = asks && action?.kind === "reopen_browser";
   const resume = asks && action?.kind === "continue";
+  // A Harper turn on hold in the chat: points there, instead of a second request to go on.
   const reply = Boolean(chat) && action?.kind === "reply_in_chat";
   const send = (text: string) => { if (mention) { onAnswered(); void request.send(text, mention); } };
   return (
@@ -557,11 +557,11 @@ function ApplicationRow({ app, open, onToggle, onAnswer, onAnswered, request, no
           <MuteButton
             size="sm"
             variant="dark"
-            aria-label={t("career.applicationProgress.reply_label", "{name} 채팅에서 답하기", { values: { name } })}
+            aria-label={t("career.applicationProgress.view_chat_label", "{name} 채팅 보기", { values: { name } })}
             className={PRIMARY}
             onClick={() => { onAnswered(); scrollToHarperReply(chat?.scrollRef?.current); }}
           >
-            {t("career.applicationProgress.answer", "답하기")}
+            {t("career.applicationProgress.view_chat", "채팅 보기")}
           </MuteButton>
         ) : viewBrowser ? (
           <MuteButton

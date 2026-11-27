@@ -98,11 +98,12 @@ export async function GET(req: NextRequest) {
           const form = parseCareerForm(row.payload);
           return form ? [{ ...form, createdAt: row.created_at ?? null }] : [];
         })),
-      // A turn that is working (not cleanup, not waiting for the person) may still follow up a stopped run.
+      // A turn that is working (not cleanup, not on hold) may still follow up a stopped run.
       turnStartedAt: turnRows.then((rows) =>
         rows.filter((row) => !row.cleanup && !row.cleanup_browser_session && !row.activity?.waitingForReply)
           .map((row) => row.created_at ?? "").filter(Boolean).sort()[0] ?? null),
-      // A turn parked on the person's reply: a paused application then points to the chat instead of asking Harper again.
+      // A turn on hold behind a newer request: a paused application then points to the chat instead of asking Harper
+      // again. The hold names no application, so it is the whole conversation's.
       waitingForReply: turnRows.then((rows) =>
         rows.some((row) => !row.cleanup && !row.cleanup_browser_session && row.activity?.waitingForReply === true)),
       // A Stop queues one cleanup per open browser; until it runs, that browser is as good as closed.

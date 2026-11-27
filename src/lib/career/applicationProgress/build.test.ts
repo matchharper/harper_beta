@@ -254,7 +254,7 @@ test("nothing moving an application any more is a pause the person can continue"
   // Harper's turn runs, or the record is new enough that its next turn may not have started: Harper is between steps.
   assert.equal(only(build(messages, operations, [], { now: new Date(at(15)), turnStartedAt: at(14) })).status, "waiting");
   assert.equal(only(build(messages, operations, [], { now: new Date(at(12)) })).status, "waiting");
-  // Harper's turn waits for an answer in chat: the row points there instead of asking Harper again.
+  // A Harper turn here is on hold in the chat: the row points there instead of asking Harper again.
   const asked = only(build(messages, operations, [], { now: new Date(at(15)), waitingForReply: true }));
   assert.equal(asked.status, "needs_you");
   assert.deepEqual(asked.action, { kind: "reply_in_chat" });

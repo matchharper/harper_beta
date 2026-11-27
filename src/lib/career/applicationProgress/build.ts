@@ -89,7 +89,10 @@ export type CareerApplicationProgressInput = {
    * a failure yet: the same turn reads its receipt and retries or asks (else the panel flashes "failed" first).
    */
   turnStartedAt?: string | null;
-  /** Harper's turn here is parked until the person replies in chat (its checkpoint asked them something). */
+  /**
+   * A Harper turn here is on hold in the chat: its checkpoint waits for a newer request of the person's first
+   * (CareerEffectWaiting). It names no application and is not a question Harper asked, so it is the conversation's.
+   */
   waitingForReply?: boolean;
   /** Browsers a Stop queued to close (a cleanup not done yet): they count as closed already. */
   closingBrowserSessionIds?: readonly string[];
@@ -640,8 +643,8 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // Nothing runs and nothing is asked: Harper is between steps only while its turn runs or right after a record.
   else if (turnStartedAt || time(updatedAt) > context.now.getTime() - PAUSE_GRACE_MS) status = "waiting";
   else {
-    // Nothing moves it any more (11/27: shown as preparing for three hours). Harper parked its turn on a question in
-    // chat, or the person asks it to go on.
+    // Nothing moves it any more (11/27: shown as preparing for three hours). While a Harper turn here is on hold the
+    // row points to the chat; otherwise the person asks it to go on.
     status = "needs_you";
     action = { kind: context.waitingForReply ? "reply_in_chat" : "continue" };
   }
