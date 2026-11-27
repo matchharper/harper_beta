@@ -60,8 +60,10 @@ export type ApplicationOperationRow = {
   /** browser_run and email_send: the person's message, and the delegated work, it was started for. */
   sourceMessageId?: string | null;
   workId?: string | null;
-  /** Set by read.server.ts: a Stop ended the request of that message, or cancelled that work. */
+  /** Set by read.server.ts: the person's Stop ended the request of that message, or that work was cancelled. */
   stopped?: boolean | null;
+  /** When that Stop or cancellation happened, when known; else the row's own last update stands for it. */
+  stoppedAt?: string | null;
 };
 
 /** An open form as read_open_career_forms returns it (its latest revision), with the row's time when known. */
@@ -98,7 +100,6 @@ const PAUSE_GRACE_MS = 3 * 60 * 1000;
 const KEEP_ALIVE_MS = CAREER_BROWSER_KEEP_ALIVE_SECONDS * 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MESSAGE_ID = /^[1-9][0-9]{0,18}$/;
 const ACTIVE_RUN = new Set(["reserved", "preparing", "dispatching", "running", "capacity_wait", "cancelling"]);
 const ACTIVE_SEND = new Set(["reserved", "preparing", "dispatching"]);
 /** The item types a person fills in (getCareerFormInitialValues); markdown and unknown types only display. */
@@ -189,13 +190,16 @@ type RunView = {
   submitted: "yes" | "no" | "unclear" | null;
   awaitsCode: boolean;
   awaitsLink: boolean;
-  stopped: boolean;
+  /** Set when the person stopped it: that Stop's time (or the run's last update, when not known). */
+  stoppedAt?: string;
   site?: string;
   session?: SessionView;
   latestOnSession: boolean;
 };
 
-type SendView = { id: string; status: string; createdAt: string; updatedAt: string; stopped: boolean };
+type SendView = { id: string; status: string; createdAt: string; updatedAt: string; stoppedAt?: string };
+
+const stoppedAtOf = (row: ApplicationOperationRow) => (row.stopped === true ? row.stoppedAt || row.updatedAt : undefined);
 
 type ApplicationRecords = { id: string; kind: "role" | "opportunity"; forms: FormView[]; runs: RunView[]; sends: SendView[] };
 
@@ -309,7 +313,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
       awaitsCode: finishedExecute && (code === "email" || code === "phone") && submitted !== "yes",
       // A link the site mailed, which the person opens; held like a code.
       awaitsLink: finishedExecute && browserRunAwaitsEmailLink({ verificationCode: row.verificationCode, submitted: row.submitted }),
-      stopped: row.stopped === true,
+      stoppedAt: stoppedAtOf(row),
       site: siteOf(row),
       session: session && { status: session.status, requestedAction: session.requestedAction,
         browserAvailability: session.browserAvailability, closing: closing.has(session.id) },
@@ -323,7 +327,7 @@ function collect(input: Omit<CareerApplicationProgressInput, "roles">): Map<stri
     if (row.kind !== "email_send" || !row.opportunityId) continue;
     const ids = opportunityRoles.get(row.opportunityId) ?? (apps.has(row.opportunityId) ? [row.opportunityId] : []);
     for (const id of ids)
-      apps.get(id)?.sends.push({ id: row.id, status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt, stopped: row.stopped === true });
+      apps.get(id)?.sends.push({ id: row.id, status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt, stoppedAt: stoppedAtOf(row) });
   }
   for (const entry of apps.values()) {
     entry.forms.sort(byCreated);
@@ -352,15 +356,13 @@ export function careerApplicationRoleIds(input: Omit<CareerApplicationProgressIn
 }
 
 /**
- * The person's message and the delegated work behind each application's newest run or send, inside the read window:
- * read.server.ts reads whether a Stop ended them and marks those rows stopped.
+ * The delegated work behind each application's newest run or send, inside the read window: read.server.ts reads
+ * whether it was cancelled and marks those rows stopped. (The person's Stops it reads directly: each names its requests.)
  */
 export function careerApplicationStopRefs(input: Omit<CareerApplicationProgressInput, "roles">) {
   const newest = new Set(inWindow(input).flatMap((app) => [...app.runs, ...app.sends].sort(byCreated).slice(-1).map((work) => work.id)));
   const rows = input.operations.filter((row) => (row.kind === "browser_run" || row.kind === "email_send") && newest.has(row.id));
-  const values = (pick: (row: ApplicationOperationRow) => string | null | undefined, pattern: RegExp) =>
-    [...new Set(rows.map(pick).filter((value): value is string => typeof value === "string" && pattern.test(value)))];
-  return { sourceMessageIds: values((row) => row.sourceMessageId, MESSAGE_ID), workIds: values((row) => row.workId, UUID) };
+  return { workIds: [...new Set(rows.map((row) => row.workId).filter((value): value is string => typeof value === "string" && UUID.test(value)))] };
 }
 
 type Attempt = { run?: RunView; send?: SendView; createdAt: string; updatedAt: string };
@@ -446,7 +448,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const movedSince = (at: string) => app.forms.some((form) => form.open || (form.answer && time(form.answer.at) > time(at)))
     || (Boolean(turnStartedAt) && time(turnStartedAt) > time(at));
   // Work a Stop cut off failed by the person's choice: once something follows, Harper carries on with that step.
-  const resumedAfterStop = (work: { stopped: boolean; updatedAt: string }) => work.stopped && movedSince(work.updatedAt);
+  const resumedAfterStop = (work: { stoppedAt?: string }) => Boolean(work.stoppedAt && movedSince(work.stoppedAt));
   const prep = app.runs.filter((run) => run.mode === "prepare");
   const exec = app.runs.filter((run) => run.mode === "execute");
   const attempts: Attempt[] = [
@@ -593,7 +595,7 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
     actions.push({ action: { kind: "reopen_browser", sessionId: lost.run.sessionId }, at: lost.run.updatedAt });
   // Stopped by the person: a Stop ended the request of the newest work, or the login browser it waited on was closed
   // (in the viewer, or by a Stop's cleanup). It holds until something newer: a form, an answer, or Harper's next turn.
-  const stopFrom = newestWork?.stopped ? newestWork.updatedAt : lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined;
+  const stopFrom = newestWork?.stoppedAt ?? (lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined);
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;

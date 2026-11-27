@@ -309,13 +309,13 @@ test("a Stop reads as stopped, not as a question or a failure, until something n
     "submitted");
 });
 
-test("the Stop lookups name only each application's newest run or send", () => {
+test("the cancelled-work lookup names only the work behind each application's newest run or send", () => {
   const older = run("prepare", "completed", 6, 10, { sourceMessageId: "101", workId: WORK });
   const newer = run("execute", "completed", 11, 14, { sourceMessageId: "102", workId: WORK_2 });
   const other = run("prepare", "running", 20, 20, { roleRefs: [ROLE_B], parentId: SESSION_2, sourceMessageId: "not-an-id", workId: "work" });
   assert.deepEqual(careerApplicationStopRefs({ now: NOW, messages: [form(1, 0)], openForms: [],
     operations: [session(SESSION, "idle"), session(SESSION_2, "running", { roleRefs: [ROLE_B] }), older, newer, other] }),
-  { sourceMessageIds: ["102"], workIds: [WORK_2] });
+  { workIds: [WORK_2] });
 });
 
 test("submitting with nothing new to ask skips the review", () => {

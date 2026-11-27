@@ -284,7 +284,7 @@ test("a turn parked on the person's reply and a Stop's queued browser cleanups r
   assert.deepEqual(Array.from(idle.progressCalls[0].closingBrowserSessionIds as string[]), []);
 });
 
-test("progress reads three narrow queries: this conversation, the last 7 days, selected JSON paths only", async () => {
+test("progress reads narrow queries: this conversation, the last 7 days, selected JSON paths only", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
   const roleId = "00000000-0000-4000-8000-0000000000a1";
   const now = new Date("2026-11-26T10:00:00Z");
@@ -328,8 +328,9 @@ test("progress reads three narrow queries: this conversation, the last 7 days, s
   assert.equal(list[0].companyName, "A사");
   assert.equal(list[0].title, "백엔드 엔지니어");
   assert.equal(list[0].status, "running");
-  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations", "company_roles"]);
-  for (const call of calls.slice(0, 2)) {
+  // Forms, operations and the person's Stops first; then the roles they name.
+  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations", "talent_messages", "company_roles"]);
+  for (const call of calls.slice(0, 3)) {
     assert.equal(call.filters.user_id, userId);
     assert.equal(call.filters.conversation_id, conversationId);
     assert.equal(call.filters["created_at:gte"], "2026-11-19T10:00:00.000Z");
@@ -338,37 +339,45 @@ test("progress reads three narrow queries: this conversation, the last 7 days, s
     assert.ok(!call.columns.split(",").some((column) => ["payload", "request", "result", "provider_refs", "*"].includes(column)), call.columns);
   }
   assert.deepEqual(calls[1].filters["kind:in"], ["browser_session", "browser_run", "email_send"]);
-  assert.deepEqual(calls[2].filters["role_id:in"], [roleId]);
+  assert.equal(calls[2].filters.message_type, "career_turn_stop");
+  assert.deepEqual(calls[3].filters["role_id:in"], [roleId]);
 
   // No application, no role lookup; a failed read rejects so the route can leave the list empty.
   calls.length = 0;
   data.talent_messages = [];
   data.talent_external_operations = [];
   assert.deepEqual(await read(), []);
-  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations"]);
+  assert.deepEqual(calls.map((call) => call.table), ["talent_messages", "talent_external_operations", "talent_messages"]);
   failTable = "talent_external_operations";
   await assert.rejects(read(), /Application operations unavailable/);
 });
 
-test("a Stop behind an application's newest run is read by id from its message flag or its cancelled work", async () => {
+test("only the person's own Stop reads as stopped: its Stop record or a cancelled work, not Harper's own cancellation", async () => {
   const userId = "00000000-0000-4000-8000-0000000000f1";
-  const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2", "00000000-0000-4000-8000-0000000000a3"];
+  const roleIds = ["00000000-0000-4000-8000-0000000000a1", "00000000-0000-4000-8000-0000000000a2",
+    "00000000-0000-4000-8000-0000000000a3", "00000000-0000-4000-8000-0000000000a4"];
   const works = ["00000000-0000-4000-8000-0000000000e2", "00000000-0000-4000-8000-0000000000e3"];
   const now = new Date("2026-11-26T10:00:00Z");
   const calls: { table: string; columns: string; filters: Record<string, unknown>; limit?: number }[] = [];
-  // One failed submission per role: A's request message was flagged by a Stop, B's delegated work was cancelled, and
-  // C's request is still going (its work runs).
+  // One failed submission per role. A's request was ended by the person's Stop (its record lists that message). B's
+  // pending request was cancelled by Harper (manage_work, cancel_career_pending_reply): the same careerTurnStopped flag
+  // on its message, but no Stop record. C's delegated work was cancelled. D's request is still going (its work runs).
   const run = (index: number, extra: Record<string, unknown>) => ({ id: `00000000-0000-4000-8000-0000000000d${index}`, kind: "browser_run",
     status: "failed", mode: "execute", createdAt: "2026-11-26T09:02:00Z", updatedAt: "2026-11-26T09:03:00Z", roleRefs: [roleIds[index]], ...extra });
-  const operations = [run(0, { sourceMessageId: "301" }), run(1, { sourceMessageId: "302", workId: works[0] }), run(2, { sourceMessageId: "303", workId: works[1] })];
+  const operations = [run(0, { sourceMessageId: "301" }), run(1, { sourceMessageId: "302" }),
+    run(2, { sourceMessageId: "303", workId: works[0] }), run(3, { sourceMessageId: "304", workId: works[1] })];
   const admin = {
     from(table: string) {
       const call = { table, columns: "", filters: {} as Record<string, unknown>, limit: undefined as number | undefined };
       calls.push(call);
       const result = () => {
         if (table === "company_roles") return [];
-        if (table === "talent_messages")
-          return call.columns.startsWith("id,") ? [{ id: 301, stopped: true }, { id: 302, stopped: null }, { id: 303, stopped: false }] : [];
+        if (table === "talent_messages") {
+          if (call.filters.message_type === "career_turn_stop")
+            return [{ createdAt: "2026-11-26T09:03:00Z", sourceMessageIds: [301] }, { createdAt: "2026-11-26T08:00:00Z", sourceMessageIds: null }];
+          // The flag alone, as both the person's Stop and Harper's cancellation leave it.
+          return call.columns.startsWith("id,") ? [{ id: 301, stopped: true }, { id: 302, stopped: true }] : [];
+        }
         if (call.filters.kind === "delegated_work") return [{ id: works[0], status: "cancelled" }, { id: works[1], status: "running" }];
         return operations;
       };
@@ -376,7 +385,7 @@ test("a Stop behind an application's newest run is read by id from its message f
         select(columns: string) { call.columns = columns; return query; },
         eq(column: string, value: unknown) { call.filters[column] = value; return query; },
         in(column: string, values: unknown[]) { call.filters[`${column}:in`] = values; return query; },
-        gte() { return query; },
+        gte(column: string, value: unknown) { call.filters[`${column}:gte`] = value; return query; },
         not() { return query; },
         order() { return query; },
         limit(value: number) { call.limit = value; return query; },
@@ -389,17 +398,20 @@ test("a Stop behind an application's newest run is read by id from its message f
     turnStartedAt: Promise.resolve(null), now });
   const byRole = new Map(list.map((item) => [item.id, item]));
   assert.deepEqual(byRole.get(roleIds[0])?.failure, { reason: "stopped" });
-  assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "stopped" });
-  assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "error" });
+  assert.deepEqual(byRole.get(roleIds[1])?.failure, { reason: "error" }, "Harper cancelled it; the person did not stop it");
+  assert.deepEqual(byRole.get(roleIds[2])?.failure, { reason: "stopped" });
+  assert.deepEqual(byRole.get(roleIds[3])?.failure, { reason: "error" });
 
-  const [source, work] = calls.slice(3);
-  assert.deepEqual(calls.map((call) => call.table),
-    ["talent_messages", "talent_external_operations", "company_roles", "talent_messages", "talent_external_operations"]);
-  // Only the flag is selected, for this person's conversation and these ids.
-  assert.equal(source.columns, "id,stopped:payload->careerTurnStopped");
-  assert.deepEqual(source.filters, { user_id: userId, conversation_id: conversationId, "id:in": ["301", "302", "303"] });
-  assert.equal(source.limit, 3);
-  assert.equal(work.columns, "id,status");
-  assert.deepEqual(work.filters, { user_id: userId, conversation_id: conversationId, kind: "delegated_work", "id:in": works });
-  assert.equal(work.limit, 2);
+  // The person's Stops of this conversation's week, only their time and the requests each ended.
+  const stops = calls.find((call) => call.filters.message_type === "career_turn_stop");
+  assert.equal(stops?.columns, "createdAt:created_at,sourceMessageIds:payload->sourceMessageIds");
+  assert.deepEqual(stops?.filters, { user_id: userId, conversation_id: conversationId, message_type: "career_turn_stop",
+    "created_at:gte": "2026-11-19T10:00:00.000Z" });
+  assert.ok(stops?.limit && stops.limit <= 100);
+  assert.equal(calls.filter((call) => call.columns.includes("careerTurnStopped")).length, 0, "the flag is not read");
+  // The work behind each application's newest run, by id.
+  const work = calls.find((call) => call.filters.kind === "delegated_work");
+  assert.equal(work?.columns, "id,status,updatedAt:updated_at");
+  assert.deepEqual(work?.filters, { user_id: userId, conversation_id: conversationId, kind: "delegated_work", "id:in": works });
+  assert.equal(work?.limit, 2);
 });
