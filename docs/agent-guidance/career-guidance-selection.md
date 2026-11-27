@@ -198,7 +198,7 @@ C 선택은 유지한다. 실제 모델로는 아직 돌려 보지 않았다.
 코드:
 - 시작 폼과 웹 지원 검토 폼(`shareLinks/formGuard.ts`의 판정)을 저장할 때 빈 text·select 항목을 이 대화의 지난 답(`readCareerFormAnswers`, 같은 질문 키)으로 채운다(`forms/prefill.ts`). select는 선택지 이름이 그 답과 같을 때만 채운다. 동의·체크박스·문서·긴 글·여러 선택 항목과 시작 폼 자체의 선택(공고 목록, 맡기는 범위, 로그인 기억하기, `account_…`)은 채우지 않고, Harper가 넣은 값은 그대로 둔다. 채운 항목은 "Filled from earlier answers: …"로 Harper에게 알려 맞지 않으면 지우게 한다.
 - 후보 요약 링크 지시문(`shareLinks/siteInstruction.ts`): 지원 경로 질문은 자유 입력이면 "Harper (<링크>)", 목록이면 "Harper", 없으면 "Other/기타"에 "Harper (<링크>)". 그 답에 링크가 들어가면 그것이 링크의 한 자리다. 넣을 곳이 없는 것은 멈출 이유가 아니다.
-- `use_browser` 설명: 채팅으로 받는 것은 한 번 쓰는 코드뿐이고, 빠진 답·선택은 역할에 연결한 폼으로 묻는다. 메일 링크 인증(`verificationCode` email_link)을 처리한다. 그만두는 지원의 브라우저는 사용자에게 넘긴 중이어도 닫는다. 브라우저는 마지막 실행 뒤 30분 열려 있다(`browser/lifetime.ts`). 사이트가 제출을 확인한 실행 뒤에는 완료 화면 사진(`browser/receiptScreenshot.ts`)을 남긴 다음 바로 놓는다(`releaseAfterConfirmedSubmission`). 브라우저를 멈추는 길은 이 서버가 찍고 있는 사진이 끝난 뒤에 멈춘다.
+- `use_browser` 설명: 채팅으로 받는 것은 한 번 쓰는 코드뿐이고, 빠진 답·선택은 역할에 연결한 폼으로 묻는다. 메일 링크 인증(`verificationCode` email_link)을 처리한다. 그만두는 지원의 브라우저는 사용자에게 넘긴 중이어도 닫는다. 브라우저는 마지막 실행 뒤 30분 열려 있다(`browser/lifetime.ts`). 사이트가 제출을 확인한 실행 뒤에는 완료 화면 사진(`browser/receiptScreenshot.ts`)을 남긴 다음 바로 놓는다(`releaseAfterConfirmedSubmission`). 그 브라우저로 다른 공고도 다뤘고 그 지원이 아직 제출되지 않았으면 로그인째로 30분 열어 둔다. 브라우저를 멈추는 길은 이 서버가 찍고 있는 사진이 끝난 뒤에 멈춘다.
 - 지난 답 읽기(`readCareerFormAnswers`)는 동의(consent) 항목도 뺀다. 한 회사에 준 동의는 다른 회사 지원에 다시 쓰지 않는다.
 - 제출 브라우저 지시문(`browser/tool.ts`): 선택이라 표시됐지만 없으면 제출되지 않는 일반 동의는 체크하고 결과에 적는다. 민감정보 동의는 그 회사에 동의했다고 task에 있을 때만 체크하고, 아니면 체크하지 않는다. 그 때문에 제출이 막히면 멈추고 문구·정보·목적·보관 기간·거절하면 어떻게 되는지를 보고한다. 고르지 않은 공고의 제출은 코드가 거절한다(시작 폼의 apply_postings).
 

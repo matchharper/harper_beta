@@ -519,10 +519,26 @@ export async function refreshBrowserExecution(
 }
 
 /**
+ * Whether a run on this browser served an application that no run on it has submitted yet. Harper may carry a
+ * signed-in browser over to another posting of the same site, and that application still needs the browser and its
+ * login (review 11/27).
+ */
+async function browserServesUnsubmittedApplication(context: Pick<ExternalToolContext, "admin" | "userId">, sessionId: string) {
+  const { data, error } = await (context.admin.from as any)("talent_external_operations").select("request,result")
+    .eq("user_id", context.userId).eq("kind", "browser_run").eq("parent_id", sessionId).limit(100);
+  if (error) throw new Error(error.message);
+  const runs = (data ?? []) as Pick<ExternalOperation, "request" | "result">[];
+  const roles = (run: (typeof runs)[number]) => Array.isArray(run.request?.role_refs) ? run.request.role_refs.map(String) : [];
+  const submitted = new Set(runs.filter((run) => browserRunSubmission(run.result ?? {}) === "yes").flatMap(roles));
+  return runs.some((run) => roles(run).some((role) => !submitted.has(role)));
+}
+
+/**
  * A browser whose submission the site confirmed has nothing left to do, so it does not stay open for
  * CAREER_BROWSER_KEEP_ALIVE_SECONDS: once the picture of its last page is kept, it is released like waiting work's
- * browser. Only an idle session still on that run is released; a person's control, a newer run or a result that is
- * not a confirmed submission keeps it. Nothing waits for it; keepAlive (after() in a request) lets it finish.
+ * browser. Only an idle session still on that run is released; a person's control, a newer run, another application
+ * on that browser not yet submitted, or a result that is not a confirmed submission keeps it. Nothing waits for it;
+ * keepAlive (after() in a request) lets it finish.
  */
 export function releaseAfterConfirmedSubmission(
   context: Pick<ExternalToolContext, "admin" | "userId">,
@@ -535,6 +551,7 @@ export function releaseAfterConfirmedSubmission(
     const session = await readOperation(context, sessionId);
     if (!session?.conversation_id || session.kind !== "browser_session" || session.status !== "idle"
       || reference(session, "current_execution_id") !== run.id) return;
+    if (await browserServesUnsubmittedApplication(context, session.id)) return;
     await executeUseBrowser({ action: "release", session_id: session.id }, {
       admin: context.admin, userId: context.userId, conversationId: session.conversation_id,
       requestId: `confirmed-submission:${run.id}`, deadlineAt: Date.now(),

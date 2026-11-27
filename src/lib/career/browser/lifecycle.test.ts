@@ -408,6 +408,26 @@ test("a browser whose submission the site confirmed is released once the picture
   assert.equal(rows[0].provider_refs.session_id, undefined);
   assert.deepEqual(rows[1].provider_refs.receipt_screenshot, { status: "unavailable", reason: "no_cdp_url" });
 });
+test("a confirmed submission keeps its browser open while another application it served is not submitted", async (t) => {
+  // Review 11/27: Harper carried a signed-in browser over to Company B's posting; releasing it after Company A's
+  // submission would have closed B's login too.
+  const { rows, context, events, finish } = finishedSubmission(t, "yes");
+  rows[1].request = { mode: "execute", role_refs: ["role-a"] };
+  rows.push({ ...structuredClone(rows[1]), id: "00000000-0000-4000-8000-000000000007", idempotency_key: "prepare-b",
+    status: "completed", request: { mode: "prepare", role_refs: ["role-b"] }, result: { submitted: "no" } });
+  await refreshBrowserExecution(context, structuredClone(rows[1]));
+  finish();
+  await settle(() => false);
+  assert.deepEqual(events, ["picture"], "the browser is not stopped");
+  assert.equal(rows[0].status, "idle");
+  assert.equal(rows[0].result.browser_availability, undefined);
+  // Once Company B's application on it is submitted as well, the same rule releases it.
+  rows[2].result = { submitted: "yes" };
+  const { releaseAfterConfirmedSubmission } = await import("./tool");
+  releaseAfterConfirmedSubmission(context, structuredClone(rows[1]), () => {});
+  await settle(() => rows[0].result.browser_availability === "stopped");
+  assert.deepEqual(events, ["picture", "stop"]);
+});
 test("an unclear submission keeps its browser open, and closing it waits for the picture of its last page", async (t) => {
   const { rows, context, events, finish } = finishedSubmission(t, "unclear");
   await refreshBrowserExecution(context, structuredClone(rows[1]));
