@@ -47,6 +47,9 @@ const form = (formId: number, minute: number, roleIds = [ROLE_A], extra: Partial
 const answer = (formId: number, minute: number, extra: Partial<ApplicationMessageRow> = {}): ApplicationMessageRow => ({
   messageType: "career_form_response", createdAt: at(minute), formId, revision: 1, actionId: "approve", negativeActionId: "later", ...extra,
 });
+/** A form's resolution: by the person's Stop unless another reason is given (Harper's own resolve gives one). */
+const closed = (formId: number, minute: number, reason = STOP_REASON): ApplicationMessageRow =>
+  ({ messageType: "career_form_resolution", createdAt: at(minute), formId, revision: 1, reason });
 const openForm = (formId: number, items: ApplicationOpenForm["items"], roleIds = [ROLE_A]): ApplicationOpenForm => ({
   formId, revision: 1, kind: "form", items, relatedRefs: roleIds.map((id) => ({ type: "role", id })),
 });
@@ -356,8 +359,6 @@ test("a Stop holds through Harper's turns on other things; asking about that app
 test("a form the person's Stop closed unanswered stays to do, so the percentage never goes back", () => {
   const start = [form(1, 0), answer(1, 5, { submitScope: "review" })];
   const prepared = run("prepare", "completed", 6, 10);
-  const closed = (formId: number, minute: number, reason = STOP_REASON): ApplicationMessageRow =>
-    ({ messageType: "career_form_resolution", createdAt: at(minute), formId, revision: 1, reason });
   const percent = (list: CareerApplicationProgress[]) => careerApplicationPercent(only(list));
   // The review form is open; the person presses Stop (it closes the form and stops the request); then asks to go on
   // and Harper asks the review again; then the person approves it.
@@ -382,6 +383,28 @@ test("a form the person's Stop closed unanswered stays to do, so the percentage 
   const startAgain = build([form(1, 0), closed(1, 3), form(4, 9)], [], [{ ...openForm(4, START_ITEMS), createdAt: at(9) }]);
   assert.deepEqual([percent(startAsked), careerApplicationPercent(startClosed), percent(startAgain)], [0, 0, 0]);
   assert.equal(startClosed.steps[0].state, "current");
+});
+
+test("a Stop that only closed the open start or review form reads as the person's Stop, until something follows", () => {
+  // No run yet: the person stops while the start form waits.
+  const start = only(build([form(1, 0), closed(1, 3)], []));
+  assert.equal(start.status, "failed");
+  assert.deepEqual(start.failure, { reason: "stopped" });
+  assert.deepEqual(start.action, { kind: "continue" });
+  assert.equal(states(start), "confirm:current fill:todo review:todo submit:todo");
+  // The preparation's request had ended (the Stop lists none of its work); the Stop closed the open review form.
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "review" }), form(2, 12)];
+  const prepared = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
+  const review = only(build([...messages, closed(2, 30)], prepared));
+  assert.deepEqual(review.failure, { reason: "stopped" });
+  assert.equal(states(review), "confirm:done fill:done review:current submit:todo");
+  assert.equal(careerApplicationPercent(review), 50);
+  // Harper closing the form itself is no Stop; nor is a Stop's closing once something newer happened for it.
+  assert.equal(only(build([...messages, closed(2, 30, "Handled in the conversation")], prepared)).failure, undefined);
+  const askedAgain = only(build([...messages, closed(2, 30), form(3, 40)], prepared, [openForm(3, REVIEW_ITEMS)]));
+  assert.equal(askedAgain.failure, undefined);
+  assert.deepEqual(askedAgain.action, { kind: "answer_form", formId: 3 });
+  assert.equal(only(build([...messages, closed(2, 30)], [...prepared, run("prepare", "running", 35, 35)])).status, "running");
 });
 
 test("the cancelled-work lookup names only the work behind each application's newest run or send", () => {

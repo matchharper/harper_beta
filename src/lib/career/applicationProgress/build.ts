@@ -630,9 +630,13 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   // The provider closed it for idling: Harper can open it again when the person asks (not while a turn may do so).
   if (lost?.run.sessionId && browserExpired(lost.run.session) && !turnStartedAt)
     actions.push({ action: { kind: "reopen_browser", sessionId: lost.run.sessionId }, at: lost.run.updatedAt });
-  // Stopped by the person: a Stop ended the request of the newest work, or the login browser it waited on was closed
-  // (in the viewer, or by a Stop's cleanup). It holds until something follows for this application (movedSince).
-  const stopFrom = newestWork?.stoppedAt ?? (lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined);
+  // A Stop closed its open start or review form, and that is its newest record (no work of it was under way then).
+  const closedForm = app.forms.filter((form) => form.closedByStop).sort((a, b) => time(a.resolvedAt) - time(b.resolvedAt)).at(-1);
+  const formStop = closedForm && time(closedForm.resolvedAt) >= time(updatedAt) ? closedForm.resolvedAt : undefined;
+  // Stopped by the person: a Stop ended the request of the newest work, the login browser it waited on was closed (in
+  // the viewer, or by a Stop's cleanup), or a Stop closed its open form. It holds until something follows for this
+  // application (movedSince).
+  const stopFrom = newestWork?.stoppedAt ?? (lost && !browserExpired(lost.run.session) ? lost.run.updatedAt : undefined) ?? formStop;
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;
