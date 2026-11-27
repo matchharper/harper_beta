@@ -85,6 +85,8 @@ export type AgentConfigSettings = {
   /** treg 쓰기 and 회사 주소 쓰기 (tuning.ts SignalSettings, 11/26); a 설정 묶음 from before has neither. */
   vendorLookup?: boolean;
   workAddresses?: boolean;
+  /** 링크드인 최신 글 (treg) (tuning.ts SignalSettings, 11/27); a 설정 묶음 from before has none. */
+  freshPosts?: boolean;
 };
 
 export type AgentConfigSnapshot = {
@@ -131,6 +133,7 @@ export function buildAgentConfigSnapshot(args: {
       quietDaysAfterEnd: Number(settings.quietDaysAfterEnd),
       vendorLookup: Boolean(signals.vendorLookup),
       workAddresses: Boolean(signals.workAddresses),
+      freshPosts: Boolean(signals.freshPosts),
     },
     search: Object.fromEntries(SIGNAL_TUNING_FIELDS.map((field) => [field, signals.tuning[field]])) as SignalTuning,
     rules: { ...args.rules },
@@ -315,6 +318,7 @@ export function agentConfigEntries(snapshot: AgentConfigSnapshot, words: ConfigW
   const oldShare = (settings as { exploreShare?: unknown }).exploreShare;
   if (oldShare !== undefined) add("sources", "settings.exploreShare", "열린 웹 검색 비율", oldShare, percent);
   add("sources", "settings.blockedDomains", SIGNAL_TUNING_LABELS.blockedDomains, settings.blockedDomains, list);
+  add("sources", "settings.freshPosts", "링크드인 최신 글 (treg)", settings.freshPosts, onOff);
   for (const field of SIGNAL_TUNING_FIELDS) {
     add("search", `search.${field}`, SIGNAL_TUNING_LABELS[field], snapshot.search?.[field], SEARCH_FORMAT[field]);
   }

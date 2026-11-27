@@ -255,11 +255,19 @@ export type SignalSettings = {
    * (mailRules.ts currentWorkAddress). Off: personal mailboxes and their own domains only, as before.
    */
   workAddresses: boolean;
+  /**
+   * 링크드인 최신 글 (treg) (11/27, Shaun: "이건 켜 그냥 배포하면서"): treg's LinkedIn post search runs as its own
+   * search among the day's searches (signals.ts GOAL_SEARCHES linkedin_fresh) while the 구직 글 channel is on. Off: only
+   * the web search reads LinkedIn, as before.
+   */
+  freshPosts: boolean;
 };
 
 /** Both on until Ops turns one off (Shaun 11/26: "스위치 두 개를 처음부터 다 켜면 돼요"). */
 export const DEFAULT_VENDOR_LOOKUP = true;
 export const DEFAULT_WORK_ADDRESSES = true;
+/** On from the deploy (Shaun 11/27). */
+export const DEFAULT_FRESH_POSTS = true;
 
 /** An on/off saved as a boolean (or a word for one); anything else is the default. */
 function readSwitch(value: unknown, fallback: boolean): boolean {
@@ -271,7 +279,7 @@ function readSwitch(value: unknown, fallback: boolean): boolean {
 }
 
 /**
- * All signal settings from what is saved ({ sources, tuning, blockedDomains, vendorLookup, workAddresses }), cleaned. Earlier saves
+ * All signal settings from what is saved ({ sources, tuning, blockedDomains, vendorLookup, workAddresses, freshPosts }), cleaned. Earlier saves
  * kept a tuning per source and one for the open web ("explore"): the open web's is read as the one 찾는 기준.
  */
 export function normalizeSignalSettings(input: unknown): {
@@ -291,6 +299,7 @@ export function normalizeSignalSettings(input: unknown): {
       sources: sources.settings, tuning: tuning.tuning, blockedDomains,
       vendorLookup: readSwitch(record.vendorLookup, DEFAULT_VENDOR_LOOKUP),
       workAddresses: readSwitch(record.workAddresses, DEFAULT_WORK_ADDRESSES),
+      freshPosts: readSwitch(record.freshPosts, DEFAULT_FRESH_POSTS),
     },
     issues,
   };
