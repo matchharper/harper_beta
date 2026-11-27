@@ -447,6 +447,9 @@ export async function executeSuggestForm(
     && await (await import("@/lib/shareLinks/approvedLink.server")).startFormOffersProfileLink(args, reviewRoles);
   const guarded = withProfileLinkBox(input.form, { startFormOffersLink });
   input.form = guarded.form;
+  // #13·#25 같은 질문 반복: an application's form starts with the user's earlier answers to the same questions (forms/prefill.ts).
+  const prefill = await (await import("./prefill")).prefillFromEarlierAnswers(input.form, { answers: () => readCareerFormAnswers(args), questionKey });
+  input.form = prefill.form;
   const row = await writeForm(args, {
     p_action: input.action,
     p_form_id: input.formId ?? null,
@@ -469,6 +472,7 @@ export async function executeSuggestForm(
           ? "Saved; not displayed in chat. This review is available on opportunities linked to its work."
           : "Saved; not displayed.",
       guarded.added ? "Added the 'Harper 후보 요약 링크 넣기' checkbox (checked by default): this form reviews an application (a document to a company address, or a web application). For a web application code follows this box at use_browser(mode=execute) (link it to the role with relatedRefs); for a mail, if the user keeps it checked, pass profile_link (company name and posting title) to write_email, and again on every retried send." : "",
+      prefill.note,
       formatCareerFormForModel(form),
     ].filter(Boolean).join("\n"),
   };
