@@ -649,9 +649,10 @@ function buildOne(app: ApplicationRecords, role: ApplicationRoleRow | undefined,
   const formStop = closedForm && time(closedForm.resolvedAt) >= time(updatedAt) ? closedForm.resolvedAt : undefined;
   // Stopped by the person: a Stop ended the request of the newest work, the login browser it waited on was closed (in
   // the viewer, or by a Stop's cleanup: from when it closed, not when its run ended), or a Stop closed its open form.
-  // It holds until something follows for this application (movedSince).
+  // From the latest of these: a later Stop that closed only a newer form counts from then, so an answer between the two
+  // Stops does not undo it. It holds until something follows for this application (movedSince).
   const lostStop = lost && !browserExpired(lost.run.session) ? latestTime([lost.run.updatedAt, lost.run.session?.updatedAt]) : undefined;
-  const stopFrom = newestWork?.stoppedAt ?? lostStop ?? formStop;
+  const stopFrom = latestTime([newestWork?.stoppedAt ?? lostStop, formStop]);
   const stopped = Boolean(stopFrom && !movedSince(stopFrom));
   let action = actions.sort((a, b) => time(b.at) - time(a.at))[0]?.action;
   let status: CareerApplicationStatus;

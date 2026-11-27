@@ -436,6 +436,19 @@ test("a Stop that only closed the open start or review form reads as the person'
   assert.equal(only(build([...messages, closed(2, 30)], [...prepared, run("prepare", "running", 35, 35)])).status, "running");
 });
 
+test("a later Stop that closed only the newest form counts from then, though an earlier Stop cut off the newest work", () => {
+  // Stop 1 at 00:20 cut off the submission. The person asked to go on; Harper asked a question (form 2), the person
+  // answered it at 00:28, Harper asked another (form 3), and Stop 2 at 00:40 closed it: A's newest record.
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" }), form(2, 26), answer(2, 28), form(3, 30), closed(3, 40)];
+  const ops = [session(SESSION, "closed", { updatedAt: at(21) }), run("prepare", "completed", 6, 10),
+    { ...run("execute", "failed", 11, 14), stopped: true, stoppedAt: at(20) }];
+  const stopped = only(build(messages, ops, [], { now: new Date(at(60)) }));
+  assert.deepEqual(stopped.failure, { reason: "stopped" }, "the 00:28 answer came before Stop 2");
+  assert.deepEqual(stopped.action, { kind: "continue" });
+  // Something after Stop 2 still picks it up.
+  assert.equal(only(build([...messages, form(4, 45)], ops, [openForm(4, REVIEW_ITEMS)], { now: new Date(at(60)) })).failure, undefined);
+});
+
 test("a question found while submitting that was closed unanswered is not shown as answered", () => {
   const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" }), form(3, 15)];
   const base = [session(SESSION, "idle"), run("prepare", "completed", 6, 10)];
