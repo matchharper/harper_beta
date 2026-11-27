@@ -420,8 +420,9 @@ const attemptActive = (attempt: Attempt) => attempt.run ? runActive(attempt.run)
 
 /**
  * The login of one main step's runs: its newest run that needed the person, or whose browser was handed to them. It is
- * done only once a later run on the same browser or site ended without needing the person. Current while that browser
- * waits for the person, while such a later run works, and after the person returned the browser until one starts.
+ * done only once a later run on the same browser or site ended without needing the person, or, for a preparation's
+ * login, once submitting runs there (the fill step it belongs to is then done). Current while that browser waits for
+ * the person, while a later run of the same step works, and after the person returned the browser until one starts.
  * Left out when a later run needed the person again (that run's own step shows the login) or only failed. Failed when
  * the browser closed first.
  */
@@ -437,7 +438,10 @@ function loginSubStep(runs: RunView[], appRuns: RunView[], actions: Candidate[])
     if (run.needsUser) return undefined;
   }
   const working = later.find(runActive);
-  if (working) return { sub: subStep("login", "current", working.createdAt, episode.site), run: episode };
+  if (working) {
+    const submitting = episode.mode === "prepare" && working.mode === "execute";
+    return { sub: subStep("login", submitting ? "done" : "current", working.createdAt, episode.site), run: episode };
+  }
   if (later.length) return undefined;
   if (awaitingPerson(episode)) {
     actions.push(...openBrowser(episode));

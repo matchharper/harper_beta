@@ -230,6 +230,20 @@ test("a login is done only once a later run on that browser or site gets past it
   assert.equal(lost.failure, undefined);
 });
 
+test("once submitting runs on the browser the preparation signed in on, the fill step's login is done, not under way", () => {
+  const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
+  const loginRun = run("prepare", "completed", 6, 8, { needsUser: true });
+  const extra = { now: new Date(at(14)), turnStartedAt: at(11) };
+  const submitting = only(build(messages, [session(SESSION, "running", { updatedAt: at(12) }), loginRun, run("execute", "running", 12, 13)], [], extra));
+  assert.equal(submitting.status, "running");
+  assert.equal(states(submitting), "confirm:done fill:done review:skipped submit:current");
+  assert.deepEqual(submitting.steps[1].subSteps, [{ key: "login", state: "done", site: "Greenhouse", at: at(12) }]);
+  // Another preparation working after the login still has it under way: the fill step is not done yet.
+  const preparing = only(build(messages, [session(SESSION, "running"), loginRun, run("prepare", "running", 12, 13)], [], extra));
+  assert.equal(states(preparing), "confirm:done fill:current review:todo submit:todo");
+  assert.equal(sub(preparing, "login")?.state, "current");
+});
+
 test("a current step is timed from the work now under way, not from its first try", () => {
   const messages = [form(1, 0), answer(1, 5, { submitScope: "submit" })];
   const nextDay = 24 * 60 + 10;

@@ -252,8 +252,8 @@ test("sub-steps that wait on the person and Harper between steps read plainly", 
 
 test("a running row's line is the step under way, not a login an earlier step still shows as open", async () => {
   const view = await mount();
-  // The submission runs on the browser the person signed in to while filling: that login reads current until a run
-  // there finishes without them, but the row is submitting.
+  // A login still open under the finished fill step while the submission runs (the builder marks it done once submitting
+  // starts there; the row does not rely on that): the row is submitting.
   const submitting: CareerApplicationProgress = {
     id: "role-g", companyName: "G사", title: "데이터 분석가", status: "running", updatedAt: ago(0),
     steps: [step("confirm", "done"), step("fill", "done", { subSteps: [{ key: "login", state: "current", site: "원티드", at: ago(3) }] }),
