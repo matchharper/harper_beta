@@ -41,7 +41,7 @@ const HINTS = {
   followupDays: "메일을 보낸 뒤 반응이 없으면 이만큼 지나서 후속 메일을 한 번 보내요. 그래도 없으면 끝내요.",
   quietDays: "끝난 사람에게는 이 기간 동안 다시 연락하지 않아요.",
   search: "에이전트가 사람을 어디서 찾을지 정해요. 링크드인 지원자 파일은 위에서 따로 올려요.",
-  sources: "체크한 곳과 목록 밖 웹에서 사람을 찾아요. 곳마다 검색 예산은 에이전트가 지난 결과를 보고 매일 나눠요.",
+  sources: "체크한 곳과 목록 밖 웹에서 사람을 찾아요. 곳마다 검색 예산은 에이전트가 지난 결과를 보고 매일 나눠요. 링크드인 최신 글: treg로 링크드인 자체 검색을 해서 최근 7일 글을 최신순으로 읽어요. 웹 검색에 아직 안 잡힌 어제오늘 글이 나와요. 검색 한 번에 약 $0.002예요.",
   blocked: "여기 넣은 도메인에서는 검색하지도, 사람을 남기지도 않아요. 이 도메인의 주소나 이 도메인 회사에 다니는 후보, 이 회사의 채용 글에도 메일을 보내지 않아요.",
   newDomains: "최근 목록 밖 웹에서 사람을 찾은 도메인이에요. '목록에 넣기'는 1번에, '막기'는 2번에 넣어요.",
   channels: "에이전트가 사람을 찾는 길이에요. 끈 채널의 사람에게는 메일을 쓰지도 보내지도 않아요.",
@@ -291,6 +291,13 @@ export default function AgentSettingsForm({ settings, writes, onSaved, newDomain
                 </div>
               );
             })}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="w-28 shrink-0 text-[12px] text-neutral-muted">treg 검색</span>
+              <label className="flex items-center gap-1.5 whitespace-nowrap">
+                <input type="checkbox" checked={signals.freshPosts} onChange={(event) => setSignals({ freshPosts: event.target.checked })} />
+                링크드인 최신 글
+              </label>
+            </div>
           </div>
           <form className="mt-2 flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); addSource(newSource); }}>
             <span className="w-72 shrink-0"><TextInput value={newSource} onChange={(event) => setNewSource(event.target.value)} placeholder="도메인 추가 (예: brunch.co.kr)" /></span>

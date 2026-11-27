@@ -886,8 +886,9 @@ test("a commenter never takes an address that sits near someone else's name, nor
 });
 
 test("goal searches: their own ids on LinkedIn, run while their channel is on (Shaun 11/23)", () => {
-  assert.deepEqual(GOAL_SEARCHES.map((item) => item.id), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
+  assert.deepEqual(GOAL_SEARCHES.map((item) => item.id), ["linkedin_coaching", "linkedin_event", "linkedin_hiring", "linkedin_fresh"]);
   const channels = defaultChannelSettings();
+  // 링크드인 최신 글 (treg, 11/27) also needs its switch and the treg key (freshPosts.test.ts).
   assert.deepEqual(goalSearchesOn(channels), ["linkedin_coaching", "linkedin_event", "linkedin_hiring"]);
   channels.coaching_post.enabled = false;
   channels.company_post.enabled = false;

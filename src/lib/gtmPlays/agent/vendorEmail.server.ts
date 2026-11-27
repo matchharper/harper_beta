@@ -16,7 +16,7 @@ export function vendorToken(): string | null {
   return process.env.TREG_API_KEY?.trim() || process.env.TREG_TOKEN?.trim() || null;
 }
 
-const TREG_CALL_URL = "https://treg.to/call/";
+export const TREG_CALL_URL = "https://treg.to/call/";
 /**
  * One ask's wait. treg polls a slow vendor for up to 60 s (then answers 202) and checks the mailbox after, so an ask
  * gets this long. An ask starts only with this plus TREG_END_MARGIN_MS left in the tick (the route stops at 300 s);

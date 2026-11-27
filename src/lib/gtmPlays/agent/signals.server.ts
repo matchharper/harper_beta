@@ -9,8 +9,8 @@ import {
   EXPLORE_SOURCE, JUDGE_ESTIMATE_USD, PLAN_FAMILIES, JUDGE_SCHEMA, LAYOFF_NEWS_DAYS, LAYOFF_SCHEMA, MAX_QUERIES_PER_ROUND, PLAN_SCHEMA,
   concurrencyLimit, exaSearchCost, exploreExcludeDomains, goalSearchOf, isRegistrySource, judgeBatch, judgePrompt, judgedIntents,
   layoffCompanies, layoffPrompt, normalizeDomainList, normalizeSignalSource, planPrompt, plainPageText, rankSignalPeople, readPage,
-  resultFitsStage, searchCostHint, signalFoundNote, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows,
-  sortVerdicts, sourceOfUrl, stageDomains, urlFingerprint, verdictCounts, wellFormedText, windowDates,
+  resultFitsStage, searchWindows, signalFoundNote, signalLogEntry, signalLogSample, signalMethod, signalSourceInfo, signalWindows,
+  sortVerdicts, sourceOfUrl, sourceSearchCost, stageDomains, urlFingerprint, verdictCounts, wellFormedText, windowDates,
   type LayoffCompany, type LayoffEvent, type PlanFamily, type SignalGoal, type SignalHistoryRun, type SignalJudgement, type SignalLogEntry,
   type SignalMethod, type SignalPlan, type SignalQuery, type SignalSource, type SignalSourceInfo, type SignalStage, type SignalWindow,
   type SignalYield,
@@ -18,8 +18,10 @@ import {
 import type { AgentFoundAs, AgentIntent } from "./channels";
 import type { DemandSummary } from "./demand";
 import type { AgentGiverKind } from "./types";
+import { FRESH_POST_MAX_USD, FRESH_POST_PAGE, freshPostCost, freshPostSearchUrl, readFreshPosts } from "./freshPosts";
 import { cleanSummary, storedPersonName } from "./profile";
 import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from "./tuning";
+import { TREG_CALL_URL, vendorToken } from "./vendorEmail.server";
 
 /**
  * #5 사람 찾기 for one source (one site), or for the open web (source "explore": no include_domains, the default list,
@@ -52,11 +54,14 @@ import { normalizeSignalTuning, signalTuningVersion, type SignalTuning } from ".
  * The frame (runSignalSearch) is shared with the sources that do not use the web search (signals.hn.server.ts).
  *
  * Goal searches (signals.ts GOAL_SEARCHES, Shaun 11/23) run through the same frame under their own id
- * ("linkedin_coaching", "linkedin_event", "linkedin_hiring"): the place's domains, their own goal for the plans, and
+ * ("linkedin_coaching", "linkedin_event", "linkedin_hiring", "linkedin_fresh"): the place's domains, their own goal for the plans, and
  * for the company side its own judge question. The candidate judge also keeps the coaching and event askers whose
  * channel is on (`intents`) and, with `commenters`, the commenters under a post. People who help or hire are kept
  * apart (giverKind set: inserted already excluded, never mailed), not counted as kept, and given to the next plan as
  * rejected examples.
+ *
+ * 링크드인 최신 글 ("linkedin_fresh", Shaun 11/27) is the same loop with treg's LinkedIn post search in place of Exa
+ * (freshPosts.ts): the last FRESH_POST_DAYS, newest first, the author's profile carried with each post.
  */
 
 /** People rounds after the news step. */
@@ -194,8 +199,8 @@ export type SignalSearchArgs = {
 /** Thrown inside the search when deadlineAt is reached: the search returns what it kept. */
 export class SearchCutOff extends Error {}
 
-/** A page to judge, as a search returned it. */
-export type JudgeInput = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null };
+/** A page to judge, as a search returned it; `author`: whose post it is as the search gave it (treg's post search), see signals.ts identifyPerson. */
+export type JudgeInput = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null; author?: string | null };
 
 /** What a source's search works with inside runSignalSearch. */
 export type SignalSearchFrame = {
@@ -262,7 +267,7 @@ export async function runSignalSearch(args: SignalSearchArgs, body: (frame: Sign
   /** Judge calls waiting or running, at their estimate (so the budget check does not overrun while they go on). */
   let reservedUsd = 0;
   const spent = () => searchUsd + totals.costUsd;
-  const searchCost = searchCostHint(tuning.resultsPerSearch);
+  const searchCost = sourceSearchCost(source, tuning.resultsPerSearch);
   const seenPages = new Set<string>();
   const judgedPages = new Set<string>();
   const seenKeys = new Set<string>();
@@ -467,7 +472,8 @@ function scoreOf(value: unknown): number | null {
   return Number.isFinite(score) ? Math.min(100, Math.max(0, Math.round(score))) : null;
 }
 
-type ExaResult = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null };
+/** A search result as the judge reads it; `author` only from treg's post search (signals.ts identifyPerson). */
+type ExaResult = { url: string; title?: string | null; text?: string | null; publishedDate?: string | null; author?: string | null };
 type Article = { id: string; url: string; publishedDate: string | null; text: string; row: SignalYield };
 
 /** A source's search on the web (Exa), plan → search → judge → revise. */
@@ -481,8 +487,9 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
   // The layoff method's part of the budget (the day's split); the signal rounds stop before it.
   const layoffBudget = tuning.layoffSearch && source === "linkedin" ? Math.min(budget, Math.max(0, args.layoffBudgetUsd ?? 0)) : 0;
   const layoffSearch = layoffBudget > 0;
-  const searchCost = searchCostHint(tuning.resultsPerSearch);
-  const exa = getExaClient();
+  const searchCost = sourceSearchCost(source, tuning.resultsPerSearch);
+  const treg = info.engine === "treg";
+  const exa = treg ? null : getExaClient();
 
   /**
    * Plan → search → judge → revise for one stage, while there is room under `cap`. A round that keeps nobody new ends
@@ -491,7 +498,7 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
   async function runStage(stage: SignalStage, rounds: number, cap: number, articles: Article[] = []) {
     // People newest first (the fresh window, then the rest of maxAgeDays); news in one window.
     const newsDays = Math.max(LAYOFF_NEWS_DAYS, tuning.maxAgeDays);
-    const windows = stage === "layoff_news" ? signalWindows(newsDays, newsDays) : signalWindows(tuning.maxAgeDays);
+    const windows = stage === "layoff_news" ? signalWindows(newsDays, newsDays) : searchWindows(source, tuning.maxAgeDays);
     const stageYields: SignalYield[] = [];
     let previous: SignalPlan | null = null;
     for (let round = 1; round <= rounds; round += 1) {
@@ -539,13 +546,14 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
       stage, window: window.label, round, group: query.group, query: query.query, ...(query.family ? { family: query.family } : {}),
       results: 0, kept: 0, withContact: 0, raw: 0,
     };
-    const found = await frame.step(() => runSearch(exa, query, {
+    const found = await frame.step(() => (exa ? runSearch(exa, query, {
       domains: stageDomains(source, stage), exclude: stage === "explore" ? exploreExcludeDomains(blocked) : [], ...windowDates(window, now),
       results: tuning.resultsPerSearch, textChars: stage === "layoff_news" ? NEWS_TEXT_CHARS : info.textChars,
-    }), searchCost).catch((error) => {
+    }) : runFreshPostSearch(query, window, tuning.resultsPerSearch)), searchCost).catch((error) => {
       if (error instanceof SearchCutOff) throw error;
       frame.searchFailed(row, `${stage} search`, error);
-      return { results: [] as ExaResult[], costUsd: 0 };
+      // A treg answer that came back without posts may still have been charged.
+      return { results: [] as ExaResult[], costUsd: error instanceof PaidSearchError ? error.costUsd : 0 };
     });
     frame.addSearchUsd(found.costUsd);
     row.raw = found.results.length;
@@ -588,6 +596,46 @@ async function webSearch(frame: SignalSearchFrame): Promise<void> {
     frame.layoffs = await findLayoffs(articles);
   }
   if (frame.layoffs.length) await runStage("layoff_people", Math.min(LAYOFF_PEOPLE_ROUNDS, tuning.maxRounds), budget);
+}
+
+/** How long one treg post search may take (its vendor usually answers in a few seconds). */
+const FRESH_POST_TIMEOUT_MS = 45_000;
+
+/** A search that failed after treg answered: what the answer cost (X-Treg-Cost-Micro) still counts. */
+class PaidSearchError extends Error {
+  constructor(message: string, readonly costUsd: number) {
+    super(message);
+  }
+}
+
+/**
+ * One treg LinkedIn post search (freshPosts.ts): the query's newest posts inside the window, at most `results`, each
+ * with its author's profile. A failed call throws (the search goes on with the next query: searchFailed).
+ */
+async function runFreshPostSearch(query: SignalQuery, window: SignalWindow, results: number): Promise<{ results: ExaResult[]; costUsd: number }> {
+  const token = vendorToken();
+  if (!token) throw new Error("treg 키가 없어요 (Vercel TREG_API_KEY)");
+  const response = await fetch(freshPostSearchUrl(TREG_CALL_URL, query.query, window.oldestDays), {
+    method: "GET",
+    headers: { "X-Treg-Token": token, "X-Treg-Route-Max-Cost": String(FRESH_POST_MAX_USD) },
+    signal: AbortSignal.timeout(FRESH_POST_TIMEOUT_MS),
+  });
+  const text = await response.text().catch(() => "");
+  const costMicro = response.headers.get("x-treg-cost-micro");
+  // Not answered (no cost header): nothing was charged.
+  const charged = costMicro === null ? 0 : freshPostCost(costMicro);
+  if (!response.ok) throw new PaidSearchError(`treg 링크드인 글 검색 ${response.status} · ${text.slice(0, 160)}`, charged);
+  let body: unknown = null;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new PaidSearchError(`treg 링크드인 글 검색이 JSON이 아닌 답을 줬어요 · ${text.slice(0, 120)}`, charged);
+  }
+  try {
+    return { results: readFreshPosts(body, Math.min(FRESH_POST_PAGE, results)), costUsd: freshPostCost(costMicro) };
+  } catch (error) {
+    throw new PaidSearchError(error instanceof Error ? error.message : String(error), charged);
+  }
 }
 
 async function runSearch(
