@@ -2,6 +2,7 @@ import type { TalentAdminClient } from "@/lib/talentOnboarding/admin";
 import type { CareerAgentReplyJob } from "../agentReplyQueue";
 import { parseCareerForm, type CareerForm } from "../forms/schema";
 import type { CareerBackgroundRun } from "./types";
+import { CAREER_REPLY_UNSEEN_TRIGGER } from "./unseenReply";
 
 export const CAREER_FORM_UNANSWERED_TRIGGER = "career_form_unanswered";
 /** How long the forms have waited since the candidate's chat last displayed them before the email is considered. */
@@ -10,6 +11,12 @@ export const CAREER_FORM_UNANSWERED_GRACE_SECONDS = 30 * 60;
 const CAREER_FORM_UNANSWERED_WINDOW_SECONDS = 24 * 60 * 60;
 
 type UnansweredForm = { formId: number; revision: number; createdAt?: string; form: CareerForm };
+
+/** An email notice about one unseen reply or about forms left unanswered: not a discovery run, so it takes no pending
+ * discovery events and runs on the scheduled model. */
+export function isCareerEmailNoticeRun(run: { trigger: string }) {
+  return run.trigger === CAREER_REPLY_UNSEEN_TRIGGER || run.trigger === CAREER_FORM_UNANSWERED_TRIGGER;
+}
 
 /** The exact form revisions the scan listed, as they were shown; run start and send re-check that they are unchanged. */
 export function readUnansweredForms(run: { trigger_payload?: unknown }): UnansweredForm[] {

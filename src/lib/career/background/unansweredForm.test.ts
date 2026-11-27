@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { formatLlmDateTime } from "@/lib/llm/promptDateTime";
 import { getConfiguredPublicSiteUrl } from "@/lib/siteUrl";
 import { CAREER_BACKGROUND_INSTRUCTION, renderCareerBackgroundInvocation } from "./prompt";
-import { admitUnansweredCareerForms, CAREER_FORM_UNANSWERED_GRACE_SECONDS, readUnansweredForms } from "./unansweredForm";
+import { admitUnansweredCareerForms, CAREER_FORM_UNANSWERED_GRACE_SECONDS, isCareerEmailNoticeRun, readUnansweredForms } from "./unansweredForm";
 
 const form = (formId: number, revision: number, items: unknown[], title = "Company A · Backend Engineer") => ({
   formId, revision, kind: "form", title, presentationDeferred: true, relatedRefs: [{ type: "role", id: "role-a" }], items,
@@ -126,4 +126,11 @@ test("the career-agent maintenance scan runs the unanswered-form scan, and its f
     if (previous === undefined) delete process.env.INTERNAL_WORKER_API_SECRET;
     else process.env.INTERNAL_WORKER_API_SECRET = previous;
   }
+});
+
+test("both email notices, and only they, skip pending discovery events and use the scheduled model", () => {
+  assert.equal(isCareerEmailNoticeRun({ trigger: "career_form_unanswered" }), true);
+  assert.equal(isCareerEmailNoticeRun({ trigger: "career_reply_unseen" }), true);
+  for (const trigger of ["career_check_in", "conversation_completed", "agent_contact_received", "career_daily_due"])
+    assert.equal(isCareerEmailNoticeRun({ trigger }), false, trigger);
 });

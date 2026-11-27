@@ -250,6 +250,7 @@ const triggerLabels: Record<string, string> = {
   career_internal_evaluation: "내부 기회 평가",
   onboarding_internal_evaluation: "온보딩 내부 기회 평가",
   career_reply_unseen: "안 본 답장 메일 검토",
+  career_form_unanswered: "답 안 한 지원 질문 메일 검토",
 };
 
 export function formatDailyDebugSlackMessages(report: DailyDebugReport) {
